@@ -24,12 +24,12 @@ import {
   ModelEval,
   DiagAnalysis,
   DiagReport,
-  KnowledgeBase,
   FeedbackCenter,
   ActiveLearning,
   AutoTrain,
   EvolutionBoard
 } from "./pages/PlaceholderPage";
+import KnowledgeBase from "./pages/KnowledgeBase";
 
 function Router() {
   return (

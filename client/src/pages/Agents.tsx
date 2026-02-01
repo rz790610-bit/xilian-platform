@@ -12,6 +12,7 @@ import { cn } from '@/lib/utils';
 import { nanoid } from 'nanoid';
 import type { Agent } from '@/types';
 import * as ollama from '@/services/ollama';
+import * as qdrant from '@/services/qdrant';
 import { 
   Send, Loader2, Bot, User, Wifi, WifiOff, RefreshCw, 
   Wrench, Zap, Settings2, FileText, Trash2
@@ -164,12 +165,25 @@ export default function Agents() {
   const [models, setModels] = useState<OllamaModelInfo[]>([]);
   const [selectedModel, setSelectedModel] = useState('qwen2.5:7b');
   const [ollamaStatus, setOllamaStatus] = useState<'checking' | 'online' | 'offline'>('checking');
+  const [qdrantStatus, setQdrantStatus] = useState<'checking' | 'online' | 'offline'>('checking');
+  const [enableRAG, setEnableRAG] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // 检查 Ollama 状态
+  // 检查 Ollama 和 Qdrant 状态
   useEffect(() => {
     checkOllamaAndLoadModels();
+    checkQdrantStatus();
   }, []);
+
+  const checkQdrantStatus = async () => {
+    setQdrantStatus('checking');
+    try {
+      const isOnline = await qdrant.checkQdrantStatus();
+      setQdrantStatus(isOnline ? 'online' : 'offline');
+    } catch {
+      setQdrantStatus('offline');
+    }
+  };
 
   // 自动滚动
   useEffect(() => {
@@ -261,9 +275,24 @@ export default function Agents() {
         }));
       
       // 获取智能体专属系统提示词
+      let systemContent = AGENT_SYSTEM_PROMPTS[currentAgent.id] || AGENT_SYSTEM_PROMPTS.general;
+      
+      // RAG 检索增强
+      let ragContext = '';
+      if (enableRAG && qdrantStatus === 'online') {
+        try {
+          ragContext = await qdrant.ragSearch(userMessage.content);
+          if (ragContext) {
+            systemContent += `\n\n---\n以下是与用户问题相关的参考资料，请结合这些信息进行诊断分析：\n\n${ragContext}`;
+          }
+        } catch (error) {
+          console.warn('RAG 检索失败:', error);
+        }
+      }
+      
       const systemPrompt: ollama.ChatMessage = {
         role: 'system',
-        content: AGENT_SYSTEM_PROMPTS[currentAgent.id] || AGENT_SYSTEM_PROMPTS.general
+        content: systemContent
       };
 
       // 添加当前用户消息
@@ -409,11 +438,30 @@ export default function Agents() {
                   <><Loader2 className="w-3 h-3 animate-spin" /> 检查中...</>
                 )}
               </div>
+              {/* Qdrant RAG 状态 */}
+              <div className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] ${
+                qdrantStatus === 'online' 
+                  ? 'bg-cyan-500/10 text-cyan-600' 
+                  : qdrantStatus === 'offline'
+                  ? 'bg-gray-500/10 text-gray-500'
+                  : 'bg-yellow-500/10 text-yellow-600'
+              }`}>
+                {qdrantStatus === 'online' ? (
+                  <>📚 RAG 已启用</>
+                ) : qdrantStatus === 'offline' ? (
+                  <>📚 RAG 未连接</>
+                ) : (
+                  <><Loader2 className="w-3 h-3 animate-spin" /> 检查中...</>
+                )}
+              </div>
               <Button 
                 variant="outline" 
                 size="sm" 
                 className="h-7 text-[10px]"
-                onClick={checkOllamaAndLoadModels}
+                onClick={() => {
+                  checkOllamaAndLoadModels();
+                  checkQdrantStatus();
+                }}
               >
                 <RefreshCw className="w-3 h-3 mr-1" />
                 刷新
@@ -590,10 +638,16 @@ export default function Agents() {
                       <span>对话轮数</span>
                       <span className="font-medium text-foreground">{Math.floor(messages.length / 2)}</span>
                     </div>
-                    <div className="flex justify-between py-1">
+                    <div className="flex justify-between py-1 border-b border-border/50">
                       <span>连接状态</span>
                       <Badge variant={ollamaStatus === 'online' ? 'success' : 'danger'} className="text-[9px]">
                         {ollamaStatus === 'online' ? '已连接' : '未连接'}
+                      </Badge>
+                    </div>
+                    <div className="flex justify-between py-1">
+                      <span>RAG 增强</span>
+                      <Badge variant={qdrantStatus === 'online' && enableRAG ? 'info' : 'default'} className="text-[9px]">
+                        {qdrantStatus === 'online' && enableRAG ? '已启用' : '未启用'}
                       </Badge>
                     </div>
                   </div>
