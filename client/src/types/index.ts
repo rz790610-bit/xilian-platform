@@ -164,3 +164,210 @@ export interface TopologyEdge {
   to: string;
   type: 'data' | 'dependency';
 }
+
+// ==================== 数据接入相关类型 ====================
+
+// 数据源类型
+export type DataSourceType = 'file' | 'database' | 'api' | 'mqtt' | 'opcua' | 'modbus';
+
+// 数据源配置
+export interface DataSource {
+  id: string;
+  name: string;
+  type: DataSourceType;
+  description?: string;
+  config: DataSourceConfig;
+  status: 'connected' | 'disconnected' | 'error' | 'syncing';
+  lastSync?: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// 数据源配置详情
+export interface DataSourceConfig {
+  // 文件类型
+  fileType?: 'csv' | 'excel' | 'json' | 'parquet';
+  filePath?: string;
+  encoding?: string;
+  delimiter?: string;
+  
+  // 数据库类型
+  dbType?: 'mysql' | 'postgresql' | 'influxdb' | 'timescaledb' | 'sqlite';
+  host?: string;
+  port?: number;
+  database?: string;
+  username?: string;
+  password?: string;
+  ssl?: boolean;
+  
+  // API 类型
+  apiUrl?: string;
+  apiMethod?: 'GET' | 'POST';
+  apiHeaders?: Record<string, string>;
+  apiAuth?: 'none' | 'basic' | 'bearer' | 'apikey';
+  apiToken?: string;
+  
+  // MQTT 类型
+  mqttBroker?: string;
+  mqttPort?: number;
+  mqttTopic?: string;
+  mqttQos?: 0 | 1 | 2;
+  mqttClientId?: string;
+  
+  // OPC-UA 类型
+  opcuaEndpoint?: string;
+  opcuaNodeIds?: string[];
+  opcuaSecurityMode?: 'None' | 'Sign' | 'SignAndEncrypt';
+  
+  // Modbus 类型
+  modbusHost?: string;
+  modbusPort?: number;
+  modbusSlaveId?: number;
+  modbusRegisters?: ModbusRegister[];
+  
+  // 通用配置
+  syncInterval?: number; // 同步间隔（秒）
+  retryCount?: number;
+  timeout?: number;
+}
+
+// Modbus 寄存器配置
+export interface ModbusRegister {
+  address: number;
+  length: number;
+  type: 'coil' | 'discrete' | 'holding' | 'input';
+  name: string;
+  dataType: 'int16' | 'uint16' | 'int32' | 'uint32' | 'float32' | 'float64';
+}
+
+// 数据同步记录
+export interface DataSyncLog {
+  id: string;
+  sourceId: string;
+  status: 'success' | 'failed' | 'partial';
+  recordsTotal: number;
+  recordsSuccess: number;
+  recordsFailed: number;
+  errorMessage?: string;
+  startTime: Date;
+  endTime: Date;
+}
+
+// ==================== 数据标准化相关类型 ====================
+
+// 设备编码规范
+export interface DeviceCodeStandard {
+  id: string;
+  name: string;
+  pattern: string; // 正则表达式模式
+  description: string;
+  segments: DeviceCodeSegment[];
+  example: string;
+  isDefault: boolean;
+}
+
+export interface DeviceCodeSegment {
+  name: string;
+  position: number;
+  length: number;
+  type: 'fixed' | 'variable';
+  options?: string[]; // 可选值列表
+  description: string;
+}
+
+// 测点编码规范
+export interface MeasurePointStandard {
+  id: string;
+  name: string;
+  pattern: string;
+  description: string;
+  segments: MeasurePointSegment[];
+  example: string;
+  isDefault: boolean;
+}
+
+export interface MeasurePointSegment {
+  name: string;
+  code: string;
+  description: string;
+  options: MeasurePointOption[];
+}
+
+export interface MeasurePointOption {
+  code: string;
+  name: string;
+  description?: string;
+}
+
+// 单位换算规则
+export interface UnitConversion {
+  id: string;
+  name: string;
+  category: 'vibration' | 'temperature' | 'pressure' | 'speed' | 'current' | 'other';
+  fromUnit: string;
+  toUnit: string;
+  formula: string; // 换算公式，如 "x * 9.8"
+  description?: string;
+}
+
+// 故障分类标准
+export interface FaultCategory {
+  id: string;
+  code: string;
+  name: string;
+  parentId?: string;
+  level: number;
+  description?: string;
+  symptoms?: string[];
+  children?: FaultCategory[];
+}
+
+// 工况阈值配置
+export interface ConditionThreshold {
+  id: string;
+  name: string;
+  measureType: string; // 测量类型（振动、温度等）
+  unit: string;
+  normalMin: number;
+  normalMax: number;
+  warningMin: number;
+  warningMax: number;
+  alarmMin: number;
+  alarmMax: number;
+  description?: string;
+}
+
+// 数据质量规则
+export interface DataQualityRule {
+  id: string;
+  name: string;
+  type: 'range' | 'null' | 'duplicate' | 'format' | 'outlier' | 'custom';
+  field: string;
+  condition: string;
+  action: 'reject' | 'warn' | 'fix' | 'tag';
+  fixValue?: string;
+  description?: string;
+  enabled: boolean;
+}
+
+// 数据映射规则
+export interface DataMappingRule {
+  id: string;
+  name: string;
+  sourceField: string;
+  targetField: string;
+  transform?: 'none' | 'uppercase' | 'lowercase' | 'trim' | 'round' | 'custom';
+  customTransform?: string;
+  description?: string;
+}
+
+// 标准化配置
+export interface StandardizationConfig {
+  deviceCodeStandards: DeviceCodeStandard[];
+  measurePointStandards: MeasurePointStandard[];
+  unitConversions: UnitConversion[];
+  faultCategories: FaultCategory[];
+  conditionThresholds: ConditionThreshold[];
+  dataQualityRules: DataQualityRule[];
+  dataMappingRules: DataMappingRule[];
+}

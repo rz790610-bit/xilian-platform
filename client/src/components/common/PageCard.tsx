@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils';
 interface PageCardProps {
   children: React.ReactNode;
   title?: string;
-  icon?: string;
+  icon?: React.ReactNode;
   action?: React.ReactNode;
   className?: string;
   noPadding?: boolean;

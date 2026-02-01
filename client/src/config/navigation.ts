@@ -12,6 +12,8 @@ export const navigationConfig: NavItem[] = [
     label: '数据中心',
     icon: '📊',
     children: [
+      { id: 'data-access', label: '数据接入', icon: '🔌', path: '/data/access' },
+      { id: 'data-standard', label: '数据标准化', icon: '📏', path: '/data/standard' },
       { id: 'data-manage', label: '数据管理', icon: '📁', path: '/data/manage' },
       { id: 'data-label', label: '数据标注', icon: '🏷️', path: '/data/label' },
       { id: 'data-insight', label: '数据洞察', icon: '📈', path: '/data/insight' }

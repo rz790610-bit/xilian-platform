@@ -16,6 +16,8 @@ import ModelInference from "./pages/ModelInference";
 import Settings from "./pages/Settings";
 import DataLabel from "./pages/DataLabel";
 import DataInsight from "./pages/DataInsight";
+import DataAccess from "./pages/DataAccess";
+import DataStandard from "./pages/DataStandard";
 import ModelRepo from "./pages/ModelRepo";
 import {
   ModelFinetune,
@@ -48,6 +50,8 @@ function Router() {
       <Route path="/data/manage" component={DataManage} />
       <Route path="/data/label" component={DataLabel} />
       <Route path="/data/insight" component={DataInsight} />
+      <Route path="/data/access" component={DataAccess} />
+      <Route path="/data/standard" component={DataStandard} />
       
       {/* Model center */}
       <Route path="/model/inference" component={ModelInference} />
