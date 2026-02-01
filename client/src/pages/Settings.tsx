@@ -791,7 +791,7 @@ export default function Settings() {
                         <Button variant="secondary" size="sm" onClick={() => testDbConnection(db.id)}>
                           测试连接
                         </Button>
-                        <Button variant="ghost" size="sm">
+                        <Button variant="ghost" size="sm" onClick={() => toast.info('数据库配置功能开发中')}>
                           配置
                         </Button>
                       </div>

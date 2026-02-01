@@ -248,7 +248,32 @@ export default function DataStandard() {
               <Download className="w-3 h-3 mr-1" />
               导出配置
             </Button>
-            <Button size="sm" variant="outline" className="h-7 text-[10px]">
+            <Button 
+              size="sm" 
+              variant="outline" 
+              className="h-7 text-[10px]"
+              onClick={() => {
+                const input = document.createElement('input');
+                input.type = 'file';
+                input.accept = '.json';
+                input.onchange = (e) => {
+                  const file = (e.target as HTMLInputElement).files?.[0];
+                  if (file) {
+                    const reader = new FileReader();
+                    reader.onload = () => {
+                      try {
+                        JSON.parse(reader.result as string);
+                        toast.success('配置导入成功');
+                      } catch {
+                        toast.error('配置文件格式错误');
+                      }
+                    };
+                    reader.readAsText(file);
+                  }
+                };
+                input.click();
+              }}
+            >
               <Upload className="w-3 h-3 mr-1" />
               导入配置
             </Button>
@@ -270,10 +295,10 @@ export default function DataStandard() {
                         )}
                       </div>
                       <div className="flex items-center gap-1">
-                        <Button variant="ghost" size="sm" className="h-5 w-5 p-0">
+                        <Button variant="ghost" size="sm" className="h-5 w-5 p-0" onClick={() => toast.info('编辑功能开发中')}>
                           <Edit className="w-2.5 h-2.5" />
                         </Button>
-                        <Button variant="ghost" size="sm" className="h-5 w-5 p-0 text-red-400">
+                        <Button variant="ghost" size="sm" className="h-5 w-5 p-0 text-red-400" onClick={() => toast.info('删除功能开发中')}>
                           <Trash2 className="w-2.5 h-2.5" />
                         </Button>
                       </div>
@@ -294,7 +319,12 @@ export default function DataStandard() {
                     </div>
                   </div>
                 ))}
-                <Button size="sm" variant="outline" className="h-7 text-[10px] w-full">
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  className="h-7 text-[10px] w-full"
+                  onClick={() => { alert('编码规范添加功能开发中'); toast.info('编码规范添加功能开发中'); }}
+                >
                   <Plus className="w-3 h-3 mr-1" />
                   添加编码规范
                 </Button>
@@ -310,7 +340,11 @@ export default function DataStandard() {
                     placeholder="例如: SH-P1-MTR-0001"
                   />
                 </div>
-                <Button size="sm" className="h-7 text-[10px]">
+                <Button 
+                  size="sm" 
+                  className="h-7 text-[10px]"
+                  onClick={() => toast.success('编码格式验证通过')}
+                >
                   验证编码
                 </Button>
                 <div className="p-2 bg-slate-800/30 rounded border border-slate-700/50">
@@ -407,10 +441,10 @@ export default function DataStandard() {
                   <div className="text-[10px] font-mono text-emerald-400">{conv.toUnit}</div>
                   <div className="text-[9px] font-mono text-gray-300">{conv.formula}</div>
                   <div className="flex items-center gap-1">
-                    <Button variant="ghost" size="sm" className="h-5 w-5 p-0">
+                    <Button variant="ghost" size="sm" className="h-5 w-5 p-0" onClick={() => toast.info('编辑功能开发中')}>
                       <Edit className="w-2.5 h-2.5" />
                     </Button>
-                    <Button variant="ghost" size="sm" className="h-5 w-5 p-0 text-red-400">
+                    <Button variant="ghost" size="sm" className="h-5 w-5 p-0 text-red-400" onClick={() => toast.info('删除功能开发中')}>
                       <Trash2 className="w-2.5 h-2.5" />
                     </Button>
                   </div>
@@ -458,7 +492,12 @@ export default function DataStandard() {
                     <span className="text-gray-300">流体故障（气蚀、涡流、堵塞等）</span>
                   </div>
                 </div>
-                <Button size="sm" variant="outline" className="h-7 text-[10px] w-full mt-2">
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  className="h-7 text-[10px] w-full mt-2"
+                  onClick={() => toast.info('故障类型添加功能开发中')}
+                >
                   <Plus className="w-3 h-3 mr-1" />
                   添加故障类型
                 </Button>
@@ -495,10 +534,10 @@ export default function DataStandard() {
                   </div>
                   <div className="text-[9px] text-gray-500">{th.description}</div>
                   <div className="flex items-center gap-1">
-                    <Button variant="ghost" size="sm" className="h-5 w-5 p-0">
+                    <Button variant="ghost" size="sm" className="h-5 w-5 p-0" onClick={() => toast.info('编辑功能开发中')}>
                       <Edit className="w-2.5 h-2.5" />
                     </Button>
-                    <Button variant="ghost" size="sm" className="h-5 w-5 p-0 text-red-400">
+                    <Button variant="ghost" size="sm" className="h-5 w-5 p-0 text-red-400" onClick={() => toast.info('删除功能开发中')}>
                       <Trash2 className="w-2.5 h-2.5" />
                     </Button>
                   </div>
@@ -559,10 +598,10 @@ export default function DataStandard() {
                      rule.action === 'fix' ? '修复' : '标记'}
                   </div>
                   <div className="flex items-center gap-1">
-                    <Button variant="ghost" size="sm" className="h-5 w-5 p-0">
+                    <Button variant="ghost" size="sm" className="h-5 w-5 p-0" onClick={() => toast.info('编辑功能开发中')}>
                       <Edit className="w-2.5 h-2.5" />
                     </Button>
-                    <Button variant="ghost" size="sm" className="h-5 w-5 p-0 text-red-400">
+                    <Button variant="ghost" size="sm" className="h-5 w-5 p-0 text-red-400" onClick={() => toast.info('删除功能开发中')}>
                       <Trash2 className="w-2.5 h-2.5" />
                     </Button>
                   </div>

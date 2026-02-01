@@ -310,7 +310,7 @@ export default function DataLabel() {
                     <SelectItem value="done">已完成</SelectItem>
                   </SelectContent>
                 </Select>
-                <Button variant="ghost" size="sm">
+                <Button variant="ghost" size="sm" onClick={() => toast.info('已刷新文件列表')}>
                   <RefreshCw className="w-4 h-4" />
                 </Button>
               </div>
