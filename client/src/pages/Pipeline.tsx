@@ -7,9 +7,19 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAppStore } from '@/stores/appStore';
 import { cn } from '@/lib/utils';
 import { nanoid } from 'nanoid';
-import { Trash2, Play, Save, X } from 'lucide-react';
-import type { PipelineNode, Plugin } from '@/types';
+import { Trash2, Play, Save, X, Download, Upload, FileJson } from 'lucide-react';
+import type { PipelineNode, Plugin, PipelineConnection } from '@/types';
 import { toast } from 'sonner';
+
+// Pipeline 配置文件格式
+interface PipelineConfig {
+  version: string;
+  name: string;
+  description?: string;
+  createdAt: string;
+  nodes: PipelineNode[];
+  connections: PipelineConnection[];
+}
 
 export default function Pipeline() {
   const { 
@@ -27,6 +37,7 @@ export default function Pipeline() {
   const [executionLog, setExecutionLog] = useState<string[]>([]);
   const [isRunning, setIsRunning] = useState(false);
   const canvasRef = useRef<HTMLDivElement>(null);
+  const importInputRef = useRef<HTMLInputElement>(null);
 
   const handleDragStart = (e: React.DragEvent, plugin: Plugin) => {
     e.dataTransfer.setData('plugin', JSON.stringify(plugin));
@@ -109,6 +120,103 @@ export default function Pipeline() {
     }
   };
 
+  // 导出 Pipeline 配置
+  const handleExportPipeline = () => {
+    if (pipelineNodes.length === 0) {
+      toast.error('画布为空，无法导出');
+      return;
+    }
+
+    const name = prompt('请输入配置文件名称:', 'pipeline-config');
+    if (!name) return;
+
+    const config: PipelineConfig = {
+      version: '1.0.0',
+      name: name,
+      description: `Pipeline 配置文件 - ${name}`,
+      createdAt: new Date().toISOString(),
+      nodes: pipelineNodes,
+      connections: pipelineConnections
+    };
+
+    const blob = new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${name}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    toast.success(`配置已导出为 ${name}.json`);
+  };
+
+  // 导入 Pipeline 配置
+  const handleImportPipeline = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const content = event.target?.result as string;
+        const config: PipelineConfig = JSON.parse(content);
+
+        // 验证配置文件格式
+        if (!config.version || !config.nodes || !Array.isArray(config.nodes)) {
+          toast.error('无效的配置文件格式');
+          return;
+        }
+
+        // 确认是否覆盖当前配置
+        if (pipelineNodes.length > 0) {
+          if (!confirm('当前画布不为空，导入将覆盖现有配置。是否继续？')) {
+            return;
+          }
+        }
+
+        // 清空当前配置
+        clearPipeline();
+
+        // 导入节点（生成新的 ID 以避免冲突）
+        const idMap = new Map<string, string>();
+        
+        config.nodes.forEach((node) => {
+          const newId = nanoid();
+          idMap.set(node.id, newId);
+          
+          const newNode: PipelineNode = {
+            ...node,
+            id: newId
+          };
+          addPipelineNode(newNode);
+        });
+
+        // 导入连接（使用新的 ID）
+        const { addPipelineConnection } = useAppStore.getState();
+        config.connections?.forEach((conn) => {
+          const newConn: PipelineConnection = {
+            id: nanoid(),
+            from: idMap.get(conn.from) || conn.from,
+            to: idMap.get(conn.to) || conn.to
+          };
+          addPipelineConnection(newConn);
+        });
+
+        toast.success(`已导入配置: ${config.name || file.name}`);
+        setExecutionLog([`📥 已导入配置文件: ${config.name || file.name}`, `节点数量: ${config.nodes.length}`, `连接数量: ${config.connections?.length || 0}`]);
+      } catch (error) {
+        console.error('Import error:', error);
+        toast.error('配置文件解析失败，请检查文件格式');
+      }
+    };
+
+    reader.readAsText(file);
+    // 清空 input 以便可以重复选择同一文件
+    e.target.value = '';
+  };
+
   // 渲染连接线
   const renderConnections = () => {
     return pipelineConnections.map((conn) => {
@@ -186,6 +294,35 @@ export default function Pipeline() {
                   icon="📐"
                   action={
                     <div className="flex gap-2">
+                      {/* 导入按钮 */}
+                      <Button 
+                        variant="secondary" 
+                        size="sm" 
+                        onClick={() => importInputRef.current?.click()}
+                        title="导入配置"
+                      >
+                        <Upload className="w-4 h-4 mr-1" />
+                        导入
+                      </Button>
+                      <input
+                        ref={importInputRef}
+                        type="file"
+                        accept=".json"
+                        onChange={handleImportPipeline}
+                        className="hidden"
+                      />
+                      
+                      {/* 导出按钮 */}
+                      <Button 
+                        variant="secondary" 
+                        size="sm" 
+                        onClick={handleExportPipeline}
+                        title="导出配置"
+                      >
+                        <Download className="w-4 h-4 mr-1" />
+                        导出
+                      </Button>
+                      
                       <Button variant="secondary" size="sm" onClick={handleClearCanvas}>
                         <Trash2 className="w-4 h-4 mr-1" />
                         清空
@@ -257,6 +394,7 @@ export default function Pipeline() {
                         <div className="text-center">
                           <span className="text-4xl block mb-3">📥</span>
                           <p>拖拽左侧插件到画布</p>
+                          <p className="text-sm mt-2">或点击「导入」加载配置文件</p>
                         </div>
                       </div>
                     )}
@@ -271,6 +409,7 @@ export default function Pipeline() {
                           <div key={i} className={cn(
                             log.includes('✅') ? 'text-success' : 
                             log.includes('✓') ? 'text-primary' : 
+                            log.includes('📥') ? 'text-cyan' :
                             'text-muted-foreground'
                           )}>
                             {log}
@@ -279,6 +418,26 @@ export default function Pipeline() {
                       </div>
                     </div>
                   )}
+                </PageCard>
+
+                {/* 配置文件说明 */}
+                <PageCard className="mt-4" title="配置文件说明" icon="📄">
+                  <div className="text-sm text-muted-foreground space-y-2">
+                    <p>
+                      <FileJson className="w-4 h-4 inline mr-2 text-primary" />
+                      <strong>导出</strong>：将当前 Pipeline 配置导出为 JSON 文件，包含所有节点和连接信息
+                    </p>
+                    <p>
+                      <Upload className="w-4 h-4 inline mr-2 text-success" />
+                      <strong>导入</strong>：从 JSON 配置文件加载 Pipeline，支持 .json 格式
+                    </p>
+                    <div className="mt-3 p-3 bg-background rounded-lg border border-border">
+                      <p className="text-xs font-mono">
+                        配置文件格式示例：<br/>
+                        {`{ "version": "1.0.0", "name": "...", "nodes": [...], "connections": [...] }`}
+                      </p>
+                    </div>
+                  </div>
                 </PageCard>
               </div>
             </div>
