@@ -16,29 +16,29 @@ export function Topbar({ title }: TopbarProps) {
   };
 
   return (
-    <header className="h-12 glass border-b border-border sticky top-0 z-40 flex items-center justify-between px-5">
-      <div className="flex items-center gap-4">
+    <header className="h-10 glass border-b border-border sticky top-0 z-40 flex items-center justify-between px-4">
+      <div className="flex items-center gap-3">
         <Button 
           variant="ghost" 
           size="icon"
           onClick={toggleSidebar}
-          className="lg:hidden"
+          className="lg:hidden h-7 w-7"
         >
-          <Menu className="w-5 h-5" />
+          <Menu className="w-4 h-4" />
         </Button>
-        <h1 className="text-base font-semibold bg-gradient-to-r from-foreground to-muted-foreground bg-clip-text text-transparent">
+        <h1 className="text-sm font-semibold bg-gradient-to-r from-foreground to-muted-foreground bg-clip-text text-transparent">
           {title}
         </h1>
       </div>
 
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3">
         {/* Status indicator */}
-        <div className="flex items-center gap-2 px-3 py-1.5 bg-card rounded-full text-xs">
-          <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 px-2.5 py-1 bg-card rounded-full text-[10px]">
+          <div className="flex items-center gap-1">
             <span 
               className={cn(
-                "status-dot",
-                systemStatus.api === 'running' ? "status-dot-success" : "status-dot-danger"
+                "w-1.5 h-1.5 rounded-full",
+                systemStatus.api === 'running' ? "bg-green-500" : "bg-red-500"
               )}
             />
             <span className="text-muted-foreground">
@@ -51,9 +51,9 @@ export function Topbar({ title }: TopbarProps) {
           variant="secondary" 
           size="sm"
           onClick={handleRefresh}
-          className="gap-2"
+          className="gap-1.5 h-7 text-[11px] px-2.5"
         >
-          <RefreshCw className="w-4 h-4" />
+          <RefreshCw className="w-3 h-3" />
           刷新
         </Button>
       </div>

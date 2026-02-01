@@ -18,8 +18,8 @@ export function StatCard({ value, label, icon, trend, onClick, className, compac
     <div 
       onClick={onClick}
       className={cn(
-        "bg-card border border-border rounded-xl relative overflow-hidden transition-all duration-300 card-hover",
-        compact ? "p-3" : "p-4",
+        "bg-card border border-border rounded-lg relative overflow-hidden transition-all duration-300 card-hover",
+        compact ? "p-2" : "p-2.5",
         onClick && "cursor-pointer",
         className
       )}
@@ -32,16 +32,16 @@ export function StatCard({ value, label, icon, trend, onClick, className, compac
           <div>
             <div className={cn(
               "font-bold bg-gradient-to-r from-primary to-cyan bg-clip-text text-transparent",
-              compact ? "text-2xl" : "text-3xl"
+              compact ? "text-lg" : "text-xl"
             )}>{value}</div>
             <div className={cn(
-              "text-muted-foreground mt-0.5",
-              compact ? "text-xs" : "text-sm"
+              "text-muted-foreground",
+              compact ? "text-[9px]" : "text-[10px]"
             )}>{label}</div>
           </div>
           <div className={cn(
-            "rounded-lg bg-gradient-to-br from-secondary to-muted flex items-center justify-center",
-            compact ? "w-9 h-9 text-lg" : "w-10 h-10 text-xl"
+            "rounded-md bg-gradient-to-br from-secondary to-muted flex items-center justify-center",
+            compact ? "w-7 h-7 text-sm" : "w-8 h-8 text-base"
           )}>
             {icon}
           </div>
@@ -49,8 +49,8 @@ export function StatCard({ value, label, icon, trend, onClick, className, compac
         
         {trend && (
           <div className={cn(
-            "flex items-center gap-1 mt-2",
-            compact ? "text-xs" : "text-sm",
+            "flex items-center gap-0.5 mt-1",
+            compact ? "text-[9px]" : "text-[10px]",
             trend.isPositive ? "text-success" : "text-danger"
           )}>
             <span>{trend.isPositive ? '↑' : '↓'}</span>

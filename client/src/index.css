@@ -262,7 +262,7 @@
 
   /* 统计卡片 - Safari 兼容 */
   .stat-value {
-    @apply text-2xl font-bold;
+    @apply text-lg font-bold;
     background: linear-gradient(135deg, oklch(0.65 0.18 240), oklch(0.72 0.12 200));
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;

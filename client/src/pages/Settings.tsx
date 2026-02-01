@@ -437,25 +437,25 @@ export default function Settings() {
     <MainLayout title="系统设置">
       <div className="animate-fade-up">
         {/* Page header */}
-        <div className="flex justify-between items-start mb-7">
+        <div className="flex justify-between items-start mb-4">
           <div>
-            <h2 className="text-2xl font-bold mb-2">⚙️ 系统设置</h2>
-            <p className="text-muted-foreground">管理系统资源、模型配置和运行状态</p>
+            <h2 className="text-base font-bold mb-1">⚙️ 系统设置</h2>
+            <p className="text-xs text-muted-foreground">管理系统资源、模型配置和运行状态</p>
           </div>
-          <div className="flex gap-3">
-            <Button variant="secondary" size="sm" onClick={handleRefresh}>
-              <RefreshCw className="w-4 h-4 mr-2" />
+          <div className="flex gap-2">
+            <Button variant="secondary" size="sm" onClick={handleRefresh} className="h-7 text-[11px] px-2">
+              <RefreshCw className="w-3 h-3 mr-1" />
               刷新状态
             </Button>
-            <Button size="sm" onClick={handleExportReport}>
-              <Download className="w-4 h-4 mr-2" />
+            <Button size="sm" onClick={handleExportReport} className="h-7 text-[11px] px-2">
+              <Download className="w-3 h-3 mr-1" />
               导出报告
             </Button>
           </div>
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="mb-4 text-sm">
+          <TabsList className="mb-3 text-[11px] h-8">
             <TabsTrigger value="resources">📊 资源总览</TabsTrigger>
             <TabsTrigger value="models">🧠 大模型</TabsTrigger>
             <TabsTrigger value="databases">🗄️ 数据库</TabsTrigger>
@@ -468,7 +468,7 @@ export default function Settings() {
           {/* ========== 资源总览 ========== */}
           <TabsContent value="resources">
             {/* Stats */}
-            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-4">
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-2 mb-3">
               <StatCard value={models.length} label="大模型" icon="🧠" />
               <StatCard value={databases.length} label="数据库" icon="🗄️" />
               <StatCard value={plugins.length} label="插件" icon="🧩" />
@@ -481,17 +481,17 @@ export default function Settings() {
               title="服务状态"
               icon="🔌"
               action={
-                <span className="text-sm text-muted-foreground">
+                <span className="text-[10px] text-muted-foreground">
                   上次刷新: {lastRefresh.toLocaleTimeString()}
                 </span>
               }
             >
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5">
                 {services.map((service, i) => (
                   <div
                     key={i}
                     className={cn(
-                      "flex items-center justify-between p-3 bg-secondary rounded-lg border-l-3 text-sm",
+                      "flex items-center justify-between p-2 bg-secondary rounded-md border-l-2 text-[11px]",
                       service.status === 'running' || service.status === 'connected' 
                         ? "border-success" 
                         : "border-danger"

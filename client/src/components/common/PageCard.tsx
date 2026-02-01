@@ -16,8 +16,8 @@ export function PageCard({ children, title, icon, action, className, noPadding, 
     <div 
       onClick={onClick}
       className={cn(
-        "bg-gradient-to-br from-card to-secondary border border-border rounded-xl relative overflow-hidden transition-all duration-300",
-        !noPadding && (compact ? "p-3" : "p-4"),
+        "bg-gradient-to-br from-card to-secondary border border-border rounded-lg relative overflow-hidden transition-all duration-300",
+        !noPadding && (compact ? "p-2" : "p-3"),
         onClick && "cursor-pointer",
         className
       )}
@@ -28,18 +28,18 @@ export function PageCard({ children, title, icon, action, className, noPadding, 
       {(title || action) && (
         <div className={cn(
           "flex justify-between items-center",
-          !noPadding && (compact ? "mb-2" : "mb-3")
+          !noPadding && (compact ? "mb-1.5" : "mb-2")
         )}>
           {title && (
             <h3 className={cn(
-              "font-semibold flex items-center gap-2 text-foreground",
-              compact ? "text-sm" : "text-base"
+              "font-semibold flex items-center gap-1.5 text-foreground",
+              compact ? "text-[11px]" : "text-xs"
             )}>
-              {icon && <span className={compact ? "text-base" : "text-lg"}>{icon}</span>}
+              {icon && <span className={compact ? "text-sm" : "text-sm"}>{icon}</span>}
               {title}
             </h3>
           )}
-          {action && <div>{action}</div>}
+          {action && <div className="text-[10px]">{action}</div>}
         </div>
       )}
       
