@@ -1,9 +1,9 @@
-import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
 import { Route, Switch, Redirect } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
+import { ToastProvider } from "./components/common/Toast";
 
 // Pages
 import Dashboard from "./pages/Dashboard";
@@ -86,19 +86,11 @@ function App() {
   return (
     <ErrorBoundary>
       <ThemeProvider defaultTheme="dark">
-        <TooltipProvider>
-          <Toaster 
-            position="top-right"
-            toastOptions={{
-              style: {
-                background: 'oklch(0.15 0.03 250)',
-                border: '1px solid oklch(0.28 0.04 250)',
-                color: 'oklch(0.95 0.01 250)'
-              }
-            }}
-          />
-          <Router />
-        </TooltipProvider>
+        <ToastProvider>
+          <TooltipProvider>
+            <Router />
+          </TooltipProvider>
+        </ToastProvider>
       </ThemeProvider>
     </ErrorBoundary>
   );

@@ -13,7 +13,7 @@ import {
   RefreshCw, Upload, Download, Tag, FileText, Check, Clock, 
   Trash2, Play, ChevronRight, Wand2, BarChart3
 } from 'lucide-react';
-import { toast } from 'sonner';
+import { useToast } from '@/components/common/Toast';
 
 // 标注文件类型
 interface LabelFile {
@@ -44,6 +44,7 @@ interface LabelType {
 }
 
 export default function DataLabel() {
+  const toast = useToast();
   const [files, setFiles] = useState<LabelFile[]>([
     { id: '1', name: 'bearing_vibration_001.csv', type: 'csv', size: '2.3 MB', uploadTime: '2024-01-20 10:30', status: 'done', labels: [
       { id: 'l1', type: 'condition', value: '正常', confidence: 0.95, createdAt: '2024-01-20 11:00' }

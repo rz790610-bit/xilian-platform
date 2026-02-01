@@ -7,10 +7,11 @@ import { useAppStore } from '@/stores/appStore';
 import { nanoid } from 'nanoid';
 import { Trash2, Upload, FileText } from 'lucide-react';
 import type { Document } from '@/types';
-import { toast } from 'sonner';
+import { useToast } from '@/components/common/Toast';
 
 export default function Documents() {
   const { documents, addDocument, removeDocument, setDocuments } = useAppStore();
+  const toast = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {

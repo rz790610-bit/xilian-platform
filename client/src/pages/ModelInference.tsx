@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAppStore, API_BASE } from '@/stores/appStore';
 import { Upload, Play, FileUp } from 'lucide-react';
-import { toast } from 'sonner';
+import { useToast } from '@/components/common/Toast';
 import axios from 'axios';
 import {
   Chart as ChartJS,
@@ -36,6 +36,7 @@ ChartJS.register(
 
 export default function ModelInference() {
   const { selectedModel, setSelectedModel, models } = useAppStore();
+  const toast = useToast();
   const [file, setFile] = useState<File | null>(null);
   const [sampleRate, setSampleRate] = useState('10000');
   const [isAnalyzing, setIsAnalyzing] = useState(false);

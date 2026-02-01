@@ -12,7 +12,7 @@ import {
   RefreshCw, Plus, Download, Upload, Search, Play, Pause, 
   Trash2, Settings, HardDrive, Cpu, Zap
 } from 'lucide-react';
-import { toast } from 'sonner';
+import { useToast } from '@/components/common/Toast';
 
 interface Model {
   id: string;
@@ -26,6 +26,7 @@ interface Model {
 }
 
 export default function ModelRepo() {
+  const toast = useToast();
   const [models, setModels] = useState<Model[]>([
     { id: '1', name: 'llama3.1:70b', type: 'llm', size: '39 GB', status: 'loaded', description: 'Meta Llama 3.1 70B 大语言模型', parameters: '70B' },
     { id: '2', name: 'llama3.1:8b', type: 'llm', size: '4.7 GB', status: 'available', description: 'Meta Llama 3.1 8B 轻量模型', parameters: '8B' },

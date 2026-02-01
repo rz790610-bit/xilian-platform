@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useLocation } from 'wouter';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { PageCard } from '@/components/common/PageCard';
 import { StatCard } from '@/components/common/StatCard';
@@ -18,7 +19,7 @@ import {
   Play, Square, Info, Star, Upload, Terminal, Activity,
   Cpu, HardDrive, Clock, Zap, Network, Server
 } from 'lucide-react';
-import { toast } from 'sonner';
+import { useToast } from '@/components/common/Toast';
 
 // 系统日志类型
 interface SystemLog {
@@ -51,8 +52,26 @@ interface TopoEdge {
 }
 
 export default function Settings() {
-  const { plugins, models, databases, systemStatus, setModels } = useAppStore();
-  const [activeTab, setActiveTab] = useState('resources');
+  const { plugins, models, databases, systemStatus, setModels, setPlugins } = useAppStore();
+  const [location] = useLocation();
+  const toast = useToast();
+  
+  // 根据 URL 路径确定默认标签页
+  const getInitialTab = () => {
+    if (location.includes('/settings/databases')) return 'databases';
+    if (location.includes('/settings/plugins')) return 'plugins';
+    if (location.includes('/settings/engines')) return 'engines';
+    if (location.includes('/settings/topology')) return 'topology';
+    if (location.includes('/settings/models')) return 'models';
+    return 'resources';
+  };
+  
+  const [activeTab, setActiveTab] = useState(getInitialTab);
+  
+  // 当 URL 变化时更新标签页
+  useEffect(() => {
+    setActiveTab(getInitialTab());
+  }, [location]);
   const [lastRefresh, setLastRefresh] = useState(new Date());
   const [uptime, setUptime] = useState(0);
   const [systemLogs, setSystemLogs] = useState<SystemLog[]>([]);
@@ -254,9 +273,15 @@ export default function Settings() {
 
   // 保存模型配置
   const saveModelConfig = () => {
-    localStorage.setItem('modelConfig', JSON.stringify(modelConfig));
-    toast.success('模型配置已保存');
-    addLog('system', '模型配置已保存');
+    console.log('saveModelConfig called');
+    try {
+      localStorage.setItem('modelConfig', JSON.stringify(modelConfig));
+      toast.success('模型配置已保存');
+      addLog('system', '模型配置已保存');
+    } catch (err) {
+      console.error('Error saving config:', err);
+      toast.error('保存失败');
+    }
   };
 
   // 显示模型详情
@@ -282,6 +307,18 @@ export default function Settings() {
     const engine = engines.find(e => e.id === engineId);
     if (engine) {
       toast.success(`${engine.name} 已${engine.enabled ? '禁用' : '启用'}`);
+    }
+  };
+
+  // 切换插件状态
+  const togglePlugin = (pluginId: string) => {
+    const updatedPlugins = plugins.map(p => 
+      p.id === pluginId ? { ...p, enabled: !p.enabled } : p
+    );
+    setPlugins(updatedPlugins);
+    const plugin = plugins.find(p => p.id === pluginId);
+    if (plugin) {
+      toast.success(`${plugin.name} 已${plugin.enabled ? '禁用' : '启用'}`);
     }
   };
 
@@ -418,7 +455,7 @@ export default function Settings() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="mb-5">
+          <TabsList className="mb-4 text-sm">
             <TabsTrigger value="resources">📊 资源总览</TabsTrigger>
             <TabsTrigger value="models">🧠 大模型</TabsTrigger>
             <TabsTrigger value="databases">🗄️ 数据库</TabsTrigger>
@@ -431,7 +468,7 @@ export default function Settings() {
           {/* ========== 资源总览 ========== */}
           <TabsContent value="resources">
             {/* Stats */}
-            <div className="grid grid-cols-2 lg:grid-cols-5 gap-5 mb-5">
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-4">
               <StatCard value={models.length} label="大模型" icon="🧠" />
               <StatCard value={databases.length} label="数据库" icon="🗄️" />
               <StatCard value={plugins.length} label="插件" icon="🧩" />
@@ -449,19 +486,19 @@ export default function Settings() {
                 </span>
               }
             >
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                 {services.map((service, i) => (
                   <div
                     key={i}
                     className={cn(
-                      "flex items-center justify-between p-4 bg-secondary rounded-xl border-l-4",
+                      "flex items-center justify-between p-3 bg-secondary rounded-lg border-l-3 text-sm",
                       service.status === 'running' || service.status === 'connected' 
                         ? "border-success" 
                         : "border-danger"
                     )}
                   >
-                    <div className="flex items-center gap-3">
-                      <span className="text-2xl">{service.icon}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg">{service.icon}</span>
                       <div>
                         <div className="font-semibold">{service.name}</div>
                         <div className="text-xs text-muted-foreground">{service.desc}</div>
@@ -491,7 +528,7 @@ export default function Settings() {
             </PageCard>
 
             {/* System info */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
               <PageCard title="硬件信息" icon="💻">
                 <div className="space-y-3">
                   <div className="flex justify-between items-center p-3 bg-secondary rounded-lg">
@@ -719,7 +756,10 @@ export default function Settings() {
                       />
                     </div>
 
-                    <Button className="w-full" onClick={saveModelConfig}>
+                    <Button 
+                      className="w-full"
+                      onClick={saveModelConfig}
+                    >
                       保存配置
                     </Button>
                   </div>
@@ -784,7 +824,10 @@ export default function Settings() {
                     <div className="flex-1">
                       <div className="flex items-center justify-between">
                         <h3 className="font-medium">{plugin.name}</h3>
-                        <Switch checked={plugin.enabled} />
+                        <Switch 
+                          checked={plugin.enabled} 
+                          onCheckedChange={() => togglePlugin(plugin.id)}
+                        />
                       </div>
                       <p className="text-sm text-muted-foreground mt-1">{plugin.description}</p>
                       <Badge variant="info" className="mt-2">{plugin.category}</Badge>

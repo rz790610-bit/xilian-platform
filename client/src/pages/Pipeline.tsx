@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils';
 import { nanoid } from 'nanoid';
 import { Trash2, Play, Save, X, Download, Upload, FileJson } from 'lucide-react';
 import type { PipelineNode, Plugin, PipelineConnection } from '@/types';
-import { toast } from 'sonner';
+import { useToast } from '@/components/common/Toast';
 
 // Pipeline 配置文件格式
 interface PipelineConfig {
@@ -32,6 +32,7 @@ export default function Pipeline() {
     selectedNode,
     setSelectedNode
   } = useAppStore();
+  const toast = useToast();
   
   const [activeTab, setActiveTab] = useState('editor');
   const [executionLog, setExecutionLog] = useState<string[]>([]);

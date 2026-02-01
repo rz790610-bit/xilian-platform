@@ -8,15 +8,16 @@ interface PageCardProps {
   className?: string;
   noPadding?: boolean;
   onClick?: () => void;
+  compact?: boolean;
 }
 
-export function PageCard({ children, title, icon, action, className, noPadding, onClick }: PageCardProps) {
+export function PageCard({ children, title, icon, action, className, noPadding, onClick, compact }: PageCardProps) {
   return (
     <div 
       onClick={onClick}
       className={cn(
-        "bg-gradient-to-br from-card to-secondary border border-border rounded-2xl relative overflow-hidden transition-all duration-300",
-        !noPadding && "p-6",
+        "bg-gradient-to-br from-card to-secondary border border-border rounded-xl relative overflow-hidden transition-all duration-300",
+        !noPadding && (compact ? "p-3" : "p-4"),
         onClick && "cursor-pointer",
         className
       )}
@@ -27,11 +28,14 @@ export function PageCard({ children, title, icon, action, className, noPadding, 
       {(title || action) && (
         <div className={cn(
           "flex justify-between items-center",
-          !noPadding && "mb-5"
+          !noPadding && (compact ? "mb-2" : "mb-3")
         )}>
           {title && (
-            <h3 className="text-lg font-semibold flex items-center gap-2.5 text-foreground">
-              {icon && <span className="text-xl">{icon}</span>}
+            <h3 className={cn(
+              "font-semibold flex items-center gap-2 text-foreground",
+              compact ? "text-sm" : "text-base"
+            )}>
+              {icon && <span className={compact ? "text-base" : "text-lg"}>{icon}</span>}
               {title}
             </h3>
           )}

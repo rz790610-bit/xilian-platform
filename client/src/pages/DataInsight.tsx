@@ -7,9 +7,10 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
 import { RefreshCw, Download, CheckCircle, AlertTriangle, XCircle, Info } from 'lucide-react';
-import { toast } from 'sonner';
+import { useToast } from '@/components/common/Toast';
 
 export default function DataInsight() {
+  const toast = useToast();
   const [isChecking, setIsChecking] = useState(false);
   const [qualityResult, setQualityResult] = useState<any>(null);
 

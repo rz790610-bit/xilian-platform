@@ -16,7 +16,7 @@ export function Topbar({ title }: TopbarProps) {
   };
 
   return (
-    <header className="h-16 glass border-b border-border sticky top-0 z-40 flex items-center justify-between px-7">
+    <header className="h-12 glass border-b border-border sticky top-0 z-40 flex items-center justify-between px-5">
       <div className="flex items-center gap-4">
         <Button 
           variant="ghost" 
@@ -26,14 +26,14 @@ export function Topbar({ title }: TopbarProps) {
         >
           <Menu className="w-5 h-5" />
         </Button>
-        <h1 className="text-xl font-semibold bg-gradient-to-r from-foreground to-muted-foreground bg-clip-text text-transparent">
+        <h1 className="text-base font-semibold bg-gradient-to-r from-foreground to-muted-foreground bg-clip-text text-transparent">
           {title}
         </h1>
       </div>
 
       <div className="flex items-center gap-4">
         {/* Status indicator */}
-        <div className="flex items-center gap-2.5 px-4 py-2 bg-card rounded-full text-sm">
+        <div className="flex items-center gap-2 px-3 py-1.5 bg-card rounded-full text-xs">
           <div className="flex items-center gap-1.5">
             <span 
               className={cn(

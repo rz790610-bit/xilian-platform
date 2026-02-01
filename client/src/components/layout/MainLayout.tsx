@@ -24,11 +24,11 @@ export function MainLayout({ children, title }: MainLayoutProps) {
       <main 
         className={cn(
           "min-h-screen flex flex-col transition-all duration-300 relative z-10",
-          sidebarCollapsed ? "ml-[70px]" : "ml-[260px]"
+          sidebarCollapsed ? "ml-[60px]" : "ml-[220px]"
         )}
       >
         <Topbar title={title} />
-        <div className="flex-1 p-7 overflow-y-auto">
+        <div className="flex-1 p-5 overflow-y-auto">
           {children}
         </div>
       </main>

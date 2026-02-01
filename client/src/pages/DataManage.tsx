@@ -24,7 +24,7 @@ import {
   File
 } from 'lucide-react';
 import type { DataFile } from '@/types';
-import { toast } from 'sonner';
+import { useToast } from '@/components/common/Toast';
 
 export default function DataManage() {
   const { 
@@ -38,6 +38,7 @@ export default function DataManage() {
     batchMode,
     setBatchMode
   } = useAppStore();
+  const toast = useToast();
   
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
