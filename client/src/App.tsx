@@ -14,12 +14,12 @@ import Documents from "./pages/Documents";
 import DataManage from "./pages/DataManage";
 import ModelInference from "./pages/ModelInference";
 import Settings from "./pages/Settings";
+import DataLabel from "./pages/DataLabel";
+import DataInsight from "./pages/DataInsight";
+import ModelRepo from "./pages/ModelRepo";
 import {
-  DataLabel,
-  DataInsight,
   ModelFinetune,
   ModelEval,
-  ModelRepo,
   DiagAnalysis,
   DiagReport,
   KnowledgeBase,
