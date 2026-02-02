@@ -31,7 +31,8 @@ export const navigationConfig: NavItem[] = [
     icon: '📚',
     children: [
       { id: 'knowledge-manager', label: '知识管理', icon: '📁', path: '/knowledge/manager' },
-      { id: 'knowledge-graph', label: '知识图谱', icon: '🕸️', path: '/knowledge/graph' }
+      { id: 'knowledge-graph', label: '知识图谱', icon: '🕸️', path: '/knowledge/graph' },
+      { id: 'knowledge-vectors', label: '向量管理', icon: '📊', path: '/knowledge/vectors' }
     ]
   },
   {

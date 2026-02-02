@@ -34,6 +34,7 @@ import {
 import KnowledgeBase from "./pages/KnowledgeBase";
 import KnowledgeManager from "./pages/KnowledgeManager";
 import KnowledgeGraph from "./pages/KnowledgeGraph";
+import VectorAdmin from "./pages/VectorAdmin";
 function Router() {
   // make sure to consider if you need authentication for certain routes
   return (
@@ -53,6 +54,7 @@ function Router() {
       {/* Knowledge - 知识库 */}
       <Route path="/knowledge/manager" component={KnowledgeManager} />
       <Route path="/knowledge/graph" component={KnowledgeGraph} />
+      <Route path="/knowledge/vectors" component={VectorAdmin} />
       
       {/* Base data - 基础数据 */}
       <Route path="/base/rules" component={BaseRules} />
