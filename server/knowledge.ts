@@ -1,23 +1,20 @@
 import { z } from "zod";
 import { publicProcedure, router } from "./_core/trpc";
 import { invokeLLM } from "./_core/llm";
+import { PDFParse } from "pdf-parse";
+import mammoth from "mammoth";
+import {
+  createKbCollection, getKbCollections, getKbCollectionByName, deleteKbCollection,
+  createKbPoint, createKbPointsBatch, getKbPoints, deleteKbPoint,
+  createKbDocument, getKbDocuments, updateKbDocumentStatus,
+  createKgNode, createKgNodesBatch, getKgNodes, updateKgNodePosition, deleteKgNode,
+  createKgEdge, createKgEdgesBatch, getKgEdges, deleteKgEdge,
+  getKbStats, clearKbCollectionData
+} from "./db";
 
-// 知识点类型
-interface KnowledgePoint {
-  id: string;
-  title: string;
-  content: string;
-  category: string;
-  tags: string[];
-  source?: string;
-  entities?: string[];
-  relations?: Array<{ source: string; target: string; type: string }>;
-  createdAt: string;
-  updatedAt: string;
-}
-
-// 内存存储（生产环境应使用数据库）
-const knowledgeStore: Map<string, KnowledgePoint[]> = new Map();
+// Qdrant 配置
+const QDRANT_URL = process.env.QDRANT_URL || "http://localhost:6333";
+const EMBEDDING_DIM = 384;
 
 // 实体关系抽取 Prompt
 const ENTITY_EXTRACTION_PROMPT = `你是一个专业的实体关系抽取助手。请从以下文本中提取实体和关系。
@@ -46,172 +43,420 @@ const SUMMARY_PROMPT = `请对以下文本进行总结，提取核心要点：
 文本内容：
 `;
 
-// 知识库路由
+// ============ 文档解析函数 ============
+
+async function parsePDF(buffer: Buffer): Promise<string> {
+  try {
+    const parser = new PDFParse({ data: buffer });
+    const result = await parser.getText();
+    return result.text || "";
+  } catch (error) {
+    console.error("PDF parsing failed:", error);
+    throw new Error("PDF 解析失败");
+  }
+}
+
+async function parseWord(buffer: Buffer): Promise<string> {
+  try {
+    const result = await mammoth.extractRawText({ buffer });
+    return result.value || "";
+  } catch (error) {
+    console.error("Word parsing failed:", error);
+    throw new Error("Word 文档解析失败");
+  }
+}
+
+function parseCSV(content: string): string {
+  const lines = content.split('\n');
+  const headers = lines[0]?.split(',') || [];
+  const rows = lines.slice(1);
+  
+  let text = `表格数据包含 ${rows.length} 行记录，字段包括：${headers.join('、')}。\n\n`;
+  
+  for (let i = 0; i < Math.min(10, rows.length); i++) {
+    const values = rows[i].split(',');
+    const rowText = headers.map((h, idx) => `${h}: ${values[idx] || ''}`).join(', ');
+    text += `记录 ${i + 1}: ${rowText}\n`;
+  }
+  
+  return text;
+}
+
+// ============ Qdrant 向量数据库操作 ============
+
+function simpleEmbed(text: string): number[] {
+  const words = text.toLowerCase().split(/\s+/);
+  const vector = new Array(EMBEDDING_DIM).fill(0);
+  
+  for (const word of words) {
+    let hash = 0;
+    for (let i = 0; i < word.length; i++) {
+      hash = ((hash << 5) - hash) + word.charCodeAt(i);
+      hash = hash & hash;
+    }
+    const idx = Math.abs(hash) % EMBEDDING_DIM;
+    vector[idx] += 1;
+  }
+  
+  const norm = Math.sqrt(vector.reduce((sum, v) => sum + v * v, 0)) || 1;
+  return vector.map(v => v / norm);
+}
+
+async function checkQdrantConnection(): Promise<boolean> {
+  try {
+    const response = await fetch(`${QDRANT_URL}/collections`);
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+async function createQdrantCollection(name: string): Promise<boolean> {
+  try {
+    const response = await fetch(`${QDRANT_URL}/collections/${name}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        vectors: { size: EMBEDDING_DIM, distance: 'Cosine' }
+      })
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+async function upsertToQdrant(
+  collection: string,
+  points: Array<{ id: string; vector: number[]; payload: Record<string, unknown> }>
+): Promise<boolean> {
+  try {
+    await createQdrantCollection(collection);
+    
+    const response = await fetch(`${QDRANT_URL}/collections/${collection}/points`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        points: points.map((p, idx) => ({
+          id: idx + Date.now(),
+          vector: p.vector,
+          payload: p.payload
+        }))
+      })
+    });
+    return response.ok;
+  } catch (error) {
+    console.error("Qdrant upsert failed:", error);
+    return false;
+  }
+}
+
+async function searchQdrant(
+  collection: string,
+  vector: number[],
+  limit: number = 5
+): Promise<Array<{ id: number; score: number; payload: Record<string, unknown> }>> {
+  try {
+    const response = await fetch(`${QDRANT_URL}/collections/${collection}/points/search`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ vector, limit, with_payload: true })
+    });
+    
+    if (!response.ok) return [];
+    const data = await response.json();
+    return data.result || [];
+  } catch {
+    return [];
+  }
+}
+
+// ============ 知识库路由 ============
+
 export const knowledgeRouter = router({
-  // 获取所有知识点
+  // 集合管理
+  createCollection: publicProcedure
+    .input(z.object({
+      name: z.string(),
+      description: z.string().optional()
+    }))
+    .mutation(async ({ input }) => {
+      const collection = await createKbCollection({
+        name: input.name,
+        description: input.description || null
+      });
+      return collection;
+    }),
+
+  listCollections: publicProcedure.query(async () => {
+    return await getKbCollections();
+  }),
+
+  getCollection: publicProcedure
+    .input(z.object({ name: z.string() }))
+    .query(async ({ input }) => {
+      return await getKbCollectionByName(input.name);
+    }),
+
+  deleteCollection: publicProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      return await deleteKbCollection(input.id);
+    }),
+
+  // 知识点管理
   list: publicProcedure
     .input(z.object({
-      collection: z.string().default("default"),
+      collectionId: z.number(),
       category: z.string().optional(),
       search: z.string().optional(),
       limit: z.number().default(100)
     }))
-    .query(({ input }) => {
-      const points = knowledgeStore.get(input.collection) || [];
-      let filtered = points;
-      
-      if (input.category) {
-        filtered = filtered.filter(p => p.category === input.category);
-      }
-      
-      if (input.search) {
-        const searchLower = input.search.toLowerCase();
-        filtered = filtered.filter(p => 
-          p.title.toLowerCase().includes(searchLower) ||
-          p.content.toLowerCase().includes(searchLower) ||
-          p.tags.some(t => t.toLowerCase().includes(searchLower))
-        );
-      }
-      
-      return filtered.slice(0, input.limit);
+    .query(async ({ input }) => {
+      return await getKbPoints(input.collectionId, {
+        category: input.category,
+        search: input.search,
+        limit: input.limit
+      });
     }),
 
-  // 添加知识点
   add: publicProcedure
     .input(z.object({
-      collection: z.string().default("default"),
+      collectionId: z.number(),
       title: z.string(),
       content: z.string(),
       category: z.string().default("general"),
-      tags: z.array(z.string()).default([]),
+      tags: z.array(z.string()).optional(),
       source: z.string().optional()
     }))
-    .mutation(({ input }) => {
-      const point: KnowledgePoint = {
-        id: `kp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+    .mutation(async ({ input }) => {
+      const point = await createKbPoint({
+        collectionId: input.collectionId,
         title: input.title,
         content: input.content,
         category: input.category,
-        tags: input.tags,
-        source: input.source,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
-      
-      const points = knowledgeStore.get(input.collection) || [];
-      points.push(point);
-      knowledgeStore.set(input.collection, points);
-      
+        tags: input.tags || [],
+        source: input.source || null
+      });
       return point;
     }),
 
-  // 删除知识点
   delete: publicProcedure
-    .input(z.object({
-      collection: z.string().default("default"),
-      id: z.string()
-    }))
-    .mutation(({ input }) => {
-      const points = knowledgeStore.get(input.collection) || [];
-      const filtered = points.filter(p => p.id !== input.id);
-      knowledgeStore.set(input.collection, filtered);
-      return { success: true };
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      return await deleteKbPoint(input.id);
     }),
 
-  // 处理文档 - 提取文本、分块、实体抽取
-  processDocument: publicProcedure
+  // 文档处理
+  parseDocument: publicProcedure
     .input(z.object({
-      filename: z.string(),
       content: z.string(),
-      collection: z.string().default("default")
+      filename: z.string(),
+      mimeType: z.string()
     }))
     .mutation(async ({ input }) => {
-      const { filename, content, collection } = input;
+      let text = "";
+      const buffer = Buffer.from(input.content, 'base64');
       
-      // 1. 分块处理
-      const chunks = content.match(/[^。！？\n]+[。！？\n]?/g) || [content];
-      const validChunks = chunks.filter(c => c.trim().length > 10);
+      if (input.mimeType === 'application/pdf') {
+        text = await parsePDF(buffer);
+      } else if (input.mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+                 input.mimeType === 'application/msword') {
+        text = await parseWord(buffer);
+      } else if (input.mimeType === 'text/csv' || input.mimeType === 'application/vnd.ms-excel') {
+        text = parseCSV(buffer.toString('utf-8'));
+      } else {
+        text = buffer.toString('utf-8');
+      }
       
-      // 2. 实体关系抽取（使用 LLM）
-      let entities: Array<{ name: string; type: string }> = [];
-      let relations: Array<{ source: string; target: string; type: string; label: string }> = [];
+      return { text, filename: input.filename };
+    }),
+
+  // 处理并存储文档
+  processDocument: publicProcedure
+    .input(z.object({
+      collectionId: z.number(),
+      content: z.string(),
+      filename: z.string(),
+      mimeType: z.string(),
+      extractEntities: z.boolean().default(true)
+    }))
+    .mutation(async ({ input }) => {
+      // 创建文档记录
+      const doc = await createKbDocument({
+        collectionId: input.collectionId,
+        filename: input.filename,
+        mimeType: input.mimeType,
+        fileSize: input.content.length,
+        status: 'processing'
+      });
+      
+      if (!doc) {
+        throw new Error("Failed to create document record");
+      }
       
       try {
-        // 取前2000字符进行实体抽取
-        const textForExtraction = content.slice(0, 2000);
-        const response = await invokeLLM({
-          messages: [
-            { role: "system", content: "你是一个专业的实体关系抽取助手，请严格按照JSON格式输出。" },
-            { role: "user", content: ENTITY_EXTRACTION_PROMPT + textForExtraction }
-          ]
-        });
+        // 解析文档
+        let text = "";
+        const buffer = Buffer.from(input.content, 'base64');
         
-        const msgContent = response.choices[0]?.message?.content;
-        const responseText = typeof msgContent === 'string' ? msgContent : '';
-        // 尝试解析 JSON
-        const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          const parsed = JSON.parse(jsonMatch[0]);
-          entities = parsed.entities || [];
-          relations = parsed.relations || [];
+        if (input.mimeType === 'application/pdf') {
+          text = await parsePDF(buffer);
+        } else if (input.mimeType.includes('word')) {
+          text = await parseWord(buffer);
+        } else if (input.mimeType === 'text/csv') {
+          text = parseCSV(buffer.toString('utf-8'));
+        } else {
+          text = buffer.toString('utf-8');
         }
-      } catch (error) {
-        console.error("Entity extraction failed:", error);
-        // 使用简单规则提取
-        const entityPatterns = [
-          /【(.+?)】/g,
-          /《(.+?)》/g,
-          /"(.+?)"/g,
-          /设备[：:]\s*(.+?)(?=[，,。\n]|$)/g,
-          /型号[：:]\s*(.+?)(?=[，,。\n]|$)/g
-        ];
         
-        const entitySet = new Set<string>();
-        for (const pattern of entityPatterns) {
-          const matches = Array.from(content.matchAll(pattern));
-          for (const match of matches) {
-            if (match[1] && match[1].length < 50) {
-              entitySet.add(match[1].trim());
+        // 分块
+        const chunks = text.match(/[^。！？\n]+[。！？\n]?/g) || [text];
+        const validChunks = chunks.filter(c => c.trim().length > 10);
+        
+        // 提取实体关系
+        let entities: Array<{ name: string; type: string }> = [];
+        let relations: Array<{ source: string; target: string; type: string; label: string }> = [];
+        
+        if (input.extractEntities && text.length > 0) {
+          try {
+            const response = await invokeLLM({
+              messages: [
+                { role: "system", content: "你是一个专业的实体关系抽取助手，请严格按照JSON格式输出。" },
+                { role: "user", content: ENTITY_EXTRACTION_PROMPT + text.slice(0, 3000) }
+              ]
+            });
+            
+            const msgContent = response.choices[0]?.message?.content;
+            const responseText = typeof msgContent === 'string' ? msgContent : '';
+            const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+              const parsed = JSON.parse(jsonMatch[0]);
+              entities = parsed.entities || [];
+              relations = parsed.relations || [];
             }
+          } catch (e) {
+            console.error("Entity extraction failed:", e);
           }
         }
-        entities = Array.from(entitySet).map(name => ({ name, type: "entity" }));
-      }
-      
-      // 3. 存储知识点
-      const points = knowledgeStore.get(collection) || [];
-      
-      for (let i = 0; i < validChunks.length; i++) {
-        const point: KnowledgePoint = {
-          id: `kp-${Date.now()}-${i}-${Math.random().toString(36).substr(2, 9)}`,
-          title: `${filename} - 片段 ${i + 1}`,
-          content: validChunks[i],
-          category: filename.split('.').pop() || 'text',
-          tags: [filename.split('.').pop() || 'text', 'document'],
-          source: filename,
+        
+        // 创建知识点
+        const pointsToCreate = validChunks.slice(0, 50).map((chunk, idx) => ({
+          collectionId: input.collectionId,
+          title: `${input.filename} - 片段 ${idx + 1}`,
+          content: chunk.trim(),
+          category: 'document',
+          tags: [] as string[],
+          source: input.filename,
           entities: entities.map(e => e.name),
-          relations: relations,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
+          relations: relations
+        }));
+        
+        const createdCount = await createKbPointsBatch(pointsToCreate);
+        
+        // 向量化存储到 Qdrant
+        const qdrantPoints = validChunks.slice(0, 50).map((chunk, idx) => ({
+          id: `${doc.id}-${idx}`,
+          vector: simpleEmbed(chunk),
+          payload: {
+            title: `${input.filename} - 片段 ${idx + 1}`,
+            content: chunk.trim(),
+            source: input.filename,
+            category: 'document'
+          }
+        }));
+        
+        await upsertToQdrant(`kb_${input.collectionId}`, qdrantPoints);
+        
+        // 创建图谱节点和边
+        const nodeMap = new Map<string, boolean>();
+        const nodesToCreate: Array<{
+          collectionId: number;
+          nodeId: string;
+          label: string;
+          type: string;
+        }> = [];
+        const edgesToCreate: Array<{
+          collectionId: number;
+          edgeId: string;
+          sourceNodeId: string;
+          targetNodeId: string;
+          label: string;
+          type: string;
+        }> = [];
+        
+        for (const entity of entities) {
+          const nodeId = `entity-${entity.name}`;
+          if (!nodeMap.has(nodeId)) {
+            nodeMap.set(nodeId, true);
+            nodesToCreate.push({
+              collectionId: input.collectionId,
+              nodeId,
+              label: entity.name,
+              type: entity.type || 'entity'
+            });
+          }
+        }
+        
+        for (const rel of relations) {
+          const sourceId = `entity-${rel.source}`;
+          const targetId = `entity-${rel.target}`;
+          const edgeId = `edge-${rel.source}-${rel.target}-${rel.type}`;
+          
+          if (!nodeMap.has(sourceId)) {
+            nodeMap.set(sourceId, true);
+            nodesToCreate.push({
+              collectionId: input.collectionId,
+              nodeId: sourceId,
+              label: rel.source,
+              type: 'entity'
+            });
+          }
+          if (!nodeMap.has(targetId)) {
+            nodeMap.set(targetId, true);
+            nodesToCreate.push({
+              collectionId: input.collectionId,
+              nodeId: targetId,
+              label: rel.target,
+              type: 'entity'
+            });
+          }
+          
+          edgesToCreate.push({
+            collectionId: input.collectionId,
+            edgeId,
+            sourceNodeId: sourceId,
+            targetNodeId: targetId,
+            label: rel.label || rel.type,
+            type: rel.type
+          });
+        }
+        
+        await createKgNodesBatch(nodesToCreate);
+        await createKgEdgesBatch(edgesToCreate);
+        
+        // 更新文档状态
+        await updateKbDocumentStatus(doc.id, 'completed', {
+          chunksCount: createdCount,
+          entitiesCount: entities.length
+        });
+        
+        return {
+          success: true,
+          documentId: doc.id,
+          chunks: createdCount,
+          entities: entities.length,
+          relations: relations.length
         };
-        points.push(point);
+      } catch (error) {
+        await updateKbDocumentStatus(doc.id, 'failed');
+        throw error;
       }
-      
-      knowledgeStore.set(collection, points);
-      
-      return {
-        success: true,
-        chunks: validChunks.length,
-        entities: entities.length,
-        relations: relations.length
-      };
     }),
 
   // 实体关系抽取
   extractEntities: publicProcedure
-    .input(z.object({
-      text: z.string()
-    }))
+    .input(z.object({ text: z.string() }))
     .mutation(async ({ input }) => {
       try {
         const response = await invokeLLM({
@@ -221,8 +466,8 @@ export const knowledgeRouter = router({
           ]
         });
         
-        const messageContent = response.choices[0]?.message?.content;
-        const responseText = typeof messageContent === 'string' ? messageContent : '';
+        const msgContent = response.choices[0]?.message?.content;
+        const responseText = typeof msgContent === 'string' ? msgContent : '';
         const jsonMatch = responseText.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
           return JSON.parse(jsonMatch[0]);
@@ -249,160 +494,174 @@ export const knowledgeRouter = router({
           ]
         });
         
-        return {
-          summary: response.choices[0]?.message?.content || ""
-        };
+        const msgContent = response.choices[0]?.message?.content;
+        return { summary: typeof msgContent === 'string' ? msgContent : '' };
       } catch (error) {
         console.error("Summarization failed:", error);
         return { summary: "", error: String(error) };
       }
     }),
 
-  // RAG 检索
+  // RAG 语义检索
   search: publicProcedure
     .input(z.object({
       query: z.string(),
-      collection: z.string().default("default"),
-      limit: z.number().default(5)
+      collectionId: z.number(),
+      limit: z.number().default(5),
+      useVector: z.boolean().default(true)
     }))
-    .query(({ input }) => {
-      const points = knowledgeStore.get(input.collection) || [];
-      const queryLower = input.query.toLowerCase();
-      
-      // 简单的关键词匹配（生产环境应使用向量检索）
-      const scored = points.map(point => {
-        let score = 0;
-        const contentLower = point.content.toLowerCase();
-        const titleLower = point.title.toLowerCase();
+    .query(async ({ input }) => {
+      if (input.useVector) {
+        const queryVector = simpleEmbed(input.query);
+        const qdrantResults = await searchQdrant(`kb_${input.collectionId}`, queryVector, input.limit);
         
-        // 标题匹配权重更高
-        if (titleLower.includes(queryLower)) score += 10;
-        if (contentLower.includes(queryLower)) score += 5;
-        
-        // 关键词匹配
-        const keywords = queryLower.split(/\s+/);
-        for (const keyword of keywords) {
-          if (titleLower.includes(keyword)) score += 3;
-          if (contentLower.includes(keyword)) score += 1;
-          if (point.tags.some(t => t.toLowerCase().includes(keyword))) score += 2;
+        if (qdrantResults.length > 0) {
+          return qdrantResults.map(r => ({
+            id: r.id,
+            title: String(r.payload.title || ''),
+            content: String(r.payload.content || ''),
+            category: String(r.payload.category || ''),
+            source: String(r.payload.source || ''),
+            score: r.score
+          }));
         }
-        
-        return { point, score };
+      }
+      
+      // 回退到数据库搜索
+      const points = await getKbPoints(input.collectionId, {
+        search: input.query,
+        limit: input.limit
       });
       
-      return scored
-        .filter(s => s.score > 0)
-        .sort((a, b) => b.score - a.score)
-        .slice(0, input.limit)
-        .map(s => s.point);
+      return points.map(p => ({
+        id: p.id,
+        title: p.title,
+        content: p.content,
+        category: p.category,
+        source: p.source || '',
+        score: 1
+      }));
     }),
 
   // 获取图谱数据
   getGraph: publicProcedure
-    .input(z.object({
-      collection: z.string().default("default")
-    }))
-    .query(({ input }) => {
-      const points = knowledgeStore.get(input.collection) || [];
-      
-      // 构建图谱节点和边
-      const nodeMap = new Map<string, { id: string; label: string; type: string }>();
-      const edges: Array<{ id: string; source: string; target: string; label: string; type: string }> = [];
-      
-      for (const point of points) {
-        // 添加文档节点
-        if (point.source && !nodeMap.has(point.source)) {
-          nodeMap.set(point.source, {
-            id: `doc-${point.source}`,
-            label: point.source,
-            type: 'document'
-          });
-        }
-        
-        // 添加实体节点
-        if (point.entities) {
-          for (const entity of point.entities) {
-            if (!nodeMap.has(entity)) {
-              nodeMap.set(entity, {
-                id: `entity-${entity}`,
-                label: entity,
-                type: 'entity'
-              });
-            }
-            
-            // 添加文档-实体关系
-            if (point.source) {
-              edges.push({
-                id: `edge-${point.source}-${entity}`,
-                source: `doc-${point.source}`,
-                target: `entity-${entity}`,
-                label: '包含',
-                type: 'contains'
-              });
-            }
-          }
-        }
-        
-        // 添加关系边
-        if (point.relations) {
-          for (const rel of point.relations) {
-            if (!nodeMap.has(rel.source)) {
-              nodeMap.set(rel.source, {
-                id: `entity-${rel.source}`,
-                label: rel.source,
-                type: 'entity'
-              });
-            }
-            if (!nodeMap.has(rel.target)) {
-              nodeMap.set(rel.target, {
-                id: `entity-${rel.target}`,
-                label: rel.target,
-                type: 'entity'
-              });
-            }
-            
-            edges.push({
-              id: `edge-${rel.source}-${rel.target}-${rel.type}`,
-              source: `entity-${rel.source}`,
-              target: `entity-${rel.target}`,
-              label: rel.type,
-              type: rel.type
-            });
-          }
-        }
-      }
+    .input(z.object({ collectionId: z.number() }))
+    .query(async ({ input }) => {
+      const nodes = await getKgNodes(input.collectionId);
+      const edges = await getKgEdges(input.collectionId);
       
       return {
-        nodes: Array.from(nodeMap.values()),
-        edges: edges
+        nodes: nodes.map(n => ({
+          id: n.nodeId,
+          label: n.label,
+          type: n.type,
+          properties: n.properties,
+          x: n.x,
+          y: n.y,
+          dbId: n.id
+        })),
+        edges: edges.map(e => ({
+          id: e.edgeId,
+          source: e.sourceNodeId,
+          target: e.targetNodeId,
+          label: e.label,
+          type: e.type,
+          dbId: e.id
+        }))
       };
+    }),
+
+  // 保存图谱节点位置
+  saveNodePosition: publicProcedure
+    .input(z.object({
+      id: z.number(),
+      x: z.number(),
+      y: z.number()
+    }))
+    .mutation(async ({ input }) => {
+      return await updateKgNodePosition(input.id, input.x, input.y);
+    }),
+
+  // 添加图谱节点
+  addNode: publicProcedure
+    .input(z.object({
+      collectionId: z.number(),
+      label: z.string(),
+      type: z.string().default("entity"),
+      properties: z.record(z.string(), z.unknown()).optional()
+    }))
+    .mutation(async ({ input }) => {
+      const nodeId = `node-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      const node = await createKgNode({
+        collectionId: input.collectionId,
+        nodeId,
+        label: input.label,
+        type: input.type,
+        properties: input.properties
+      });
+      return node;
+    }),
+
+  // 添加图谱边
+  addEdge: publicProcedure
+    .input(z.object({
+      collectionId: z.number(),
+      source: z.string(),
+      target: z.string(),
+      label: z.string(),
+      type: z.string().default("related_to")
+    }))
+    .mutation(async ({ input }) => {
+      const edgeId = `edge-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      const edge = await createKgEdge({
+        collectionId: input.collectionId,
+        edgeId,
+        sourceNodeId: input.source,
+        targetNodeId: input.target,
+        label: input.label,
+        type: input.type
+      });
+      return edge;
+    }),
+
+  // 删除图谱节点
+  deleteNode: publicProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      return await deleteKgNode(input.id);
+    }),
+
+  // 删除图谱边
+  deleteEdge: publicProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      return await deleteKgEdge(input.id);
     }),
 
   // 获取统计信息
   stats: publicProcedure
-    .input(z.object({
-      collection: z.string().default("default")
-    }))
-    .query(({ input }) => {
-      const points = knowledgeStore.get(input.collection) || [];
-      
-      const entitySet = new Set<string>();
-      let relationCount = 0;
-      
-      for (const point of points) {
-        if (point.entities) {
-          point.entities.forEach(e => entitySet.add(e));
-        }
-        if (point.relations) {
-          relationCount += point.relations.length;
-        }
-      }
-      
-      return {
-        totalPoints: points.length,
-        totalEntities: entitySet.size,
-        totalRelations: relationCount,
-        categories: Array.from(new Set(points.map(p => p.category)))
-      };
-    })
+    .input(z.object({ collectionId: z.number() }))
+    .query(async ({ input }) => {
+      return await getKbStats(input.collectionId);
+    }),
+
+  // 获取文档列表
+  documents: publicProcedure
+    .input(z.object({ collectionId: z.number() }))
+    .query(async ({ input }) => {
+      return await getKbDocuments(input.collectionId);
+    }),
+
+  // 清空集合数据
+  clearCollection: publicProcedure
+    .input(z.object({ collectionId: z.number() }))
+    .mutation(async ({ input }) => {
+      return await clearKbCollectionData(input.collectionId);
+    }),
+
+  // 检查 Qdrant 状态
+  qdrantStatus: publicProcedure.query(async () => {
+    const connected = await checkQdrantConnection();
+    return { connected, url: QDRANT_URL };
+  })
 });
