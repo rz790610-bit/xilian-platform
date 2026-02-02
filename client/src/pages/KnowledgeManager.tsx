@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
-
+import { parseDocument } from '@/services/documentParser';
 import { PageCard } from '@/components/common/PageCard';
 import { Badge } from '@/components/common/Badge';
 import { StatCard } from '@/components/common/StatCard';
@@ -133,32 +133,35 @@ export default function KnowledgeManager() {
         filename: file.name,
         fileType: file.name.split('.').pop()?.toLowerCase() || 'unknown',
         fileSize: file.size,
-        status: 'pending',
+        status: 'processing',
         uploadTime: new Date().toISOString()
       };
       newDocs.push(doc);
       
-      // 读取文件内容（文本文件）
-      if (['txt', 'md', 'json', 'csv'].includes(doc.fileType)) {
-        try {
-          const content = await file.text();
-          // 存储内容到 localStorage（简化处理）
-          localStorage.setItem(`doc_content_${doc.id}`, content);
+      // 使用文档解析服务解析所有类型的文件
+      try {
+        const parseResult = await parseDocument(file);
+        if (parseResult.success && parseResult.content) {
+          // 存储解析后的内容到 localStorage
+          localStorage.setItem(`doc_content_${doc.id}`, parseResult.content);
           doc.status = 'processing';
-        } catch (e) {
+          console.log(`文档 ${file.name} 解析成功，内容长度: ${parseResult.content.length}`);
+        } else {
           doc.status = 'failed';
-          doc.error = '文件读取失败';
+          doc.error = parseResult.error || '文档解析失败';
+          console.error(`文档 ${file.name} 解析失败:`, parseResult.error);
         }
-      } else {
-        // 其他文件类型标记为待处理
-        doc.status = 'pending';
+      } catch (e) {
+        doc.status = 'failed';
+        doc.error = `解析错误: ${e instanceof Error ? e.message : String(e)}`;
+        console.error(`文档 ${file.name} 解析异常:`, e);
       }
     }
     
     setDocuments(prev => [...prev, ...newDocs]);
     setUploading(false);
     
-    // 自动开始处理
+    // 自动开始处理成功解析的文档
     for (const doc of newDocs) {
       if (doc.status === 'processing') {
         processDocument(doc.id);

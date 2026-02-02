@@ -132,3 +132,13 @@
 - [x] 创建 start.bat (Windows 启动脚本)
 - [x] 创建 README.md 部署文档
 - [x] 创建 xilian-deploy-v3.zip 压缩包
+
+
+## 功能修复 - 文档上传和解析
+
+- [x] 创建 documentParser.ts 文档解析服务
+- [x] 安装 pdfjs-dist, mammoth, xlsx 解析库
+- [x] 修复知识库管理的文档上传功能
+- [x] 修复AI对话的文档解析功能
+- [x] 支持 PDF/Word/Excel/CSV/TXT/MD/JSON 格式
+- [x] 重新构建并生成部署包 (v3.1)

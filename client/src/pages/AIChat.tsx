@@ -19,6 +19,7 @@ import {
 import * as ollama from '@/services/ollama';
 import * as qdrant from '@/services/qdrant';
 import { trpc } from '@/lib/trpc';
+import { parseDocument } from '@/services/documentParser';
 
 // 功能模式类型
 type ChatMode = 'chat' | 'document' | 'knowledge';
@@ -262,46 +263,31 @@ export default function AIChat() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const allowedTypes = ['text/plain', 'text/markdown', 'application/json', 'text/csv',
-      'application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'application/msword', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
     const allowedExtensions = ['.txt', '.md', '.json', '.csv', '.pdf', '.doc', '.docx', '.xls', '.xlsx'];
-    
     const ext = '.' + file.name.split('.').pop()?.toLowerCase();
     
-    if (!allowedTypes.includes(file.type) && !allowedExtensions.includes(ext)) {
+    if (!allowedExtensions.includes(ext)) {
       toast.error('支持格式：TXT、MD、JSON、CSV、PDF、Word、Excel');
       return;
     }
 
     try {
-      // 对于文本文件直接读取
-      if (['.txt', '.md', '.json', '.csv'].includes(ext)) {
-        const text = await file.text();
-        setDocContent(text);
-        toast.success(`已加载文件: ${file.name}`);
+      toast.info('正在解析文档...');
+      
+      // 使用文档解析服务解析所有类型的文件
+      const parseResult = await parseDocument(file);
+      
+      if (parseResult.success && parseResult.content) {
+        setDocContent(parseResult.content);
+        const wordCount = parseResult.metadata?.wordCount || parseResult.content.split(/\s+/).length;
+        toast.success(`已加载文件: ${file.name} (约 ${wordCount} 字)`);
       } else {
-        // 对于 PDF/Word/Excel，需要通过后端解析
-        toast.info('正在解析文档...');
-        const formData = new FormData();
-        formData.append('file', file);
-        
-        // 读取文件为 base64
-        const reader = new FileReader();
-        reader.onload = async () => {
-          const base64 = (reader.result as string).split(',')[1];
-          try {
-            // 简单的文本提取提示
-            setDocContent(`[文件: ${file.name}]\n\n正在解析文档内容，请稍候...\n\n如果解析失败，请尝试将文档内容复制粘贴到此处。`);
-            toast.success(`已加载文件: ${file.name}（复杂格式可能需要手动粘贴内容）`);
-          } catch {
-            toast.error('文档解析失败，请尝试复制粘贴内容');
-          }
-        };
-        reader.readAsDataURL(file);
+        toast.error(parseResult.error || '文档解析失败');
+        setDocContent(`[文件: ${file.name}]\n\n解析失败: ${parseResult.error}\n\n请尝试将文档内容复制粘贴到此处。`);
       }
-    } catch {
-      toast.error('文件读取失败');
+    } catch (error) {
+      toast.error('文件解析失败');
+      console.error('文档解析错误:', error);
     }
     
     if (fileInputRef.current) {
@@ -314,7 +300,7 @@ export default function AIChat() {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
-    const allowedExtensions = ['.txt', '.md', '.json', '.csv', '.pdf', '.doc', '.docx'];
+    const allowedExtensions = ['.txt', '.md', '.json', '.csv', '.pdf', '.doc', '.docx', '.xls', '.xlsx'];
     
     for (const file of Array.from(files)) {
       const ext = '.' + file.name.split('.').pop()?.toLowerCase();
@@ -325,11 +311,17 @@ export default function AIChat() {
       }
 
       try {
+        toast.info(`正在解析: ${file.name}...`);
+        
+        // 使用文档解析服务解析所有类型的文件
+        const parseResult = await parseDocument(file);
+        
         let content = '';
-        if (['.txt', '.md', '.json', '.csv'].includes(ext)) {
-          content = await file.text();
+        if (parseResult.success && parseResult.content) {
+          content = parseResult.content;
         } else {
-          content = `[文件: ${file.name}] - 复杂格式文件，内容摘要待解析`;
+          toast.error(`解析失败: ${file.name} - ${parseResult.error}`);
+          content = `[文件: ${file.name}] - 解析失败: ${parseResult.error}`;
         }
 
         const attachment: Attachment = {
@@ -337,14 +329,16 @@ export default function AIChat() {
           name: file.name,
           type: ext,
           size: file.size,
-          content: content.substring(0, 10000), // 限制内容长度
+          content: content.substring(0, 50000), // 限制内容长度为 50000 字符
           source: 'upload'
         };
 
         setAttachments(prev => [...prev, attachment]);
-        toast.success(`已添加附件: ${file.name}`);
-      } catch {
-        toast.error(`读取文件失败: ${file.name}`);
+        const wordCount = parseResult.metadata?.wordCount || content.split(/\s+/).length;
+        toast.success(`已添加附件: ${file.name} (约 ${wordCount} 字)`);
+      } catch (error) {
+        toast.error(`解析文件失败: ${file.name}`);
+        console.error(`文档解析错误 (${file.name}):`, error);
       }
     }
 
