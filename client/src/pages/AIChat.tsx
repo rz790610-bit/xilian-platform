@@ -155,6 +155,10 @@ export default function AIChat() {
   const [knowledgeDocs, setKnowledgeDocs] = useState<Array<{id: number; title: string; content: string; fileType: string}>>([]);
   const [loadingDocs, setLoadingDocs] = useState(false);
   
+  // 保存到知识库选项
+  const [saveToKnowledge, setSaveToKnowledge] = useState(false);
+  const [savingToKnowledge, setSavingToKnowledge] = useState(false);
+  
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const chatFileInputRef = useRef<HTMLInputElement>(null);
@@ -375,6 +379,41 @@ export default function AIChat() {
     return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
   };
 
+  // 保存文档到知识库
+  const saveDocumentToKnowledge = async (content: string) => {
+    if (!content.trim()) return;
+    
+    setSavingToKnowledge(true);
+    try {
+      // 生成文档标题（取前50个字符）
+      const title = content.substring(0, 50).replace(/\n/g, ' ').trim() + (content.length > 50 ? '...' : '');
+      
+      // 添加到 Qdrant（使用默认的 nomic-embed-text 嵌入）
+      await qdrant.addKnowledgePoint(
+        selectedCollection,
+        {
+          id: nanoid(),
+          title,
+          content: content.substring(0, 10000),
+          category: 'document',
+          source: 'ai-chat-upload',
+          tags: [],
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        },
+        true // 使用 nomic-embed-text 嵌入
+      );
+      
+      toast.success('已保存到知识库');
+      setSaveToKnowledge(false); // 重置复选框
+    } catch (error) {
+      console.error('保存到知识库失败:', error);
+      toast.error('保存到知识库失败');
+    } finally {
+      setSavingToKnowledge(false);
+    }
+  };
+
   // 发送消息
   const handleSend = async () => {
     if (isLoading) return;
@@ -389,6 +428,11 @@ export default function AIChat() {
       }
       const action = DOC_ACTIONS.find(a => a.id === docAction);
       userContent = (action?.prompt || '') + docContent;
+      
+      // 如果勾选了保存到知识库，则异步保存
+      if (saveToKnowledge && qdrantStatus === 'online') {
+        saveDocumentToKnowledge(docContent);
+      }
     } else {
       if (!input.trim() && attachments.length === 0) return;
       
@@ -766,9 +810,22 @@ export default function AIChat() {
                     </div>
                   </div>
                   
-                  <div className="text-[10px] text-muted-foreground">
-                    {DOC_ACTIONS.find(a => a.id === docAction)?.description}
-                    {docContent && ` · ${docContent.length} 字符`}
+                  <div className="flex items-center justify-between">
+                    <div className="text-[10px] text-muted-foreground">
+                      {DOC_ACTIONS.find(a => a.id === docAction)?.description}
+                      {docContent && ` · ${docContent.length} 字符`}
+                    </div>
+                    {docContent && qdrantStatus === 'online' && (
+                      <label className="flex items-center gap-1.5 text-[10px] cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={saveToKnowledge}
+                          onChange={(e) => setSaveToKnowledge(e.target.checked)}
+                          className="w-3 h-3 rounded border-border"
+                        />
+                        <span className="text-muted-foreground">同时保存到知识库</span>
+                      </label>
+                    )}
                   </div>
                   
                   <Button 
