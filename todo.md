@@ -142,3 +142,15 @@
 - [x] 修复AI对话的文档解析功能
 - [x] 支持 PDF/Word/Excel/CSV/TXT/MD/JSON 格式
 - [x] 重新构建并生成部署包 (v3.1)
+
+
+## OCR 文字识别功能
+
+- [x] 安装 Tesseract.js 库
+- [x] 创建 OCR 服务模块 (ocrService.ts)
+- [x] 支持图片文件 (PNG/JPG/JPEG/BMP/TIFF/WEBP/GIF)
+- [x] 支持扫描版 PDF 的 OCR 识别
+- [x] 集成到文档解析服务
+- [x] 更新 UI 支持图片上传
+- [x] 添加 OCR 进度提示
+- [x] 重新生成部署包 (v3.2)

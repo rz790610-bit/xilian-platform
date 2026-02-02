@@ -24,6 +24,14 @@ const FILE_ICONS: Record<string, string> = {
   'avi': '🎬',
   'dwg': '📐',
   'dxf': '📐',
+  'png': '🖼️',
+  'jpg': '🖼️',
+  'jpeg': '🖼️',
+  'bmp': '🖼️',
+  'tiff': '🖼️',
+  'tif': '🖼️',
+  'webp': '🖼️',
+  'gif': '🖼️',
   'default': '📁'
 };
 
@@ -340,7 +348,7 @@ export default function KnowledgeManager() {
                 type="file"
                 multiple
                 className="hidden"
-                accept=".txt,.md,.json,.csv,.pdf,.doc,.docx,.xls,.xlsx"
+                accept=".txt,.md,.json,.csv,.pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.bmp,.tiff,.tif,.webp,.gif"
                 onChange={(e) => e.target.files && handleFileUpload(e.target.files)}
               />
               <Button disabled={uploading}>

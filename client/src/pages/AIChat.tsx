@@ -689,7 +689,7 @@ export default function AIChat() {
                       <input
                         ref={fileInputRef}
                         type="file"
-                        accept=".txt,.md,.json,.csv,.pdf,.doc,.docx,.xls,.xlsx"
+                        accept=".txt,.md,.json,.csv,.pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.bmp,.tiff,.tif,.webp,.gif"
                         onChange={handleFileUpload}
                         className="hidden"
                       />
@@ -895,7 +895,7 @@ export default function AIChat() {
                       <input
                         ref={chatFileInputRef}
                         type="file"
-                        accept=".txt,.md,.json,.csv,.pdf,.doc,.docx"
+                        accept=".txt,.md,.json,.csv,.pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.bmp,.tiff,.tif,.webp,.gif"
                         multiple
                         onChange={handleChatFileUpload}
                         className="hidden"

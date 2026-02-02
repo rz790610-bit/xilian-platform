@@ -1,11 +1,13 @@
 /**
  * 文档解析服务
  * 支持 PDF、Word、Excel、TXT、CSV、JSON、Markdown 等格式的前端解析
+ * 支持图片 OCR 文字识别（PNG/JPG/BMP/TIFF）
  */
 
 import * as pdfjsLib from 'pdfjs-dist';
 import mammoth from 'mammoth';
 import * as XLSX from 'xlsx';
+import { recognizeImage, isImageFile, SUPPORTED_IMAGE_EXTENSIONS } from './ocrService';
 
 // 设置 PDF.js worker
 pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
@@ -22,14 +24,64 @@ export interface ParseResult {
     title?: string;
     author?: string;
     sheets?: string[];
+    ocrConfidence?: number;
+    isOCR?: boolean;
   };
   error?: string;
 }
 
 /**
- * 解析 PDF 文件
+ * 解析进度回调
  */
-export async function parsePDF(file: File): Promise<ParseResult> {
+export type ParseProgressCallback = (progress: number, status: string) => void;
+
+/**
+ * 解析图片文件（OCR）
+ */
+export async function parseImage(
+  file: File,
+  onProgress?: ParseProgressCallback
+): Promise<ParseResult> {
+  try {
+    const result = await recognizeImage(
+      file,
+      'chi_sim+eng',
+      onProgress
+    );
+    
+    if (result.success && result.text) {
+      return {
+        success: true,
+        content: result.text,
+        metadata: {
+          wordCount: result.text.split(/\s+/).length,
+          ocrConfidence: result.confidence,
+          isOCR: true
+        }
+      };
+    } else {
+      return {
+        success: false,
+        content: '',
+        error: result.error || 'OCR 识别失败'
+      };
+    }
+  } catch (error) {
+    return {
+      success: false,
+      content: '',
+      error: `图片 OCR 失败: ${error instanceof Error ? error.message : String(error)}`
+    };
+  }
+}
+
+/**
+ * 解析 PDF 文件（支持扫描版 PDF 的 OCR）
+ */
+export async function parsePDF(
+  file: File,
+  onProgress?: ParseProgressCallback
+): Promise<ParseResult> {
   try {
     const arrayBuffer = await file.arrayBuffer();
     const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
@@ -245,13 +297,23 @@ export async function parseText(file: File): Promise<ParseResult> {
 
 /**
  * 根据文件类型自动选择解析器
+ * @param file 文件
+ * @param onProgress 进度回调（用于 OCR）
  */
-export async function parseDocument(file: File): Promise<ParseResult> {
+export async function parseDocument(
+  file: File,
+  onProgress?: ParseProgressCallback
+): Promise<ParseResult> {
   const ext = file.name.split('.').pop()?.toLowerCase() || '';
+  
+  // 检查是否为图片文件
+  if (isImageFile(file)) {
+    return parseImage(file, onProgress);
+  }
   
   switch (ext) {
     case 'pdf':
-      return parsePDF(file);
+      return parsePDF(file, onProgress);
     
     case 'docx':
     case 'doc':
