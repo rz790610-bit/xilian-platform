@@ -77,3 +77,12 @@
 - [x] 添加从知识库选择文档功能
 - [x] 附件预览和删除功能
 - [x] 创建 listKnowledgePoints API 端点
+
+
+## Nomic-Embed-Text 模型集成
+
+- [x] 安装 nomic-embed-text 模型到 Ollama
+- [x] 更新知识库后端使用 Ollama 嵌入 API
+- [x] 替换简单哈希嵌入为 nomic-embed-text
+- [x] 默认向量维度更新为 768
+- [ ] 测试语义检索效果

@@ -280,6 +280,30 @@ export async function generate(
 }
 
 /**
+ * 生成文本嵌入向量
+ */
+export async function generateEmbedding(
+  text: string,
+  model: string = 'nomic-embed-text'
+): Promise<number[]> {
+  const response = await fetch(`${OLLAMA_BASE_URL}/api/embeddings`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model,
+      prompt: text
+    })
+  });
+  
+  if (!response.ok) {
+    throw new Error(`生成嵌入向量失败: ${response.status}`);
+  }
+  
+  const data = await response.json();
+  return data.embedding;
+}
+
+/**
  * 获取模型信息
  */
 export async function showModel(modelName: string): Promise<{

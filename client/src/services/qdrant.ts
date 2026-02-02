@@ -124,7 +124,7 @@ export async function getCollections(): Promise<CollectionInfo[]> {
  */
 export async function createCollection(
   name: string, 
-  vectorSize: number = 384
+  vectorSize: number = 768  // nomic-embed-text 默认维度
 ): Promise<void> {
   const response = await fetch(`${QDRANT_BASE_URL}/collections/${name}`, {
     method: 'PUT',
@@ -187,7 +187,7 @@ export async function generateEmbedding(
  * 简单的文本向量化（备用方案，当没有嵌入模型时使用）
  * 使用 TF-IDF 风格的简单向量化
  */
-export function simpleTextToVector(text: string, size: number = 384): number[] {
+export function simpleTextToVector(text: string, size: number = 768): number[] {
   const vector = new Array(size).fill(0);
   const words = text.toLowerCase().split(/\s+/);
   
@@ -219,7 +219,7 @@ export function simpleTextToVector(text: string, size: number = 384): number[] {
 export async function addKnowledgePoint(
   collection: string,
   point: KnowledgePoint,
-  useEmbedding: boolean = false
+  useEmbedding: boolean = true  // 默认使用 nomic-embed-text
 ): Promise<void> {
   // 生成向量
   let vector: number[];
@@ -257,7 +257,7 @@ export async function addKnowledgePoint(
 export async function addKnowledgePoints(
   collection: string,
   points: KnowledgePoint[],
-  useEmbedding: boolean = false
+  useEmbedding: boolean = true  // 默认使用 nomic-embed-text
 ): Promise<void> {
   const pointsWithVectors = await Promise.all(
     points.map(async (point) => {
@@ -297,7 +297,7 @@ export async function searchKnowledge(
   collection: string,
   query: string,
   limit: number = 5,
-  useEmbedding: boolean = false,
+  useEmbedding: boolean = true,  // 默认使用 nomic-embed-text
   filter?: Record<string, any>
 ): Promise<SearchResult[]> {
   // 生成查询向量
