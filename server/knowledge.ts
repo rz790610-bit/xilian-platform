@@ -659,6 +659,43 @@ export const knowledgeRouter = router({
       return await clearKbCollectionData(input.collectionId);
     }),
 
+  // 获取知识点列表（带完整内容，用于AI对话选择）
+  listKnowledgePoints: publicProcedure
+    .input(z.object({
+      page: z.number().default(1),
+      pageSize: z.number().default(100)
+    }))
+    .query(async ({ input }) => {
+      // 获取所有集合
+      const collections = await getKbCollections();
+      const allPoints: Array<{id: number; title: string; content: string; fileType: string; collectionName: string}> = [];
+      
+      for (const col of collections) {
+        const points = await getKbPoints(col.id, { limit: input.pageSize });
+        for (const point of points) {
+          allPoints.push({
+            id: point.id,
+            title: point.title,
+            content: point.content,
+            fileType: point.category || 'text',
+            collectionName: col.name
+          });
+        }
+      }
+      
+      // 分页
+      const start = (input.page - 1) * input.pageSize;
+      const end = start + input.pageSize;
+      const paginatedPoints = allPoints.slice(start, end);
+      
+      return {
+        documents: paginatedPoints,
+        total: allPoints.length,
+        page: input.page,
+        pageSize: input.pageSize
+      };
+    }),
+
   // 检查 Qdrant 状态
   qdrantStatus: publicProcedure.query(async () => {
     const connected = await checkQdrantConnection();

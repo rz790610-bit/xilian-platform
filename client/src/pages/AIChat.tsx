@@ -7,21 +7,34 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/components/common/Toast';
 import { nanoid } from 'nanoid';
 import { 
   Send, Loader2, Bot, User, Wifi, WifiOff, RefreshCw, 
   MessageSquare, FileText, Search, Upload, Copy, Download,
-  Languages, Sparkles, FileEdit, BookOpen, Trash2, ChevronRight
+  Languages, Sparkles, FileEdit, BookOpen, Trash2, ChevronRight,
+  Paperclip, X, File, Database, FolderOpen
 } from 'lucide-react';
 import * as ollama from '@/services/ollama';
 import * as qdrant from '@/services/qdrant';
+import { trpc } from '@/lib/trpc';
 
 // 功能模式类型
 type ChatMode = 'chat' | 'document' | 'knowledge';
 
 // 文档操作类型
 type DocAction = 'summarize' | 'edit' | 'translate' | 'explain';
+
+// 附件类型
+interface Attachment {
+  id: string;
+  name: string;
+  type: string;
+  size: number;
+  content: string;
+  source: 'upload' | 'knowledge';
+}
 
 interface Message {
   id: string;
@@ -31,6 +44,7 @@ interface Message {
   isStreaming?: boolean;
   mode?: ChatMode;
   docAction?: DocAction;
+  attachments?: Attachment[];
 }
 
 interface OllamaModelInfo {
@@ -126,14 +140,29 @@ export default function AIChat() {
   const [docAction, setDocAction] = useState<DocAction>('summarize');
   const [docContent, setDocContent] = useState('');
   
+  // 附件状态
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [showKnowledgeDialog, setShowKnowledgeDialog] = useState(false);
+  
   // RAG 状态
   const [qdrantStatus, setQdrantStatus] = useState<'checking' | 'online' | 'offline'>('checking');
   const [knowledgeCollections, setKnowledgeCollections] = useState<string[]>([]);
   const [selectedCollection, setSelectedCollection] = useState('diagnosis_knowledge');
   const [ragEnabled, setRagEnabled] = useState(true);
   
+  // 知识库文档列表
+  const [knowledgeDocs, setKnowledgeDocs] = useState<Array<{id: number; title: string; content: string; fileType: string}>>([]);
+  const [loadingDocs, setLoadingDocs] = useState(false);
+  
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const chatFileInputRef = useRef<HTMLInputElement>(null);
+
+  // 获取知识库文档列表
+  const documentsQuery = trpc.knowledge.listKnowledgePoints.useQuery(
+    { page: 1, pageSize: 100 },
+    { enabled: showKnowledgeDialog }
+  );
 
   // 检查服务状态
   useEffect(() => {
@@ -152,11 +181,9 @@ export default function AIChat() {
   useEffect(() => {
     if (models.length > 0) {
       if (mode === 'document') {
-        // 文档处理优先使用 Qwen
         const qwenModel = models.find(m => m.name.includes('qwen'));
         if (qwenModel) setSelectedModel(qwenModel.name);
       } else if (mode === 'chat') {
-        // 通用对话可以使用 Llama
         const llamaModel = models.find(m => m.name.includes('llama'));
         if (llamaModel) setSelectedModel(llamaModel.name);
       }
@@ -230,11 +257,136 @@ export default function AIChat() {
     }
   };
 
+  // 文件上传处理 - 文档模式
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const allowedTypes = ['text/plain', 'text/markdown', 'application/json', 'text/csv',
+      'application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/msword', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
+    const allowedExtensions = ['.txt', '.md', '.json', '.csv', '.pdf', '.doc', '.docx', '.xls', '.xlsx'];
+    
+    const ext = '.' + file.name.split('.').pop()?.toLowerCase();
+    
+    if (!allowedTypes.includes(file.type) && !allowedExtensions.includes(ext)) {
+      toast.error('支持格式：TXT、MD、JSON、CSV、PDF、Word、Excel');
+      return;
+    }
+
+    try {
+      // 对于文本文件直接读取
+      if (['.txt', '.md', '.json', '.csv'].includes(ext)) {
+        const text = await file.text();
+        setDocContent(text);
+        toast.success(`已加载文件: ${file.name}`);
+      } else {
+        // 对于 PDF/Word/Excel，需要通过后端解析
+        toast.info('正在解析文档...');
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        // 读取文件为 base64
+        const reader = new FileReader();
+        reader.onload = async () => {
+          const base64 = (reader.result as string).split(',')[1];
+          try {
+            // 简单的文本提取提示
+            setDocContent(`[文件: ${file.name}]\n\n正在解析文档内容，请稍候...\n\n如果解析失败，请尝试将文档内容复制粘贴到此处。`);
+            toast.success(`已加载文件: ${file.name}（复杂格式可能需要手动粘贴内容）`);
+          } catch {
+            toast.error('文档解析失败，请尝试复制粘贴内容');
+          }
+        };
+        reader.readAsDataURL(file);
+      }
+    } catch {
+      toast.error('文件读取失败');
+    }
+    
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  // 文件上传处理 - 对话模式附件
+  const handleChatFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const allowedExtensions = ['.txt', '.md', '.json', '.csv', '.pdf', '.doc', '.docx'];
+    
+    for (const file of Array.from(files)) {
+      const ext = '.' + file.name.split('.').pop()?.toLowerCase();
+      
+      if (!allowedExtensions.includes(ext)) {
+        toast.error(`不支持的文件格式: ${file.name}`);
+        continue;
+      }
+
+      try {
+        let content = '';
+        if (['.txt', '.md', '.json', '.csv'].includes(ext)) {
+          content = await file.text();
+        } else {
+          content = `[文件: ${file.name}] - 复杂格式文件，内容摘要待解析`;
+        }
+
+        const attachment: Attachment = {
+          id: nanoid(),
+          name: file.name,
+          type: ext,
+          size: file.size,
+          content: content.substring(0, 10000), // 限制内容长度
+          source: 'upload'
+        };
+
+        setAttachments(prev => [...prev, attachment]);
+        toast.success(`已添加附件: ${file.name}`);
+      } catch {
+        toast.error(`读取文件失败: ${file.name}`);
+      }
+    }
+
+    if (chatFileInputRef.current) {
+      chatFileInputRef.current.value = '';
+    }
+  };
+
+  // 从知识库选择文档
+  const handleSelectKnowledgeDoc = (doc: {id: number; title: string; content: string; fileType: string}) => {
+    const attachment: Attachment = {
+      id: nanoid(),
+      name: doc.title,
+      type: doc.fileType || 'kb',
+      size: doc.content.length,
+      content: doc.content.substring(0, 10000),
+      source: 'knowledge'
+    };
+
+    setAttachments(prev => [...prev, attachment]);
+    setShowKnowledgeDialog(false);
+    toast.success(`已从知识库添加: ${doc.title}`);
+  };
+
+  // 移除附件
+  const removeAttachment = (id: string) => {
+    setAttachments(prev => prev.filter(a => a.id !== id));
+  };
+
+  // 格式化文件大小
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  };
+
   // 发送消息
   const handleSend = async () => {
     if (isLoading) return;
     
     let userContent = '';
+    let messageAttachments: Attachment[] = [];
     
     if (mode === 'document') {
       if (!docContent.trim()) {
@@ -244,8 +396,17 @@ export default function AIChat() {
       const action = DOC_ACTIONS.find(a => a.id === docAction);
       userContent = (action?.prompt || '') + docContent;
     } else {
-      if (!input.trim()) return;
+      if (!input.trim() && attachments.length === 0) return;
+      
+      // 构建带附件的消息
       userContent = input.trim();
+      if (attachments.length > 0) {
+        const attachmentContext = attachments.map(a => 
+          `\n\n【附件: ${a.name}】\n${a.content}`
+        ).join('');
+        userContent = userContent + attachmentContext;
+        messageAttachments = [...attachments];
+      }
     }
     
     if (ollamaStatus !== 'online') {
@@ -256,14 +417,22 @@ export default function AIChat() {
     const userMessage: Message = {
       id: nanoid(),
       role: 'user',
-      content: mode === 'document' ? `[${DOC_ACTIONS.find(a => a.id === docAction)?.label}]\n${docContent.substring(0, 200)}${docContent.length > 200 ? '...' : ''}` : userContent,
+      content: mode === 'document' 
+        ? `[${DOC_ACTIONS.find(a => a.id === docAction)?.label}]\n${docContent.substring(0, 200)}${docContent.length > 200 ? '...' : ''}` 
+        : (attachments.length > 0 
+          ? `${input}\n\n📎 ${attachments.length} 个附件` 
+          : input),
       timestamp: new Date(),
       mode,
-      docAction: mode === 'document' ? docAction : undefined
+      docAction: mode === 'document' ? docAction : undefined,
+      attachments: messageAttachments.length > 0 ? messageAttachments : undefined
     };
 
     setMessages(prev => [...prev, userMessage]);
-    if (mode !== 'document') setInput('');
+    if (mode !== 'document') {
+      setInput('');
+      setAttachments([]); // 清空附件
+    }
     setIsLoading(true);
 
     const aiMessageId = nanoid();
@@ -278,7 +447,6 @@ export default function AIChat() {
     setMessages(prev => [...prev, aiMessage]);
 
     try {
-      // 构建消息
       const systemPrompt: ollama.ChatMessage = {
         role: 'system',
         content: MODE_CONFIG[mode].systemPrompt
@@ -288,7 +456,7 @@ export default function AIChat() {
       
       // 知识检索模式添加 RAG 上下文
       if (mode === 'knowledge' && ragEnabled) {
-        const ragContext = await searchKnowledge(userContent);
+        const ragContext = await searchKnowledge(input.trim());
         if (ragContext) {
           contextualPrompt = ragContext + userContent;
         }
@@ -296,7 +464,7 @@ export default function AIChat() {
 
       const chatHistory: ollama.ChatMessage[] = messages
         .filter(m => m.role !== 'system' && m.mode === mode)
-        .slice(-10) // 保留最近10条
+        .slice(-10)
         .map(m => ({
           role: m.role as 'user' | 'assistant',
           content: m.content
@@ -307,7 +475,6 @@ export default function AIChat() {
         content: contextualPrompt
       });
 
-      // 调用 Ollama
       await ollama.chat(
         selectedModel,
         [systemPrompt, ...chatHistory],
@@ -319,7 +486,7 @@ export default function AIChat() {
           ));
         },
         {
-          temperature: mode === 'document' ? 0.3 : 0.7, // 文档处理用更低温度
+          temperature: mode === 'document' ? 0.3 : 0.7,
           num_predict: mode === 'document' ? 4096 : 2048
         }
       );
@@ -355,35 +522,6 @@ export default function AIChat() {
     if (e.key === 'Enter' && !e.shiftKey && mode !== 'document') {
       e.preventDefault();
       handleSend();
-    }
-  };
-
-  // 文件上传处理
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const allowedTypes = ['text/plain', 'text/markdown', 'application/json'];
-    const allowedExtensions = ['.txt', '.md', '.json', '.csv'];
-    
-    const ext = '.' + file.name.split('.').pop()?.toLowerCase();
-    
-    if (!allowedTypes.includes(file.type) && !allowedExtensions.includes(ext)) {
-      toast.error('仅支持 TXT、MD、JSON、CSV 格式');
-      return;
-    }
-
-    try {
-      const text = await file.text();
-      setDocContent(text);
-      toast.success(`已加载文件: ${file.name}`);
-    } catch {
-      toast.error('文件读取失败');
-    }
-    
-    // 清空 input
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
     }
   };
 
@@ -442,7 +580,7 @@ export default function AIChat() {
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div>
               <h2 className="text-lg font-bold mb-1">AI 对话平台</h2>
-              <p className="text-xs text-muted-foreground">多模态智能对话，支持文档处理与知识检索</p>
+              <p className="text-xs text-muted-foreground">多模态智能对话，支持文件上传与知识检索</p>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
               {/* 状态指示器 */}
@@ -551,13 +689,13 @@ export default function AIChat() {
                       value={docContent}
                       onChange={(e) => setDocContent(e.target.value)}
                       placeholder="粘贴或输入文档内容..."
-                      className="min-h-[150px] text-xs resize-none pr-20"
+                      className="min-h-[150px] text-xs resize-none pr-24"
                     />
                     <div className="absolute top-2 right-2 flex flex-col gap-1">
                       <input
                         ref={fileInputRef}
                         type="file"
-                        accept=".txt,.md,.json,.csv"
+                        accept=".txt,.md,.json,.csv,.pdf,.doc,.docx,.xls,.xlsx"
                         onChange={handleFileUpload}
                         className="hidden"
                       />
@@ -570,6 +708,57 @@ export default function AIChat() {
                         <Upload className="w-3 h-3 mr-1" />
                         上传
                       </Button>
+                      <Dialog open={showKnowledgeDialog} onOpenChange={setShowKnowledgeDialog}>
+                        <DialogTrigger asChild>
+                          <Button variant="outline" size="sm" className="h-7 text-[10px]">
+                            <Database className="w-3 h-3 mr-1" />
+                            知识库
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent className="max-w-2xl max-h-[70vh]">
+                          <DialogHeader>
+                            <DialogTitle>从知识库选择文档</DialogTitle>
+                          </DialogHeader>
+                          <ScrollArea className="h-[400px] pr-4">
+                            {documentsQuery.isLoading ? (
+                              <div className="flex items-center justify-center py-8">
+                                <Loader2 className="w-6 h-6 animate-spin" />
+                              </div>
+                            ) : documentsQuery.data?.documents && documentsQuery.data.documents.length > 0 ? (
+                              <div className="space-y-2">
+                                {documentsQuery.data.documents.map((doc: {id: number; title: string; content: string; fileType: string}) => (
+                                  <div
+                                    key={doc.id}
+                                    onClick={() => {
+                                      setDocContent(doc.content);
+                                      setShowKnowledgeDialog(false);
+                                      toast.success(`已加载: ${doc.title}`);
+                                    }}
+                                    className="p-3 border rounded-lg cursor-pointer hover:bg-accent transition-colors"
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <File className="w-4 h-4 text-muted-foreground" />
+                                      <span className="font-medium text-sm">{doc.title}</span>
+                                      <span className="text-[10px] text-muted-foreground px-1.5 py-0.5 bg-secondary rounded">
+                                        {doc.fileType}
+                                      </span>
+                                    </div>
+                                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                                      {doc.content.substring(0, 150)}...
+                                    </p>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <div className="text-center py-8 text-muted-foreground">
+                                <FolderOpen className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                                <p className="text-sm">知识库暂无文档</p>
+                                <p className="text-xs mt-1">请先在知识管理中上传文档</p>
+                              </div>
+                            )}
+                          </ScrollArea>
+                        </DialogContent>
+                      </Dialog>
                       {docContent && (
                         <Button
                           variant="outline"
@@ -603,14 +792,14 @@ export default function AIChat() {
               )}
 
               {/* 消息列表 */}
-              <ScrollArea className={`pr-3 ${mode === 'document' ? 'h-[250px]' : 'h-[400px]'}`} ref={scrollRef}>
+              <ScrollArea className={`pr-3 ${mode === 'document' ? 'h-[250px]' : 'h-[350px]'}`} ref={scrollRef}>
                 <div className="space-y-3">
                   {messages.filter(m => mode === 'document' || m.mode === mode || !m.mode).length === 0 && (
                     <div className="text-center py-12 text-muted-foreground">
                       {MODE_CONFIG[mode].icon}
                       <p className="text-xs mt-3">{MODE_CONFIG[mode].description}</p>
                       <p className="text-[10px] mt-1">
-                        {mode === 'document' ? '请输入文档内容开始处理' : '输入问题开始对话'}
+                        {mode === 'document' ? '请输入文档内容开始处理' : '输入问题开始对话，可添加附件'}
                       </p>
                     </div>
                   )}
@@ -641,6 +830,17 @@ export default function AIChat() {
                               <span className="inline-block w-1.5 h-3 bg-current ml-0.5 animate-pulse" />
                             )}
                           </div>
+                          {/* 显示附件标签 */}
+                          {message.attachments && message.attachments.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-2 pt-2 border-t border-current/20">
+                              {message.attachments.map(att => (
+                                <span key={att.id} className="inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 bg-black/10 rounded">
+                                  <Paperclip className="w-2.5 h-2.5" />
+                                  {att.name}
+                                </span>
+                              ))}
+                            </div>
+                          )}
                         </div>
                         {message.role === 'assistant' && !message.isStreaming && message.content && (
                           <div className="flex gap-1">
@@ -668,31 +868,133 @@ export default function AIChat() {
 
               {/* 输入框 - 非文档模式 */}
               {mode !== 'document' && (
-                <div className="flex gap-2 mt-3 pt-3 border-t">
-                  <Input
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    onKeyPress={handleKeyPress}
-                    placeholder={
-                      ollamaStatus === 'online' 
-                        ? (mode === 'knowledge' ? '输入问题，将从知识库检索相关内容...' : '输入问题...')
-                        : '请先连接 Ollama...'
-                    }
-                    disabled={isLoading || ollamaStatus !== 'online'}
-                    className="h-8 text-xs"
-                  />
-                  <Button 
-                    onClick={handleSend} 
-                    disabled={isLoading || !input.trim() || ollamaStatus !== 'online'}
-                    size="sm"
-                    className="h-8 px-3"
-                  >
-                    {isLoading ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    ) : (
-                      <Send className="w-3.5 h-3.5" />
-                    )}
-                  </Button>
+                <div className="mt-3 pt-3 border-t space-y-2">
+                  {/* 附件预览 */}
+                  {attachments.length > 0 && (
+                    <div className="flex flex-wrap gap-2 p-2 bg-secondary/50 rounded-lg">
+                      {attachments.map(att => (
+                        <div 
+                          key={att.id} 
+                          className="flex items-center gap-1.5 px-2 py-1 bg-background rounded text-[10px] group"
+                        >
+                          {att.source === 'knowledge' ? (
+                            <Database className="w-3 h-3 text-blue-500" />
+                          ) : (
+                            <File className="w-3 h-3 text-muted-foreground" />
+                          )}
+                          <span className="max-w-[100px] truncate">{att.name}</span>
+                          <span className="text-muted-foreground">({formatFileSize(att.size)})</span>
+                          <button 
+                            onClick={() => removeAttachment(att.id)}
+                            className="opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <X className="w-3 h-3 text-muted-foreground hover:text-destructive" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  
+                  <div className="flex gap-2">
+                    {/* 附件按钮组 */}
+                    <div className="flex gap-1">
+                      <input
+                        ref={chatFileInputRef}
+                        type="file"
+                        accept=".txt,.md,.json,.csv,.pdf,.doc,.docx"
+                        multiple
+                        onChange={handleChatFileUpload}
+                        className="hidden"
+                      />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 px-2"
+                        onClick={() => chatFileInputRef.current?.click()}
+                        title="上传文件"
+                      >
+                        <Upload className="w-3.5 h-3.5" />
+                      </Button>
+                      <Dialog open={showKnowledgeDialog} onOpenChange={setShowKnowledgeDialog}>
+                        <DialogTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 px-2"
+                            title="从知识库选择"
+                          >
+                            <Database className="w-3.5 h-3.5" />
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent className="max-w-2xl max-h-[70vh]">
+                          <DialogHeader>
+                            <DialogTitle>从知识库选择文档</DialogTitle>
+                          </DialogHeader>
+                          <ScrollArea className="h-[400px] pr-4">
+                            {documentsQuery.isLoading ? (
+                              <div className="flex items-center justify-center py-8">
+                                <Loader2 className="w-6 h-6 animate-spin" />
+                              </div>
+                            ) : documentsQuery.data?.documents && documentsQuery.data.documents.length > 0 ? (
+                              <div className="space-y-2">
+                                {documentsQuery.data.documents.map((doc: {id: number; title: string; content: string; fileType: string}) => (
+                                  <div
+                                    key={doc.id}
+                                    onClick={() => handleSelectKnowledgeDoc(doc)}
+                                    className="p-3 border rounded-lg cursor-pointer hover:bg-accent transition-colors"
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <File className="w-4 h-4 text-muted-foreground" />
+                                      <span className="font-medium text-sm">{doc.title}</span>
+                                      <span className="text-[10px] text-muted-foreground px-1.5 py-0.5 bg-secondary rounded">
+                                        {doc.fileType}
+                                      </span>
+                                    </div>
+                                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                                      {doc.content.substring(0, 150)}...
+                                    </p>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <div className="text-center py-8 text-muted-foreground">
+                                <FolderOpen className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                                <p className="text-sm">知识库暂无文档</p>
+                                <p className="text-xs mt-1">请先在知识管理中上传文档</p>
+                              </div>
+                            )}
+                          </ScrollArea>
+                        </DialogContent>
+                      </Dialog>
+                    </div>
+                    
+                    <Input
+                      value={input}
+                      onChange={(e) => setInput(e.target.value)}
+                      onKeyPress={handleKeyPress}
+                      placeholder={
+                        ollamaStatus === 'online' 
+                          ? (attachments.length > 0 
+                            ? '输入问题，将基于附件内容回答...' 
+                            : (mode === 'knowledge' ? '输入问题，将从知识库检索相关内容...' : '输入问题...'))
+                          : '请先连接 Ollama...'
+                      }
+                      disabled={isLoading || ollamaStatus !== 'online'}
+                      className="h-8 text-xs flex-1"
+                    />
+                    <Button 
+                      onClick={handleSend} 
+                      disabled={isLoading || (!input.trim() && attachments.length === 0) || ollamaStatus !== 'online'}
+                      size="sm"
+                      className="h-8 px-3"
+                    >
+                      {isLoading ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Send className="w-3.5 h-3.5" />
+                      )}
+                    </Button>
+                  </div>
                 </div>
               )}
             </PageCard>
