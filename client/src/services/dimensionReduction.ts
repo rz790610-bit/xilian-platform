@@ -257,3 +257,229 @@ export function computeVectorStats(vectors: number[][]): {
     maxNorm: Math.max(...norms)
   };
 }
+
+// ==================== 聚类分析功能 ====================
+
+/**
+ * 聚类结果接口
+ */
+export interface ClusterResult {
+  clusters: ClusterInfo[];
+  assignments: number[];  // 每个点的聚类索引
+  centroids: number[][];  // 聚类中心点
+}
+
+export interface ClusterInfo {
+  id: number;
+  size: number;
+  centroid: { x: number; y: number };
+  color: string;
+  points: string[];  // 属于该聚类的点 ID
+  representativePoint?: string;  // 代表性点
+}
+
+// 聚类颜色调色板
+const CLUSTER_COLORS = [
+  '#ef4444', // 红
+  '#f97316', // 橙
+  '#eab308', // 黄
+  '#22c55e', // 绿
+  '#06b6d4', // 青
+  '#3b82f6', // 蓝
+  '#8b5cf6', // 紫
+  '#ec4899', // 粉
+  '#6366f1', // 靖蓝
+  '#14b8a6', // 青绿
+];
+
+/**
+ * 计算两点之间的欧氏距离
+ */
+function euclideanDistance(a: number[], b: number[]): number {
+  let sum = 0;
+  for (let i = 0; i < a.length; i++) {
+    sum += (a[i] - b[i]) ** 2;
+  }
+  return Math.sqrt(sum);
+}
+
+/**
+ * K-Means++ 初始化聚类中心
+ */
+function initializeCentroids(points: number[][], k: number): number[][] {
+  const centroids: number[][] = [];
+  const n = points.length;
+  
+  // 随机选择第一个中心
+  const firstIdx = Math.floor(Math.random() * n);
+  centroids.push([...points[firstIdx]]);
+  
+  // 选择剩余的中心
+  for (let i = 1; i < k; i++) {
+    const distances: number[] = [];
+    let totalDist = 0;
+    
+    // 计算每个点到最近中心的距离
+    for (const point of points) {
+      let minDist = Infinity;
+      for (const centroid of centroids) {
+        const dist = euclideanDistance(point, centroid);
+        minDist = Math.min(minDist, dist);
+      }
+      distances.push(minDist * minDist);  // 使用距离的平方
+      totalDist += minDist * minDist;
+    }
+    
+    // 按距离比例随机选择下一个中心
+    let r = Math.random() * totalDist;
+    for (let j = 0; j < n; j++) {
+      r -= distances[j];
+      if (r <= 0) {
+        centroids.push([...points[j]]);
+        break;
+      }
+    }
+    
+    // 如果没有选中，选择最后一个
+    if (centroids.length === i) {
+      centroids.push([...points[n - 1]]);
+    }
+  }
+  
+  return centroids;
+}
+
+/**
+ * K-Means 聚类算法
+ */
+export function kMeansClustering(
+  points: number[][],
+  k: number,
+  maxIterations: number = 100
+): { assignments: number[]; centroids: number[][] } {
+  const n = points.length;
+  
+  if (n === 0 || k <= 0) {
+    return { assignments: [], centroids: [] };
+  }
+  
+  // 确保 k 不超过点的数量
+  k = Math.min(k, n);
+  
+  // 初始化聚类中心
+  let centroids = initializeCentroids(points, k);
+  let assignments = new Array(n).fill(0);
+  
+  for (let iter = 0; iter < maxIterations; iter++) {
+    // 分配每个点到最近的聚类中心
+    const newAssignments = points.map(point => {
+      let minDist = Infinity;
+      let minIdx = 0;
+      for (let i = 0; i < k; i++) {
+        const dist = euclideanDistance(point, centroids[i]);
+        if (dist < minDist) {
+          minDist = dist;
+          minIdx = i;
+        }
+      }
+      return minIdx;
+    });
+    
+    // 检查是否收敛
+    let converged = true;
+    for (let i = 0; i < n; i++) {
+      if (newAssignments[i] !== assignments[i]) {
+        converged = false;
+        break;
+      }
+    }
+    
+    assignments = newAssignments;
+    
+    if (converged) break;
+    
+    // 更新聚类中心
+    const newCentroids: number[][] = [];
+    for (let i = 0; i < k; i++) {
+      const clusterPoints = points.filter((_, idx) => assignments[idx] === i);
+      if (clusterPoints.length === 0) {
+        // 如果聚类为空，保持原来的中心
+        newCentroids.push(centroids[i]);
+      } else {
+        // 计算新的中心（平均值）
+        const dim = clusterPoints[0].length;
+        const newCentroid = new Array(dim).fill(0);
+        for (const point of clusterPoints) {
+          for (let d = 0; d < dim; d++) {
+            newCentroid[d] += point[d];
+          }
+        }
+        for (let d = 0; d < dim; d++) {
+          newCentroid[d] /= clusterPoints.length;
+        }
+        newCentroids.push(newCentroid);
+      }
+    }
+    centroids = newCentroids;
+  }
+  
+  return { assignments, centroids };
+}
+
+/**
+ * 对投影点进行聚类分析
+ */
+export function clusterProjectedPoints(
+  points: ProjectedPoint[],
+  k: number = 3
+): ClusterResult {
+  if (points.length === 0) {
+    return { clusters: [], assignments: [], centroids: [] };
+  }
+  
+  // 提取 2D 坐标
+  const coords = points.map(p => [p.x, p.y]);
+  
+  // 执行 K-Means 聚类
+  const { assignments, centroids } = kMeansClustering(coords, k);
+  
+  // 构建聚类信息
+  const clusters: ClusterInfo[] = [];
+  for (let i = 0; i < k; i++) {
+    const clusterPointIds = points
+      .filter((_, idx) => assignments[idx] === i)
+      .map(p => p.id);
+    
+    // 找到离中心最近的点作为代表
+    let representativePoint: string | undefined;
+    let minDist = Infinity;
+    for (const pid of clusterPointIds) {
+      const point = points.find(p => p.id === pid);
+      if (point) {
+        const dist = euclideanDistance([point.x, point.y], centroids[i]);
+        if (dist < minDist) {
+          minDist = dist;
+          representativePoint = pid;
+        }
+      }
+    }
+    
+    clusters.push({
+      id: i,
+      size: clusterPointIds.length,
+      centroid: { x: centroids[i][0], y: centroids[i][1] },
+      color: CLUSTER_COLORS[i % CLUSTER_COLORS.length],
+      points: clusterPointIds,
+      representativePoint
+    });
+  }
+  
+  return { clusters, assignments, centroids };
+}
+
+/**
+ * 获取聚类颜色
+ */
+export function getClusterColor(clusterIndex: number): string {
+  return CLUSTER_COLORS[clusterIndex % CLUSTER_COLORS.length];
+}

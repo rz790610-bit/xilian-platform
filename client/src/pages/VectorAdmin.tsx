@@ -19,7 +19,14 @@ import {
 } from 'lucide-react';
 import * as qdrant from '@/services/qdrant';
 import * as ollama from '@/services/ollama';
-import { vectorsToProjectedPoints, type ReductionMethod } from '@/services/dimensionReduction';
+import { 
+  vectorsToProjectedPoints, 
+  clusterProjectedPoints,
+  getClusterColor,
+  type ReductionMethod,
+  type ClusterResult,
+  type ClusterInfo
+} from '@/services/dimensionReduction';
 
 // 集合统计信息
 interface CollectionStats {
@@ -76,6 +83,11 @@ export default function VectorAdmin() {
   // 降维算法选项
   const [reductionMethod, setReductionMethod] = useState<ReductionMethod>('pca');
   const [computing, setComputing] = useState(false);
+  
+  // 聚类分析
+  const [clusterCount, setClusterCount] = useState(3);
+  const [clusterResult, setClusterResult] = useState<ClusterResult | null>(null);
+  const [showClusters, setShowClusters] = useState(false);
   
   // 初始化
   useEffect(() => {
@@ -144,8 +156,9 @@ export default function VectorAdmin() {
       setVectors(vectorPoints);
       
       // 使用真实降维算法生成 2D 投影
+      let projected: ProjectedPoint[] = [];
       if (vectorPoints.length > 0 && vectorPoints[0].vector.length > 0) {
-        const projected = vectorsToProjectedPoints(
+        projected = vectorsToProjectedPoints(
           points.map(p => ({
             id: p.id,
             vector: p.vector,
@@ -157,9 +170,15 @@ export default function VectorAdmin() {
         toast.success(`已加载 ${vectorPoints.length} 个向量点，使用 ${method.toUpperCase()} 降维`);
       } else {
         // 没有向量数据，使用简单投影
-        const projected = generateProjection(vectorPoints);
+        projected = generateProjection(vectorPoints);
         setProjectedPoints(projected);
         toast.success(`已加载 ${vectorPoints.length} 个向量点（无向量数据，使用简单投影）`);
+      }
+      
+      // 如果启用了聚类，自动计算聚类
+      if (showClusters && projected.length >= clusterCount) {
+        const clusters = clusterProjectedPoints(projected, clusterCount);
+        setClusterResult(clusters);
       }
     } catch (error) {
       console.error('加载向量数据失败:', error);
@@ -514,6 +533,69 @@ export default function VectorAdmin() {
                       </Button>
                     </div>
                   </div>
+                  {/* 聚类控制栏 */}
+                  <div className="flex items-center gap-4 mt-2 pt-2 border-t">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id="showClusters"
+                        checked={showClusters}
+                        onChange={(e) => {
+                          setShowClusters(e.target.checked);
+                          if (e.target.checked && projectedPoints.length >= clusterCount) {
+                            const clusters = clusterProjectedPoints(projectedPoints, clusterCount);
+                            setClusterResult(clusters);
+                          } else {
+                            setClusterResult(null);
+                          }
+                        }}
+                        className="w-4 h-4 rounded border-gray-300"
+                      />
+                      <label htmlFor="showClusters" className="text-sm">启用聚类分析</label>
+                    </div>
+                    {showClusters && (
+                      <>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-muted-foreground">聚类数:</span>
+                          <Select 
+                            value={clusterCount.toString()} 
+                            onValueChange={(v) => {
+                              const k = parseInt(v);
+                              setClusterCount(k);
+                              if (projectedPoints.length >= k) {
+                                const clusters = clusterProjectedPoints(projectedPoints, k);
+                                setClusterResult(clusters);
+                              }
+                            }}
+                          >
+                            <SelectTrigger className="w-20">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {[2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => (
+                                <SelectItem key={n} value={n.toString()}>{n}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            if (projectedPoints.length >= clusterCount) {
+                              const clusters = clusterProjectedPoints(projectedPoints, clusterCount);
+                              setClusterResult(clusters);
+                              toast.success(`已生成 ${clusterCount} 个聚类`);
+                            }
+                          }}
+                          disabled={projectedPoints.length < clusterCount}
+                        >
+                          <Target className="w-4 h-4 mr-1" />
+                          重新聚类
+                        </Button>
+                      </>
+                    )}
+                  </div>
                 </CardHeader>
                 <CardContent>
                   {projectedPoints.length === 0 ? (
@@ -533,38 +615,117 @@ export default function VectorAdmin() {
                         </defs>
                         <rect width="100" height="100" fill="url(#grid)" />
                         
-                        {/* 数据点 */}
-                        {projectedPoints.map((point, idx) => (
-                          <g key={point.id}>
+                        {/* 聚类中心点和连接线 */}
+                        {showClusters && clusterResult && clusterResult.clusters.map((cluster) => (
+                          <g key={`cluster-${cluster.id}`}>
+                            {/* 聚类中心点 */}
                             <circle
-                              cx={point.x}
-                              cy={point.y}
-                              r="1.5"
-                              fill={categoryColors[point.category || 'default'] || categoryColors.default}
-                              className="cursor-pointer hover:opacity-80 transition-opacity"
-                              onClick={() => {
-                                const vector = vectors.find(v => v.id === point.id);
-                                if (vector) viewVectorDetails(vector);
-                              }}
+                              cx={cluster.centroid.x}
+                              cy={cluster.centroid.y}
+                              r="3"
+                              fill={cluster.color}
+                              stroke="white"
+                              strokeWidth="0.5"
+                              opacity="0.8"
                             >
-                              <title>{point.label}</title>
+                              <title>聚类 {cluster.id + 1} 中心 ({cluster.size} 个点)</title>
                             </circle>
+                            {/* 聚类边界圆 */}
+                            <circle
+                              cx={cluster.centroid.x}
+                              cy={cluster.centroid.y}
+                              r={Math.max(5, Math.sqrt(cluster.size) * 3)}
+                              fill={cluster.color}
+                              opacity="0.1"
+                              stroke={cluster.color}
+                              strokeWidth="0.3"
+                              strokeDasharray="2,1"
+                            />
                           </g>
                         ))}
+                        
+                        {/* 数据点 */}
+                        {projectedPoints.map((point, idx) => {
+                          // 如果启用聚类，使用聚类颜色
+                          const pointColor = showClusters && clusterResult 
+                            ? getClusterColor(clusterResult.assignments[idx])
+                            : (categoryColors[point.category || 'default'] || categoryColors.default);
+                          
+                          return (
+                            <g key={point.id}>
+                              <circle
+                                cx={point.x}
+                                cy={point.y}
+                                r="1.5"
+                                fill={pointColor}
+                                className="cursor-pointer hover:opacity-80 transition-opacity"
+                                onClick={() => {
+                                  const vector = vectors.find(v => v.id === point.id);
+                                  if (vector) viewVectorDetails(vector);
+                                }}
+                              >
+                                <title>{point.label}{showClusters && clusterResult ? ` (聚类 ${clusterResult.assignments[idx] + 1})` : ''}</title>
+                              </circle>
+                            </g>
+                          );
+                        })}
                       </svg>
                       
                       {/* 图例 */}
-                      <div className="absolute bottom-4 right-4 bg-background/80 backdrop-blur-sm rounded-lg p-3 border">
-                        <p className="text-xs font-medium mb-2">类别图例</p>
-                        <div className="space-y-1">
-                          {Object.entries(categoryColors).filter(([k]) => k !== 'default').map(([category, color]) => (
-                            <div key={category} className="flex items-center gap-2 text-xs">
-                              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: color }} />
-                              <span>{category}</span>
+                      <div className="absolute bottom-4 right-4 bg-background/80 backdrop-blur-sm rounded-lg p-3 border max-w-xs">
+                        {showClusters && clusterResult ? (
+                          <>
+                            <p className="text-xs font-medium mb-2">聚类图例</p>
+                            <div className="space-y-1">
+                              {clusterResult.clusters.map((cluster) => (
+                                <div key={cluster.id} className="flex items-center gap-2 text-xs">
+                                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: cluster.color }} />
+                                  <span>聚类 {cluster.id + 1} ({cluster.size} 个)</span>
+                                </div>
+                              ))}
                             </div>
-                          ))}
-                        </div>
+                          </>
+                        ) : (
+                          <>
+                            <p className="text-xs font-medium mb-2">类别图例</p>
+                            <div className="space-y-1">
+                              {Object.entries(categoryColors).filter(([k]) => k !== 'default').map(([category, color]) => (
+                                <div key={category} className="flex items-center gap-2 text-xs">
+                                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: color }} />
+                                  <span>{category}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </>
+                        )}
                       </div>
+                    </div>
+                  )}
+                  
+                  {/* 聚类统计信息 */}
+                  {showClusters && clusterResult && (
+                    <div className="mt-4 grid grid-cols-2 md:grid-cols-5 gap-2">
+                      {clusterResult.clusters.map((cluster) => {
+                        const representativePoint = projectedPoints.find(p => p.id === cluster.representativePoint);
+                        return (
+                          <div 
+                            key={cluster.id} 
+                            className="p-3 rounded-lg border"
+                            style={{ borderColor: cluster.color, backgroundColor: `${cluster.color}10` }}
+                          >
+                            <div className="flex items-center gap-2 mb-1">
+                              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: cluster.color }} />
+                              <span className="text-sm font-medium">聚类 {cluster.id + 1}</span>
+                            </div>
+                            <p className="text-xs text-muted-foreground">{cluster.size} 个知识点</p>
+                            {representativePoint && (
+                              <p className="text-xs mt-1 truncate" title={representativePoint.label}>
+                                代表: {representativePoint.label}
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                   
