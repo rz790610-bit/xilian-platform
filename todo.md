@@ -121,3 +121,14 @@
 - [x] 在可视化图表右上角添加导出按钮
 - [x] 实现 CSV 导出功能（包含降维坐标和聚类结果）
 - [x] 导出字段：ID、标题、X坐标、Y坐标、类别、聚类ID、降维算法
+
+
+## 本地化部署文件 (v3)
+
+- [x] 创建 dist 静态文件目录
+- [x] 创建 server.js (Node.js 服务器)
+- [x] 创建 server.py (Python 服务器)
+- [x] 创建 start.sh (Linux/Mac 启动脚本)
+- [x] 创建 start.bat (Windows 启动脚本)
+- [x] 创建 README.md 部署文档
+- [x] 创建 xilian-deploy-v3.zip 压缩包
