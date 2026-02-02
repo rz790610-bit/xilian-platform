@@ -2,8 +2,11 @@
 // 用于存储和检索诊断知识库
 
 // Qdrant API 基础地址
+// 生产环境通过 nginx 代理 /qdrant -> qdrant:6333
 const QDRANT_BASE_URL = import.meta.env.VITE_QDRANT_URL || 
-  (import.meta.env.DEV ? 'http://localhost:6333' : '/qdrant');
+  (typeof window !== 'undefined' && window.location.hostname === 'localhost' 
+    ? `${window.location.protocol}//${window.location.hostname}:6333`
+    : '/qdrant');
 
 // 集合名称
 export const COLLECTIONS = {
@@ -47,12 +50,21 @@ export interface CollectionInfo {
  */
 export async function checkQdrantStatus(): Promise<boolean> {
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    
     const response = await fetch(`${QDRANT_BASE_URL}/collections`, {
       method: 'GET',
-      signal: AbortSignal.timeout(5000),
+      signal: controller.signal,
+      headers: {
+        'Accept': 'application/json'
+      }
     });
+    
+    clearTimeout(timeoutId);
     return response.ok;
-  } catch {
+  } catch (error) {
+    console.warn('Qdrant 连接检查失败:', error);
     return false;
   }
 }
@@ -62,15 +74,27 @@ export async function checkQdrantStatus(): Promise<boolean> {
  */
 export async function getCollections(): Promise<CollectionInfo[]> {
   try {
-    const response = await fetch(`${QDRANT_BASE_URL}/collections`);
-    if (!response.ok) throw new Error('获取集合列表失败');
+    const response = await fetch(`${QDRANT_BASE_URL}/collections`, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json'
+      }
+    });
+    
+    if (!response.ok) {
+      const text = await response.text();
+      console.error('Qdrant 响应错误:', response.status, text);
+      throw new Error(`获取集合列表失败: ${response.status}`);
+    }
     
     const data = await response.json();
     const collections: CollectionInfo[] = [];
     
     for (const col of data.result?.collections || []) {
       try {
-        const infoRes = await fetch(`${QDRANT_BASE_URL}/collections/${col.name}`);
+        const infoRes = await fetch(`${QDRANT_BASE_URL}/collections/${col.name}`, {
+          headers: { 'Accept': 'application/json' }
+        });
         const info = await infoRes.json();
         collections.push({
           name: col.name,

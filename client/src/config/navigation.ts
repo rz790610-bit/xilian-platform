@@ -8,6 +8,42 @@ export const navigationConfig: NavItem[] = [
     path: '/dashboard'
   },
   {
+    id: 'agents',
+    label: '智能体诊断',
+    icon: '🤖',
+    path: '/agents'
+  },
+  {
+    id: 'ai-chat',
+    label: 'AI对话',
+    icon: '💬',
+    path: '/chat'
+  },
+  {
+    id: 'pipeline',
+    label: 'Pipeline',
+    icon: '🔗',
+    path: '/pipeline'
+  },
+  {
+    id: 'knowledge',
+    label: '知识库',
+    icon: '📚',
+    children: [
+      { id: 'knowledge-manager', label: '知识管理', icon: '📁', path: '/knowledge/manager' },
+      { id: 'knowledge-graph', label: '知识图谱', icon: '🕸️', path: '/knowledge/graph' }
+    ]
+  },
+  {
+    id: 'base-data',
+    label: '基础数据',
+    icon: '📦',
+    children: [
+      { id: 'base-rules', label: '基础规则配置', icon: '⚙️', path: '/base/rules' },
+      { id: 'base-library', label: '基础库', icon: '🗃️', path: '/base/library' }
+    ]
+  },
+  {
     id: 'data-center',
     label: '数据中心',
     icon: '📊',

@@ -19,6 +19,8 @@ import DataInsight from "./pages/DataInsight";
 import DataAccess from "./pages/DataAccess";
 import DataStandard from "./pages/DataStandard";
 import ModelRepo from "./pages/ModelRepo";
+import BaseRules from "./pages/BaseRules";
+import BaseLibrary from "./pages/BaseLibrary";
 import {
   ModelFinetune,
   ModelEval,
@@ -30,8 +32,10 @@ import {
   EvolutionBoard
 } from "./pages/PlaceholderPage";
 import KnowledgeBase from "./pages/KnowledgeBase";
-
+import KnowledgeManager from "./pages/KnowledgeManager";
+import KnowledgeGraph from "./pages/KnowledgeGraph";
 function Router() {
+  // make sure to consider if you need authentication for certain routes
   return (
     <Switch>
       {/* Redirect root to dashboard */}
@@ -45,6 +49,14 @@ function Router() {
       <Route path="/pipeline" component={Pipeline} />
       <Route path="/chat" component={AIChat} />
       <Route path="/docs" component={Documents} />
+      
+      {/* Knowledge - 知识库 */}
+      <Route path="/knowledge/manager" component={KnowledgeManager} />
+      <Route path="/knowledge/graph" component={KnowledgeGraph} />
+      
+      {/* Base data - 基础数据 */}
+      <Route path="/base/rules" component={BaseRules} />
+      <Route path="/base/library" component={BaseLibrary} />
       
       {/* Data center */}
       <Route path="/data/manage" component={DataManage} />
