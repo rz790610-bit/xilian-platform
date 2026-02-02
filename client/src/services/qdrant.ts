@@ -368,6 +368,43 @@ export async function getAllKnowledgePoints(
 }
 
 /**
+ * 获取集合中的所有向量点（包含向量数据）
+ */
+export interface VectorPointWithData {
+  id: string;
+  vector: number[];
+  payload: KnowledgePoint;
+}
+
+export async function getAllVectorPoints(
+  collection: string,
+  limit: number = 100,
+  offset: number = 0
+): Promise<VectorPointWithData[]> {
+  const response = await fetch(`${QDRANT_BASE_URL}/collections/${collection}/points/scroll`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      limit,
+      offset,
+      with_payload: true,
+      with_vector: true  // 获取向量数据
+    })
+  });
+  
+  if (!response.ok) {
+    throw new Error('获取向量点失败');
+  }
+  
+  const data = await response.json();
+  return (data.result?.points || []).map((item: any) => ({
+    id: item.id,
+    vector: item.vector || [],
+    payload: item.payload
+  }));
+}
+
+/**
  * 删除知识点
  */
 export async function deleteKnowledgePoint(

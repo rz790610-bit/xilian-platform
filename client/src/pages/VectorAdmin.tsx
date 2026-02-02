@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import * as qdrant from '@/services/qdrant';
 import * as ollama from '@/services/ollama';
+import { vectorsToProjectedPoints, type ReductionMethod } from '@/services/dimensionReduction';
 
 // 集合统计信息
 interface CollectionStats {
@@ -72,6 +73,10 @@ export default function VectorAdmin() {
   const [showVectorDialog, setShowVectorDialog] = useState(false);
   const [editingPayload, setEditingPayload] = useState('');
   
+  // 降维算法选项
+  const [reductionMethod, setReductionMethod] = useState<ReductionMethod>('pca');
+  const [computing, setComputing] = useState(false);
+  
   // 初始化
   useEffect(() => {
     checkQdrantStatus();
@@ -120,31 +125,48 @@ export default function VectorAdmin() {
   };
   
   // 加载向量数据
-  const loadVectors = async (collectionName: string) => {
+  const loadVectors = async (collectionName: string, method: ReductionMethod = reductionMethod) => {
     if (!collectionName) return;
     
     setLoadingVectors(true);
+    setComputing(true);
     try {
-      const points = await qdrant.getAllKnowledgePoints(collectionName, 100);
+      // 获取包含向量数据的点
+      const points = await qdrant.getAllVectorPoints(collectionName, 100);
       
       // 转换为向量点格式
       const vectorPoints: VectorPoint[] = points.map((p, idx) => ({
         id: p.id || `point-${idx}`,
-        vector: [], // 向量数据需要单独获取
-        payload: p as Record<string, any>
+        vector: p.vector || [],
+        payload: p.payload as Record<string, any>
       }));
       
       setVectors(vectorPoints);
       
-      // 生成 2D 投影（简单的随机投影用于演示）
-      const projected = generateProjection(vectorPoints);
-      setProjectedPoints(projected);
-      
-      toast.success(`已加载 ${vectorPoints.length} 个向量点`);
+      // 使用真实降维算法生成 2D 投影
+      if (vectorPoints.length > 0 && vectorPoints[0].vector.length > 0) {
+        const projected = vectorsToProjectedPoints(
+          points.map(p => ({
+            id: p.id,
+            vector: p.vector,
+            payload: p.payload as Record<string, any>
+          })),
+          { method }
+        );
+        setProjectedPoints(projected);
+        toast.success(`已加载 ${vectorPoints.length} 个向量点，使用 ${method.toUpperCase()} 降维`);
+      } else {
+        // 没有向量数据，使用简单投影
+        const projected = generateProjection(vectorPoints);
+        setProjectedPoints(projected);
+        toast.success(`已加载 ${vectorPoints.length} 个向量点（无向量数据，使用简单投影）`);
+      }
     } catch (error) {
+      console.error('加载向量数据失败:', error);
       toast.error('加载向量数据失败');
     } finally {
       setLoadingVectors(false);
+      setComputing(false);
     }
   };
   
@@ -452,7 +474,7 @@ export default function VectorAdmin() {
                         setSelectedCollection(v);
                         loadVectors(v);
                       }}>
-                        <SelectTrigger className="w-48">
+                        <SelectTrigger className="w-40">
                           <SelectValue placeholder="选择集合" />
                         </SelectTrigger>
                         <SelectContent>
@@ -463,13 +485,28 @@ export default function VectorAdmin() {
                           ))}
                         </SelectContent>
                       </Select>
+                      <Select value={reductionMethod} onValueChange={(v: ReductionMethod) => {
+                        setReductionMethod(v);
+                        if (selectedCollection) {
+                          loadVectors(selectedCollection, v);
+                        }
+                      }}>
+                        <SelectTrigger className="w-28">
+                          <SelectValue placeholder="算法" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="pca">PCA</SelectItem>
+                          <SelectItem value="tsne">t-SNE</SelectItem>
+                          <SelectItem value="umap">UMAP</SelectItem>
+                        </SelectContent>
+                      </Select>
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={() => loadVectors(selectedCollection)}
-                        disabled={loadingVectors}
+                        disabled={loadingVectors || computing}
                       >
-                        {loadingVectors ? (
+                        {loadingVectors || computing ? (
                           <Loader2 className="w-4 h-4 animate-spin" />
                         ) : (
                           <RefreshCw className="w-4 h-4" />
@@ -533,7 +570,8 @@ export default function VectorAdmin() {
                   
                   <div className="mt-4 text-sm text-muted-foreground">
                     <Info className="w-4 h-4 inline mr-1" />
-                    点击数据点查看详情。当前显示 {projectedPoints.length} 个向量点。
+                    点击数据点查看详情。当前显示 {projectedPoints.length} 个向量点，使用 {reductionMethod.toUpperCase()} 降维算法。
+                    {computing && <span className="ml-2 text-yellow-500">(正在计算...)</span>}
                   </div>
                 </CardContent>
               </Card>

@@ -103,6 +103,9 @@ importers:
       '@radix-ui/react-tooltip':
         specifier: ^1.2.8
         version: 1.2.8(@types/react-dom@19.2.1(@types/react@19.2.1))(@types/react@19.2.1)(react-dom@19.2.1(react@19.2.1))(react@19.2.1)
+      '@saehrimnir/druidjs':
+        specifier: ^0.7.3
+        version: 0.7.3
       '@tanstack/react-query':
         specifier: ^5.90.2
         version: 5.90.20(react@19.2.1)
@@ -1872,6 +1875,10 @@ packages:
     resolution: {integrity: sha512-bf9PtUa0u8IXDVxzRToFQKsNCRz9qLYfR/MpECxl4mRoWYjAeFjgxj1XdZr2M/GNVpT05p+LgQOHopYDlUu6/w==}
     cpu: [x64]
     os: [win32]
+
+  '@saehrimnir/druidjs@0.7.3':
+    resolution: {integrity: sha512-ROrGB3VqU2ombyJz9XlvDvMCHstuJ25+lPzV1HXYaP0Pp4uOkcaHZUMJlA0YNB/SM0s/Toc9n4gJFCs7LPclDQ==}
+    engines: {node: '>=14'}
 
   '@shikijs/core@3.14.0':
     resolution: {integrity: sha512-qRSeuP5vlYHCNUIrpEBQFO7vSkR7jn7Kv+5X3FO/zBKVDGQbcnlScD3XhkrHi/R8Ltz0kEjvFR9Szp/XMRbFMw==}
@@ -6241,6 +6248,8 @@ snapshots:
 
   '@rollup/rollup-win32-x64-msvc@4.52.4':
     optional: true
+
+  '@saehrimnir/druidjs@0.7.3': {}
 
   '@shikijs/core@3.14.0':
     dependencies:
