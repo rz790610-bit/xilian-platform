@@ -264,6 +264,44 @@ export default function VectorAdmin() {
     }
   };
   
+  // 导出为 CSV
+  const exportToCSV = () => {
+    if (projectedPoints.length === 0) {
+      toast.error('没有可导出的数据');
+      return;
+    }
+    
+    // 构建 CSV 内容
+    const headers = ['ID', '标题', 'X坐标', 'Y坐标', '类别', '聚类ID', '降维算法'];
+    const rows = projectedPoints.map((point, idx) => {
+      const clusterId = showClusters && clusterResult ? clusterResult.assignments[idx] + 1 : '';
+      return [
+        point.id,
+        `"${(point.label || '').replace(/"/g, '""')}"`,  // 转义双引号
+        point.x.toFixed(4),
+        point.y.toFixed(4),
+        point.category || '',
+        clusterId,
+        reductionMethod.toUpperCase()
+      ].join(',');
+    });
+    
+    const csvContent = [headers.join(','), ...rows].join('\n');
+    
+    // 创建并下载文件
+    const blob = new Blob([`\uFEFF${csvContent}`], { type: 'text/csv;charset=utf-8;' });  // 添加 BOM 以支持中文
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `vectors_${selectedCollection}_${reductionMethod}_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    
+    toast.success(`已导出 ${projectedPoints.length} 条向量数据`);
+  };
+  
   // 统计信息
   const stats = useMemo(() => {
     const totalVectors = collections.reduce((sum, c) => sum + c.vectorsCount, 0);
@@ -530,6 +568,15 @@ export default function VectorAdmin() {
                         ) : (
                           <RefreshCw className="w-4 h-4" />
                         )}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={exportToCSV}
+                        disabled={projectedPoints.length === 0}
+                        title="导出 CSV"
+                      >
+                        <Download className="w-4 h-4" />
                       </Button>
                     </div>
                   </div>
