@@ -417,3 +417,31 @@
 - [x] 实现全局错误处理中间件
 - [x] 集成限流中间件（5种预定义策略）
 - [x] 创建 API 规范文档
+
+
+## Pipeline 可视化编辑器（工程化版本）
+
+### 前后端数据模型统一
+- [x] 创建与后端 PipelineConfig 一致的前端类型
+- [x] 实现 Source/Processor/Sink 节点类型定义
+- [x] 实现节点配置验证 Schema
+
+### 可视化编辑器核心
+- [x] 实现可缩放平移的画布组件
+- [x] 实现节点拖拽和定位
+- [x] 实现节点连线（Source -> Processor -> Sink）
+- [x] 实现连线验证（类型匹配、单一 Source/Sink）
+
+### 节点配置面板
+- [x] HTTP Source 配置表单（URL、Method、Headers）
+- [x] Kafka Source 配置表单（Brokers、Topic、GroupId）
+- [x] Database Source 配置表单（Query、Connection）
+- [x] 处理器配置表单（字段映射、过滤、转换、聚合）
+- [x] Sink 配置表单（HTTP、ClickHouse、Redis）
+
+### 后端 API 对接
+- [x] 调用 pipeline.create 创建管道
+- [x] 调用 pipeline.start/stop/pause 控制管道
+- [x] 调用 pipeline.run 手动运行
+- [x] 调用 pipeline.list/get 获取状态
+- [x] 实时显示管道运行指标

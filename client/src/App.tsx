@@ -39,6 +39,7 @@ import VectorAdmin from "./pages/VectorAdmin";
 import SystemTopology from "./pages/SystemTopology";
 import DataStream from "./pages/DataStream";
 import KafkaMonitor from "./pages/KafkaMonitor";
+import PipelineEditor from "./pages/PipelineEditor";
 function Router() {
   // make sure to consider if you need authentication for certain routes
   return (
@@ -52,6 +53,7 @@ function Router() {
       <Route path="/dashboard" component={Dashboard} />
       <Route path="/agents" component={Agents} />
       <Route path="/pipeline" component={Pipeline} />
+      <Route path="/pipeline/editor" component={PipelineEditor} />
       <Route path="/chat" component={AIChat} />
       <Route path="/docs" component={Documents} />
       

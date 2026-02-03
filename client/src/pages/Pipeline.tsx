@@ -7,7 +7,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAppStore } from '@/stores/appStore';
 import { cn } from '@/lib/utils';
 import { nanoid } from 'nanoid';
-import { Trash2, Play, Save, X, Download, Upload, FileJson } from 'lucide-react';
+import { Trash2, Play, Save, X, Download, Upload, FileJson, ExternalLink } from 'lucide-react';
+import { Link } from 'wouter';
 import type { PipelineNode, Plugin, PipelineConnection } from '@/types';
 import { useToast } from '@/components/common/Toast';
 
@@ -256,8 +257,18 @@ export default function Pipeline() {
       <div className="animate-fade-up">
         {/* Page header */}
         <div className="mb-7">
-          <h2 className="text-2xl font-bold mb-2">Pipeline 编排</h2>
-          <p className="text-muted-foreground">可视化构建数据处理流程</p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-bold mb-2">Pipeline 编排</h2>
+              <p className="text-muted-foreground">可视化构建数据处理流程</p>
+            </div>
+            <Link href="/pipeline/editor">
+              <Button variant="default" size="sm">
+                <ExternalLink className="w-4 h-4 mr-2" />
+                打开高级编辑器
+              </Button>
+            </Link>
+          </div>
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
