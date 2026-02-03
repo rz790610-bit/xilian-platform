@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE IF NOT EXISTS `device_kpis` (\n\t`id` int AUTO_INCREMENT NOT NULL,\n\t`deviceId` varchar(64) NOT NULL,\n\t`periodType` enum('hourly','daily','weekly','monthly') NOT NULL,\n\t`periodStart` timestamp NOT NULL,\n\t`periodEnd` timestamp NOT NULL,\n\t`availability` double,\n\t`performance` double,\n\t`quality` double,\n\t`oee` double,\n\t`runningTime` int,\n\t`downtime` int,\n\t`idleTime` int,\n\t`plannedDowntime` int,\n\t`unplannedDowntime` int,\n\t`mtbf` double,\n\t`mttr` double,\n\t`failureCount` int DEFAULT 0,\n\t`productionCount` int,\n\t`defectCount` int,\n\t`energyConsumption` double,\n\t`energyEfficiency` double,\n\t`createdAt` timestamp NOT NULL DEFAULT (now()),\n\tCONSTRAINT `device_kpis_id` PRIMARY KEY(`id`)\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2aAMmqBppocQapr.371334c61bab --database Yf7nNWn9GkFGdXXjzFJzEd --execute CREATE TABLE IF NOT EXISTS `device_kpis` (\n\t`id` int AUTO_INCREMENT NOT NULL,\n\t`deviceId` varchar(64) NOT NULL,\n\t`periodType` enum('hourly','daily','weekly','monthly') NOT NULL,\n\t`periodStart` timestamp NOT NULL,\n\t`periodEnd` timestamp NOT NULL,\n\t`availability` double,\n\t`performance` double,\n\t`quality` double,\n\t`oee` double,\n\t`runningTime` int,\n\t`downtime` int,\n\t`idleTime` int,\n\t`plannedDowntime` int,\n\t`unplannedDowntime` int,\n\t`mtbf` double,\n\t`mttr` double,\n\t`failureCount` int DEFAULT 0,\n\t`productionCount` int,\n\t`defectCount` int,\n\t`energyConsumption` double,\n\t`energyEfficiency` double,\n\t`createdAt` timestamp NOT NULL DEFAULT (now()),\n\tCONSTRAINT `device_kpis_id` PRIMARY KEY(`id`)\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 213
+}

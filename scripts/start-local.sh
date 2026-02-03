@@ -91,8 +91,8 @@ start_infrastructure() {
         COMPOSE_CMD="docker-compose"
     fi
     
-    print_info "启动 Zookeeper, Kafka, Redis..."
-    $COMPOSE_CMD -f docker-compose.kafka.yml up -d zookeeper kafka redis
+    print_info "启动 Zookeeper, Kafka, Redis, ClickHouse..."
+    $COMPOSE_CMD -f docker-compose.kafka.yml up -d zookeeper kafka redis clickhouse
     
     # 等待服务就绪
     wait_for_services
@@ -136,6 +136,22 @@ wait_for_services() {
     
     if [ $kafka_attempts -eq 60 ]; then
         print_warning "Kafka 启动超时"
+    fi
+    
+    # 等待 ClickHouse
+    local ch_attempts=0
+    while [ $ch_attempts -lt 30 ]; do
+        if curl -s http://localhost:8123/ping &> /dev/null; then
+            print_success "ClickHouse 已就绪"
+            break
+        fi
+        echo -n "."
+        sleep 1
+        ch_attempts=$((ch_attempts + 1))
+    done
+    
+    if [ $ch_attempts -eq 30 ]; then
+        print_warning "ClickHouse 启动超时"
     fi
     
     echo ""
@@ -193,6 +209,12 @@ REDIS_DB=0
 NODE_ENV=development
 PORT=3000
 
+# ClickHouse 配置
+CLICKHOUSE_HOST=http://localhost:8123
+CLICKHOUSE_USER=xilian
+CLICKHOUSE_PASSWORD=xilian123
+CLICKHOUSE_DATABASE=xilian
+
 # 可选：Ollama 配置（如果本地运行 Ollama）
 # OLLAMA_HOST=http://localhost:11434
 EOF
@@ -247,6 +269,8 @@ show_status() {
     echo "  - Kafka UI:       http://localhost:8080"
     echo "  - Redis:          localhost:6379"
     echo "  - Redis Commander: http://localhost:8082"
+    echo "  - ClickHouse:     http://localhost:8123"
+    echo "  - ClickHouse Native: localhost:9000"
     
     echo ""
     echo "健康检查:"
@@ -270,6 +294,13 @@ show_status() {
         echo -e "  - Zookeeper: ${GREEN}✓ 运行中${NC}"
     else
         echo -e "  - Zookeeper: ${RED}✗ 未运行${NC}"
+    fi
+    
+    # 检查 ClickHouse
+    if curl -s http://localhost:8123/ping &> /dev/null; then
+        echo -e "  - ClickHouse: ${GREEN}✓ 运行中${NC}"
+    else
+        echo -e "  - ClickHouse: ${RED}✗ 未运行${NC}"
     fi
 }
 

@@ -651,3 +651,159 @@ export const dataAggregations = mysqlTable("data_aggregations", {
 
 export type DataAggregation = typeof dataAggregations.$inferSelect;
 export type InsertDataAggregation = typeof dataAggregations.$inferInsert;
+
+
+// ============ 设备台账扩展表 (device_ 前缀) ============
+
+/**
+ * 设备维护记录表 - 存储设备维护历史
+ */
+export const deviceMaintenanceRecords = mysqlTable("device_maintenance_records", {
+  id: int("id").autoincrement().primaryKey(),
+  recordId: varchar("recordId", { length: 64 }).notNull().unique(),
+  deviceId: varchar("deviceId", { length: 64 }).notNull(),
+  maintenanceType: mysqlEnum("maintenanceType", ["preventive", "corrective", "predictive", "emergency", "calibration", "inspection"]).default("preventive").notNull(),
+  title: varchar("title", { length: 200 }).notNull(),
+  description: text("description"),
+  scheduledDate: timestamp("scheduledDate"),
+  startedAt: timestamp("startedAt"),
+  completedAt: timestamp("completedAt"),
+  status: mysqlEnum("status", ["scheduled", "in_progress", "completed", "cancelled", "overdue"]).default("scheduled").notNull(),
+  priority: mysqlEnum("priority", ["low", "medium", "high", "critical"]).default("medium").notNull(),
+  assignedTo: varchar("assignedTo", { length: 100 }),
+  performedBy: varchar("performedBy", { length: 100 }),
+  cost: double("cost"),
+  currency: varchar("currency", { length: 10 }).default("CNY"),
+  parts: json("parts").$type<Array<{ partId: string; name: string; quantity: number; cost: number }>>(),
+  findings: text("findings"),
+  recommendations: text("recommendations"),
+  attachments: json("attachments").$type<Array<{ name: string; url: string; type: string }>>(),
+  nextMaintenanceDate: timestamp("nextMaintenanceDate"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type DeviceMaintenanceRecord = typeof deviceMaintenanceRecords.$inferSelect;
+export type InsertDeviceMaintenanceRecord = typeof deviceMaintenanceRecords.$inferInsert;
+
+/**
+ * 设备备件库存表 - 管理设备备件
+ */
+export const deviceSpareParts = mysqlTable("device_spare_parts", {
+  id: int("id").autoincrement().primaryKey(),
+  partId: varchar("partId", { length: 64 }).notNull().unique(),
+  name: varchar("name", { length: 200 }).notNull(),
+  partNumber: varchar("partNumber", { length: 100 }),
+  category: varchar("category", { length: 50 }),
+  compatibleDeviceTypes: json("compatibleDeviceTypes").$type<string[]>(),
+  manufacturer: varchar("manufacturer", { length: 100 }),
+  supplier: varchar("supplier", { length: 100 }),
+  quantity: int("quantity").default(0).notNull(),
+  minQuantity: int("minQuantity").default(1),
+  maxQuantity: int("maxQuantity"),
+  unitPrice: double("unitPrice"),
+  currency: varchar("currency", { length: 10 }).default("CNY"),
+  location: varchar("location", { length: 100 }),
+  status: mysqlEnum("status", ["in_stock", "low_stock", "out_of_stock", "ordered", "discontinued"]).default("in_stock").notNull(),
+  lastRestockedAt: timestamp("lastRestockedAt"),
+  expiryDate: timestamp("expiryDate"),
+  metadata: json("metadata").$type<{
+    specifications?: Record<string, string>;
+    warranty?: string;
+    notes?: string;
+  }>(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type DeviceSparePart = typeof deviceSpareParts.$inferSelect;
+export type InsertDeviceSparePart = typeof deviceSpareParts.$inferInsert;
+
+/**
+ * 设备运行日志表 - 记录设备运行状态变化
+ */
+export const deviceOperationLogs = mysqlTable("device_operation_logs", {
+  id: int("id").autoincrement().primaryKey(),
+  logId: varchar("logId", { length: 64 }).notNull().unique(),
+  deviceId: varchar("deviceId", { length: 64 }).notNull(),
+  operationType: mysqlEnum("operationType", ["start", "stop", "restart", "config_change", "firmware_update", "calibration", "mode_change", "error", "recovery"]).notNull(),
+  previousState: varchar("previousState", { length: 50 }),
+  newState: varchar("newState", { length: 50 }),
+  operatedBy: varchar("operatedBy", { length: 100 }),
+  reason: text("reason"),
+  details: json("details").$type<Record<string, unknown>>(),
+  success: boolean("success").default(true).notNull(),
+  errorMessage: text("errorMessage"),
+  duration: int("duration"), // 操作耗时（毫秒）
+  timestamp: timestamp("timestamp").defaultNow().notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type DeviceOperationLog = typeof deviceOperationLogs.$inferSelect;
+export type InsertDeviceOperationLog = typeof deviceOperationLogs.$inferInsert;
+
+/**
+ * 设备告警表 - 存储设备告警信息
+ */
+export const deviceAlerts = mysqlTable("device_alerts", {
+  id: int("id").autoincrement().primaryKey(),
+  alertId: varchar("alertId", { length: 64 }).notNull().unique(),
+  deviceId: varchar("deviceId", { length: 64 }).notNull(),
+  sensorId: varchar("sensorId", { length: 64 }),
+  alertType: mysqlEnum("alertType", ["threshold", "anomaly", "offline", "error", "maintenance_due", "warranty_expiry", "custom"]).notNull(),
+  title: varchar("title", { length: 200 }).notNull(),
+  message: text("message"),
+  severity: mysqlEnum("severity", ["info", "warning", "error", "critical"]).default("warning").notNull(),
+  status: mysqlEnum("status", ["active", "acknowledged", "resolved", "suppressed"]).default("active").notNull(),
+  triggerValue: double("triggerValue"),
+  thresholdValue: double("thresholdValue"),
+  acknowledgedBy: varchar("acknowledgedBy", { length: 100 }),
+  acknowledgedAt: timestamp("acknowledgedAt"),
+  resolvedBy: varchar("resolvedBy", { length: 100 }),
+  resolvedAt: timestamp("resolvedAt"),
+  resolution: text("resolution"),
+  escalationLevel: int("escalationLevel").default(0),
+  notificationsSent: json("notificationsSent").$type<Array<{ channel: string; sentAt: string; recipient: string }>>(),
+  metadata: json("metadata").$type<Record<string, unknown>>(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type DeviceAlert = typeof deviceAlerts.$inferSelect;
+export type InsertDeviceAlert = typeof deviceAlerts.$inferInsert;
+
+/**
+ * 设备性能指标表 - 存储设备 KPI 指标
+ */
+export const deviceKpis = mysqlTable("device_kpis", {
+  id: int("id").autoincrement().primaryKey(),
+  deviceId: varchar("deviceId", { length: 64 }).notNull(),
+  periodType: mysqlEnum("periodType", ["hourly", "daily", "weekly", "monthly"]).notNull(),
+  periodStart: timestamp("periodStart").notNull(),
+  periodEnd: timestamp("periodEnd").notNull(),
+  // OEE 指标
+  availability: double("availability"), // 可用率 (%)
+  performance: double("performance"), // 性能率 (%)
+  quality: double("quality"), // 质量率 (%)
+  oee: double("oee"), // 设备综合效率 (%)
+  // 运行指标
+  runningTime: int("runningTime"), // 运行时间（秒）
+  downtime: int("downtime"), // 停机时间（秒）
+  idleTime: int("idleTime"), // 空闲时间（秒）
+  plannedDowntime: int("plannedDowntime"), // 计划停机时间（秒）
+  unplannedDowntime: int("unplannedDowntime"), // 非计划停机时间（秒）
+  // 故障指标
+  mtbf: double("mtbf"), // 平均故障间隔时间（小时）
+  mttr: double("mttr"), // 平均修复时间（小时）
+  failureCount: int("failureCount").default(0), // 故障次数
+  // 产出指标
+  productionCount: int("productionCount"), // 生产数量
+  defectCount: int("defectCount"), // 缺陷数量
+  // 能耗指标
+  energyConsumption: double("energyConsumption"), // 能耗 (kWh)
+  energyEfficiency: double("energyEfficiency"), // 能效 (单位产出/kWh)
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type DeviceKpi = typeof deviceKpis.$inferSelect;
+export type InsertDeviceKpi = typeof deviceKpis.$inferInsert;

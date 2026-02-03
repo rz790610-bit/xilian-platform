@@ -5,50 +5,8 @@
     {
       "idx": 0,
       "version": "5",
-      "when": 1770001339371,
-      "tag": "0000_complex_exodus",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "5",
-      "when": 1770002364517,
-      "tag": "0001_medical_patch",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "5",
-      "when": 1770002383142,
-      "tag": "0002_funny_tyger_tiger",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "5",
-      "when": 1770121078733,
-      "tag": "0003_tricky_supreme_intelligence",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "5",
-      "when": 1770123095735,
-      "tag": "0004_icy_nocturne",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "5",
-      "when": 1770125481594,
-      "tag": "0005_last_pet_avengers",
-      "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "5",
-      "when": 1770127380881,
-      "tag": "0006_windy_blink",
+      "when": 1770136621299,
+      "tag": "0000_strong_gravity",
       "breakpoints": true
     }
   ]

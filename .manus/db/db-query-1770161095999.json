@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE IF NOT EXISTS `diagnosis_tasks` (\n\t`id` int AUTO_INCREMENT NOT NULL,\n\t`taskId` varchar(64) NOT NULL,\n\t`deviceId` varchar(64),\n\t`sensorId` varchar(64),\n\t`ruleId` varchar(64),\n\t`anomalyId` varchar(64),\n\t`taskType` enum('routine','anomaly','manual','scheduled') NOT NULL DEFAULT 'routine',\n\t`status` enum('pending','running','completed','failed','cancelled') NOT NULL DEFAULT 'pending',\n\t`priority` int DEFAULT 5,\n\t`inputData` json,\n\t`result` json,\n\t`error` text,\n\t`startedAt` timestamp,\n\t`completedAt` timestamp,\n\t`createdAt` timestamp NOT NULL DEFAULT (now()),\n\t`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,\n\tCONSTRAINT `diagnosis_tasks_id` PRIMARY KEY(`id`),\n\tCONSTRAINT `diagnosis_tasks_taskId_unique` UNIQUE(`taskId`)\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2aAMmqBppocQapr.371334c61bab --database Yf7nNWn9GkFGdXXjzFJzEd --execute CREATE TABLE IF NOT EXISTS `diagnosis_tasks` (\n\t`id` int AUTO_INCREMENT NOT NULL,\n\t`taskId` varchar(64) NOT NULL,\n\t`deviceId` varchar(64),\n\t`sensorId` varchar(64),\n\t`ruleId` varchar(64),\n\t`anomalyId` varchar(64),\n\t`taskType` enum('routine','anomaly','manual','scheduled') NOT NULL DEFAULT 'routine',\n\t`status` enum('pending','running','completed','failed','cancelled') NOT NULL DEFAULT 'pending',\n\t`priority` int DEFAULT 5,\n\t`inputData` json,\n\t`result` json,\n\t`error` text,\n\t`startedAt` timestamp,\n\t`completedAt` timestamp,\n\t`createdAt` timestamp NOT NULL DEFAULT (now()),\n\t`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,\n\tCONSTRAINT `diagnosis_tasks_id` PRIMARY KEY(`id`),\n\tCONSTRAINT `diagnosis_tasks_taskId_unique` UNIQUE(`taskId`)\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 190
+}

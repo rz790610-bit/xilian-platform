@@ -205,12 +205,13 @@ describe('Data Aggregation', () => {
   });
 
   it('should group readings by time bucket', () => {
-    const now = Date.now();
+    // 使用固定时间戳避免边界问题
+    const baseTime = 1700000000000; // 固定基准时间
     const readings = [
-      { timestamp: now - 1000, value: 10 },
-      { timestamp: now - 2000, value: 20 },
-      { timestamp: now - 61000, value: 30 }, // 1分钟前
-      { timestamp: now - 62000, value: 40 },
+      { timestamp: baseTime + 10000, value: 10 },  // 第一个 bucket
+      { timestamp: baseTime + 20000, value: 20 },  // 第一个 bucket
+      { timestamp: baseTime + 70000, value: 30 },  // 第二个 bucket (60s 后)
+      { timestamp: baseTime + 80000, value: 40 },  // 第二个 bucket
     ];
 
     const bucketSize = 60000; // 1分钟

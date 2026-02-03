@@ -10,6 +10,9 @@ import { streamProcessorRouter } from "./streamProcessor";
 import { deviceRouter } from "./deviceService";
 import { kafkaRouter } from "./kafka/kafkaRouter";
 import { redisRouter } from "./redis/redisRouter";
+import { clickhouseRouter } from "./clickhouse/clickhouseRouter";
+import { pipelineRouter } from "./pipeline/pipelineRouter";
+import { pluginRouter } from "./plugin/pluginRouter";
 
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
@@ -48,6 +51,15 @@ export const appRouter = router({
 
   // Redis 缓存管理路由
   redis: redisRouter,
+
+  // ClickHouse 时序数据库路由
+  clickhouse: clickhouseRouter,
+
+  // Pipeline 数据流处理路由
+  pipeline: pipelineRouter,
+
+  // 插件管理路由
+  plugin: pluginRouter,
 });
 
 export type AppRouter = typeof appRouter;

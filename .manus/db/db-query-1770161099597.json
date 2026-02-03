@@ -1,0 +1,28 @@
+{
+  "query": "SHOW TABLES LIKE 'device_%';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2aAMmqBppocQapr.371334c61bab --database Yf7nNWn9GkFGdXXjzFJzEd --execute SHOW TABLES LIKE 'device_%';",
+  "rows": [
+    {
+      "Tables_in_Yf7nNWn9GkFGdXXjzFJzEd (device_%)": "device_alerts"
+    },
+    {
+      "Tables_in_Yf7nNWn9GkFGdXXjzFJzEd (device_%)": "device_kpis"
+    },
+    {
+      "Tables_in_Yf7nNWn9GkFGdXXjzFJzEd (device_%)": "device_maintenance_records"
+    },
+    {
+      "Tables_in_Yf7nNWn9GkFGdXXjzFJzEd (device_%)": "device_operation_logs"
+    },
+    {
+      "Tables_in_Yf7nNWn9GkFGdXXjzFJzEd (device_%)": "device_spare_parts"
+    },
+    {
+      "Tables_in_Yf7nNWn9GkFGdXXjzFJzEd (device_%)": "devices"
+    }
+  ],
+  "messages": [],
+  "stdout": "Tables_in_Yf7nNWn9GkFGdXXjzFJzEd (device_%)\ndevice_alerts\ndevice_kpis\ndevice_maintenance_records\ndevice_operation_logs\ndevice_spare_parts\ndevices\n",
+  "stderr": "",
+  "execution_time_ms": 58
+}

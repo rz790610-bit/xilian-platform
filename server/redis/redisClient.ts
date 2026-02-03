@@ -605,6 +605,48 @@ class RedisClientManager {
   }
 
   /**
+   * 添加集合成员
+   */
+  async sadd(key: string, ...members: string[]): Promise<number> {
+    if (!this.client) return 0;
+
+    try {
+      return await this.client.sadd(key, ...members);
+    } catch (error) {
+      console.error('[Redis] Sadd error:', error);
+      return 0;
+    }
+  }
+
+  /**
+   * 获取集合所有成员
+   */
+  async smembers(key: string): Promise<string[]> {
+    if (!this.client) return [];
+
+    try {
+      return await this.client.smembers(key);
+    } catch (error) {
+      console.error('[Redis] Smembers error:', error);
+      return [];
+    }
+  }
+
+  /**
+   * 按模式获取键
+   */
+  async keys(pattern: string): Promise<string[]> {
+    if (!this.client) return [];
+
+    try {
+      return await this.client.keys(pattern);
+    } catch (error) {
+      console.error('[Redis] Keys error:', error);
+      return [];
+    }
+  }
+
+  /**
    * 获取 Redis 信息
    */
   async getInfo(): Promise<Record<string, string>> {
