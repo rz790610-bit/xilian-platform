@@ -435,6 +435,20 @@ export const eventBusRouter = router({
     return eventBus.getMetrics();
   }),
 
+  // 获取 Kafka 状态
+  getKafkaStatus: publicProcedure.query(async () => {
+    // 返回 Kafka 连接状态
+    const kafkaBrokers = process.env.KAFKA_BROKERS || 'localhost:9092';
+    const isKafkaConfigured = !!process.env.KAFKA_BROKERS;
+    return {
+      isConfigured: isKafkaConfigured,
+      brokers: kafkaBrokers.split(','),
+      status: isKafkaConfigured ? 'configured' : 'using_memory_fallback',
+      mode: isKafkaConfigured ? 'kafka' : 'memory',
+      topics: Object.values(TOPICS),
+    };
+  }),
+
   // 查询历史事件
   queryEvents: publicProcedure
     .input(z.object({

@@ -37,6 +37,10 @@ export default function DataStream() {
   const [refreshInterval, setRefreshInterval] = useState(5000);
 
   // tRPC 查询
+  // Kafka 状态查询
+  const kafkaStatus = trpc.eventBus.getKafkaStatus.useQuery(undefined, {
+    refetchInterval: autoRefresh ? refreshInterval : false,
+  });
   const eventMetrics = trpc.eventBus.getMetrics.useQuery(undefined, {
     refetchInterval: autoRefresh ? refreshInterval : false,
   });

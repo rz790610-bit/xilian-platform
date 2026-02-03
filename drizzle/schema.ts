@@ -1,4 +1,4 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, json, boolean } from "drizzle-orm/mysql-core";
+import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, json, boolean, double } from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -610,3 +610,44 @@ export const diagnosisTasks = mysqlTable("diagnosis_tasks", {
 
 export type DiagnosisTask = typeof diagnosisTasks.$inferSelect;
 export type InsertDiagnosisTask = typeof diagnosisTasks.$inferInsert;
+
+
+/**
+ * 遥测数据表 - 存储设备遥测数据
+ */
+export const telemetryData = mysqlTable("telemetry_data", {
+  id: int("id").autoincrement().primaryKey(),
+  deviceId: varchar("deviceId", { length: 64 }).notNull(),
+  sensorId: varchar("sensorId", { length: 64 }).notNull(),
+  metricName: varchar("metricName", { length: 100 }).notNull(),
+  value: double("value").notNull(),
+  unit: varchar("unit", { length: 20 }),
+  quality: mysqlEnum("quality", ["good", "uncertain", "bad"]).default("good"),
+  timestamp: timestamp("timestamp").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type TelemetryData = typeof telemetryData.$inferSelect;
+export type InsertTelemetryData = typeof telemetryData.$inferInsert;
+
+/**
+ * 数据聚合表 - 存储聚合统计数据
+ */
+export const dataAggregations = mysqlTable("data_aggregations", {
+  id: int("id").autoincrement().primaryKey(),
+  deviceId: varchar("deviceId", { length: 64 }).notNull(),
+  sensorId: varchar("sensorId", { length: 64 }).notNull(),
+  metricName: varchar("metricName", { length: 100 }).notNull(),
+  windowStart: timestamp("windowStart").notNull(),
+  windowEnd: timestamp("windowEnd").notNull(),
+  count: int("count").notNull(),
+  sum: double("sum").notNull(),
+  min: double("min").notNull(),
+  max: double("max").notNull(),
+  avg: double("avg").notNull(),
+  stdDev: double("stdDev"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type DataAggregation = typeof dataAggregations.$inferSelect;
+export type InsertDataAggregation = typeof dataAggregations.$inferInsert;

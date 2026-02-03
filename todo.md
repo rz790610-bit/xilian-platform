@@ -248,3 +248,14 @@
 - [ ] 实现错误码体系
 - [ ] 添加请求限流
 - [ ] 实现API版本管理
+
+
+## Kafka 真实集成（企业版数据流）
+
+- [x] 创建 Docker Compose 配置部署 Kafka 和 Zookeeper
+- [x] 安装 kafkajs 库并创建 Kafka 客户端服务
+- [x] 创建 Kafka 事件总线适配器（支持真实 Kafka 和内存回退）
+- [x] 创建 Kafka 流处理器（滑动窗口异常检测、数据聚合）
+- [x] 创建 Kafka 主题管理功能
+- [x] 更新前端监控界面显示 Kafka 状态
+- [x] 编写本地部署文档和启动脚本
