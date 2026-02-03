@@ -1,0 +1,1069 @@
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { MainLayout } from '@/components/layout/MainLayout';
+import { PageCard } from '@/components/common/PageCard';
+import { StatCard } from '@/components/common/StatCard';
+import { Badge } from '@/components/common/Badge';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Switch } from '@/components/ui/switch';
+import { cn } from '@/lib/utils';
+import { trpc } from '@/lib/trpc';
+import { useToast } from '@/components/common/Toast';
+import { 
+  Plus, Trash2, RefreshCw, Save, Download, Upload, 
+  ZoomIn, ZoomOut, Maximize2, Move, Link2, Unlink,
+  Settings2, Activity, Server, Database, Cpu, Network
+} from 'lucide-react';
+
+// 节点类型定义
+interface TopoNode {
+  id: number;
+  nodeId: string;
+  name: string;
+  type: 'source' | 'plugin' | 'engine' | 'agent' | 'output' | 'database' | 'service';
+  icon: string | null;
+  description: string | null;
+  status: 'online' | 'offline' | 'error' | 'maintenance';
+  x: number;
+  y: number;
+  config: Record<string, unknown> | null;
+  metrics: { cpu?: number; memory?: number; latency?: number; throughput?: number } | null;
+  lastHeartbeat: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// 连接类型定义
+interface TopoEdge {
+  id: number;
+  edgeId: string;
+  sourceNodeId: string;
+  targetNodeId: string;
+  type: 'data' | 'dependency' | 'control';
+  label: string | null;
+  config: { bandwidth?: number; latency?: number; protocol?: string } | null;
+  status: 'active' | 'inactive' | 'error';
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// 节点类型配置
+const nodeTypeConfig = {
+  source: { label: '数据源', icon: '📡', color: 'oklch(0.65 0.18 145)' },
+  plugin: { label: '插件', icon: '🔌', color: 'oklch(0.65 0.18 240)' },
+  engine: { label: '引擎', icon: '🤖', color: 'oklch(0.65 0.18 290)' },
+  agent: { label: '智能体', icon: '🧠', color: 'oklch(0.65 0.18 30)' },
+  output: { label: '输出', icon: '📝', color: 'oklch(0.65 0.18 60)' },
+  database: { label: '数据库', icon: '🗄️', color: 'oklch(0.65 0.18 180)' },
+  service: { label: '服务', icon: '⚙️', color: 'oklch(0.65 0.18 330)' },
+};
+
+export default function SystemTopology() {
+  const toast = useToast();
+  const svgRef = useRef<SVGSVGElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  
+  // 状态
+  const [viewMode, setViewMode] = useState<'all' | 'data' | 'dependency' | 'control'>('all');
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [selectedNode, setSelectedNode] = useState<TopoNode | null>(null);
+  const [selectedEdge, setSelectedEdge] = useState<TopoEdge | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragNode, setDragNode] = useState<string | null>(null);
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [connectSource, setConnectSource] = useState<string | null>(null);
+  
+  // 弹窗状态
+  const [showAddNodeDialog, setShowAddNodeDialog] = useState(false);
+  const [showAddEdgeDialog, setShowAddEdgeDialog] = useState(false);
+  const [showNodeDetailDialog, setShowNodeDetailDialog] = useState(false);
+  const [showSaveLayoutDialog, setShowSaveLayoutDialog] = useState(false);
+  
+  // 表单状态
+  const [newNode, setNewNode] = useState({
+    name: '',
+    type: 'plugin' as TopoNode['type'],
+    icon: '📦',
+    description: '',
+  });
+  const [newEdge, setNewEdge] = useState({
+    sourceNodeId: '',
+    targetNodeId: '',
+    type: 'data' as TopoEdge['type'],
+    label: '',
+  });
+  const [layoutName, setLayoutName] = useState('');
+  
+  // 自动刷新状态
+  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [refreshInterval, setRefreshInterval] = useState(10); // 秒
+  const [lastStateHash, setLastStateHash] = useState<string>('');
+  const [statusChanged, setStatusChanged] = useState(false);
+  
+  // tRPC 查询 - 使用快照API支持变化检测
+  const { data: topologyData, refetch: refetchTopology, isLoading } = trpc.topology.getTopologySnapshot.useQuery(
+    undefined,
+    {
+      refetchInterval: autoRefresh ? refreshInterval * 1000 : false,
+      refetchIntervalInBackground: true,
+    }
+  );
+  const { data: layouts } = trpc.topology.getLayouts.useQuery();
+  const { data: servicesSummary, refetch: refetchServices } = trpc.topology.getServicesSummary.useQuery(
+    undefined,
+    { refetchInterval: autoRefresh ? refreshInterval * 1000 : false }
+  );
+  
+  // 手动触发健康检查
+  const checkHealthMutation = trpc.topology.checkServicesHealth.useMutation({
+    onSuccess: (result) => {
+      const onlineCount = result.results.filter(r => r.online).length;
+      toast.success(`健康检查完成: ${onlineCount}/${result.results.length} 服务在线`);
+      refetchTopology();
+      refetchServices();
+    },
+    onError: (err) => toast.error(`检查失败: ${err.message}`),
+  });
+  
+  // 检测状态变化
+  useEffect(() => {
+    if (topologyData?.stateHash && lastStateHash && topologyData.stateHash !== lastStateHash) {
+      setStatusChanged(true);
+      toast.info('拓扑状态已更新');
+      setTimeout(() => setStatusChanged(false), 2000);
+    }
+    if (topologyData?.stateHash) {
+      setLastStateHash(topologyData.stateHash);
+    }
+  }, [topologyData?.stateHash]);
+  
+  // tRPC 变更
+  const createNodeMutation = trpc.topology.createNode.useMutation({
+    onSuccess: () => {
+      toast.success('节点创建成功');
+      refetchTopology();
+      setShowAddNodeDialog(false);
+      setNewNode({ name: '', type: 'plugin', icon: '📦', description: '' });
+    },
+    onError: (err) => toast.error(`创建失败: ${err.message}`),
+  });
+  
+  const updateNodePositionMutation = trpc.topology.updateNodePosition.useMutation({
+    onError: (err) => console.error('更新位置失败:', err),
+  });
+  
+  const updateNodeStatusMutation = trpc.topology.updateNodeStatus.useMutation({
+    onSuccess: () => {
+      toast.success('状态已更新');
+      refetchTopology();
+    },
+  });
+  
+  const deleteNodeMutation = trpc.topology.deleteNode.useMutation({
+    onSuccess: () => {
+      toast.success('节点已删除');
+      refetchTopology();
+      setSelectedNode(null);
+    },
+  });
+  
+  const createEdgeMutation = trpc.topology.createEdge.useMutation({
+    onSuccess: () => {
+      toast.success('连接创建成功');
+      refetchTopology();
+      setShowAddEdgeDialog(false);
+      setNewEdge({ sourceNodeId: '', targetNodeId: '', type: 'data', label: '' });
+    },
+  });
+  
+  const deleteEdgeMutation = trpc.topology.deleteEdge.useMutation({
+    onSuccess: () => {
+      toast.success('连接已删除');
+      refetchTopology();
+      setSelectedEdge(null);
+    },
+  });
+  
+  const saveLayoutMutation = trpc.topology.saveLayout.useMutation({
+    onSuccess: () => {
+      toast.success('布局已保存');
+      setShowSaveLayoutDialog(false);
+      setLayoutName('');
+    },
+  });
+  
+  const resetTopologyMutation = trpc.topology.resetToDefault.useMutation({
+    onSuccess: () => {
+      toast.success('已重置为默认拓扑');
+      refetchTopology();
+    },
+  });
+  
+  const nodes = topologyData?.nodes || [];
+  const edges = topologyData?.edges || [];
+  
+  // 过滤显示的连接
+  const visibleEdges = viewMode === 'all' 
+    ? edges 
+    : edges.filter(e => e.type === viewMode);
+  
+  // 处理节点拖拽
+  const handleMouseDown = (e: React.MouseEvent, nodeId: string) => {
+    if (isConnecting) {
+      if (connectSource && connectSource !== nodeId) {
+        // 创建连接
+        setNewEdge({
+          sourceNodeId: connectSource,
+          targetNodeId: nodeId,
+          type: 'data',
+          label: '',
+        });
+        setShowAddEdgeDialog(true);
+        setIsConnecting(false);
+        setConnectSource(null);
+      } else {
+        setConnectSource(nodeId);
+      }
+      return;
+    }
+    
+    const node = nodes.find(n => n.nodeId === nodeId);
+    if (!node) return;
+    
+    const svg = svgRef.current;
+    if (!svg) return;
+    
+    const rect = svg.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / zoom - pan.x;
+    const y = (e.clientY - rect.top) / zoom - pan.y;
+    
+    setDragNode(nodeId);
+    setDragOffset({ x: x - node.x, y: y - node.y });
+    setIsDragging(true);
+  };
+  
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    if (!isDragging || !dragNode) return;
+    
+    const svg = svgRef.current;
+    if (!svg) return;
+    
+    const rect = svg.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / zoom - pan.x - dragOffset.x;
+    const y = (e.clientY - rect.top) / zoom - pan.y - dragOffset.y;
+    
+    // 更新本地状态（实时显示）
+    const nodeIndex = nodes.findIndex(n => n.nodeId === dragNode);
+    if (nodeIndex !== -1) {
+      nodes[nodeIndex] = { ...nodes[nodeIndex], x: Math.max(0, x), y: Math.max(0, y) };
+    }
+  }, [isDragging, dragNode, zoom, pan, dragOffset, nodes]);
+  
+  const handleMouseUp = useCallback(() => {
+    if (isDragging && dragNode) {
+      const node = nodes.find(n => n.nodeId === dragNode);
+      if (node) {
+        updateNodePositionMutation.mutate({
+          nodeId: dragNode,
+          x: Math.round(node.x),
+          y: Math.round(node.y),
+        });
+      }
+    }
+    setIsDragging(false);
+    setDragNode(null);
+  }, [isDragging, dragNode, nodes, updateNodePositionMutation]);
+  
+  useEffect(() => {
+    if (isDragging) {
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
+      return () => {
+        window.removeEventListener('mousemove', handleMouseMove);
+        window.removeEventListener('mouseup', handleMouseUp);
+      };
+    }
+  }, [isDragging, handleMouseMove, handleMouseUp]);
+  
+  // 创建节点
+  const handleCreateNode = () => {
+    if (!newNode.name.trim()) {
+      toast.error('请输入节点名称');
+      return;
+    }
+    
+    const nodeId = `node_${Date.now()}`;
+    const typeX: Record<string, number> = { 
+      source: 50, plugin: 200, engine: 350, agent: 350, output: 500, database: 500, service: 500 
+    };
+    const sameTypeCount = nodes.filter(n => n.type === newNode.type).length;
+    
+    createNodeMutation.mutate({
+      nodeId,
+      name: newNode.name,
+      type: newNode.type,
+      icon: newNode.icon || nodeTypeConfig[newNode.type].icon,
+      description: newNode.description,
+      x: typeX[newNode.type] || 200,
+      y: 50 + sameTypeCount * 100,
+    });
+  };
+  
+  // 创建连接
+  const handleCreateEdge = () => {
+    if (!newEdge.sourceNodeId || !newEdge.targetNodeId) {
+      toast.error('请选择源节点和目标节点');
+      return;
+    }
+    
+    const edgeId = `edge_${Date.now()}`;
+    createEdgeMutation.mutate({
+      edgeId,
+      sourceNodeId: newEdge.sourceNodeId,
+      targetNodeId: newEdge.targetNodeId,
+      type: newEdge.type,
+      label: newEdge.label || undefined,
+    });
+  };
+  
+  // 保存布局
+  const handleSaveLayout = () => {
+    if (!layoutName.trim()) {
+      toast.error('请输入布局名称');
+      return;
+    }
+    
+    saveLayoutMutation.mutate({
+      name: layoutName,
+      layoutData: {
+        nodes: nodes.map(n => ({ nodeId: n.nodeId, x: n.x, y: n.y })),
+        zoom,
+        panX: pan.x,
+        panY: pan.y,
+      },
+    });
+  };
+  
+  // 导出拓扑数据
+  const handleExportTopology = () => {
+    const data = {
+      nodes: nodes.map(n => ({
+        nodeId: n.nodeId,
+        name: n.name,
+        type: n.type,
+        icon: n.icon,
+        description: n.description,
+        x: n.x,
+        y: n.y,
+        status: n.status,
+      })),
+      edges: edges.map(e => ({
+        edgeId: e.edgeId,
+        sourceNodeId: e.sourceNodeId,
+        targetNodeId: e.targetNodeId,
+        type: e.type,
+        label: e.label,
+      })),
+    };
+    
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `topology-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success('拓扑数据已导出');
+  };
+  
+  // 渲染连接线
+  const renderEdges = () => {
+    return visibleEdges.map((edge) => {
+      const fromNode = nodes.find(n => n.nodeId === edge.sourceNodeId);
+      const toNode = nodes.find(n => n.nodeId === edge.targetNodeId);
+      if (!fromNode || !toNode) return null;
+      
+      const x1 = fromNode.x + 120;
+      const y1 = fromNode.y + 30;
+      const x2 = toNode.x;
+      const y2 = toNode.y + 30;
+      const cx = (x1 + x2) / 2;
+      
+      const edgeColor = edge.type === 'data' 
+        ? 'oklch(0.65 0.18 240)' 
+        : edge.type === 'dependency' 
+          ? 'oklch(0.60 0.22 290)' 
+          : 'oklch(0.60 0.18 60)';
+      
+      const isSelected = selectedEdge?.edgeId === edge.edgeId;
+      
+      return (
+        <g key={edge.edgeId} className="cursor-pointer" onClick={() => setSelectedEdge(edge)}>
+          <path
+            d={`M${x1},${y1} C${cx},${y1} ${cx},${y2} ${x2},${y2}`}
+            stroke={isSelected ? 'oklch(0.80 0.20 60)' : edgeColor}
+            strokeWidth={isSelected ? 3 : 2}
+            fill="none"
+            strokeDasharray={edge.type === 'dependency' ? '8,4' : edge.type === 'control' ? '4,4' : 'none'}
+            className="transition-all duration-200"
+          />
+          {/* 箭头 */}
+          <polygon
+            points={`${x2},${y2} ${x2-10},${y2-5} ${x2-10},${y2+5}`}
+            fill={isSelected ? 'oklch(0.80 0.20 60)' : edgeColor}
+          />
+          {/* 标签 */}
+          {edge.label && (
+            <text
+              x={cx}
+              y={(y1 + y2) / 2 - 8}
+              fontSize="10"
+              fill="oklch(0.70 0.05 250)"
+              textAnchor="middle"
+              className="pointer-events-none"
+            >
+              {edge.label}
+            </text>
+          )}
+          {/* 状态指示 */}
+          {edge.status !== 'active' && (
+            <circle
+              cx={cx}
+              cy={(y1 + y2) / 2}
+              r="6"
+              fill={edge.status === 'error' ? 'oklch(0.65 0.20 30)' : 'oklch(0.50 0.10 60)'}
+            />
+          )}
+        </g>
+      );
+    });
+  };
+  
+  // 渲染节点
+  const renderNodes = () => {
+    return nodes.map((node) => {
+      const isSelected = selectedNode?.nodeId === node.nodeId;
+      const isConnectSource = connectSource === node.nodeId;
+      const typeConfig = nodeTypeConfig[node.type];
+      
+      const statusColor = {
+        online: 'oklch(0.75 0.18 145)',
+        offline: 'oklch(0.50 0.10 250)',
+        error: 'oklch(0.65 0.20 30)',
+        maintenance: 'oklch(0.65 0.18 60)',
+      }[node.status];
+      
+      return (
+        <g 
+          key={node.nodeId} 
+          transform={`translate(${node.x}, ${node.y})`}
+          className={cn("cursor-move", isDragging && dragNode === node.nodeId && "opacity-70")}
+          onMouseDown={(e) => handleMouseDown(e, node.nodeId)}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (!isDragging) setSelectedNode(node);
+          }}
+          onDoubleClick={() => setShowNodeDetailDialog(true)}
+        >
+          {/* 选中高亮 */}
+          {(isSelected || isConnectSource) && (
+            <rect
+              x="-4"
+              y="-4"
+              width="128"
+              height="68"
+              rx="12"
+              fill="none"
+              stroke={isConnectSource ? 'oklch(0.75 0.20 145)' : 'oklch(0.65 0.18 240)'}
+              strokeWidth="2"
+              strokeDasharray="4,2"
+              className="animate-pulse"
+            />
+          )}
+          
+          {/* 节点背景 */}
+          <rect
+            width="120"
+            height="60"
+            rx="10"
+            fill="oklch(0.18 0.03 250)"
+            stroke={typeConfig.color}
+            strokeWidth="2"
+          />
+          
+          {/* 图标 */}
+          <text x="25" y="38" fontSize="24" textAnchor="middle">
+            {node.icon || typeConfig.icon}
+          </text>
+          
+          {/* 名称 */}
+          <text x="75" y="32" fontSize="12" fill="white" textAnchor="middle" fontWeight="500">
+            {node.name}
+          </text>
+          
+          {/* 类型标签 */}
+          <text x="75" y="48" fontSize="9" fill="oklch(0.60 0.05 250)" textAnchor="middle">
+            {typeConfig.label}
+          </text>
+          
+          {/* 状态指示灯 */}
+          <circle
+            cx="110"
+            cy="10"
+            r="6"
+            fill={statusColor}
+            className={node.status === 'online' ? 'animate-pulse' : ''}
+          />
+          
+          {/* 指标显示 */}
+          {node.metrics && node.status === 'online' && (
+            <g transform="translate(5, 52)">
+              {node.metrics.cpu !== undefined && (
+                <text x="0" y="0" fontSize="8" fill="oklch(0.55 0.05 250)">
+                  CPU: {node.metrics.cpu}%
+                </text>
+              )}
+            </g>
+          )}
+        </g>
+      );
+    });
+  };
+  
+  return (
+    <MainLayout title="系统拓扑">
+      <div className="animate-fade-up">
+        {/* 页面标题 */}
+        <div className="flex justify-between items-start mb-4">
+          <div className="flex items-center gap-3">
+            <div>
+              <h2 className="text-base font-bold mb-1">📊 系统拓扑</h2>
+              <p className="text-xs text-muted-foreground">可视化管理系统组件和数据流</p>
+            </div>
+            {/* 状态指示器 */}
+            {statusChanged && (
+              <div className="flex items-center gap-1 px-2 py-1 bg-primary/20 rounded-full animate-pulse">
+                <span className="w-2 h-2 rounded-full bg-primary" />
+                <span className="text-[10px] text-primary">状态已更新</span>
+              </div>
+            )}
+            {/* 服务状态摘要 */}
+            {servicesSummary && (
+              <div className="flex items-center gap-2 px-2 py-1 bg-secondary rounded-lg text-[10px]">
+                <span className="text-success">✓ {servicesSummary.online}</span>
+                <span className="text-muted-foreground">/</span>
+                <span className="text-muted-foreground">{servicesSummary.total} 服务</span>
+              </div>
+            )}
+          </div>
+          <div className="flex gap-2 items-center">
+            {/* 自动刷新控制 */}
+            <div className="flex items-center gap-2 px-2 py-1 bg-secondary rounded-lg">
+              <span className="text-[10px] text-muted-foreground">自动刷新</span>
+              <Switch 
+                checked={autoRefresh} 
+                onCheckedChange={setAutoRefresh}
+                className="scale-75"
+              />
+              {autoRefresh && (
+                <Select value={String(refreshInterval)} onValueChange={(v) => setRefreshInterval(Number(v))}>
+                  <SelectTrigger className="w-[60px] h-6 text-[10px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="5">5秒</SelectItem>
+                    <SelectItem value="10">10秒</SelectItem>
+                    <SelectItem value="30">30秒</SelectItem>
+                    <SelectItem value="60">1分钟</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+            <Button 
+              variant="secondary" 
+              size="sm" 
+              onClick={() => checkHealthMutation.mutate()}
+              disabled={checkHealthMutation.isPending}
+              className="h-7 text-[11px] px-2"
+            >
+              <Activity className="w-3 h-3 mr-1" />
+              {checkHealthMutation.isPending ? '检查中...' : '健康检查'}
+            </Button>
+            <Button 
+              variant="secondary" 
+              size="sm" 
+              onClick={() => refetchTopology()}
+              className="h-7 text-[11px] px-2"
+            >
+              <RefreshCw className={cn("w-3 h-3 mr-1", isLoading && "animate-spin")} />
+              刷新
+            </Button>
+            <Button 
+              variant="secondary" 
+              size="sm" 
+              onClick={handleExportTopology}
+              className="h-7 text-[11px] px-2"
+            >
+              <Download className="w-3 h-3 mr-1" />
+              导出
+            </Button>
+            <Button 
+              size="sm" 
+              onClick={() => setShowSaveLayoutDialog(true)}
+              className="h-7 text-[11px] px-2"
+            >
+              <Save className="w-3 h-3 mr-1" />
+              保存布局
+            </Button>
+          </div>
+        </div>
+        
+        {/* 统计卡片 */}
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-2 mb-4">
+          <StatCard value={nodes.length} label="总节点" icon="🔷" />
+          <StatCard value={nodes.filter(n => n.status === 'online').length} label="在线节点" icon="✅" />
+          <StatCard value={edges.length} label="连接数" icon="🔗" />
+          <StatCard value={nodes.filter(n => n.type === 'source').length} label="数据源" icon="📡" />
+          <StatCard value={nodes.filter(n => n.type === 'engine').length} label="引擎" icon="🤖" />
+        </div>
+        
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+          {/* 拓扑图主区域 */}
+          <div className="lg:col-span-3">
+            <PageCard
+              title="系统拓扑图"
+              icon="📊"
+              action={
+                <div className="flex gap-2 items-center">
+                  {/* 视图筛选 */}
+                  <Select value={viewMode} onValueChange={(v: any) => setViewMode(v)}>
+                    <SelectTrigger className="w-[100px] h-7 text-[11px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">全部</SelectItem>
+                      <SelectItem value="data">数据流</SelectItem>
+                      <SelectItem value="dependency">依赖</SelectItem>
+                      <SelectItem value="control">控制</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  
+                  {/* 缩放控制 */}
+                  <div className="flex items-center gap-1 border rounded px-1">
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="h-6 w-6 p-0"
+                      onClick={() => setZoom(z => Math.max(0.5, z - 0.1))}
+                    >
+                      <ZoomOut className="w-3 h-3" />
+                    </Button>
+                    <span className="text-[10px] w-10 text-center">{Math.round(zoom * 100)}%</span>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="h-6 w-6 p-0"
+                      onClick={() => setZoom(z => Math.min(2, z + 0.1))}
+                    >
+                      <ZoomIn className="w-3 h-3" />
+                    </Button>
+                  </div>
+                  
+                  {/* 连接模式 */}
+                  <Button 
+                    variant={isConnecting ? "default" : "secondary"} 
+                    size="sm" 
+                    className="h-7 text-[11px] px-2"
+                    onClick={() => {
+                      setIsConnecting(!isConnecting);
+                      setConnectSource(null);
+                    }}
+                  >
+                    {isConnecting ? <Unlink className="w-3 h-3 mr-1" /> : <Link2 className="w-3 h-3 mr-1" />}
+                    {isConnecting ? '取消连接' : '连接模式'}
+                  </Button>
+                  
+                  {/* 添加节点 */}
+                  <Button 
+                    variant="secondary" 
+                    size="sm" 
+                    className="h-7 text-[11px] px-2"
+                    onClick={() => setShowAddNodeDialog(true)}
+                  >
+                    <Plus className="w-3 h-3 mr-1" />
+                    添加节点
+                  </Button>
+                </div>
+              }
+            >
+              <div 
+                ref={containerRef}
+                className="relative w-full h-[500px] bg-gradient-to-br from-background to-secondary rounded-xl overflow-hidden"
+              >
+                {isLoading ? (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="text-muted-foreground">加载中...</div>
+                  </div>
+                ) : (
+                  <svg 
+                    ref={svgRef} 
+                    className="w-full h-full"
+                    style={{ transform: `scale(${zoom}) translate(${pan.x}px, ${pan.y}px)` }}
+                  >
+                    {/* 网格背景 */}
+                    <defs>
+                      <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+                        <path d="M 40 0 L 0 0 0 40" fill="none" stroke="oklch(0.25 0.02 250)" strokeWidth="0.5"/>
+                      </pattern>
+                    </defs>
+                    <rect width="100%" height="100%" fill="url(#grid)" />
+                    
+                    {/* 连接线 */}
+                    {renderEdges()}
+                    
+                    {/* 节点 */}
+                    {renderNodes()}
+                  </svg>
+                )}
+                
+                {/* 连接模式提示 */}
+                {isConnecting && (
+                  <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground px-3 py-1 rounded-full text-xs">
+                    {connectSource ? '点击目标节点完成连接' : '点击源节点开始连接'}
+                  </div>
+                )}
+                
+                {/* 图例 */}
+                <div className="absolute bottom-4 left-4 flex gap-4 text-xs bg-background/90 p-2 rounded-lg border">
+                  <div className="flex items-center gap-2">
+                    <span className="w-3 h-3 rounded-full bg-success animate-pulse" />
+                    <span>在线</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="w-3 h-3 rounded-full bg-muted" />
+                    <span>离线</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="w-3 h-3 rounded-full bg-danger" />
+                    <span>错误</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="w-4 h-0.5 bg-primary" />
+                    <span>数据流</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="w-4 border-t-2 border-dashed border-purple-500" />
+                    <span>依赖</span>
+                  </div>
+                </div>
+              </div>
+            </PageCard>
+          </div>
+          
+          {/* 右侧面板 */}
+          <div className="space-y-4">
+            {/* 节点详情 */}
+            {selectedNode && (
+              <PageCard title="节点详情" icon="📋">
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 p-2 bg-secondary rounded-lg">
+                    <span className="text-2xl">{selectedNode.icon || nodeTypeConfig[selectedNode.type].icon}</span>
+                    <div>
+                      <div className="font-semibold">{selectedNode.name}</div>
+                      <div className="text-xs text-muted-foreground">{nodeTypeConfig[selectedNode.type].label}</div>
+                    </div>
+                  </div>
+                  
+                  <div className="flex justify-between items-center p-2 bg-secondary rounded-lg text-sm">
+                    <span className="text-muted-foreground">状态</span>
+                    <Badge variant={selectedNode.status === 'online' ? 'success' : selectedNode.status === 'error' ? 'danger' : 'default'}>
+                      {selectedNode.status === 'online' ? '在线' : selectedNode.status === 'offline' ? '离线' : selectedNode.status === 'error' ? '错误' : '维护中'}
+                    </Badge>
+                  </div>
+                  
+                  {selectedNode.description && (
+                    <div className="p-2 bg-secondary rounded-lg text-sm">
+                      <div className="text-muted-foreground mb-1">描述</div>
+                      <div>{selectedNode.description}</div>
+                    </div>
+                  )}
+                  
+                  <div className="flex gap-2">
+                    <Button 
+                      variant="secondary" 
+                      size="sm" 
+                      className="flex-1"
+                      onClick={() => {
+                        const newStatus = selectedNode.status === 'online' ? 'offline' : 'online';
+                        updateNodeStatusMutation.mutate({ nodeId: selectedNode.nodeId, status: newStatus });
+                      }}
+                    >
+                      <Activity className="w-3 h-3 mr-1" />
+                      切换状态
+                    </Button>
+                    <Button 
+                      variant="destructive" 
+                      size="sm"
+                      onClick={() => {
+                        if (confirm('确定删除此节点？相关连接也会被删除。')) {
+                          deleteNodeMutation.mutate({ nodeId: selectedNode.nodeId });
+                        }
+                      }}
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
+                  </div>
+                </div>
+              </PageCard>
+            )}
+            
+            {/* 连接详情 */}
+            {selectedEdge && !selectedNode && (
+              <PageCard title="连接详情" icon="🔗">
+                <div className="space-y-3">
+                  <div className="p-2 bg-secondary rounded-lg text-sm">
+                    <div className="text-muted-foreground mb-1">连接类型</div>
+                    <Badge>{selectedEdge.type === 'data' ? '数据流' : selectedEdge.type === 'dependency' ? '依赖' : '控制'}</Badge>
+                  </div>
+                  
+                  <div className="p-2 bg-secondary rounded-lg text-sm">
+                    <div className="text-muted-foreground mb-1">源节点</div>
+                    <div>{nodes.find(n => n.nodeId === selectedEdge.sourceNodeId)?.name || selectedEdge.sourceNodeId}</div>
+                  </div>
+                  
+                  <div className="p-2 bg-secondary rounded-lg text-sm">
+                    <div className="text-muted-foreground mb-1">目标节点</div>
+                    <div>{nodes.find(n => n.nodeId === selectedEdge.targetNodeId)?.name || selectedEdge.targetNodeId}</div>
+                  </div>
+                  
+                  {selectedEdge.label && (
+                    <div className="p-2 bg-secondary rounded-lg text-sm">
+                      <div className="text-muted-foreground mb-1">标签</div>
+                      <div>{selectedEdge.label}</div>
+                    </div>
+                  )}
+                  
+                  <Button 
+                    variant="destructive" 
+                    size="sm"
+                    className="w-full"
+                    onClick={() => {
+                      if (confirm('确定删除此连接？')) {
+                        deleteEdgeMutation.mutate({ edgeId: selectedEdge.edgeId });
+                      }
+                    }}
+                  >
+                    <Trash2 className="w-3 h-3 mr-1" />
+                    删除连接
+                  </Button>
+                </div>
+              </PageCard>
+            )}
+            
+            {/* 拓扑统计 */}
+            <PageCard title="节点分布" icon="📈">
+              <div className="space-y-2">
+                {Object.entries(nodeTypeConfig).map(([type, config]) => {
+                  const count = nodes.filter(n => n.type === type).length;
+                  if (count === 0) return null;
+                  return (
+                    <div key={type} className="flex justify-between items-center p-2 bg-secondary rounded-lg text-sm">
+                      <div className="flex items-center gap-2">
+                        <span>{config.icon}</span>
+                        <span>{config.label}</span>
+                      </div>
+                      <span className="font-medium">{count}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </PageCard>
+            
+            {/* 快捷操作 */}
+            <PageCard title="快捷操作" icon="⚡">
+              <div className="space-y-2">
+                <Button 
+                  variant="secondary" 
+                  size="sm" 
+                  className="w-full justify-start"
+                  onClick={() => setShowAddEdgeDialog(true)}
+                >
+                  <Link2 className="w-4 h-4 mr-2" />
+                  添加连接
+                </Button>
+                <Button 
+                  variant="secondary" 
+                  size="sm" 
+                  className="w-full justify-start"
+                  onClick={() => {
+                    if (confirm('确定重置为默认拓扑？当前配置将丢失。')) {
+                      resetTopologyMutation.mutate();
+                    }
+                  }}
+                >
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  重置为默认
+                </Button>
+              </div>
+            </PageCard>
+          </div>
+        </div>
+      </div>
+      
+      {/* 添加节点弹窗 */}
+      <Dialog open={showAddNodeDialog} onOpenChange={setShowAddNodeDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>添加拓扑节点</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm text-muted-foreground mb-2 block">节点名称 *</label>
+              <Input
+                value={newNode.name}
+                onChange={(e) => setNewNode(prev => ({ ...prev, name: e.target.value }))}
+                placeholder="如: 新传感器"
+              />
+            </div>
+            <div>
+              <label className="text-sm text-muted-foreground mb-2 block">节点类型</label>
+              <Select value={newNode.type} onValueChange={(v: any) => setNewNode(prev => ({ ...prev, type: v }))}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(nodeTypeConfig).map(([type, config]) => (
+                    <SelectItem key={type} value={type}>
+                      {config.icon} {config.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="text-sm text-muted-foreground mb-2 block">图标</label>
+              <Input
+                value={newNode.icon}
+                onChange={(e) => setNewNode(prev => ({ ...prev, icon: e.target.value }))}
+                placeholder="📦"
+              />
+            </div>
+            <div>
+              <label className="text-sm text-muted-foreground mb-2 block">描述</label>
+              <Textarea
+                value={newNode.description}
+                onChange={(e) => setNewNode(prev => ({ ...prev, description: e.target.value }))}
+                placeholder="节点功能描述..."
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="secondary" onClick={() => setShowAddNodeDialog(false)}>取消</Button>
+            <Button onClick={handleCreateNode} disabled={createNodeMutation.isPending}>
+              {createNodeMutation.isPending ? '创建中...' : '添加'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* 添加连接弹窗 */}
+      <Dialog open={showAddEdgeDialog} onOpenChange={setShowAddEdgeDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>添加连接</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm text-muted-foreground mb-2 block">源节点 *</label>
+              <Select value={newEdge.sourceNodeId} onValueChange={(v) => setNewEdge(prev => ({ ...prev, sourceNodeId: v }))}>
+                <SelectTrigger>
+                  <SelectValue placeholder="选择源节点" />
+                </SelectTrigger>
+                <SelectContent>
+                  {nodes.map(node => (
+                    <SelectItem key={node.nodeId} value={node.nodeId}>
+                      {node.icon || nodeTypeConfig[node.type].icon} {node.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="text-sm text-muted-foreground mb-2 block">目标节点 *</label>
+              <Select value={newEdge.targetNodeId} onValueChange={(v) => setNewEdge(prev => ({ ...prev, targetNodeId: v }))}>
+                <SelectTrigger>
+                  <SelectValue placeholder="选择目标节点" />
+                </SelectTrigger>
+                <SelectContent>
+                  {nodes.filter(n => n.nodeId !== newEdge.sourceNodeId).map(node => (
+                    <SelectItem key={node.nodeId} value={node.nodeId}>
+                      {node.icon || nodeTypeConfig[node.type].icon} {node.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="text-sm text-muted-foreground mb-2 block">连接类型</label>
+              <Select value={newEdge.type} onValueChange={(v: any) => setNewEdge(prev => ({ ...prev, type: v }))}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="data">数据流</SelectItem>
+                  <SelectItem value="dependency">依赖关系</SelectItem>
+                  <SelectItem value="control">控制流</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="text-sm text-muted-foreground mb-2 block">标签（可选）</label>
+              <Input
+                value={newEdge.label}
+                onChange={(e) => setNewEdge(prev => ({ ...prev, label: e.target.value }))}
+                placeholder="如: 振动数据"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="secondary" onClick={() => setShowAddEdgeDialog(false)}>取消</Button>
+            <Button onClick={handleCreateEdge} disabled={createEdgeMutation.isPending}>
+              {createEdgeMutation.isPending ? '创建中...' : '添加'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* 保存布局弹窗 */}
+      <Dialog open={showSaveLayoutDialog} onOpenChange={setShowSaveLayoutDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>保存布局</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm text-muted-foreground mb-2 block">布局名称 *</label>
+              <Input
+                value={layoutName}
+                onChange={(e) => setLayoutName(e.target.value)}
+                placeholder="如: 生产环境布局"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="secondary" onClick={() => setShowSaveLayoutDialog(false)}>取消</Button>
+            <Button onClick={handleSaveLayout} disabled={saveLayoutMutation.isPending}>
+              {saveLayoutMutation.isPending ? '保存中...' : '保存'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </MainLayout>
+  );
+}

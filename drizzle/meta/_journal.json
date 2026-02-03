@@ -22,6 +22,13 @@
       "when": 1770002383142,
       "tag": "0002_funny_tyger_tiger",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1770121078733,
+      "tag": "0003_tricky_supreme_intelligence",
+      "breakpoints": true
     }
   ]
 }

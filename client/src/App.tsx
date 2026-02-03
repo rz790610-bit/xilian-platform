@@ -35,6 +35,7 @@ import KnowledgeBase from "./pages/KnowledgeBase";
 import KnowledgeManager from "./pages/KnowledgeManager";
 import KnowledgeGraph from "./pages/KnowledgeGraph";
 import VectorAdmin from "./pages/VectorAdmin";
+import SystemTopology from "./pages/SystemTopology";
 function Router() {
   // make sure to consider if you need authentication for certain routes
   return (
@@ -89,7 +90,7 @@ function Router() {
       <Route path="/settings/databases" component={Settings} />
       <Route path="/settings/plugins" component={Settings} />
       <Route path="/settings/engines" component={Settings} />
-      <Route path="/settings/topology" component={Settings} />
+      <Route path="/settings/topology" component={SystemTopology} />
       <Route path="/settings/models" component={Settings} />
       <Route path="/settings" component={Settings} />
       

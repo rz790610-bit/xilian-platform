@@ -59,6 +59,13 @@ async function startServer() {
 
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);
+    
+    // 启动定时健康检查（每30秒检查一次）
+    import('../healthCheck').then(({ startPeriodicHealthCheck }) => {
+      startPeriodicHealthCheck(30000);
+    }).catch(err => {
+      console.error('[Server] Failed to start health check:', err);
+    });
   });
 }
 

@@ -124,3 +124,64 @@ export const kgEdges = mysqlTable("kg_edges", {
 
 export type KgEdge = typeof kgEdges.$inferSelect;
 export type InsertKgEdge = typeof kgEdges.$inferInsert;
+
+// ============ 系统拓扑表 (topo_ 前缀) ============
+
+/**
+ * 拓扑节点表 - 存储系统拓扑中的节点
+ */
+export const topoNodes = mysqlTable("topo_nodes", {
+  id: int("id").autoincrement().primaryKey(),
+  nodeId: varchar("nodeId", { length: 64 }).notNull().unique(),
+  name: varchar("name", { length: 100 }).notNull(),
+  type: mysqlEnum("type", ["source", "plugin", "engine", "agent", "output", "database", "service"]).notNull(),
+  icon: varchar("icon", { length: 20 }).default("📦"),
+  description: text("description"),
+  status: mysqlEnum("status", ["online", "offline", "error", "maintenance"]).default("offline").notNull(),
+  x: int("x").default(0).notNull(),
+  y: int("y").default(0).notNull(),
+  config: json("config").$type<Record<string, unknown>>(),
+  metrics: json("metrics").$type<{ cpu?: number; memory?: number; latency?: number; throughput?: number }>(),
+  lastHeartbeat: timestamp("lastHeartbeat"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type TopoNode = typeof topoNodes.$inferSelect;
+export type InsertTopoNode = typeof topoNodes.$inferInsert;
+
+/**
+ * 拓扑连接表 - 存储节点之间的连接关系
+ */
+export const topoEdges = mysqlTable("topo_edges", {
+  id: int("id").autoincrement().primaryKey(),
+  edgeId: varchar("edgeId", { length: 64 }).notNull().unique(),
+  sourceNodeId: varchar("sourceNodeId", { length: 64 }).notNull(),
+  targetNodeId: varchar("targetNodeId", { length: 64 }).notNull(),
+  type: mysqlEnum("type", ["data", "dependency", "control"]).default("data").notNull(),
+  label: varchar("label", { length: 100 }),
+  config: json("config").$type<{ bandwidth?: number; latency?: number; protocol?: string }>(),
+  status: mysqlEnum("status", ["active", "inactive", "error"]).default("active").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type TopoEdge = typeof topoEdges.$inferSelect;
+export type InsertTopoEdge = typeof topoEdges.$inferInsert;
+
+/**
+ * 拓扑布局表 - 保存用户的拓扑布局配置
+ */
+export const topoLayouts = mysqlTable("topo_layouts", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 100 }).notNull(),
+  description: text("description"),
+  userId: int("userId"),
+  isDefault: boolean("isDefault").default(false).notNull(),
+  layoutData: json("layoutData").$type<{ nodes: Array<{ nodeId: string; x: number; y: number }>; zoom: number; panX: number; panY: number }>(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type TopoLayout = typeof topoLayouts.$inferSelect;
+export type InsertTopoLayout = typeof topoLayouts.$inferInsert;
