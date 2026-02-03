@@ -13,6 +13,9 @@ import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { trpc } from "@/lib/trpc";
+import { useKafkaMetricsWs } from "@/hooks/useKafkaMetricsWs";
+import { ThroughputChart } from "@/components/charts/ThroughputChart";
+import { LatencyChart } from "@/components/charts/LatencyChart";
 import {
   Activity,
   AlertTriangle,
@@ -28,6 +31,7 @@ import {
   Wifi,
   WifiOff,
   Zap,
+  Radio,
 } from "lucide-react";
 
 // 状态徽章组件
@@ -108,7 +112,7 @@ function TopicList({ topics }: { topics: string[] }) {
       <CardContent>
         <ScrollArea className="h-[300px]">
           <div className="space-y-2">
-            {topics.map((topic, index) => (
+            {topics.map((topic) => (
               <div
                 key={topic}
                 className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
@@ -338,6 +342,9 @@ function RedisStatus() {
 export default function KafkaMonitor() {
   const [refreshKey, setRefreshKey] = useState(0);
 
+  // WebSocket 实时数据
+  const { metrics: wsMetrics, history, isConnected: wsConnected, error: wsError, reconnect } = useKafkaMetricsWs();
+
   // 获取 Kafka 集群状态
   const { data: clusterStatus, isLoading: isLoadingCluster, refetch: refetchCluster } = 
     trpc.kafka.getClusterStatus.useQuery();
@@ -354,12 +361,12 @@ export default function KafkaMonitor() {
   const { data: anomalies, isLoading: isLoadingAnomalies } = 
     trpc.kafka.queryAnomalies.useQuery({ limit: 20 });
 
-  // 自动刷新
+  // 自动刷新（降低频率，因为有 WebSocket 实时数据）
   useEffect(() => {
     const interval = setInterval(() => {
       setRefreshKey((k) => k + 1);
       refetchCluster();
-    }, 30000); // 每 30 秒刷新
+    }, 60000); // 每 60 秒刷新一次 API 数据
 
     return () => clearInterval(interval);
   }, [refetchCluster]);
@@ -367,10 +374,19 @@ export default function KafkaMonitor() {
   const handleRefresh = () => {
     setRefreshKey((k) => k + 1);
     refetchCluster();
+    if (!wsConnected) {
+      reconnect();
+    }
   };
 
   const isKafkaConnected = clusterStatus?.mode === "kafka" && clusterStatus?.health?.connected;
   const topics = topicsData?.topics || [];
+
+  // 使用 WebSocket 数据或默认值
+  const currentThroughput = wsMetrics?.throughput.messagesPerSecond || 0;
+  const currentLatency = wsMetrics?.latency.avgLatencyMs || 0;
+  const produceLatency = wsMetrics?.latency.produceLatencyMs || 0;
+  const consumeLatency = wsMetrics?.latency.consumeLatencyMs || 0;
 
   return (
     <DashboardLayout>
@@ -381,11 +397,31 @@ export default function KafkaMonitor() {
             <h1 className="text-2xl font-bold tracking-tight">数据流监控</h1>
             <p className="text-muted-foreground">Kafka 消息队列和 Redis 缓存实时状态</p>
           </div>
-          <Button onClick={handleRefresh} variant="outline" size="sm">
-            <RefreshCw className="h-4 w-4 mr-2" />
-            刷新
-          </Button>
+          <div className="flex items-center gap-2">
+            {/* WebSocket 连接状态 */}
+            <Badge
+              variant={wsConnected ? "default" : "secondary"}
+              className={wsConnected ? "bg-green-500" : ""}
+            >
+              <Radio className={`h-3 w-3 mr-1 ${wsConnected ? "animate-pulse" : ""}`} />
+              {wsConnected ? "实时连接" : "离线"}
+            </Badge>
+            <Button onClick={handleRefresh} variant="outline" size="sm">
+              <RefreshCw className="h-4 w-4 mr-2" />
+              刷新
+            </Button>
+          </div>
         </div>
+
+        {/* WebSocket 错误提示 */}
+        {wsError && (
+          <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4">
+            <p className="text-sm text-destructive">{wsError}</p>
+            <Button variant="outline" size="sm" className="mt-2" onClick={reconnect}>
+              重新连接
+            </Button>
+          </div>
+        )}
 
         {/* 状态概览卡片 */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -396,16 +432,18 @@ export default function KafkaMonitor() {
             description={clusterStatus?.brokers?.join(", ") || "localhost:9092"}
           />
           <MetricCard
-            title="Broker 数量"
-            value={clusterStatus?.health?.brokers || 0}
-            icon={Server}
-            description="活跃的 Kafka Broker"
+            title="实时吞吐量"
+            value={currentThroughput}
+            unit="msg/s"
+            icon={TrendingUp}
+            description="当前消息处理速率"
           />
           <MetricCard
-            title="主题数量"
-            value={topics.length}
-            icon={Layers}
-            description="已配置的消息主题"
+            title="平均延迟"
+            value={currentLatency}
+            unit="ms"
+            icon={Clock}
+            description="端到端处理延迟"
           />
           <MetricCard
             title="异常告警"
@@ -417,13 +455,156 @@ export default function KafkaMonitor() {
         </div>
 
         {/* 详细信息标签页 */}
-        <Tabs defaultValue="overview" className="space-y-4">
+        <Tabs defaultValue="realtime" className="space-y-4">
           <TabsList>
+            <TabsTrigger value="realtime">实时监控</TabsTrigger>
             <TabsTrigger value="overview">概览</TabsTrigger>
             <TabsTrigger value="topics">主题</TabsTrigger>
             <TabsTrigger value="anomalies">异常</TabsTrigger>
             <TabsTrigger value="cache">缓存</TabsTrigger>
           </TabsList>
+
+          {/* 实时监控标签页 */}
+          <TabsContent value="realtime" className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              {/* 吞吐量图表 */}
+              <ThroughputChart
+                timestamps={history.timestamps}
+                throughput={history.throughput}
+                currentValue={currentThroughput}
+                isConnected={wsConnected}
+              />
+
+              {/* 延迟图表 */}
+              <LatencyChart
+                timestamps={history.timestamps}
+                latency={history.latency}
+                currentValue={currentLatency}
+                produceLatency={produceLatency}
+                consumeLatency={consumeLatency}
+              />
+            </div>
+
+            {/* 实时指标详情 */}
+            <div className="grid gap-4 md:grid-cols-3">
+              {/* Broker 信息 */}
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Server className="h-4 w-4" />
+                    Broker 节点
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    {(wsMetrics?.brokers || []).map((broker) => (
+                      <div
+                        key={broker.id}
+                        className="flex items-center justify-between p-2 rounded bg-muted/50"
+                      >
+                        <div>
+                          <p className="font-medium text-sm">Broker {broker.id}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {broker.host}:{broker.port}
+                          </p>
+                        </div>
+                        {broker.isController && (
+                          <Badge variant="outline" className="text-xs">
+                            Controller
+                          </Badge>
+                        )}
+                      </div>
+                    ))}
+                    {(!wsMetrics?.brokers || wsMetrics.brokers.length === 0) && (
+                      <p className="text-sm text-muted-foreground text-center py-4">
+                        等待数据...
+                      </p>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* 主题统计 */}
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Layers className="h-4 w-4" />
+                    主题统计
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    {(wsMetrics?.topics || []).slice(0, 4).map((topic) => (
+                      <div
+                        key={topic.name}
+                        className="flex items-center justify-between p-2 rounded bg-muted/50"
+                      >
+                        <div>
+                          <p className="font-medium text-sm truncate max-w-[150px]">
+                            {topic.name}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {topic.partitions} 分区
+                          </p>
+                        </div>
+                        <span className="text-sm font-mono">
+                          {topic.messageCount.toLocaleString()}
+                        </span>
+                      </div>
+                    ))}
+                    {(!wsMetrics?.topics || wsMetrics.topics.length === 0) && (
+                      <p className="text-sm text-muted-foreground text-center py-4">
+                        等待数据...
+                      </p>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Redis 实时状态 */}
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Database className="h-4 w-4" />
+                    Redis 状态
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {wsMetrics?.redis ? (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm">连接状态</span>
+                        <Badge
+                          variant={wsMetrics.redis.connected ? "default" : "secondary"}
+                          className={wsMetrics.redis.connected ? "bg-green-500" : ""}
+                        >
+                          {wsMetrics.redis.connected ? "已连接" : "未连接"}
+                        </Badge>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="p-2 rounded bg-muted/50">
+                          <p className="text-xs text-muted-foreground">延迟</p>
+                          <p className="font-medium">{wsMetrics.redis.latencyMs}ms</p>
+                        </div>
+                        <div className="p-2 rounded bg-muted/50">
+                          <p className="text-xs text-muted-foreground">内存</p>
+                          <p className="font-medium">{wsMetrics.redis.memoryUsage}</p>
+                        </div>
+                      </div>
+                      <div className="p-2 rounded bg-muted/50">
+                        <p className="text-xs text-muted-foreground">连接客户端</p>
+                        <p className="font-medium">{wsMetrics.redis.connectedClients}</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground text-center py-4">
+                      Redis 未连接
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
 
           <TabsContent value="overview" className="space-y-4">
             <div className="grid gap-4 md:grid-cols-2">
@@ -505,10 +686,10 @@ export default function KafkaMonitor() {
                   </div>
                   <div className="space-y-2">
                     <div className="flex items-center justify-between text-sm">
-                      <span>数据完整性</span>
-                      <span>100%</span>
+                      <span>WebSocket 连接</span>
+                      <span>{wsConnected ? "100%" : "0%"}</span>
                     </div>
-                    <Progress value={100} />
+                    <Progress value={wsConnected ? 100 : 0} />
                   </div>
                 </CardContent>
               </Card>

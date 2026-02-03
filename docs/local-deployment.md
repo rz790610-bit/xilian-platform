@@ -2,6 +2,8 @@
 
 本文档介绍如何在本地 Mac 或 Linux 环境中部署和运行西联智能平台的完整开发环境，包括 Kafka 消息队列、Redis 缓存和应用服务。
 
+> **更新 (v1.1.0)**: 新增环境变量自动加载、WebSocket 实时监控和一键部署脚本。
+
 ## 系统要求
 
 在开始之前，请确保您的系统满足以下要求：
@@ -16,14 +18,26 @@
 
 ## 快速开始
 
-### 一键启动
+### 一键部署（推荐）
 
-最简单的方式是使用统一启动脚本，它会自动完成所有配置：
+使用新的一键部署脚本，自动检测并安装所有依赖：
 
 ```bash
 # 进入项目目录
 cd xilian-platform
 
+# 首次安装（自动安装 Node.js、pnpm、Docker）
+./scripts/setup.sh install
+
+# 启动所有服务
+./scripts/setup.sh start
+```
+
+### 传统启动方式
+
+如果已安装所有依赖，可以使用原有脚本：
+
+```bash
 # 一键启动所有服务
 ./scripts/start-local.sh start
 ```
@@ -56,12 +70,39 @@ cd xilian-platform
 | 服务 | 地址 | 说明 |
 |------|------|------|
 | 应用主页 | http://localhost:3000 | 西联智能平台 Web 界面 |
+| WebSocket | ws://localhost:3000/ws/kafka-metrics | 实时指标推送 |
 | Kafka Broker | localhost:9092 | Kafka 消息队列 |
 | Kafka UI | http://localhost:8080 | Kafka 可视化管理界面 |
 | Redis | localhost:6379 | Redis 缓存服务 |
 | Redis Commander | http://localhost:8082 | Redis 可视化管理界面 |
 
+## 实时监控功能
+
+平台内置了 Kafka 实时监控功能，通过 WebSocket 推送以下指标：
+
+- **消息吞吐量**: 实时消息处理速率（msg/s）
+- **处理延迟**: 端到端消息延迟（ms）
+- **Broker 状态**: 集群节点健康状态
+- **主题统计**: 各主题消息数量
+- **Redis 状态**: 缓存服务健康指标
+
+访问路径: 系统设置 → 数据流监控 → 实时监控标签页
+
 ## 环境变量配置
+
+### 自动加载机制
+
+平台支持 `.env.local` 文件自动加载，无需手动输入环境变量：
+
+```bash
+# 使用自动加载启动（推荐）
+pnpm dev:local
+
+# 或使用标准启动（不加载 .env.local）
+pnpm dev
+```
+
+### 配置文件
 
 启动脚本会自动生成 `.env.local` 文件，包含以下关键配置：
 
@@ -75,6 +116,10 @@ REDIS_HOST=localhost
 REDIS_PORT=6379
 REDIS_DB=0
 
+# AI 模型配置
+OLLAMA_HOST=http://localhost:11434
+OLLAMA_MODEL=llama3.1:70b
+
 # 应用配置
 NODE_ENV=development
 PORT=3000
@@ -83,13 +128,38 @@ PORT=3000
 如需自定义配置，可以复制模板文件并修改：
 
 ```bash
-cp .env.local.example .env.local
+cp .env.local.template .env.local
 # 编辑 .env.local 文件
 ```
 
 ## 常用命令
 
-### 服务管理
+### setup.sh 命令（新）
+
+```bash
+# 安装所有依赖
+./scripts/setup.sh install
+
+# 启动所有服务
+./scripts/setup.sh start
+
+# 停止所有服务
+./scripts/setup.sh stop
+
+# 重启所有服务
+./scripts/setup.sh restart
+
+# 检查服务状态
+./scripts/setup.sh status
+
+# 仅启动基础设施
+./scripts/setup.sh infra
+
+# 仅启动应用
+./scripts/setup.sh app
+```
+
+### start-local.sh 命令（传统）
 
 ```bash
 # 查看服务状态
