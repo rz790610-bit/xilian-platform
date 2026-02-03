@@ -100,6 +100,7 @@ export const navigationConfig: NavItem[] = [
       { id: 'settings-engines', label: '引擎模块', icon: '🔧', path: '/settings/engines' },
       { id: 'settings-topology', label: '系统拓扑', icon: '📊', path: '/settings/topology' },
       { id: 'settings-datastream', label: '数据流监控', icon: '⚡', path: '/settings/datastream' },
+      { id: 'settings-kafka', label: 'Kafka 监控', icon: '📡', path: '/settings/kafka' },
       { id: 'settings-models', label: '模型库', icon: '📦', path: '/settings/models' }
     ]
   }

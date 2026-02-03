@@ -9,6 +9,7 @@ import { eventBusRouter } from "./eventBus";
 import { streamProcessorRouter } from "./streamProcessor";
 import { deviceRouter } from "./deviceService";
 import { kafkaRouter } from "./kafka/kafkaRouter";
+import { redisRouter } from "./redis/redisRouter";
 
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
@@ -44,6 +45,9 @@ export const appRouter = router({
 
   // Kafka 管理路由
   kafka: kafkaRouter,
+
+  // Redis 缓存管理路由
+  redis: redisRouter,
 });
 
 export type AppRouter = typeof appRouter;

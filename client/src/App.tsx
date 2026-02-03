@@ -38,6 +38,7 @@ import KnowledgeGraph from "./pages/KnowledgeGraph";
 import VectorAdmin from "./pages/VectorAdmin";
 import SystemTopology from "./pages/SystemTopology";
 import DataStream from "./pages/DataStream";
+import KafkaMonitor from "./pages/KafkaMonitor";
 function Router() {
   // make sure to consider if you need authentication for certain routes
   return (
@@ -95,6 +96,7 @@ function Router() {
       <Route path="/settings/engines" component={Settings} />
       <Route path="/settings/topology" component={SystemTopology} />
       <Route path="/settings/datastream" component={DataStream} />
+      <Route path="/settings/kafka" component={KafkaMonitor} />
       <Route path="/settings/models" component={Settings} />
       <Route path="/settings" component={Settings} />
       
