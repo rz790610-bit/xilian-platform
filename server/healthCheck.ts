@@ -4,6 +4,8 @@
  */
 
 import { updateTopoNodeStatus, updateTopoNodeMetrics, getTopoNodes, createTopoNode, getTopoNodeById } from './topology';
+import { redisClient } from './redis';
+import { kafkaClient } from './kafka';
 
 // 服务配置类型
 interface ServiceConfig {
@@ -12,11 +14,13 @@ interface ServiceConfig {
   type: 'source' | 'plugin' | 'engine' | 'agent' | 'output' | 'database' | 'service';
   icon: string;
   description: string;
-  checkUrl: string;
-  checkMethod: 'GET' | 'POST';
+  checkUrl?: string;
+  checkMethod?: 'GET' | 'POST';
   checkTimeout: number;
   expectedStatus?: number;
   parseResponse?: (data: any) => { online: boolean; metrics?: Record<string, number> };
+  // 自定义检查函数（用于非 HTTP 服务）
+  customCheck?: () => Promise<{ online: boolean; latency: number; metrics?: Record<string, number>; error?: string }>;
 }
 
 // 预定义的系统服务配置
@@ -50,6 +54,62 @@ const SYSTEM_SERVICES: ServiceConfig[] = [
     })
   },
   {
+    nodeId: 'redis',
+    name: 'Redis',
+    type: 'database',
+    icon: '🔴',
+    description: 'Redis 缓存服务',
+    checkTimeout: 3000,
+    customCheck: async () => {
+      const startTime = Date.now();
+      try {
+        const health = await redisClient.healthCheck();
+        const latency = Date.now() - startTime;
+        return {
+          online: health.connected,
+          latency: health.latencyMs > 0 ? health.latencyMs : latency,
+          metrics: { latency: health.latencyMs > 0 ? health.latencyMs : latency },
+          error: health.error
+        };
+      } catch (error: any) {
+        return {
+          online: false,
+          latency: Date.now() - startTime,
+          error: error.message
+        };
+      }
+    }
+  },
+  {
+    nodeId: 'kafka',
+    name: 'Kafka',
+    type: 'service',
+    icon: '📨',
+    description: 'Kafka 消息队列',
+    checkTimeout: 5000,
+    customCheck: async () => {
+      const startTime = Date.now();
+      try {
+        const isConnected = kafkaClient.getConnectionStatus();
+        const latency = Date.now() - startTime;
+        return {
+          online: isConnected,
+          latency,
+          metrics: { 
+            latency,
+            connected: isConnected ? 1 : 0
+          }
+        };
+      } catch (error: any) {
+        return {
+          online: false,
+          latency: Date.now() - startTime,
+          error: error.message
+        };
+      }
+    }
+  },
+  {
     nodeId: 'api_server',
     name: 'API服务',
     type: 'service',
@@ -69,6 +129,24 @@ async function checkServiceHealth(config: ServiceConfig): Promise<{
   metrics?: Record<string, number>;
   error?: string;
 }> {
+  // 如果有自定义检查函数，使用它
+  if (config.customCheck) {
+    try {
+      return await config.customCheck();
+    } catch (error: any) {
+      return {
+        online: false,
+        latency: 0,
+        error: error.message
+      };
+    }
+  }
+
+  // 否则使用 HTTP 检查
+  if (!config.checkUrl) {
+    return { online: false, latency: 0, error: 'No check URL or custom check defined' };
+  }
+
   const startTime = Date.now();
   
   try {
@@ -76,7 +154,7 @@ async function checkServiceHealth(config: ServiceConfig): Promise<{
     const timeoutId = setTimeout(() => controller.abort(), config.checkTimeout);
     
     const response = await fetch(config.checkUrl, {
-      method: config.checkMethod,
+      method: config.checkMethod || 'GET',
       signal: controller.signal,
       headers: {
         'Accept': 'application/json',
@@ -205,6 +283,8 @@ function getDefaultY(nodeId: string): number {
   const nodeY: Record<string, number> = {
     ollama: 180,
     qdrant: 80,
+    redis: 130,
+    kafka: 230,
     api_server: 280,
   };
   return nodeY[nodeId] || 100;
