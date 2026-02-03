@@ -602,4 +602,28 @@ export const topologyRouter = router({
       timestamp: new Date(),
     };
   }),
+
+  // 自动发现并生成拓扑
+  autoDiscover: publicProcedure.mutation(async () => {
+    const { autoDiscoverAndGenerateTopology } = await import('./topologyDiscovery');
+    return await autoDiscoverAndGenerateTopology();
+  }),
+
+  // 重新生成拓扑（清空后重建）
+  regenerate: publicProcedure.mutation(async () => {
+    const { regenerateTopology } = await import('./topologyDiscovery');
+    return await regenerateTopology();
+  }),
+
+  // 智能重新布局
+  autoLayout: publicProcedure.mutation(async () => {
+    const { autoLayoutNodes } = await import('./topologyDiscovery');
+    return await autoLayoutNodes();
+  }),
+
+  // 获取可发现的服务列表
+  getDiscoverableServices: publicProcedure.query(async () => {
+    const { getDiscoverableServices } = await import('./topologyDiscovery');
+    return getDiscoverableServices();
+  }),
 });

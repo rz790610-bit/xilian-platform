@@ -203,6 +203,35 @@ export default function SystemTopology() {
       refetchTopology();
     },
   });
+
+  // 自动发现并生成拓扑
+  const autoDiscoverMutation = trpc.topology.autoDiscover.useMutation({
+    onSuccess: (result) => {
+      const onlineServices = result.discovered.filter(s => s.online).length;
+      toast.success(`自动发现完成: 发现 ${onlineServices} 个在线服务\n新增 ${result.nodesCreated} 个节点, ${result.edgesCreated} 个连接`);
+      refetchTopology();
+    },
+    onError: (err) => toast.error(`自动发现失败: ${err.message}`),
+  });
+
+  // 重新生成拓扑（清空后重建）
+  const regenerateMutation = trpc.topology.regenerate.useMutation({
+    onSuccess: (result) => {
+      const onlineServices = result.discovered.filter(s => s.online).length;
+      toast.success(`拓扑已重新生成: 发现 ${onlineServices} 个在线服务\n创建 ${result.nodesCreated} 个节点, ${result.edgesCreated} 个连接`);
+      refetchTopology();
+    },
+    onError: (err) => toast.error(`重新生成失败: ${err.message}`),
+  });
+
+  // 智能重新布局
+  const autoLayoutMutation = trpc.topology.autoLayout.useMutation({
+    onSuccess: () => {
+      toast.success('已按类型自动重新布局');
+      refetchTopology();
+    },
+    onError: (err) => toast.error(`自动布局失败: ${err.message}`),
+  });
   
   const nodes = topologyData?.nodes || [];
   const edges = topologyData?.edges || [];
@@ -697,6 +726,58 @@ export default function SystemTopology() {
                   >
                     <Plus className="w-3 h-3 mr-1" />
                     添加节点
+                  </Button>
+                  
+                  {/* 自动发现 */}
+                  <Button 
+                    variant="default" 
+                    size="sm" 
+                    className="h-7 text-[11px] px-2 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600"
+                    onClick={() => autoDiscoverMutation.mutate()}
+                    disabled={autoDiscoverMutation.isPending}
+                  >
+                    {autoDiscoverMutation.isPending ? (
+                      <RefreshCw className="w-3 h-3 mr-1 animate-spin" />
+                    ) : (
+                      <Network className="w-3 h-3 mr-1" />
+                    )}
+                    自动发现
+                  </Button>
+                  
+                  {/* 重新生成 */}
+                  <Button 
+                    variant="secondary" 
+                    size="sm" 
+                    className="h-7 text-[11px] px-2"
+                    onClick={() => {
+                      if (confirm('确定要重新生成拓扑吗？这将清空现有节点并重新扫描服务。')) {
+                        regenerateMutation.mutate();
+                      }
+                    }}
+                    disabled={regenerateMutation.isPending}
+                  >
+                    {regenerateMutation.isPending ? (
+                      <RefreshCw className="w-3 h-3 mr-1 animate-spin" />
+                    ) : (
+                      <RefreshCw className="w-3 h-3 mr-1" />
+                    )}
+                    重新生成
+                  </Button>
+                  
+                  {/* 自动布局 */}
+                  <Button 
+                    variant="secondary" 
+                    size="sm" 
+                    className="h-7 text-[11px] px-2"
+                    onClick={() => autoLayoutMutation.mutate()}
+                    disabled={autoLayoutMutation.isPending}
+                  >
+                    {autoLayoutMutation.isPending ? (
+                      <RefreshCw className="w-3 h-3 mr-1 animate-spin" />
+                    ) : (
+                      <Maximize2 className="w-3 h-3 mr-1" />
+                    )}
+                    自动布局
                   </Button>
                 </div>
               }

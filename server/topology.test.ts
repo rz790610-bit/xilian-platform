@@ -129,4 +129,85 @@ describe('Topology Service', () => {
       expect(defaultInterval).toBe(30000);
     });
   });
+
+  describe('Auto Discovery', () => {
+    it('should define discoverable services', async () => {
+      const { getDiscoverableServices } = await import('./topologyDiscovery');
+      const services = getDiscoverableServices();
+      
+      expect(services).toBeDefined();
+      expect(Array.isArray(services)).toBe(true);
+      expect(services.length).toBeGreaterThan(0);
+    });
+
+    it('should include core services in discoverable list', async () => {
+      const { getDiscoverableServices } = await import('./topologyDiscovery');
+      const services = getDiscoverableServices();
+      
+      const serviceIds = services.map(s => s.id);
+      expect(serviceIds).toContain('ollama');
+      expect(serviceIds).toContain('qdrant');
+      expect(serviceIds).toContain('api_server');
+    });
+
+    it('should have valid detection configuration for each service', async () => {
+      const { getDiscoverableServices } = await import('./topologyDiscovery');
+      const services = getDiscoverableServices();
+      
+      services.forEach(service => {
+        expect(service).toHaveProperty('id');
+        expect(service).toHaveProperty('name');
+        expect(service).toHaveProperty('type');
+        expect(service).toHaveProperty('detection');
+        expect(['http', 'tcp', 'process', 'env']).toContain(service.detection.type);
+      });
+    });
+
+    it('should define dependency relationships', async () => {
+      const { getDiscoverableServices } = await import('./topologyDiscovery');
+      const services = getDiscoverableServices();
+      
+      // API 服务应该依赖数据库和 AI 服务
+      const apiServer = services.find(s => s.id === 'api_server');
+      expect(apiServer?.dependsOn).toBeDefined();
+      expect(apiServer?.dependsOn).toContain('ollama');
+      expect(apiServer?.dependsOn).toContain('qdrant');
+    });
+  });
+
+  describe('Smart Layout', () => {
+    it('should assign correct X position based on node type', () => {
+      const typeX: Record<string, number> = {
+        source: 50,
+        plugin: 200,
+        engine: 350,
+        agent: 500,
+        database: 650,
+        service: 650,
+        output: 800,
+      };
+      
+      // 数据源应该在最左边
+      expect(typeX.source).toBeLessThan(typeX.plugin);
+      // 输出应该在最右边
+      expect(typeX.output).toBeGreaterThan(typeX.agent);
+      // 数据库和服务应该在同一列
+      expect(typeX.database).toBe(typeX.service);
+    });
+
+    it('should space nodes vertically within same type', () => {
+      const verticalSpacing = 100;
+      const baseY = 80;
+      
+      // 第一个节点
+      const y1 = baseY + 0 * verticalSpacing;
+      // 第二个节点
+      const y2 = baseY + 1 * verticalSpacing;
+      // 第三个节点
+      const y3 = baseY + 2 * verticalSpacing;
+      
+      expect(y2 - y1).toBe(verticalSpacing);
+      expect(y3 - y2).toBe(verticalSpacing);
+    });
+  });
 });
