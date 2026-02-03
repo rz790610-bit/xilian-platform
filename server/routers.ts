@@ -5,6 +5,9 @@ import { publicProcedure, router } from "./_core/trpc";
 import { knowledgeRouter } from "./knowledge";
 import { topologyRouter } from "./topology";
 import { modelRouter } from "./modelService";
+import { eventBusRouter } from "./eventBus";
+import { streamProcessorRouter } from "./streamProcessor";
+import { deviceRouter } from "./deviceService";
 
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
@@ -28,6 +31,15 @@ export const appRouter = router({
 
   // 大模型管理路由
   model: modelRouter,
+
+  // 事件总线路由
+  eventBus: eventBusRouter,
+
+  // 流处理路由
+  stream: streamProcessorRouter,
+
+  // 设备管理路由
+  device: deviceRouter,
 });
 
 export type AppRouter = typeof appRouter;

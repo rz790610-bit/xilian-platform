@@ -385,3 +385,228 @@ export const modelUsageLogs = mysqlTable("model_usage_logs", {
 
 export type ModelUsageLog = typeof modelUsageLogs.$inferSelect;
 export type InsertModelUsageLog = typeof modelUsageLogs.$inferInsert;
+
+
+// ============ 设备管理表 (device_ 前缀) ============
+
+/**
+ * 设备台账表 - 存储设备基本信息
+ */
+export const devices = mysqlTable("devices", {
+  id: int("id").autoincrement().primaryKey(),
+  deviceId: varchar("deviceId", { length: 64 }).notNull().unique(),
+  name: varchar("name", { length: 100 }).notNull(),
+  type: mysqlEnum("type", ["agv", "rtg", "qc", "asc", "conveyor", "pump", "motor", "sensor_hub", "gateway", "other"]).default("other").notNull(),
+  model: varchar("model", { length: 100 }),
+  manufacturer: varchar("manufacturer", { length: 100 }),
+  serialNumber: varchar("serialNumber", { length: 100 }),
+  location: varchar("location", { length: 255 }),
+  department: varchar("department", { length: 100 }),
+  status: mysqlEnum("status", ["online", "offline", "maintenance", "error", "unknown"]).default("unknown").notNull(),
+  lastHeartbeat: timestamp("lastHeartbeat"),
+  installDate: timestamp("installDate"),
+  warrantyExpiry: timestamp("warrantyExpiry"),
+  metadata: json("metadata").$type<{
+    firmware?: string;
+    ipAddress?: string;
+    macAddress?: string;
+    protocol?: string;
+    tags?: string[];
+  }>(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Device = typeof devices.$inferSelect;
+export type InsertDevice = typeof devices.$inferInsert;
+
+/**
+ * 传感器表 - 存储设备上的传感器信息
+ */
+export const sensors = mysqlTable("sensors", {
+  id: int("id").autoincrement().primaryKey(),
+  sensorId: varchar("sensorId", { length: 64 }).notNull().unique(),
+  deviceId: varchar("deviceId", { length: 64 }).notNull(),
+  name: varchar("name", { length: 100 }).notNull(),
+  type: mysqlEnum("type", ["vibration", "temperature", "pressure", "current", "voltage", "speed", "position", "humidity", "flow", "level", "other"]).default("other").notNull(),
+  unit: varchar("unit", { length: 20 }),
+  minValue: int("minValue"),
+  maxValue: int("maxValue"),
+  warningThreshold: int("warningThreshold"),
+  criticalThreshold: int("criticalThreshold"),
+  samplingRate: int("samplingRate").default(1000), // 采样率 ms
+  status: mysqlEnum("status", ["active", "inactive", "error"]).default("active").notNull(),
+  lastValue: varchar("lastValue", { length: 50 }),
+  lastReadingAt: timestamp("lastReadingAt"),
+  metadata: json("metadata").$type<{
+    calibrationDate?: string;
+    accuracy?: number;
+    resolution?: number;
+    position?: string;
+  }>(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Sensor = typeof sensors.$inferSelect;
+export type InsertSensor = typeof sensors.$inferInsert;
+
+/**
+ * 遥测数据表 - 存储传感器原始数据（时序数据）
+ */
+export const sensorReadings = mysqlTable("sensor_readings", {
+  id: int("id").autoincrement().primaryKey(),
+  sensorId: varchar("sensorId", { length: 64 }).notNull(),
+  deviceId: varchar("deviceId", { length: 64 }).notNull(),
+  value: varchar("value", { length: 50 }).notNull(),
+  numericValue: int("numericValue"), // 用于聚合计算
+  quality: mysqlEnum("quality", ["good", "uncertain", "bad"]).default("good").notNull(),
+  timestamp: timestamp("timestamp").defaultNow().notNull(),
+  metadata: json("metadata").$type<{
+    unit?: string;
+    source?: string;
+    batchId?: string;
+  }>(),
+});
+
+export type SensorReading = typeof sensorReadings.$inferSelect;
+export type InsertSensorReading = typeof sensorReadings.$inferInsert;
+
+/**
+ * 聚合数据表 - 存储分钟级/小时级聚合数据
+ */
+export const sensorAggregates = mysqlTable("sensor_aggregates", {
+  id: int("id").autoincrement().primaryKey(),
+  sensorId: varchar("sensorId", { length: 64 }).notNull(),
+  deviceId: varchar("deviceId", { length: 64 }).notNull(),
+  period: mysqlEnum("period", ["1m", "5m", "1h", "1d"]).notNull(),
+  periodStart: timestamp("periodStart").notNull(),
+  avgValue: int("avgValue"),
+  minValue: int("minValue"),
+  maxValue: int("maxValue"),
+  sumValue: int("sumValue"),
+  count: int("count").default(0).notNull(),
+  stdDev: int("stdDev"), // 标准差 * 100
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type SensorAggregate = typeof sensorAggregates.$inferSelect;
+export type InsertSensorAggregate = typeof sensorAggregates.$inferInsert;
+
+// ============ 事件总线表 (event_ 前缀) ============
+
+/**
+ * 事件日志表 - 存储系统事件
+ */
+export const eventLogs = mysqlTable("event_logs", {
+  id: int("id").autoincrement().primaryKey(),
+  eventId: varchar("eventId", { length: 64 }).notNull().unique(),
+  topic: varchar("topic", { length: 100 }).notNull(),
+  eventType: varchar("eventType", { length: 50 }).notNull(),
+  source: varchar("source", { length: 100 }),
+  deviceId: varchar("deviceId", { length: 64 }),
+  sensorId: varchar("sensorId", { length: 64 }),
+  severity: mysqlEnum("severity", ["info", "warning", "error", "critical"]).default("info").notNull(),
+  payload: json("payload").$type<Record<string, unknown>>(),
+  processed: boolean("processed").default(false).notNull(),
+  processedAt: timestamp("processedAt"),
+  processedBy: varchar("processedBy", { length: 100 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type EventLog = typeof eventLogs.$inferSelect;
+export type InsertEventLog = typeof eventLogs.$inferInsert;
+
+/**
+ * 异常检测结果表 - 存储异常检测结果
+ */
+export const anomalyDetections = mysqlTable("anomaly_detections", {
+  id: int("id").autoincrement().primaryKey(),
+  detectionId: varchar("detectionId", { length: 64 }).notNull().unique(),
+  sensorId: varchar("sensorId", { length: 64 }).notNull(),
+  deviceId: varchar("deviceId", { length: 64 }).notNull(),
+  algorithmType: mysqlEnum("algorithmType", ["zscore", "iqr", "mad", "isolation_forest", "custom"]).default("zscore").notNull(),
+  windowSize: int("windowSize").default(60), // 窗口大小（秒）
+  threshold: int("threshold"), // 阈值 * 100
+  currentValue: int("currentValue"),
+  expectedValue: int("expectedValue"),
+  deviation: int("deviation"), // 偏差 * 100
+  score: int("score"), // 异常分数 * 100
+  severity: mysqlEnum("severity", ["low", "medium", "high", "critical"]).default("low").notNull(),
+  status: mysqlEnum("status", ["open", "acknowledged", "resolved", "false_positive"]).default("open").notNull(),
+  acknowledgedBy: varchar("acknowledgedBy", { length: 100 }),
+  acknowledgedAt: timestamp("acknowledgedAt"),
+  resolvedAt: timestamp("resolvedAt"),
+  notes: text("notes"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type AnomalyDetection = typeof anomalyDetections.$inferSelect;
+export type InsertAnomalyDetection = typeof anomalyDetections.$inferInsert;
+
+/**
+ * 诊断规则表 - 存储诊断规则
+ */
+export const diagnosisRules = mysqlTable("diagnosis_rules", {
+  id: int("id").autoincrement().primaryKey(),
+  ruleId: varchar("ruleId", { length: 64 }).notNull().unique(),
+  name: varchar("name", { length: 200 }).notNull(),
+  description: text("description"),
+  category: varchar("category", { length: 50 }),
+  deviceType: varchar("deviceType", { length: 50 }),
+  sensorType: varchar("sensorType", { length: 50 }),
+  conditionExpr: text("conditionExpr").notNull(), // 条件表达式
+  actionType: mysqlEnum("actionType", ["alert", "notification", "workflow", "auto_fix"]).default("alert").notNull(),
+  actionConfig: json("actionConfig").$type<{
+    notifyChannels?: string[];
+    workflowId?: string;
+    autoFixScript?: string;
+    escalationTime?: number;
+  }>(),
+  severity: mysqlEnum("severity", ["low", "medium", "high", "critical"]).default("medium").notNull(),
+  isActive: boolean("isActive").default(true).notNull(),
+  priority: int("priority").default(5),
+  triggerCount: int("triggerCount").default(0),
+  lastTriggeredAt: timestamp("lastTriggeredAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type DiagnosisRule = typeof diagnosisRules.$inferSelect;
+export type InsertDiagnosisRule = typeof diagnosisRules.$inferInsert;
+
+/**
+ * 诊断任务表 - 存储诊断任务
+ */
+export const diagnosisTasks = mysqlTable("diagnosis_tasks", {
+  id: int("id").autoincrement().primaryKey(),
+  taskId: varchar("taskId", { length: 64 }).notNull().unique(),
+  deviceId: varchar("deviceId", { length: 64 }),
+  sensorId: varchar("sensorId", { length: 64 }),
+  ruleId: varchar("ruleId", { length: 64 }),
+  anomalyId: varchar("anomalyId", { length: 64 }),
+  taskType: mysqlEnum("taskType", ["routine", "anomaly", "manual", "scheduled"]).default("routine").notNull(),
+  status: mysqlEnum("status", ["pending", "running", "completed", "failed", "cancelled"]).default("pending").notNull(),
+  priority: int("priority").default(5),
+  inputData: json("inputData").$type<{
+    sensorData?: Array<{ timestamp: string; value: number }>;
+    contextData?: Record<string, unknown>;
+    userQuery?: string;
+  }>(),
+  result: json("result").$type<{
+    diagnosis?: string;
+    confidence?: number;
+    recommendations?: string[];
+    rootCause?: string;
+    affectedComponents?: string[];
+  }>(),
+  error: text("error"),
+  startedAt: timestamp("startedAt"),
+  completedAt: timestamp("completedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type DiagnosisTask = typeof diagnosisTasks.$inferSelect;
+export type InsertDiagnosisTask = typeof diagnosisTasks.$inferInsert;
