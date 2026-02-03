@@ -19,6 +19,7 @@ import DataInsight from "./pages/DataInsight";
 import DataAccess from "./pages/DataAccess";
 import DataStandard from "./pages/DataStandard";
 import ModelRepo from "./pages/ModelRepo";
+import ModelCenter from "./pages/ModelCenter";
 import BaseRules from "./pages/BaseRules";
 import BaseLibrary from "./pages/BaseLibrary";
 import {
@@ -69,6 +70,7 @@ function Router() {
       <Route path="/data/standard" component={DataStandard} />
       
       {/* Model center */}
+      <Route path="/model/center" component={ModelCenter} />
       <Route path="/model/inference" component={ModelInference} />
       <Route path="/model/finetune" component={ModelFinetune} />
       <Route path="/model/eval" component={ModelEval} />

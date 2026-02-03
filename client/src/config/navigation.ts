@@ -61,6 +61,7 @@ export const navigationConfig: NavItem[] = [
     label: '模型中心',
     icon: '🧠',
     children: [
+      { id: 'model-main', label: '模型管理', icon: '🤖', path: '/model/center' },
       { id: 'model-inference', label: '模型推理', icon: '💬', path: '/model/inference' },
       { id: 'model-finetune', label: '模型微调', icon: '🔧', path: '/model/finetune' },
       { id: 'model-eval', label: '模型评估', icon: '📊', path: '/model/eval' },

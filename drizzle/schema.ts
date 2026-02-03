@@ -185,3 +185,203 @@ export const topoLayouts = mysqlTable("topo_layouts", {
 
 export type TopoLayout = typeof topoLayouts.$inferSelect;
 export type InsertTopoLayout = typeof topoLayouts.$inferInsert;
+
+// ============ 大模型管理表 (model_ 前缀) ============
+
+/**
+ * 模型表 - 存储模型基本信息
+ */
+export const models = mysqlTable("models", {
+  id: int("id").autoincrement().primaryKey(),
+  modelId: varchar("modelId", { length: 100 }).notNull().unique(),
+  name: varchar("name", { length: 100 }).notNull(),
+  displayName: varchar("displayName", { length: 200 }),
+  type: mysqlEnum("type", ["llm", "embedding", "label", "diagnostic", "vision", "audio"]).notNull(),
+  provider: mysqlEnum("provider", ["ollama", "openai", "anthropic", "local", "custom"]).default("ollama").notNull(),
+  size: varchar("size", { length: 50 }),
+  parameters: varchar("parameters", { length: 50 }),
+  quantization: varchar("quantization", { length: 20 }),
+  description: text("description"),
+  status: mysqlEnum("status", ["available", "loaded", "downloading", "error"]).default("available").notNull(),
+  downloadProgress: int("downloadProgress").default(0),
+  isDefault: boolean("isDefault").default(false).notNull(),
+  config: json("config").$type<{
+    temperature?: number;
+    maxTokens?: number;
+    topP?: number;
+    topK?: number;
+    repeatPenalty?: number;
+    contextLength?: number;
+    systemPrompt?: string;
+  }>(),
+  capabilities: json("capabilities").$type<{
+    chat?: boolean;
+    completion?: boolean;
+    embedding?: boolean;
+    vision?: boolean;
+    functionCalling?: boolean;
+  }>(),
+  metrics: json("metrics").$type<{
+    avgLatency?: number;
+    totalRequests?: number;
+    successRate?: number;
+    tokensGenerated?: number;
+  }>(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Model = typeof models.$inferSelect;
+export type InsertModel = typeof models.$inferInsert;
+
+/**
+ * 模型对话记录表 - 存储对话历史
+ */
+export const modelConversations = mysqlTable("model_conversations", {
+  id: int("id").autoincrement().primaryKey(),
+  conversationId: varchar("conversationId", { length: 64 }).notNull().unique(),
+  userId: int("userId"),
+  modelId: varchar("modelId", { length: 100 }).notNull(),
+  title: varchar("title", { length: 255 }),
+  messageCount: int("messageCount").default(0).notNull(),
+  totalTokens: int("totalTokens").default(0),
+  status: mysqlEnum("status", ["active", "archived", "deleted"]).default("active").notNull(),
+  metadata: json("metadata").$type<{
+    knowledgeBaseId?: number;
+    systemPrompt?: string;
+    temperature?: number;
+  }>(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ModelConversation = typeof modelConversations.$inferSelect;
+export type InsertModelConversation = typeof modelConversations.$inferInsert;
+
+/**
+ * 模型消息表 - 存储对话消息
+ */
+export const modelMessages = mysqlTable("model_messages", {
+  id: int("id").autoincrement().primaryKey(),
+  messageId: varchar("messageId", { length: 64 }).notNull().unique(),
+  conversationId: varchar("conversationId", { length: 64 }).notNull(),
+  role: mysqlEnum("role", ["system", "user", "assistant", "tool"]).notNull(),
+  content: text("content").notNull(),
+  tokens: int("tokens"),
+  latency: int("latency"),
+  attachments: json("attachments").$type<Array<{
+    type: string;
+    url: string;
+    name?: string;
+  }>>(),
+  toolCalls: json("toolCalls").$type<Array<{
+    id: string;
+    name: string;
+    arguments: string;
+    result?: string;
+  }>>(),
+  metadata: json("metadata").$type<Record<string, unknown>>(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type ModelMessage = typeof modelMessages.$inferSelect;
+export type InsertModelMessage = typeof modelMessages.$inferInsert;
+
+/**
+ * 模型微调任务表 - 存储微调任务
+ */
+export const modelFineTuneTasks = mysqlTable("model_fine_tune_tasks", {
+  id: int("id").autoincrement().primaryKey(),
+  taskId: varchar("taskId", { length: 64 }).notNull().unique(),
+  userId: int("userId"),
+  baseModelId: varchar("baseModelId", { length: 100 }).notNull(),
+  outputModelId: varchar("outputModelId", { length: 100 }),
+  name: varchar("name", { length: 200 }).notNull(),
+  description: text("description"),
+  status: mysqlEnum("status", ["pending", "preparing", "training", "completed", "failed", "cancelled"]).default("pending").notNull(),
+  progress: int("progress").default(0),
+  datasetPath: varchar("datasetPath", { length: 500 }),
+  datasetSize: int("datasetSize"),
+  config: json("config").$type<{
+    epochs?: number;
+    batchSize?: number;
+    learningRate?: number;
+    warmupSteps?: number;
+    loraRank?: number;
+    loraAlpha?: number;
+  }>(),
+  metrics: json("metrics").$type<{
+    trainLoss?: number[];
+    evalLoss?: number[];
+    currentEpoch?: number;
+    totalSteps?: number;
+    currentStep?: number;
+  }>(),
+  error: text("error"),
+  startedAt: timestamp("startedAt"),
+  completedAt: timestamp("completedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ModelFineTuneTask = typeof modelFineTuneTasks.$inferSelect;
+export type InsertModelFineTuneTask = typeof modelFineTuneTasks.$inferInsert;
+
+/**
+ * 模型评估任务表 - 存储评估任务
+ */
+export const modelEvaluations = mysqlTable("model_evaluations", {
+  id: int("id").autoincrement().primaryKey(),
+  evaluationId: varchar("evaluationId", { length: 64 }).notNull().unique(),
+  userId: int("userId"),
+  modelId: varchar("modelId", { length: 100 }).notNull(),
+  name: varchar("name", { length: 200 }).notNull(),
+  description: text("description"),
+  status: mysqlEnum("status", ["pending", "running", "completed", "failed"]).default("pending").notNull(),
+  progress: int("progress").default(0),
+  datasetPath: varchar("datasetPath", { length: 500 }),
+  datasetSize: int("datasetSize"),
+  evaluationType: mysqlEnum("evaluationType", ["accuracy", "perplexity", "bleu", "rouge", "custom"]).default("accuracy").notNull(),
+  results: json("results").$type<{
+    accuracy?: number;
+    precision?: number;
+    recall?: number;
+    f1Score?: number;
+    perplexity?: number;
+    bleuScore?: number;
+    rougeScore?: { rouge1?: number; rouge2?: number; rougeL?: number };
+    customMetrics?: Record<string, number>;
+    confusionMatrix?: number[][];
+    sampleResults?: Array<{ input: string; expected: string; actual: string; correct: boolean }>;
+  }>(),
+  error: text("error"),
+  startedAt: timestamp("startedAt"),
+  completedAt: timestamp("completedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ModelEvaluation = typeof modelEvaluations.$inferSelect;
+export type InsertModelEvaluation = typeof modelEvaluations.$inferInsert;
+
+/**
+ * 模型调用日志表 - 记录模型调用
+ */
+export const modelUsageLogs = mysqlTable("model_usage_logs", {
+  id: int("id").autoincrement().primaryKey(),
+  logId: varchar("logId", { length: 64 }).notNull().unique(),
+  userId: int("userId"),
+  modelId: varchar("modelId", { length: 100 }).notNull(),
+  conversationId: varchar("conversationId", { length: 64 }),
+  requestType: mysqlEnum("requestType", ["chat", "completion", "embedding", "inference"]).notNull(),
+  inputTokens: int("inputTokens"),
+  outputTokens: int("outputTokens"),
+  latency: int("latency"),
+  status: mysqlEnum("status", ["success", "error", "timeout"]).notNull(),
+  error: text("error"),
+  metadata: json("metadata").$type<Record<string, unknown>>(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type ModelUsageLog = typeof modelUsageLogs.$inferSelect;
+export type InsertModelUsageLog = typeof modelUsageLogs.$inferInsert;
