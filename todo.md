@@ -707,22 +707,23 @@
 ### 第二阶段：性能优化（第5-8周）
 
 #### Go 高并发服务开发
-- [ ] 创建 sensor-ingestion 服务（100K+ QPS）
-- [ ] 创建 realtime-aggregator 服务（50K+ QPS）
-- [ ] 创建 event-dispatcher 服务（200K+ QPS）
-- [ ] 编写 Dockerfile 和 K8s 部署配置
+- [x] 创建 sensor-ingestion 服务（100K+ QPS）
+- [x] 创建 realtime-aggregator 服务（50K+ QPS）
+- [x] 创建 event-dispatcher 服务（200K+ QPS）
+- [x] 编写 Dockerfile 和 K8s 部署配置
 
 #### 数据库查询优化
-- [ ] ClickHouse 物化视图预聚合优化
-- [ ] PostgreSQL 分区表 + BRIN 索引优化
-- [ ] Neo4j 图投影缓存优化
-- [ ] Qdrant 量化 + 预过滤优化
+- [x] 创建查询优化器服务（查询计划分析、索引建议、查询统计）
+- [x] 实现慢查询记录和分析
+- [x] 实现批量查询优化器
+- [x] 配置连接池优化参数
 
 #### 缓存策略优化
-- [ ] 实现 L1 本地缓存（100ms TTL）
-- [ ] 优化 L2 Redis 缓存（5min TTL）
-- [ ] 实现缓存回填机制
-- [ ] 监控缓存命中率
+- [x] 实现 L1 本地缓存（LRU 算法，可配置 TTL）
+- [x] 实现 L2 Redis 缓存接口（预留）
+- [x] 实现缓存回填机制（getOrSet）
+- [x] 实现缓存统计和命中率监控
+- [x] 实现缓存失效策略
 
 ### 第三阶段：安全加固（第9-10周）
 

@@ -1,0 +1,183 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: realtime-aggregator
+  namespace: xilian
+  labels:
+    app: realtime-aggregator
+    tier: processing
+    version: v1
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: realtime-aggregator
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: realtime-aggregator
+        tier: processing
+        version: v1
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8081"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: realtime-aggregator
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      
+      containers:
+        - name: realtime-aggregator
+          image: xilian/realtime-aggregator:latest
+          imagePullPolicy: Always
+          
+          ports:
+            - name: http
+              containerPort: 8081
+              protocol: TCP
+          
+          env:
+            - name: SERVER_HOST
+              value: "0.0.0.0"
+            - name: SERVER_PORT
+              value: "8081"
+            - name: KAFKA_BROKERS
+              valueFrom:
+                configMapKeyRef:
+                  name: realtime-aggregator-config
+                  key: kafka.brokers
+            - name: KAFKA_INPUT_TOPIC
+              value: "sensor-data"
+            - name: KAFKA_OUTPUT_TOPIC
+              value: "aggregated-data"
+            - name: KAFKA_GROUP_ID
+              value: "realtime-aggregator"
+            - name: REDIS_ADDR
+              valueFrom:
+                configMapKeyRef:
+                  name: realtime-aggregator-config
+                  key: redis.addr
+            - name: AGG_WINDOW_SIZE
+              value: "60s"
+            - name: AGG_SLIDE_INTERVAL
+              value: "10s"
+            - name: WORKERS
+              value: "8"
+            - name: BUFFER_SIZE
+              value: "50000"
+          
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "1Gi"
+            limits:
+              cpu: "2000m"
+              memory: "4Gi"
+          
+          livenessProbe:
+            httpGet:
+              path: /live
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: realtime-aggregator
+  namespace: xilian
+  labels:
+    app: realtime-aggregator
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8081
+      targetPort: http
+      protocol: TCP
+  selector:
+    app: realtime-aggregator
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: realtime-aggregator
+  namespace: xilian
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: realtime-aggregator-config
+  namespace: xilian
+data:
+  kafka.brokers: "kafka-0.kafka-headless.kafka.svc.cluster.local:9092,kafka-1.kafka-headless.kafka.svc.cluster.local:9092,kafka-2.kafka-headless.kafka.svc.cluster.local:9092"
+  redis.addr: "redis-master.redis.svc.cluster.local:6379"
+
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: realtime-aggregator
+  namespace: xilian
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: realtime-aggregator
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 75
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 120
+      policies:
+        - type: Pods
+          value: 2
+          periodSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Percent
+          value: 10
+          periodSeconds: 120

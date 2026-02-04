@@ -1,0 +1,232 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: event-dispatcher
+  namespace: xilian
+  labels:
+    app: event-dispatcher
+    tier: messaging
+    version: v1
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: event-dispatcher
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: event-dispatcher
+        tier: messaging
+        version: v1
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8082"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: event-dispatcher
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app: event-dispatcher
+                topologyKey: kubernetes.io/hostname
+      
+      containers:
+        - name: event-dispatcher
+          image: xilian/event-dispatcher:latest
+          imagePullPolicy: Always
+          
+          ports:
+            - name: http
+              containerPort: 8082
+              protocol: TCP
+          
+          env:
+            - name: SERVER_HOST
+              value: "0.0.0.0"
+            - name: SERVER_PORT
+              value: "8082"
+            - name: KAFKA_BROKERS
+              valueFrom:
+                configMapKeyRef:
+                  name: event-dispatcher-config
+                  key: kafka.brokers
+            - name: KAFKA_TOPICS
+              value: "fault-events,alert-events,system-events"
+            - name: KAFKA_GROUP_ID
+              value: "event-dispatcher"
+            - name: REDIS_ADDR
+              valueFrom:
+                configMapKeyRef:
+                  name: event-dispatcher-config
+                  key: redis.addr
+            - name: REDIS_PUBSUB_CHANNEL
+              value: "events"
+            - name: WEBSOCKET_ENABLED
+              value: "true"
+            - name: WEBSOCKET_MAX_CONNECTIONS
+              value: "10000"
+            - name: WORKERS
+              value: "32"
+            - name: BUFFER_SIZE
+              value: "200000"
+            - name: MAX_CONCURRENT
+              value: "20000"
+          
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "512Mi"
+            limits:
+              cpu: "2000m"
+              memory: "2Gi"
+          
+          livenessProbe:
+            httpGet:
+              path: /live
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: event-dispatcher
+  namespace: xilian
+  labels:
+    app: event-dispatcher
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8082
+      targetPort: http
+      protocol: TCP
+  selector:
+    app: event-dispatcher
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: event-dispatcher
+  namespace: xilian
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: event-dispatcher-config
+  namespace: xilian
+data:
+  kafka.brokers: "kafka-0.kafka-headless.kafka.svc.cluster.local:9092,kafka-1.kafka-headless.kafka.svc.cluster.local:9092,kafka-2.kafka-headless.kafka.svc.cluster.local:9092"
+  redis.addr: "redis-master.redis.svc.cluster.local:6379"
+
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: event-dispatcher
+  namespace: xilian
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: event-dispatcher
+  minReplicas: 3
+  maxReplicas: 30
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 30
+      policies:
+        - type: Pods
+          value: 5
+          periodSeconds: 30
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Percent
+          value: 10
+          periodSeconds: 60
+
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: event-dispatcher
+  namespace: xilian
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: event-dispatcher
+
+---
+# Ingress for WebSocket connections
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: event-dispatcher-ws
+  namespace: xilian
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/upstream-hash-by: "$remote_addr"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: events.xilian.local
+      http:
+        paths:
+          - path: /ws
+            pathType: Prefix
+            backend:
+              service:
+                name: event-dispatcher
+                port:
+                  number: 8082
