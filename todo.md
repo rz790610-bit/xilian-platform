@@ -809,3 +809,22 @@
 - [x] 创建边缘节点页面 (EdgeNodes.tsx)
 - [x] 创建微服务监控页面 (ServiceMonitor.tsx)
 - [x] 更新 App.tsx 添加所有新路由
+
+## 本地化一键部署（2026-02-04）
+
+### Docker Compose 编排
+- [x] 创建主应用 Docker Compose 文件 (docker-compose.yml)
+- [x] 创建数据库服务配置（MySQL/Redis/ClickHouse）
+- [x] 创建消息队列配置（Kafka/Zookeeper）
+- [x] 创建监控服务配置（Prometheus/Grafana）
+- [x] 创建应用 Dockerfile (Dockerfile.app)
+
+### 部署脚本
+- [x] 创建 Linux/Mac 一键部署脚本 (deploy.sh)
+- [x] 创建 Windows 一键部署脚本 (deploy.bat)
+- [x] 创建环境变量配置模板 (env.template)
+- [x] 创建 Prometheus 配置 (prometheus.yml)
+
+### 部署文档
+- [x] 创建部署指南文档 (DEPLOYMENT_GUIDE.md)
+- [x] 创建快速开始 README (README.md)
