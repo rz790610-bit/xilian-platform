@@ -479,3 +479,37 @@
 - [x] 实现流水线配置（Lint-Test-Build-Scan-Push）
 - [x] 实现 ArgoCD GitOps 同步
 - [x] 实现 Harbor 镜像签名管理
+
+
+## 可观测性层实现
+
+### Prometheus/Grafana 指标监控
+- [x] 创建 Prometheus 配置和服务发现
+- [x] 实现 Node Exporter 系统指标采集
+- [x] 实现 cAdvisor 容器指标采集
+- [x] 实现应用 Histogram 指标（请求延迟、吞吐量、错误率）
+- [x] 实现 GPU DCGM 指标采集
+- [x] 实现 PromQL 查询 API
+
+### ELK 日志系统
+- [x] 配置 Filebeat 日志收集（多路径收集、多行处理）
+- [x] 配置 Logstash Grok 解析规则（日志分解、字段提取）
+- [x] 配置 Elasticsearch 30天归档策略（ILM 生命周期管理）
+- [x] 创建 Kibana 日志分析视图
+- [x] 实现日志搜索 API
+
+### Jaeger/OTel 分布式追踪
+- [x] 集成 OpenTelemetry SDK 配置
+- [x] 实现 10% 采样策略（概率采样 + 慢请求全采）
+- [x] 添加 Span 标签（request-id、user-id、device-id）
+- [x] 实现追踪查询 API
+- [x] 实现服务依赖图
+
+### Alertmanager 分级告警
+- [x] 配置 P0 告警（GPU 故障 → PagerDuty 电话）
+- [x] 配置 P1 告警（延迟>5s → 企业微信）
+- [x] 配置 P2 告警（Kafka Lag>1000 → Email）
+- [x] 实现告警规则 CRUD API
+- [x] 实现告警静默管理
+- [x] 创建可观测性管理界面
+

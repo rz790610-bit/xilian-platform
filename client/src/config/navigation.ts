@@ -102,6 +102,7 @@ export const navigationConfig: NavItem[] = [
       { id: 'settings-datastream', label: '数据流监控', icon: '⚡', path: '/settings/datastream' },
       { id: 'settings-kafka', label: 'Kafka 监控', icon: '📡', path: '/settings/kafka' },
       { id: 'settings-infrastructure', label: '基础设施', icon: '🏛️', path: '/settings/infrastructure' },
+      { id: 'settings-observability', label: '可观测性', icon: '📊', path: '/settings/observability' },
       { id: 'settings-models', label: '模型库', icon: '📦', path: '/settings/models' }
     ]
   }
