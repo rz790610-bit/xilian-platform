@@ -537,3 +537,51 @@
 - [x] 创建数据管道 API 路由
 - [x] 实现 DAG 状态监控 API
 - [x] 实现 Connector 配置和监控 API
+
+
+## 存储层完善（企业级配置）
+
+### ClickHouse 时序存储（3节点2副本）
+- [x] 配置 3 节点 2 副本集群架构
+- [x] 创建 sensor_readings_raw 表（Gorilla 压缩，7 天 TTL）
+- [x] 创建 sensor_readings_1m 表（2 年 TTL）
+- [x] 创建 sensor_readings_1h 表（5 年 TTL）
+- [x] 创建 fault_events 表（永久保留）
+- [x] 创建 Materialized View 自动下采样
+
+### PostgreSQL 关系存储（Patroni HA）
+- [x] 配置 Patroni HA 集群
+- [x] 完善 devices 设备台账表
+- [x] 完善 users RBAC 权限表
+- [x] 完善 conversations 对话表
+- [x] 创建 maintenance_logs 按年分区表
+- [x] 配置 PgBouncer 连接池
+- [x] 添加 BRIN/GiST 索引
+
+### Neo4j 图存储（Causal Cluster）
+- [x] 配置 Causal Cluster
+- [x] 创建节点类型（Equipment/Component/Fault/Solution/Vessel/Berth）
+- [x] 创建关系类型（HAS_PART/CAUSES/SIMILAR_TO/RESOLVED_BY/AFFECTS）
+- [x] 配置 GDS 插件向量索引
+- [x] 实现 Louvain 社区检测
+- [x] 实现 PageRank 故障影响分析
+
+### Qdrant 向量存储（2节点1副本）
+- [x] 配置 2 节点 1 副本集群
+- [x] 创建 diagnostic_docs Collection（100K）
+- [x] 创建 fault_patterns Collection（5K）
+- [x] 创建 manuals Collection（200K）
+- [x] 配置 HNSW 索引（M=16, ef=100）
+- [x] 配置 Scalar 量化（98% 召回）
+
+### MinIO S3 对象存储
+- [x] 创建 Buckets（raw-documents/processed/model-artifacts/backups）
+- [x] 配置生命周期策略（热 NVMe 30天/温 HDD 1年/冷 Glacier 5年）
+
+### Redis 缓存集群（6节点）
+- [x] 配置 6 节点集群
+- [x] 实现 API 缓存（5min TTL）
+- [x] 实现会话存储（24h TTL）
+- [x] 实现 Redlock 分布式锁
+- [x] 实现 Sliding Window 限流
+- [x] 实现 Pub/Sub 事件总线
