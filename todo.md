@@ -585,3 +585,24 @@
 - [x] 实现 Redlock 分布式锁
 - [x] 实现 Sliding Window 限流
 - [x] 实现 Pub/Sub 事件总线
+
+
+## 数据流层完善（企业级配置）
+
+### Kafka Cluster（3 Brokers KRaft模式）
+- [x] 配置 3 Brokers KRaft 模式集群
+- [x] 创建 sensor-data Topic（128分区）
+- [x] 创建 ais-vessel Topic（16分区）
+- [x] 创建 tos-job Topic（32分区）
+- [x] 创建 fault-events Topic（8分区）
+- [x] 配置消息保留策略（7天）
+- [x] 实现 S3 归档机制
+
+### Flink Stateful Processing
+- [x] 实现 anomaly-detector（1min窗口Z-Score）
+- [x] 实现 KG-builder CDC 实体抽取
+- [x] 实现 metrics-aggregator（1min/1h聚合）
+
+### 数据流管理
+- [x] 创建数据流统一管理服务
+- [x] 编写单元测试
