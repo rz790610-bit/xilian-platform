@@ -13,6 +13,7 @@ import { redisRouter } from "./redis/redisRouter";
 import { clickhouseRouter } from "./clickhouse/clickhouseRouter";
 import { pipelineRouter } from "./pipeline/pipelineRouter";
 import { pluginRouter } from "./plugin/pluginRouter";
+import { infrastructureRouter } from "./infrastructure/infrastructureRouter";
 
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
@@ -60,6 +61,9 @@ export const appRouter = router({
 
   // 插件管理路由
   plugin: pluginRouter,
+
+  // 基础设施管理路由
+  infrastructure: infrastructureRouter,
 });
 
 export type AppRouter = typeof appRouter;

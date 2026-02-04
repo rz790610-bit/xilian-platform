@@ -1,0 +1,671 @@
+import { useState } from 'react';
+import { MainLayout } from '@/components/layout/MainLayout';
+import { PageCard } from '@/components/common/PageCard';
+import { StatCard } from '@/components/common/StatCard';
+import { Badge } from '@/components/common/Badge';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Progress } from '@/components/ui/progress';
+import { trpc } from '@/lib/trpc';
+import { useToast } from '@/components/common/Toast';
+import { cn } from '@/lib/utils';
+import {
+  Server, Cpu, HardDrive, Network, Shield, GitBranch,
+  RefreshCw, Plus, Settings2, Activity, Database, Lock,
+  Eye, Play, Square, AlertTriangle, CheckCircle, XCircle,
+  Layers, Box, Container, Cloud, Key, Scan, Bell
+} from 'lucide-react';
+
+// 格式化字节
+function formatBytes(bytes: number, decimals = 2): string {
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const dm = decimals < 0 ? 0 : decimals;
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+}
+
+// 计算百分比
+function calcPercent(used: number, total: number): number {
+  if (total === 0) return 0;
+  return Math.round((used / total) * 100);
+}
+
+export default function Infrastructure() {
+  const toast = useToast();
+  const [activeTab, setActiveTab] = useState('cluster');
+
+  // tRPC 查询
+  const { data: summary, refetch: refetchSummary } = trpc.infrastructure.getSummary.useQuery();
+  const { data: nodes, refetch: refetchNodes } = trpc.infrastructure.getNodes.useQuery();
+  const { data: storageClasses } = trpc.infrastructure.getStorageClasses.useQuery();
+  const { data: cephStatus } = trpc.infrastructure.getCephStatus.useQuery();
+  const { data: networkPolicies } = trpc.infrastructure.getNetworkPolicies.useQuery();
+  const { data: calicoConfig } = trpc.infrastructure.getCalicoConfig.useQuery();
+  const { data: ingressConfigs } = trpc.infrastructure.getIngressConfigs.useQuery();
+  const { data: rbacRoles } = trpc.infrastructure.getRbacRoles.useQuery();
+  const { data: opaPolicies } = trpc.infrastructure.getOpaPolicies.useQuery();
+  const { data: vaultSecrets } = trpc.infrastructure.getVaultSecrets.useQuery();
+  const { data: trivyScans } = trpc.infrastructure.getTrivyScans.useQuery();
+  const { data: falcoAlerts } = trpc.infrastructure.getFalcoAlerts.useQuery();
+  const { data: runners } = trpc.infrastructure.getGitLabRunners.useQuery();
+  const { data: pipelines } = trpc.infrastructure.getCicdPipelines.useQuery();
+  const { data: argoCdApps } = trpc.infrastructure.getArgoCdApps.useQuery();
+
+  // 刷新所有数据
+  const handleRefresh = () => {
+    refetchSummary();
+    refetchNodes();
+    toast.success('数据已刷新');
+  };
+
+  const cluster = summary?.cluster;
+
+  return (
+    <MainLayout title="基础设施管理">
+      {/* 概览统计 */}
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-6">
+        <StatCard
+          label="节点"
+          value={summary?.nodes.total || 0}
+          icon="🖥️"
+        />
+        <StatCard
+          label="GPU 节点"
+          value={summary?.nodes.gpu || 0}
+          icon="🎮"
+        />
+        <StatCard
+          label="存储类"
+          value={summary?.storage.classes || 0}
+          icon="💾"
+        />
+        <StatCard
+          label="安全策略"
+          value={summary?.security.policies || 0}
+          icon="🛡️"
+        />
+        <StatCard
+          label="Runner"
+          value={summary?.cicd.runners || 0}
+          icon="⚡"
+        />
+        <StatCard
+          label="ArgoCD 应用"
+          value={summary?.cicd.apps || 0}
+          icon="☁️"
+        />
+      </div>
+
+      {/* 主要内容区 */}
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="mb-4">
+          <TabsTrigger value="cluster">
+            <Server className="w-4 h-4 mr-2" />
+            集群
+          </TabsTrigger>
+          <TabsTrigger value="network">
+            <Network className="w-4 h-4 mr-2" />
+            网络
+          </TabsTrigger>
+          <TabsTrigger value="storage">
+            <HardDrive className="w-4 h-4 mr-2" />
+            存储
+          </TabsTrigger>
+          <TabsTrigger value="security">
+            <Shield className="w-4 h-4 mr-2" />
+            安全
+          </TabsTrigger>
+          <TabsTrigger value="cicd">
+            <GitBranch className="w-4 h-4 mr-2" />
+            CI/CD
+          </TabsTrigger>
+        </TabsList>
+
+        {/* 集群管理 */}
+        <TabsContent value="cluster">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* 集群概览 */}
+            <PageCard title="集群概览" icon={<Activity className="w-5 h-5" />}>
+              <div className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">集群名称</span>
+                  <span className="font-medium">{cluster?.name || 'xilian-cluster'}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">K8s 版本</span>
+                  <span className="font-medium">{cluster?.version || 'v1.28.4'}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">健康状态</span>
+                  <Badge variant={cluster?.healthStatus === 'healthy' ? 'success' : 'warning'}>
+                    {cluster?.healthStatus === 'healthy' ? '健康' : '降级'}
+                  </Badge>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span>CPU 使用率</span>
+                    <span>{calcPercent(cluster?.usedCpu || 0, cluster?.totalCpu || 1)}%</span>
+                  </div>
+                  <Progress value={calcPercent(cluster?.usedCpu || 0, cluster?.totalCpu || 1)} />
+                </div>
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span>内存使用率</span>
+                    <span>{calcPercent(cluster?.usedMemory || 0, cluster?.totalMemory || 1)}%</span>
+                  </div>
+                  <Progress value={calcPercent(cluster?.usedMemory || 0, cluster?.totalMemory || 1)} />
+                </div>
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span>GPU 使用率</span>
+                    <span>{calcPercent(cluster?.usedGpu || 0, cluster?.totalGpu || 1)}%</span>
+                  </div>
+                  <Progress value={calcPercent(cluster?.usedGpu || 0, cluster?.totalGpu || 1)} className="bg-purple-100" />
+                </div>
+              </div>
+            </PageCard>
+
+            {/* 节点列表 */}
+            <PageCard title="节点列表" icon={<Server className="w-5 h-5" />}>
+              <div className="space-y-3">
+                {nodes?.map(node => (
+                  <div key={node.id} className="p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        {node.type === 'gpu' ? (
+                          <Cpu className="w-4 h-4 text-purple-500" />
+                        ) : (
+                          <Server className="w-4 h-4 text-blue-500" />
+                        )}
+                        <span className="font-medium">{node.name}</span>
+                      </div>
+                      <Badge variant={node.status === 'ready' ? 'success' : 'warning'}>
+                        {node.status === 'ready' ? '就绪' : '未就绪'}
+                      </Badge>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 text-xs text-muted-foreground">
+                      <div>
+                        <span>CPU: </span>
+                        <span className="text-foreground">
+                          {node.resources.cpu.used}/{node.resources.cpu.allocatable}
+                        </span>
+                      </div>
+                      <div>
+                        <span>内存: </span>
+                        <span className="text-foreground">
+                          {formatBytes(node.resources.memory.used)}/{formatBytes(node.resources.memory.allocatable)}
+                        </span>
+                      </div>
+                      {node.gpuInfo && (
+                        <div>
+                          <span>GPU: </span>
+                          <span className="text-foreground">{node.gpuInfo.count}x A100</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </PageCard>
+          </div>
+        </TabsContent>
+
+        {/* 网络管理 */}
+        <TabsContent value="network">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Calico CNI 配置 */}
+            <PageCard title="Calico CNI 配置" icon={<Network className="w-5 h-5" />}>
+              <div className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">IPIP 模式</span>
+                  <Badge>{calicoConfig?.ipipMode || 'CrossSubnet'}</Badge>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">VXLAN 模式</span>
+                  <Badge variant="default">{calicoConfig?.vxlanMode || 'Never'}</Badge>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">NAT Outgoing</span>
+                  <Switch checked={calicoConfig?.natOutgoing} disabled />
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">MTU</span>
+                  <span className="font-medium">{calicoConfig?.mtu || 1440}</span>
+                </div>
+                <div className="pt-2 border-t">
+                  <h4 className="text-sm font-medium mb-2">IP 池</h4>
+                  {calicoConfig?.ipPools?.map((pool, i) => (
+                    <div key={i} className="flex justify-between text-sm">
+                      <span>{pool.name}</span>
+                      <span className="text-muted-foreground">{pool.cidr}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </PageCard>
+
+            {/* Ingress 配置 */}
+            <PageCard title="NGINX Ingress" icon={<Layers className="w-5 h-5" />}>
+              <div className="space-y-3">
+                {ingressConfigs?.map(ingress => (
+                  <div key={ingress.id} className="p-3 rounded-lg border bg-card">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-medium">{ingress.name}</span>
+                      <Badge variant="default">{ingress.namespace}</Badge>
+                    </div>
+                    <div className="text-sm text-muted-foreground mb-2">
+                      Host: <span className="text-foreground">{ingress.host}</span>
+                    </div>
+                    <div className="space-y-1">
+                      {ingress.paths.map((path, i) => (
+                        <div key={i} className="flex justify-between text-xs">
+                          <span>{path.path}</span>
+                          <span className="text-muted-foreground">
+                            → {path.backend.serviceName}:{path.backend.servicePort}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                    {ingress.tls && (
+                      <div className="mt-2 pt-2 border-t flex items-center gap-1 text-xs text-green-600">
+                        <Lock className="w-3 h-3" />
+                        TLS 已启用
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </PageCard>
+
+            {/* NetworkPolicy */}
+            <PageCard title="NetworkPolicy 微隔离" icon={<Shield className="w-5 h-5" />} className="lg:col-span-2">
+              <div className="text-center py-8 text-muted-foreground">
+                {networkPolicies?.length === 0 ? (
+                  <div>
+                    <Shield className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                    <p>暂无网络策略</p>
+                    <Button variant="default" size="sm" className="mt-4">
+                      <Plus className="w-4 h-4 mr-2" />
+                      创建策略
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {networkPolicies?.map(policy => (
+                      <div key={policy.id} className="p-4 rounded-lg border text-left">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="font-medium">{policy.name}</span>
+                          <Badge variant={policy.enabled ? 'success' : 'default'}>
+                            {policy.enabled ? '启用' : '禁用'}
+                          </Badge>
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          命名空间: {policy.namespace}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </PageCard>
+          </div>
+        </TabsContent>
+
+        {/* 存储管理 */}
+        <TabsContent value="storage">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Ceph 集群状态 */}
+            <PageCard title="Rook-Ceph 集群" icon={<Database className="w-5 h-5" />}>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">集群健康</span>
+                  <Badge variant={cephStatus?.health === 'HEALTH_OK' ? 'success' : 'warning'}>
+                    {cephStatus?.health || 'HEALTH_OK'}
+                  </Badge>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span>存储使用</span>
+                    <span>
+                      {formatBytes(cephStatus?.usedCapacity || 0)} / {formatBytes(cephStatus?.totalCapacity || 0)}
+                    </span>
+                  </div>
+                  <Progress 
+                    value={calcPercent(cephStatus?.usedCapacity || 0, cephStatus?.totalCapacity || 1)} 
+                  />
+                </div>
+                <div className="grid grid-cols-3 gap-4 text-center pt-2 border-t">
+                  <div>
+                    <div className="text-2xl font-bold">{cephStatus?.osdCount || 0}</div>
+                    <div className="text-xs text-muted-foreground">OSD 总数</div>
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold text-green-600">{cephStatus?.osdUp || 0}</div>
+                    <div className="text-xs text-muted-foreground">OSD Up</div>
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold">{cephStatus?.pgCount || 0}</div>
+                    <div className="text-xs text-muted-foreground">PG 总数</div>
+                  </div>
+                </div>
+              </div>
+            </PageCard>
+
+            {/* 存储类 */}
+            <PageCard title="StorageClass" icon={<HardDrive className="w-5 h-5" />}>
+              <div className="space-y-3">
+                {storageClasses?.map(sc => (
+                  <div key={sc.id} className="p-3 rounded-lg border bg-card">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <Box className="w-4 h-4" />
+                        <span className="font-medium">{sc.name}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {sc.isDefault && <Badge variant="success">默认</Badge>}
+                        <Badge variant="default">{sc.reclaimPolicy}</Badge>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+                      <div>Provisioner: {sc.provisioner.split('/').pop()}</div>
+                      <div>绑定模式: {sc.volumeBindingMode}</div>
+                      <div>动态扩容: {sc.allowVolumeExpansion ? '✓' : '✗'}</div>
+                      <div>类型: {sc.type}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </PageCard>
+
+            {/* Ceph 存储池 */}
+            <PageCard title="存储池" icon={<Container className="w-5 h-5" />} className="lg:col-span-2">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {cephStatus?.pools?.map(pool => (
+                  <div key={pool.name} className="p-4 rounded-lg border bg-card">
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="font-medium">{pool.name}</span>
+                      <Badge variant="default">副本 x{pool.size}</Badge>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">已用</span>
+                        <span>{formatBytes(pool.usedBytes)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">可用</span>
+                        <span>{formatBytes(pool.maxAvailBytes)}</span>
+                      </div>
+                      <Progress value={calcPercent(pool.usedBytes, pool.usedBytes + pool.maxAvailBytes)} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </PageCard>
+          </div>
+        </TabsContent>
+
+        {/* 安全管理 */}
+        <TabsContent value="security">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* RBAC 角色 */}
+            <PageCard title="RBAC 角色" icon={<Lock className="w-5 h-5" />}>
+              <div className="space-y-3">
+                {rbacRoles?.map(role => (
+                  <div key={role.id} className="p-3 rounded-lg border bg-card">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-medium">{role.name}</span>
+                      <Badge variant={role.namespace ? 'default' : 'default'}>
+                        {role.namespace || 'ClusterRole'}
+                      </Badge>
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {role.rules.length} 条规则
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </PageCard>
+
+            {/* OPA 策略 */}
+            <PageCard title="OPA 策略" icon={<Shield className="w-5 h-5" />}>
+              <div className="space-y-3">
+                {opaPolicies?.map(policy => (
+                  <div key={policy.id} className="p-3 rounded-lg border bg-card">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-medium">{policy.name}</span>
+                      <div className="flex items-center gap-2">
+                        <Badge variant={policy.enabled ? 'success' : 'default'}>
+                          {policy.enabled ? '启用' : '禁用'}
+                        </Badge>
+                        <Badge variant={
+                          policy.enforcementAction === 'deny' ? 'danger' :
+                          policy.enforcementAction === 'warn' ? 'warning' : 'default'
+                        }>
+                          {policy.enforcementAction}
+                        </Badge>
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground mb-2">{policy.description}</p>
+                    <div className="flex items-center gap-4 text-xs">
+                      <span>目标: {policy.targets.join(', ')}</span>
+                      <span className="text-red-500">违规: {policy.violations}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </PageCard>
+
+            {/* Vault 密钥 */}
+            <PageCard title="Vault 密钥管理" icon={<Key className="w-5 h-5" />}>
+              <div className="space-y-3">
+                {vaultSecrets?.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Key className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                    <p>暂无密钥</p>
+                  </div>
+                ) : (
+                  vaultSecrets?.map(secret => (
+                    <div key={secret.id} className="p-3 rounded-lg border bg-card">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="font-medium font-mono text-sm">{secret.path}</span>
+                        <Badge variant="default">v{secret.version}</Badge>
+                      </div>
+                      {secret.rotationPolicy?.enabled && (
+                        <div className="text-xs text-muted-foreground">
+                          自动轮换: 每 {secret.rotationPolicy.interval / 3600} 小时
+                        </div>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+            </PageCard>
+
+            {/* Trivy 扫描 */}
+            <PageCard title="Trivy 镜像扫描" icon={<Scan className="w-5 h-5" />}>
+              <div className="space-y-3">
+                {trivyScans?.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Scan className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                    <p>暂无扫描记录</p>
+                    <Button variant="default" size="sm" className="mt-4">
+                      <Plus className="w-4 h-4 mr-2" />
+                      扫描镜像
+                    </Button>
+                  </div>
+                ) : (
+                  trivyScans?.map(scan => (
+                    <div key={scan.id} className="p-3 rounded-lg border bg-card">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="font-medium font-mono text-sm">{scan.target}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs">
+                        {scan.summary.critical > 0 && (
+                          <Badge variant="danger">严重 {scan.summary.critical}</Badge>
+                        )}
+                        {scan.summary.high > 0 && (
+                          <Badge variant="warning">高危 {scan.summary.high}</Badge>
+                        )}
+                        {scan.summary.medium > 0 && (
+                          <Badge variant="default">中危 {scan.summary.medium}</Badge>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </PageCard>
+
+            {/* Falco 告警 */}
+            <PageCard title="Falco 运行时监控" icon={<Bell className="w-5 h-5" />} className="lg:col-span-2">
+              <div className="space-y-3">
+                {falcoAlerts?.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <CheckCircle className="w-12 h-12 mx-auto mb-2 text-green-500" />
+                    <p>无安全告警</p>
+                  </div>
+                ) : (
+                  falcoAlerts?.slice(0, 5).map(alert => (
+                    <div key={alert.id} className="p-3 rounded-lg border bg-card">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="font-medium">{alert.rule}</span>
+                        <Badge variant={
+                          ['Emergency', 'Alert', 'Critical'].includes(alert.priority) ? 'danger' :
+                          ['Error', 'Warning'].includes(alert.priority) ? 'warning' : 'default'
+                        }>
+                          {alert.priority}
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground">{alert.output}</p>
+                    </div>
+                  ))
+                )}
+              </div>
+            </PageCard>
+          </div>
+        </TabsContent>
+
+        {/* CI/CD 管理 */}
+        <TabsContent value="cicd">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* GitLab Runner */}
+            <PageCard title="GitLab Runner" icon={<Play className="w-5 h-5" />}>
+              <div className="space-y-3">
+                {runners?.map(runner => (
+                  <div key={runner.id} className="p-3 rounded-lg border bg-card">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <div className={cn(
+                          "w-2 h-2 rounded-full",
+                          runner.online ? "bg-green-500" : "bg-gray-400"
+                        )} />
+                        <span className="font-medium">{runner.name}</span>
+                      </div>
+                      <Badge variant={runner.active ? 'success' : 'default'}>
+                        {runner.active ? '活跃' : '暂停'}
+                      </Badge>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+                      <div>版本: {runner.version}</div>
+                      <div>平台: {runner.platform}/{runner.architecture}</div>
+                      <div className="col-span-2">
+                        标签: {runner.tagList.join(', ')}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </PageCard>
+
+            {/* ArgoCD 应用 */}
+            <PageCard title="ArgoCD GitOps" icon={<Cloud className="w-5 h-5" />}>
+              <div className="space-y-3">
+                {argoCdApps?.map(app => (
+                  <div key={app.id} className="p-3 rounded-lg border bg-card">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-medium">{app.name}</span>
+                      <div className="flex items-center gap-2">
+                        <Badge variant={app.syncStatus === 'Synced' ? 'success' : 'warning'}>
+                          {app.syncStatus}
+                        </Badge>
+                        <Badge variant={app.healthStatus === 'Healthy' ? 'success' : 'warning'}>
+                          {app.healthStatus}
+                        </Badge>
+                      </div>
+                    </div>
+                    <div className="text-xs text-muted-foreground space-y-1">
+                      <div>仓库: {app.source.repoUrl}</div>
+                      <div>路径: {app.source.path}</div>
+                      <div>目标: {app.destination.namespace}</div>
+                    </div>
+                    {app.syncPolicy?.automated && (
+                      <div className="mt-2 pt-2 border-t flex items-center gap-2 text-xs text-green-600">
+                        <CheckCircle className="w-3 h-3" />
+                        自动同步已启用
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </PageCard>
+
+            {/* 流水线 */}
+            <PageCard title="CI/CD 流水线" icon={<GitBranch className="w-5 h-5" />} className="lg:col-span-2">
+              <div className="space-y-3">
+                {pipelines?.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <GitBranch className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                    <p>暂无流水线</p>
+                    <p className="text-xs mt-2">流水线阶段: Lint → Test → Build → Scan → Push</p>
+                  </div>
+                ) : (
+                  pipelines?.map(pipeline => (
+                    <div key={pipeline.id} className="p-4 rounded-lg border bg-card">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <span className="font-medium">{pipeline.projectName}</span>
+                          <Badge variant="default">{pipeline.ref}</Badge>
+                        </div>
+                        <Badge variant={
+                          pipeline.status === 'success' ? 'success' :
+                          pipeline.status === 'failed' ? 'danger' :
+                          pipeline.status === 'running' ? 'default' : 'default'
+                        }>
+                          {pipeline.status}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {pipeline.stages.map((stage, i) => (
+                          <div key={stage.name} className="flex items-center gap-2">
+                            <div className={cn(
+                              "px-3 py-1 rounded text-xs",
+                              stage.status === 'success' ? 'bg-green-100 text-green-700' :
+                              stage.status === 'failed' ? 'bg-red-100 text-red-700' :
+                              stage.status === 'running' ? 'bg-blue-100 text-blue-700' :
+                              'bg-gray-100 text-gray-700'
+                            )}>
+                              {stage.name}
+                            </div>
+                            {i < pipeline.stages.length - 1 && (
+                              <span className="text-muted-foreground">→</span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </PageCard>
+          </div>
+        </TabsContent>
+      </Tabs>
+    </MainLayout>
+  );
+}

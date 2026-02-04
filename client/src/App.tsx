@@ -40,6 +40,7 @@ import SystemTopology from "./pages/SystemTopology";
 import DataStream from "./pages/DataStream";
 import KafkaMonitor from "./pages/KafkaMonitor";
 import PipelineEditor from "./pages/PipelineEditor";
+import Infrastructure from "./pages/Infrastructure";
 function Router() {
   // make sure to consider if you need authentication for certain routes
   return (
@@ -99,6 +100,7 @@ function Router() {
       <Route path="/settings/topology" component={SystemTopology} />
       <Route path="/settings/datastream" component={DataStream} />
       <Route path="/settings/kafka" component={KafkaMonitor} />
+      <Route path="/settings/infrastructure" component={Infrastructure} />
       <Route path="/settings/models" component={Settings} />
       <Route path="/settings" component={Settings} />
       

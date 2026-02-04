@@ -445,3 +445,37 @@
 - [x] 调用 pipeline.run 手动运行
 - [x] 调用 pipeline.list/get 获取状态
 - [x] 实时显示管道运行指标
+
+
+## 基础设施层实现
+
+### K8s 集群管理
+- [x] 设计 5 节点集群架构（2 GPU A100x8 + 3 CPU 64C/256G）
+- [x] 实现节点状态监控和资源统计
+- [x] 实现 GPU 资源调度和分配
+- [x] 实现节点标签和污点管理
+
+### 网络策略（Calico CNI）
+- [x] 实现 NetworkPolicy 微隔离配置
+- [x] 实现 IPIP 模式网络配置
+- [x] 实现 NGINX Ingress 管理
+- [x] 实现服务网格可视化
+
+### 存储管理（Rook-Ceph）
+- [x] 实现 StorageClass 管理（ssd-fast/hdd-standard/nvme-ultra）
+- [x] 实现 PV/PVC 动态扩容
+- [x] 实现存储监控和告警
+- [x] 实现 NVMe 存储池管理
+
+### 安全体系
+- [x] 实现 OIDC AD 集成
+- [x] 实现 RBAC + OPA 策略管理
+- [x] 实现 Vault 密钥轮换
+- [x] 实现 Trivy 镜像扫描
+- [x] 实现 Falco 运行时监控
+
+### CI/CD 流水线
+- [x] 实现 GitLab Runner 管理
+- [x] 实现流水线配置（Lint-Test-Build-Scan-Push）
+- [x] 实现 ArgoCD GitOps 同步
+- [x] 实现 Harbor 镜像签名管理
