@@ -1,0 +1,50 @@
+# PortAI Nexus - Prometheus Configuration
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: []
+
+rule_files: []
+
+scrape_configs:
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # PortAI Nexus Application
+  - job_name: 'portai-nexus'
+    static_configs:
+      - targets: ['app:3000']
+    metrics_path: '/api/metrics'
+
+  # MySQL Exporter (if enabled)
+  - job_name: 'mysql'
+    static_configs:
+      - targets: ['mysql:9104']
+
+  # Redis Exporter (if enabled)
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis:9121']
+
+  # Kafka Exporter (if enabled)
+  - job_name: 'kafka'
+    static_configs:
+      - targets: ['kafka:9308']
+
+  # ClickHouse
+  - job_name: 'clickhouse'
+    static_configs:
+      - targets: ['clickhouse:8123']
+    metrics_path: '/metrics'
+
+  # Node Exporter (if enabled)
+  - job_name: 'node'
+    static_configs:
+      - targets: ['node-exporter:9100']

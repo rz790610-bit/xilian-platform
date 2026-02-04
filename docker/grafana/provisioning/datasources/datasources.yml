@@ -1,0 +1,43 @@
+# PortAI Nexus - Grafana Datasources Configuration
+
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false
+
+  - name: Elasticsearch
+    type: elasticsearch
+    access: proxy
+    url: http://elasticsearch:9200
+    database: "portai-logs-*"
+    jsonData:
+      timeField: "@timestamp"
+      esVersion: "8.0.0"
+    editable: false
+
+  - name: Jaeger
+    type: jaeger
+    access: proxy
+    url: http://jaeger:16686
+    editable: false
+
+  - name: MySQL
+    type: mysql
+    url: mysql:3306
+    database: portai_nexus
+    user: portai
+    secureJsonData:
+      password: portai123
+    editable: false
+
+  - name: ClickHouse
+    type: grafana-clickhouse-datasource
+    url: http://clickhouse:8123
+    jsonData:
+      defaultDatabase: default
+    editable: false

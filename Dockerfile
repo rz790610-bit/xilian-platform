@@ -1,4 +1,5 @@
-# 西联智能平台 - Docker 多阶段构建
+# PortAI Nexus - Industrial AI Platform
+# Docker Multi-stage Build for Production Deployment
 # Stage 1: 构建阶段
 FROM node:22-alpine AS builder
 
@@ -29,7 +30,7 @@ RUN corepack enable && corepack prepare pnpm@latest --activate
 
 # 创建非 root 用户
 RUN addgroup -g 1001 -S nodejs && \
-    adduser -S nodejs -u 1001
+    adduser -S portai -u 1001
 
 # 复制依赖文件
 COPY package.json pnpm-lock.yaml ./
@@ -44,10 +45,10 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/drizzle ./drizzle
 
 # 设置权限
-RUN chown -R nodejs:nodejs /app
+RUN chown -R portai:nodejs /app
 
 # 切换到非 root 用户
-USER nodejs
+USER portai
 
 # 暴露端口
 EXPOSE 3000
