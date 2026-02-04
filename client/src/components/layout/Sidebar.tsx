@@ -43,7 +43,7 @@ export function Sidebar() {
           "font-bold flex items-center gap-1.5",
           sidebarCollapsed ? "text-sm justify-center" : "text-sm"
         )}>
-          <img src="https://files.manuscdn.com/user_upload_by_module/session_file/310519663271388233/dthcCVUTooiXlemp.png" alt="PortAI Nexus" className="w-6 h-6 object-contain" />
+          <img src="https://files.manuscdn.com/user_upload_by_module/session_file/310519663271388233/NdXbqTIHGAqQhJPF.png" alt="PortAI Nexus" className="w-6 h-6 object-contain" />
           {!sidebarCollapsed && <span className="gradient-text">PortAI Nexus</span>}
         </h1>
         {!sidebarCollapsed && (
