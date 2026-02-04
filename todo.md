@@ -937,3 +937,38 @@
 - [x] 修复数据库管理页面
 - [x] 修复插件管理页面
 - [x] 修复引擎管理页面
+
+
+## 模拟服务层替换为真实实现（生产级）
+
+### 阶段一：监控服务 (monitoringService)
+- [ ] 安装 systeminformation 依赖
+- [ ] 创建真实数据库监控客户端 (MySQL/Redis/ClickHouse/Qdrant)
+- [ ] 创建真实系统资源监控客户端
+- [ ] 创建服务健康检查客户端
+- [ ] 替换 monitoringService 为真实实现
+- [ ] 编写集成测试
+
+### 阶段二：可观测性服务 (observabilityService)
+- [ ] 安装 @elastic/elasticsearch 依赖
+- [ ] 创建 Prometheus 客户端
+- [ ] 创建 Elasticsearch 客户端
+- [ ] 创建 Jaeger 客户端
+- [ ] 替换 observabilityService 为真实实现
+- [ ] 编写集成测试
+
+### 阶段三：基础设施服务 (infrastructureService)
+- [ ] 安装 @kubernetes/client-node 和 node-vault 依赖
+- [ ] 创建 K8s API 客户端
+- [ ] 创建 Vault 客户端
+- [ ] 创建 ArgoCD 客户端
+- [ ] 创建 Harbor 客户端
+- [ ] 创建 GitLab 客户端
+- [ ] 替换 infrastructureService 为真实实现
+- [ ] 编写集成测试
+
+### 阶段四：数据管道服务 (dataPipelineService)
+- [ ] 创建 Airflow REST API 客户端
+- [ ] 创建 Kafka Connect 客户端
+- [ ] 替换 dataPipelineService 为真实实现
+- [ ] 编写集成测试

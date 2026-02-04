@@ -1,11 +1,13 @@
 /**
  * 数据管道路由 API
- * 提供 Airflow DAGs 和 Kafka Connect 的管理接口
+ * 提供 Airflow DAGs 和 Kafka Connect 的真实管理接口
  */
 
 import { z } from 'zod';
 import { router, publicProcedure, protectedProcedure } from '../_core/trpc';
-import { dataPipelineService } from './dataPipelineService';
+import { enhancedDataPipelineService } from './enhancedDataPipelineService';
+import { airflowClient } from './clients/airflowClient';
+import { kafkaConnectClient } from './clients/kafkaConnectClient';
 
 export const dataPipelineRouter = router({
   // ==================== 概览 ====================
@@ -13,8 +15,15 @@ export const dataPipelineRouter = router({
   /**
    * 获取数据管道概览
    */
-  getSummary: publicProcedure.query(() => {
-    return dataPipelineService.getSummary();
+  getSummary: publicProcedure.query(async () => {
+    return await enhancedDataPipelineService.getOverview();
+  }),
+
+  /**
+   * 检查服务连接状态
+   */
+  checkConnections: publicProcedure.query(async () => {
+    return await enhancedDataPipelineService.checkConnections();
   }),
 
   // ==================== Airflow DAGs ====================
@@ -22,8 +31,8 @@ export const dataPipelineRouter = router({
   /**
    * 获取所有 DAGs
    */
-  getDags: publicProcedure.query(() => {
-    return dataPipelineService.airflow.getDags();
+  getDags: publicProcedure.query(async () => {
+    return await enhancedDataPipelineService.listDAGs();
   }),
 
   /**
@@ -31,25 +40,9 @@ export const dataPipelineRouter = router({
    */
   getDag: publicProcedure
     .input(z.object({ dagId: z.string() }))
-    .query(({ input }) => {
-      return dataPipelineService.airflow.getDag(input.dagId);
+    .query(async ({ input }) => {
+      return await enhancedDataPipelineService.getDAG(input.dagId);
     }),
-
-  /**
-   * 获取 DAG 统计信息
-   */
-  getDagStats: publicProcedure
-    .input(z.object({ dagId: z.string() }))
-    .query(({ input }) => {
-      return dataPipelineService.airflow.getDagStats(input.dagId);
-    }),
-
-  /**
-   * 获取所有 DAG 统计
-   */
-  getAllDagStats: publicProcedure.query(() => {
-    return dataPipelineService.airflow.getAllDagStats();
-  }),
 
   /**
    * 获取 DAG 运行历史
@@ -57,22 +50,31 @@ export const dataPipelineRouter = router({
   getDagRuns: publicProcedure
     .input(z.object({ 
       dagId: z.string(),
-      limit: z.number().optional().default(10),
+      limit: z.number().optional().default(20),
     }))
-    .query(({ input }) => {
-      return dataPipelineService.airflow.getDagRuns(input.dagId, input.limit);
+    .query(async ({ input }) => {
+      return await enhancedDataPipelineService.getDAGRuns(input.dagId, input.limit);
     }),
 
   /**
-   * 获取单个运行详情
+   * 获取 DAG 任务
    */
-  getDagRun: publicProcedure
+  getDagTasks: publicProcedure
+    .input(z.object({ dagId: z.string() }))
+    .query(async ({ input }) => {
+      return await enhancedDataPipelineService.getDAGTasks(input.dagId);
+    }),
+
+  /**
+   * 获取任务实例
+   */
+  getTaskInstances: publicProcedure
     .input(z.object({ 
       dagId: z.string(),
-      runId: z.string(),
+      dagRunId: z.string(),
     }))
-    .query(({ input }) => {
-      return dataPipelineService.airflow.getDagRun(input.dagId, input.runId);
+    .query(async ({ input }) => {
+      return await enhancedDataPipelineService.getTaskInstances(input.dagId, input.dagRunId);
     }),
 
   /**
@@ -83,188 +85,252 @@ export const dataPipelineRouter = router({
       dagId: z.string(),
       conf: z.record(z.string(), z.unknown()).optional(),
     }))
-    .mutation(({ input }) => {
-      return dataPipelineService.airflow.triggerDag(input.dagId, input.conf);
+    .mutation(async ({ input }) => {
+      const run = await enhancedDataPipelineService.triggerDAG(input.dagId, input.conf as Record<string, unknown> | undefined);
+      return { success: run !== null, run };
     }),
 
   /**
    * 暂停/恢复 DAG
    */
-  toggleDagPause: protectedProcedure
-    .input(z.object({ dagId: z.string() }))
-    .mutation(({ input }) => {
-      return dataPipelineService.airflow.toggleDagPause(input.dagId);
-    }),
-
-  /**
-   * 获取任务日志
-   */
-  getTaskLogs: publicProcedure
+  toggleDag: protectedProcedure
     .input(z.object({ 
       dagId: z.string(),
-      runId: z.string(),
-      taskId: z.string(),
+      isPaused: z.boolean(),
     }))
-    .query(({ input }) => {
-      return dataPipelineService.airflow.getTaskLogs(input.dagId, input.runId, input.taskId);
+    .mutation(async ({ input }) => {
+      const success = await enhancedDataPipelineService.toggleDAG(input.dagId, input.isPaused);
+      return { success };
     }),
 
   /**
-   * 获取调度器状态
+   * 清除任务实例（重试）
    */
-  getSchedulerStatus: publicProcedure.query(() => {
-    return dataPipelineService.airflow.getSchedulerStatus();
+  clearTaskInstance: protectedProcedure
+    .input(z.object({ 
+      dagId: z.string(),
+      dagRunId: z.string(),
+      taskId: z.string(),
+    }))
+    .mutation(async ({ input }) => {
+      const success = await enhancedDataPipelineService.clearTaskInstance(
+        input.dagId,
+        input.dagRunId,
+        input.taskId
+      );
+      return { success };
+    }),
+
+  // ==================== Airflow 直接 API ====================
+
+  /**
+   * 获取 Airflow 健康状态
+   */
+  getAirflowHealth: publicProcedure.query(async () => {
+    return await airflowClient.getHealth();
+  }),
+
+  /**
+   * 获取 Airflow 版本
+   */
+  getAirflowVersion: publicProcedure.query(async () => {
+    return await airflowClient.getVersion();
+  }),
+
+  /**
+   * 获取 Airflow 变量
+   */
+  getAirflowVariables: publicProcedure.query(async () => {
+    return await airflowClient.listVariables();
+  }),
+
+  /**
+   * 设置 Airflow 变量
+   */
+  setAirflowVariable: protectedProcedure
+    .input(z.object({
+      key: z.string(),
+      value: z.string(),
+      description: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const success = await airflowClient.setVariable(input.key, input.value, input.description);
+      return { success };
+    }),
+
+  /**
+   * 删除 Airflow 变量
+   */
+  deleteAirflowVariable: protectedProcedure
+    .input(z.object({ key: z.string() }))
+    .mutation(async ({ input }) => {
+      const success = await airflowClient.deleteVariable(input.key);
+      return { success };
+    }),
+
+  /**
+   * 获取 Airflow 连接
+   */
+  getAirflowConnections: publicProcedure.query(async () => {
+    return await airflowClient.listConnections();
+  }),
+
+  /**
+   * 测试 Airflow 连接
+   */
+  testAirflowConnection: protectedProcedure
+    .input(z.object({ connectionId: z.string() }))
+    .mutation(async ({ input }) => {
+      return await airflowClient.testConnection(input.connectionId);
+    }),
+
+  /**
+   * 获取 Airflow 池
+   */
+  getAirflowPools: publicProcedure.query(async () => {
+    return await airflowClient.listPools();
   }),
 
   // ==================== Kafka Connect ====================
 
   /**
-   * 获取所有 Connectors
+   * 获取所有连接器
    */
-  getConnectors: publicProcedure.query(() => {
-    return dataPipelineService.kafkaConnect.getConnectors();
+  getConnectors: publicProcedure.query(async () => {
+    return await enhancedDataPipelineService.listConnectors();
   }),
 
   /**
-   * 获取 Connector 配置
+   * 获取单个连接器
    */
   getConnector: publicProcedure
     .input(z.object({ name: z.string() }))
-    .query(({ input }) => {
-      return dataPipelineService.kafkaConnect.getConnector(input.name);
+    .query(async ({ input }) => {
+      return await enhancedDataPipelineService.getConnector(input.name);
     }),
 
   /**
-   * 获取 Connector 状态
-   */
-  getConnectorStatus: publicProcedure
-    .input(z.object({ name: z.string() }))
-    .query(({ input }) => {
-      return dataPipelineService.kafkaConnect.getConnectorStatus(input.name);
-    }),
-
-  /**
-   * 获取所有 Connector 状态
-   */
-  getAllConnectorStatuses: publicProcedure.query(() => {
-    return dataPipelineService.kafkaConnect.getAllConnectorStatuses();
-  }),
-
-  /**
-   * 创建 Connector
+   * 创建连接器
    */
   createConnector: protectedProcedure
     .input(z.object({
       name: z.string(),
-      'connector.class': z.string(),
-      'tasks.max': z.number(),
-      config: z.record(z.string(), z.unknown()),
+      config: z.record(z.string(), z.string()),
     }))
-    .mutation(({ input }) => {
-      const { config, ...base } = input;
-      return dataPipelineService.kafkaConnect.createConnector({
-        ...base,
-        ...config,
-      } as any);
+    .mutation(async ({ input }) => {
+      const connector = await enhancedDataPipelineService.createConnector(input.name, input.config as Record<string, string>);
+      return { success: connector !== null, connector };
     }),
 
   /**
-   * 删除 Connector
+   * 更新连接器配置
+   */
+  updateConnector: protectedProcedure
+    .input(z.object({
+      name: z.string(),
+      config: z.record(z.string(), z.string()),
+    }))
+    .mutation(async ({ input }) => {
+      const success = await enhancedDataPipelineService.updateConnector(input.name, input.config as Record<string, string>);
+      return { success };
+    }),
+
+  /**
+   * 删除连接器
    */
   deleteConnector: protectedProcedure
     .input(z.object({ name: z.string() }))
-    .mutation(({ input }) => {
-      return dataPipelineService.kafkaConnect.deleteConnector(input.name);
+    .mutation(async ({ input }) => {
+      const success = await enhancedDataPipelineService.deleteConnector(input.name);
+      return { success };
     }),
 
   /**
-   * 暂停 Connector
+   * 暂停连接器
    */
   pauseConnector: protectedProcedure
     .input(z.object({ name: z.string() }))
-    .mutation(({ input }) => {
-      return dataPipelineService.kafkaConnect.pauseConnector(input.name);
+    .mutation(async ({ input }) => {
+      const success = await enhancedDataPipelineService.pauseConnector(input.name);
+      return { success };
     }),
 
   /**
-   * 恢复 Connector
+   * 恢复连接器
    */
   resumeConnector: protectedProcedure
     .input(z.object({ name: z.string() }))
-    .mutation(({ input }) => {
-      return dataPipelineService.kafkaConnect.resumeConnector(input.name);
+    .mutation(async ({ input }) => {
+      const success = await enhancedDataPipelineService.resumeConnector(input.name);
+      return { success };
     }),
 
   /**
-   * 重启 Connector
+   * 重启连接器
    */
   restartConnector: protectedProcedure
     .input(z.object({ name: z.string() }))
-    .mutation(({ input }) => {
-      return dataPipelineService.kafkaConnect.restartConnector(input.name);
+    .mutation(async ({ input }) => {
+      const success = await enhancedDataPipelineService.restartConnector(input.name);
+      return { success };
     }),
 
   /**
-   * 重启 Connector 任务
+   * 重启连接器任务
    */
-  restartTask: protectedProcedure
-    .input(z.object({ 
+  restartConnectorTask: protectedProcedure
+    .input(z.object({
       name: z.string(),
       taskId: z.number(),
     }))
-    .mutation(({ input }) => {
-      return dataPipelineService.kafkaConnect.restartTask(input.name, input.taskId);
+    .mutation(async ({ input }) => {
+      const success = await enhancedDataPipelineService.restartConnectorTask(input.name, input.taskId);
+      return { success };
     }),
 
-  /**
-   * 获取 Connector 插件列表
-   */
-  getPlugins: publicProcedure.query(() => {
-    return dataPipelineService.kafkaConnect.getPlugins();
-  }),
-
-  // ==================== Kafka Streams ====================
+  // ==================== Kafka Connect 直接 API ====================
 
   /**
-   * 获取所有 Streams 拓扑
+   * 获取 Kafka Connect 集群信息
    */
-  getTopologies: publicProcedure.query(() => {
-    return dataPipelineService.kafkaStreams.getTopologies();
+  getKafkaConnectInfo: publicProcedure.query(async () => {
+    return await kafkaConnectClient.getClusterInfo();
   }),
 
   /**
-   * 获取单个拓扑
+   * 获取可用插件
    */
-  getTopology: publicProcedure
-    .input(z.object({ id: z.string() }))
-    .query(({ input }) => {
-      return dataPipelineService.kafkaStreams.getTopology(input.id);
-    }),
+  getKafkaConnectPlugins: publicProcedure.query(async () => {
+    return await kafkaConnectClient.listPlugins();
+  }),
 
   /**
-   * 启动拓扑
+   * 验证连接器配置
    */
-  startTopology: protectedProcedure
-    .input(z.object({ id: z.string() }))
-    .mutation(({ input }) => {
-      return dataPipelineService.kafkaStreams.startTopology(input.id);
+  validateConnectorConfig: protectedProcedure
+    .input(z.object({
+      pluginClass: z.string(),
+      config: z.record(z.string(), z.string()),
+    }))
+    .mutation(async ({ input }) => {
+      return await kafkaConnectClient.validateConnectorConfig(input.pluginClass, input.config as Record<string, string>);
     }),
 
-  /**
-   * 停止拓扑
-   */
-  stopTopology: protectedProcedure
-    .input(z.object({ id: z.string() }))
-    .mutation(({ input }) => {
-      return dataPipelineService.kafkaStreams.stopTopology(input.id);
-    }),
+  // ==================== 统一管道接口 ====================
 
   /**
-   * 获取拓扑指标
+   * 获取所有管道（Airflow + Kafka Connect）
    */
-  getTopologyMetrics: publicProcedure
-    .input(z.object({ id: z.string() }))
-    .query(({ input }) => {
-      return dataPipelineService.kafkaStreams.getTopologyMetrics(input.id);
+  getAllPipelines: publicProcedure.query(async () => {
+    return await enhancedDataPipelineService.listAllPipelines();
+  }),
+
+  /**
+   * 获取最近运行
+   */
+  getRecentRuns: publicProcedure
+    .input(z.object({ limit: z.number().optional().default(10) }))
+    .query(async ({ input }) => {
+      return await enhancedDataPipelineService.getRecentRuns(input.limit);
     }),
 });

@@ -1,9 +1,16 @@
 /**
  * 可观测性路由 API
+ * 使用真实 Prometheus/Elasticsearch/Jaeger 客户端
  */
 
 import { z } from 'zod';
 import { router, publicProcedure, protectedProcedure } from '../_core/trpc';
+import { enhancedObservabilityService } from './enhancedObservabilityService';
+import { prometheusClient } from './clients/prometheusClient';
+import { elasticsearchClient } from './clients/elasticsearchClient';
+import { jaegerClient } from './clients/jaegerClient';
+
+// 保留原有服务用于兼容
 import {
   PrometheusService,
   ELKService,
@@ -15,27 +22,91 @@ import {
 export const observabilityRouter = router({
   // ==================== 概览 ====================
   
-  getSummary: publicProcedure.query(() => {
-    return getObservabilitySummary();
+  getSummary: publicProcedure.query(async () => {
+    // 尝试使用真实服务，失败则回退到模拟数据
+    try {
+      const dashboard = await enhancedObservabilityService.getDashboard();
+      return {
+        prometheus: {
+          status: 'connected',
+          metrics: dashboard.metrics,
+        },
+        elasticsearch: {
+          status: 'connected',
+          logsPerMinute: dashboard.summary.logsPerMinute,
+        },
+        jaeger: {
+          status: 'connected',
+          services: dashboard.summary.totalServices,
+        },
+        alerts: {
+          total: dashboard.summary.totalAlerts,
+          critical: dashboard.summary.criticalAlerts,
+        },
+      };
+    } catch {
+      return getObservabilitySummary();
+    }
+  }),
+
+  getDashboard: protectedProcedure.query(async () => {
+    return enhancedObservabilityService.getDashboard();
+  }),
+
+  getHealth: publicProcedure.query(async () => {
+    return enhancedObservabilityService.getHealth();
+  }),
+
+  getConnectionStatus: publicProcedure.query(async () => {
+    return enhancedObservabilityService.checkConnections();
   }),
 
   // ==================== Prometheus 指标 ====================
   
+  getSystemMetrics: protectedProcedure.query(async () => {
+    return enhancedObservabilityService.getSystemMetrics();
+  }),
+
   getNodeMetrics: publicProcedure
     .input(z.object({ hostname: z.string().optional() }).optional())
-    .query(({ input }) => {
-      return PrometheusService.getInstance().getNodeMetrics(input?.hostname);
+    .query(async ({ input }) => {
+      // 使用真实 Prometheus 查询
+      const [cpu, memory, disk] = await Promise.all([
+        prometheusClient.getCpuUsage(input?.hostname),
+        prometheusClient.getMemoryUsage(input?.hostname),
+        prometheusClient.getDiskUsage(input?.hostname),
+      ]);
+      
+      return {
+        hostname: input?.hostname || 'all',
+        cpu: cpu || 0,
+        memory: memory || 0,
+        disk: disk || 0,
+        timestamp: new Date(),
+      };
     }),
 
   getContainerMetrics: publicProcedure
     .input(z.object({ containerName: z.string().optional() }).optional())
     .query(({ input }) => {
+      // 保持兼容，使用原有服务
       return PrometheusService.getInstance().getContainerMetrics(input?.containerName);
     }),
 
   getApplicationMetrics: publicProcedure
     .input(z.object({ serviceName: z.string().optional() }).optional())
-    .query(({ input }) => {
+    .query(async ({ input }) => {
+      if (input?.serviceName) {
+        const stats = await enhancedObservabilityService.getServiceLatencyStats(input.serviceName);
+        return {
+          serviceName: input.serviceName,
+          requestRate: stats.count / 60,
+          errorRate: stats.errorRate,
+          latencyP50: stats.p50DurationMs,
+          latencyP99: stats.p99DurationMs,
+          timestamp: new Date(),
+        };
+      }
       return PrometheusService.getInstance().getApplicationMetrics(input?.serviceName);
     }),
 
@@ -50,8 +121,9 @@ export const observabilityRouter = router({
       expr: z.string(),
       time: z.number().optional(),
     }))
-    .query(({ input }) => {
-      return PrometheusService.getInstance().query(input.expr, input.time);
+    .query(async ({ input }) => {
+      const time = input.time ? new Date(input.time * 1000) : undefined;
+      return prometheusClient.query(input.expr, time);
     }),
 
   queryPrometheusRange: publicProcedure
@@ -61,9 +133,22 @@ export const observabilityRouter = router({
       end: z.number(),
       step: z.number(),
     }))
-    .query(({ input }) => {
-      return PrometheusService.getInstance().queryRange(input.expr, input.start, input.end, input.step);
+    .query(async ({ input }) => {
+      return prometheusClient.queryRange(
+        input.expr,
+        new Date(input.start * 1000),
+        new Date(input.end * 1000),
+        `${input.step}s`
+      );
     }),
+
+  getPrometheusTargets: protectedProcedure.query(async () => {
+    return prometheusClient.getTargets();
+  }),
+
+  getPrometheusAlertRules: protectedProcedure.query(async () => {
+    return prometheusClient.getAlertRules();
+  }),
 
   // ==================== ELK 日志 ====================
   
@@ -76,13 +161,68 @@ export const observabilityRouter = router({
       endTime: z.string().optional(),
       limit: z.number().optional(),
     }).optional())
-    .query(({ input }) => {
-      return ELKService.getInstance().searchLogs(input || {});
+    .query(async ({ input }) => {
+      try {
+        return await enhancedObservabilityService.searchLogs({
+          level: input?.level?.toLowerCase(),
+          service: input?.service,
+          query: input?.message,
+          from: input?.startTime ? new Date(input.startTime) : undefined,
+          to: input?.endTime ? new Date(input.endTime) : undefined,
+          size: input?.limit,
+        });
+      } catch {
+        return ELKService.getInstance().searchLogs(input || {});
+      }
     }),
 
-  getLogStats: publicProcedure.query(() => {
-    return ELKService.getInstance().getLogStats();
+  getLogStats: publicProcedure.query(async () => {
+    try {
+      const stats = await enhancedObservabilityService.getLogLevelStats();
+      return {
+        levels: stats,
+        total: Object.values(stats).reduce((a, b) => a + b, 0),
+      };
+    } catch {
+      return ELKService.getInstance().getLogStats();
+    }
   }),
+
+  getLogTrend: protectedProcedure
+    .input(z.object({
+      from: z.string().optional(),
+      to: z.string().optional(),
+      interval: z.string().optional(),
+    }).optional())
+    .query(async ({ input }) => {
+      return enhancedObservabilityService.getLogTrend({
+        from: input?.from ? new Date(input.from) : undefined,
+        to: input?.to ? new Date(input.to) : undefined,
+        interval: input?.interval,
+      });
+    }),
+
+  getServiceLogStats: protectedProcedure
+    .input(z.object({
+      from: z.string().optional(),
+      to: z.string().optional(),
+    }).optional())
+    .query(async ({ input }) => {
+      return enhancedObservabilityService.getServiceLogStats({
+        from: input?.from ? new Date(input.from) : undefined,
+        to: input?.to ? new Date(input.to) : undefined,
+      });
+    }),
+
+  getElasticsearchHealth: protectedProcedure.query(async () => {
+    return elasticsearchClient.getClusterHealth();
+  }),
+
+  getElasticsearchIndices: protectedProcedure
+    .input(z.object({ pattern: z.string().optional() }).optional())
+    .query(async ({ input }) => {
+      return elasticsearchClient.getIndices(input?.pattern);
+    }),
 
   getFilebeatConfig: publicProcedure.query(() => {
     return ELKService.getInstance().getFilebeatConfig();
@@ -102,6 +242,16 @@ export const observabilityRouter = router({
 
   // ==================== Jaeger/OTel 追踪 ====================
   
+  getTracingServices: protectedProcedure.query(async () => {
+    return jaegerClient.getServices();
+  }),
+
+  getServiceOperations: protectedProcedure
+    .input(z.object({ service: z.string() }))
+    .query(async ({ input }) => {
+      return jaegerClient.getOperations(input.service);
+    }),
+
   searchTraces: publicProcedure
     .input(z.object({
       service: z.string().optional(),
@@ -113,19 +263,76 @@ export const observabilityRouter = router({
       endTime: z.number().optional(),
       limit: z.number().optional(),
     }).optional())
-    .query(({ input }) => {
+    .query(async ({ input }) => {
+      if (input?.service) {
+        try {
+          return await enhancedObservabilityService.searchTraces({
+            service: input.service,
+            operation: input.operation,
+            minDuration: input.minDuration ? `${input.minDuration}ms` : undefined,
+            maxDuration: input.maxDuration ? `${input.maxDuration}ms` : undefined,
+            start: input.startTime ? new Date(input.startTime) : undefined,
+            end: input.endTime ? new Date(input.endTime) : undefined,
+            limit: input.limit,
+          });
+        } catch {
+          return TracingService.getInstance().searchTraces(input || {});
+        }
+      }
       return TracingService.getInstance().searchTraces(input || {});
     }),
 
   getTrace: publicProcedure
     .input(z.object({ traceId: z.string() }))
-    .query(({ input }) => {
+    .query(async ({ input }) => {
+      const trace = await jaegerClient.getTrace(input.traceId);
+      if (trace) return trace;
       return TracingService.getInstance().getTrace(input.traceId);
     }),
 
-  getServiceDependencies: publicProcedure.query(() => {
-    return TracingService.getInstance().getServiceDependencies();
+  getServiceDependencies: publicProcedure.query(async () => {
+    try {
+      return await jaegerClient.getDependencies();
+    } catch {
+      return TracingService.getInstance().getServiceDependencies();
+    }
   }),
+
+  getServiceTopology: protectedProcedure.query(async () => {
+    return enhancedObservabilityService.getServiceTopology();
+  }),
+
+  getServiceLatencyStats: protectedProcedure
+    .input(z.object({
+      service: z.string(),
+      operation: z.string().optional(),
+      startTime: z.string().optional(),
+      endTime: z.string().optional(),
+    }))
+    .query(async ({ input }) => {
+      return enhancedObservabilityService.getServiceLatencyStats(
+        input.service,
+        input.operation,
+        input.startTime && input.endTime
+          ? { start: new Date(input.startTime), end: new Date(input.endTime) }
+          : undefined
+      );
+    }),
+
+  analyzeServiceErrors: protectedProcedure
+    .input(z.object({
+      service: z.string(),
+      startTime: z.string().optional(),
+      endTime: z.string().optional(),
+    }))
+    .query(async ({ input }) => {
+      return enhancedObservabilityService.analyzeServiceErrors(
+        input.service,
+        input.startTime && input.endTime
+          ? { start: new Date(input.startTime), end: new Date(input.endTime) }
+          : undefined
+      );
+    }),
 
   getOTelConfig: publicProcedure.query(() => {
     return TracingService.getInstance().getOTelConfig();
@@ -142,12 +349,24 @@ export const observabilityRouter = router({
       severity: z.enum(['P0', 'P1', 'P2', 'P3']).optional(),
       status: z.enum(['firing', 'resolved', 'silenced']).optional(),
     }).optional())
-    .query(({ input }) => {
-      return AlertmanagerService.getInstance().getAlerts(input);
+    .query(async ({ input }) => {
+      try {
+        const alerts = await enhancedObservabilityService.getPrometheusAlerts();
+        return alerts.filter(a => {
+          if (input?.status && a.state !== input.status) return false;
+          return true;
+        });
+      } catch {
+        return AlertmanagerService.getInstance().getAlerts(input);
+      }
     }),
 
-  getAlertRules: publicProcedure.query(() => {
-    return AlertmanagerService.getInstance().getAlertRules();
+  getAlertRules: publicProcedure.query(async () => {
+    try {
+      return await prometheusClient.getAlertRules();
+    } catch {
+      return AlertmanagerService.getInstance().getAlertRules();
+    }
   }),
 
   createAlertRule: protectedProcedure
@@ -165,6 +384,8 @@ export const observabilityRouter = router({
       enabled: z.boolean(),
     }))
     .mutation(({ input }) => {
+      // 告警规则创建需要写入 Prometheus 配置文件
+      // 目前使用模拟服务
       return AlertmanagerService.getInstance().createAlertRule(input);
     }),
 

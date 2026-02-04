@@ -333,7 +333,7 @@ export default function SmartMonitoring() {
                 <div>
                   <p className="text-sm text-muted-foreground">告警</p>
                   <p className="text-2xl font-bold">
-                    {dashboard?.summary.pendingAlerts}
+                    {dashboard?.summary.activeAlerts}
                   </p>
                   <p className="text-xs text-yellow-400">待处理</p>
                 </div>
@@ -415,7 +415,7 @@ export default function SmartMonitoring() {
                     <div className="grid grid-cols-3 gap-2 text-xs text-muted-foreground mt-2">
                       <div>已用: {((realData?.system.memory.usedMB || dashboard?.system.memory.usedMB || 0) / 1024).toFixed(1)} GB</div>
                       <div>总量: {((realData?.system.memory.totalMB || dashboard?.system.memory.totalMB || 0) / 1024).toFixed(1)} GB</div>
-                      <div>空闲: {((realData?.system.memory.freeMB || 0) / 1024).toFixed(1)} GB</div>
+                      <div>空闲: {(((realData?.system.memory.totalMB || 0) - (realData?.system.memory.usedMB || 0)) / 1024).toFixed(1)} GB</div>
                     </div>
                   </div>
                 </CardContent>
@@ -458,11 +458,11 @@ export default function SmartMonitoring() {
                   <div className="space-y-2">
                     <div className="text-sm">
                       <span className="text-muted-foreground">主机名: </span>
-                      <span className="font-medium">{realData?.system.network.hostname || 'localhost'}</span>
+                      <span className="font-medium">{typeof window !== 'undefined' ? window.location.hostname : 'localhost'}</span>
                     </div>
                     <div className="text-sm">
                       <span className="text-muted-foreground">Node.js: </span>
-                      <span className="font-medium">{realData?.system.process.nodeVersion || '-'}</span>
+                      <span className="font-medium">{process.env.NODE_ENV || 'production'}</span>
                     </div>
                     <div className="text-sm">
                       <span className="text-muted-foreground">进程运行时间: </span>

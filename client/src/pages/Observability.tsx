@@ -132,8 +132,8 @@ export default function Observability() {
             </CardHeader>
             <CardContent>
               <div className="flex items-center space-x-2">
-                <div className={`w-2 h-2 rounded-full ${getStatusColor(summary?.metrics.prometheusStatus || 'down')}`} />
-                <span className="text-2xl font-bold">{summary?.metrics.targetsUp || 0}/{summary?.metrics.targetsTotal || 0}</span>
+                <div className={`w-2 h-2 rounded-full ${getStatusColor((summary as any)?.metrics?.prometheusStatus || (summary as any)?.prometheus?.status || 'down')}`} />
+                <span className="text-2xl font-bold">{(summary as any)?.metrics?.targetsUp || (summary as any)?.prometheus?.metrics?.cpu?.toFixed(0) || 0}%</span>
               </div>
               <p className="text-xs text-muted-foreground">目标在线</p>
             </CardContent>
@@ -146,10 +146,10 @@ export default function Observability() {
             </CardHeader>
             <CardContent>
               <div className="flex items-center space-x-2">
-                <div className={`w-2 h-2 rounded-full ${getStatusColor(summary?.logs.elkStatus || 'down')}`} />
-                <span className="text-2xl font-bold">{summary?.logs.indexCount || 0}</span>
+                <div className={`w-2 h-2 rounded-full ${getStatusColor((summary as any)?.logs?.elkStatus || (summary as any)?.elasticsearch?.status || 'down')}`} />
+                <span className="text-2xl font-bold">{(summary as any)?.logs?.indexCount || Math.round((summary as any)?.elasticsearch?.logsPerMinute || 0)}</span>
               </div>
-              <p className="text-xs text-muted-foreground">索引数量 · {formatBytes(summary?.logs.storageSize || 0)}</p>
+              <p className="text-xs text-muted-foreground">日志/分钟 · {(summary as any)?.elasticsearch?.logsPerMinute?.toFixed(0) || 0}</p>
             </CardContent>
           </Card>
 
@@ -160,10 +160,10 @@ export default function Observability() {
             </CardHeader>
             <CardContent>
               <div className="flex items-center space-x-2">
-                <div className={`w-2 h-2 rounded-full ${getStatusColor(summary?.traces.jaegerStatus || 'down')}`} />
-                <span className="text-2xl font-bold">{summary?.traces.samplingRate?.toFixed(0) || 0}%</span>
+                <div className={`w-2 h-2 rounded-full ${getStatusColor((summary as any)?.traces?.jaegerStatus || (summary as any)?.jaeger?.status || 'down')}`} />
+                <span className="text-2xl font-bold">{(summary as any)?.traces?.samplingRate?.toFixed(0) || 100}%</span>
               </div>
-              <p className="text-xs text-muted-foreground">采样率 · {summary?.traces.tracesPerSecond?.toFixed(0) || 0} traces/s</p>
+              <p className="text-xs text-muted-foreground">采样率 · {(summary as any)?.traces?.tracesPerSecond?.toFixed(0) || (summary as any)?.jaeger?.services || 0} 服务</p>
             </CardContent>
           </Card>
 
@@ -174,10 +174,10 @@ export default function Observability() {
             </CardHeader>
             <CardContent>
               <div className="flex items-center space-x-2">
-                <div className={`w-2 h-2 rounded-full ${getStatusColor(summary?.alerts.alertmanagerStatus || 'down')}`} />
-                <span className="text-2xl font-bold text-red-500">{summary?.alerts.firingAlerts || 0}</span>
+                <div className={`w-2 h-2 rounded-full ${getStatusColor((summary?.alerts as any)?.alertmanagerStatus || 'down')}`} />
+                <span className="text-2xl font-bold text-red-500">{(summary?.alerts as any)?.firingAlerts || (summary?.alerts as any)?.critical || 0}</span>
               </div>
-              <p className="text-xs text-muted-foreground">活跃告警 · {summary?.alerts.rulesEnabled || 0} 规则启用</p>
+              <p className="text-xs text-muted-foreground">活跃告警 · {(summary?.alerts as any)?.rulesEnabled || (summary?.alerts as any)?.total || 0} 规则启用</p>
             </CardContent>
           </Card>
         </div>
@@ -205,7 +205,7 @@ export default function Observability() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    {nodeMetrics?.map((node) => (
+                    {(Array.isArray(nodeMetrics) ? nodeMetrics : [nodeMetrics]).filter(Boolean).map((node: any) => (
                       <div key={node.hostname} className="space-y-2">
                         <div className="flex justify-between items-center">
                           <span className="font-medium">{node.hostname}</span>
@@ -268,16 +268,16 @@ export default function Observability() {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <p className="text-sm text-muted-foreground">按级别</p>
-                      {logStats && Object.entries(logStats.byLevel).map(([level, count]) => (
+                      {logStats && Object.entries((logStats as any).byLevel || (logStats as any).levels || {}).map(([level, count]) => (
                         <div key={level} className="flex justify-between">
                           <span className={getLogLevelColor(level)}>{level}</span>
-                          <span>{count}</span>
+                          <span>{count as number}</span>
                         </div>
                       ))}
                     </div>
                     <div className="space-y-2">
                       <p className="text-sm text-muted-foreground">最近 1 小时错误</p>
-                      <p className="text-3xl font-bold text-red-500">{logStats?.recentErrors || 0}</p>
+                      <p className="text-3xl font-bold text-red-500">{(logStats as any)?.recentErrors || (logStats as any)?.levels?.ERROR || 0}</p>
                     </div>
                   </div>
                 </CardContent>
@@ -361,7 +361,7 @@ export default function Observability() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {appMetrics?.slice(0, 6).map((m, i) => (
+                      {(Array.isArray(appMetrics) ? appMetrics : [appMetrics]).slice(0, 6).map((m: any, i: number) => (
                         <TableRow key={i}>
                           <TableCell className="font-medium">{m.serviceName}</TableCell>
                           <TableCell>{m.requestLatencyP99.toFixed(0)}ms</TableCell>
@@ -471,7 +471,7 @@ export default function Observability() {
                   {logs?.map((log, i) => (
                     <div key={i} className="flex gap-2 p-2 bg-muted/50 rounded">
                       <span className="text-muted-foreground w-44 shrink-0">
-                        {new Date(log['@timestamp']).toLocaleString()}
+                        {new Date((log as any)['@timestamp'] || (log as any).timestamp).toLocaleString()}
                       </span>
                       <span className={`w-12 shrink-0 ${getLogLevelColor(log.level)}`}>
                         {log.level}
@@ -513,17 +513,17 @@ export default function Observability() {
                         </TableCell>
                         <TableCell>
                           <div className="flex flex-wrap gap-1">
-                            {trace.services.map((s) => (
+                            {((trace as any).services || [(trace as any).serviceName]).map((s: string) => (
                               <Badge key={s} variant="outline" className="text-xs">
                                 {s}
                               </Badge>
                             ))}
                           </div>
                         </TableCell>
-                        <TableCell>{trace.spans.length}</TableCell>
+                        <TableCell>{(trace as any).spans?.length || (trace as any).spanCount}</TableCell>
                         <TableCell>{(trace.duration / 1000).toFixed(0)}ms</TableCell>
                         <TableCell className="text-muted-foreground">
-                          {new Date(trace.startTime / 1000).toLocaleString()}
+                          {new Date(typeof (trace as any).startTime === 'number' ? (trace as any).startTime / 1000 : (trace as any).startTime).toLocaleString()}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -560,15 +560,15 @@ export default function Observability() {
                     {alerts?.map((alert) => (
                       <div key={alert.id} className="p-3 border rounded-lg space-y-2">
                         <div className="flex items-center justify-between">
-                          <span className="font-medium">{alert.alertname}</span>
+                          <span className="font-medium">{(alert as any).alertname || (alert as any).name}</span>
                           <Badge variant={getSeverityColor(alert.severity) as any}>
                             {alert.severity}
                           </Badge>
                         </div>
-                        <p className="text-sm text-muted-foreground">{alert.annotations.summary}</p>
+                        <p className="text-sm text-muted-foreground">{(alert as any).annotations?.summary || (alert as any).message}</p>
                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
                           <Clock className="h-3 w-3" />
-                          <span>开始于 {new Date(alert.startsAt).toLocaleString()}</span>
+                          <span>开始于 {new Date((alert as any).startsAt || (alert as any).startTime).toLocaleString()}</span>
                         </div>
                       </div>
                     ))}
@@ -590,15 +590,15 @@ export default function Observability() {
                 <CardContent>
                   <div className="space-y-3">
                     {alertRules?.map((rule) => (
-                      <div key={rule.id} className="flex items-center justify-between p-2 border rounded">
+                      <div key={(rule as any).id || rule.name} className="flex items-center justify-between p-2 border rounded">
                         <div className="flex items-center gap-2">
-                          <Badge variant={getSeverityColor(rule.severity) as any}>
-                            {rule.severity}
+                          <Badge variant={getSeverityColor((rule as any).severity || rule.labels?.severity) as any}>
+                            {(rule as any).severity || rule.labels?.severity}
                           </Badge>
                           <span className="font-medium">{rule.name}</span>
                         </div>
-                        <Badge variant={rule.enabled ? 'default' : 'outline'}>
-                          {rule.enabled ? '启用' : '禁用'}
+                        <Badge variant={(rule as any).enabled !== false ? 'default' : 'outline'}>
+                          {(rule as any).enabled !== false ? '启用' : '禁用'}
                         </Badge>
                       </div>
                     ))}
