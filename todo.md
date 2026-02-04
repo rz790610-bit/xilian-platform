@@ -828,3 +828,22 @@
 ### 部署文档
 - [x] 创建部署指南文档 (DEPLOYMENT_GUIDE.md)
 - [x] 创建快速开始 README (README.md)
+
+
+## 数据库初始化脚本（2026-02-04）
+
+### MySQL 初始化
+- [x] 创建表结构初始化脚本 (01-schema.sql - 30+ 表)
+- [x] 创建初始数据填充脚本 (02-seed-data.sql - 用户/设备/传感器/模型/规则/备件)
+- [x] 创建索引和约束脚本 (已集成到 schema.sql)
+
+### ClickHouse 初始化
+- [x] 创建时序表结构脚本 (01-schema.sql - 10+ 表)
+- [x] 创建物化视图脚本 (分钟/小时/日级聚合)
+
+### Docker 集成
+- [x] 更新 Docker Compose 配置 (已配置 init 目录挂载)
+- [x] 配置初始化脚本挂载
+- [x] 创建 Grafana 数据源配置
+- [x] 创建 Nginx 反向代理配置
+- [x] 创建数据库初始化检查脚本 (init-db.sh)
