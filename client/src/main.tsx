@@ -14,6 +14,13 @@ const redirectToLoginIfUnauthorized = (error: unknown) => {
   if (!(error instanceof TRPCClientError)) return;
   if (typeof window === "undefined") return;
 
+  // Skip redirect in local development (when SKIP_AUTH is enabled on server)
+  const isLocalDev = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+  if (isLocalDev) {
+    console.log("[Auth] Skipping redirect in local development");
+    return;
+  }
+
   const isUnauthorized = error.message === UNAUTHED_ERR_MSG;
 
   if (!isUnauthorized) return;

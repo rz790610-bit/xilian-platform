@@ -257,6 +257,25 @@ class SDKServer {
   }
 
   async authenticateRequest(req: Request): Promise<User> {
+    // Skip auth for local development
+    if (ENV.skipAuth) {
+      let localUser = await db.getUserByOpenId("local-dev-user");
+      if (!localUser) {
+        await db.upsertUser({
+          openId: "local-dev-user",
+          name: "本地开发用户",
+          email: "local@dev.local",
+          loginMethod: "local",
+          role: "admin",
+          lastSignedIn: new Date(),
+        });
+        localUser = await db.getUserByOpenId("local-dev-user");
+      }
+      if (localUser) {
+        return localUser;
+      }
+    }
+
     // Regular authentication flow
     const cookies = this.parseCookies(req.headers.cookie);
     const sessionCookie = cookies.get(COOKIE_NAME);
