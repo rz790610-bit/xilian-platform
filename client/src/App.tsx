@@ -43,6 +43,14 @@ import PipelineEditor from "./pages/PipelineEditor";
 import Infrastructure from "./pages/Infrastructure";
 import Observability from "./pages/Observability";
 import OpsDashboard from "./pages/OpsDashboard";
+
+// 新增模块页面
+import DeviceList from "./pages/device/DeviceList";
+import FalcoMonitor from "./pages/security/FalcoMonitor";
+import SecurityScanner from "./pages/security/SecurityScanner";
+import EdgeNodes from "./pages/edge/EdgeNodes";
+import ServiceMonitor from "./pages/services/ServiceMonitor";
+
 function Router() {
   // make sure to consider if you need authentication for certain routes
   return (
@@ -59,6 +67,12 @@ function Router() {
       <Route path="/pipeline/editor" component={PipelineEditor} />
       <Route path="/chat" component={AIChat} />
       <Route path="/docs" component={Documents} />
+      
+      {/* Device Management - 设备管理 */}
+      <Route path="/device/list" component={DeviceList} />
+      <Route path="/device/maintenance" component={DeviceList} />
+      <Route path="/device/alerts" component={DeviceList} />
+      <Route path="/device/kpi" component={DeviceList} />
       
       {/* Knowledge - 知识库 */}
       <Route path="/knowledge/manager" component={KnowledgeManager} />
@@ -93,6 +107,24 @@ function Router() {
       <Route path="/evolution/learning" component={ActiveLearning} />
       <Route path="/evolution/train" component={AutoTrain} />
       <Route path="/evolution/board" component={EvolutionBoard} />
+      
+      {/* Security Center - 安全中心 */}
+      <Route path="/security/falco" component={FalcoMonitor} />
+      <Route path="/security/scanner" component={SecurityScanner} />
+      <Route path="/security/vault" component={SecurityScanner} />
+      <Route path="/security/pki" component={SecurityScanner} />
+      
+      {/* Edge Computing - 边缘计算 */}
+      <Route path="/edge/nodes" component={EdgeNodes} />
+      <Route path="/edge/inference" component={EdgeNodes} />
+      <Route path="/edge/gateway" component={EdgeNodes} />
+      <Route path="/edge/tsn" component={EdgeNodes} />
+      
+      {/* Microservices - 微服务 */}
+      <Route path="/services/ingestion" component={ServiceMonitor} />
+      <Route path="/services/aggregator" component={ServiceMonitor} />
+      <Route path="/services/dispatcher" component={ServiceMonitor} />
+      <Route path="/services/performance" component={ServiceMonitor} />
       
       {/* Settings */}
       <Route path="/settings/resources" component={Settings} />

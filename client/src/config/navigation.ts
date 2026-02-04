@@ -26,6 +26,17 @@ export const navigationConfig: NavItem[] = [
     path: '/pipeline'
   },
   {
+    id: 'device-management',
+    label: '设备管理',
+    icon: '🔧',
+    children: [
+      { id: 'device-list', label: '设备列表', icon: '📋', path: '/device/list' },
+      { id: 'device-maintenance', label: '维护记录', icon: '🔨', path: '/device/maintenance' },
+      { id: 'device-alerts', label: '告警历史', icon: '🚨', path: '/device/alerts' },
+      { id: 'device-kpi', label: 'KPI 指标', icon: '📊', path: '/device/kpi' }
+    ]
+  },
+  {
     id: 'knowledge',
     label: '知识库',
     icon: '📚',
@@ -87,6 +98,39 @@ export const navigationConfig: NavItem[] = [
       { id: 'active-learning', label: '主动学习', icon: '🎯', path: '/evolution/learning' },
       { id: 'auto-train', label: '自动训练', icon: '⚡', path: '/evolution/train' },
       { id: 'evolution-board', label: '进化看板', icon: '📊', path: '/evolution/board' }
+    ]
+  },
+  {
+    id: 'security-center',
+    label: '安全中心',
+    icon: '🛡️',
+    children: [
+      { id: 'security-falco', label: 'Falco 监控', icon: '🔍', path: '/security/falco' },
+      { id: 'security-scanner', label: '安全扫描', icon: '🔬', path: '/security/scanner' },
+      { id: 'security-vault', label: '密钥管理', icon: '🔐', path: '/security/vault' },
+      { id: 'security-pki', label: 'PKI 证书', icon: '📜', path: '/security/pki' }
+    ]
+  },
+  {
+    id: 'edge-computing',
+    label: '边缘计算',
+    icon: '🌐',
+    children: [
+      { id: 'edge-nodes', label: '边缘节点', icon: '📡', path: '/edge/nodes' },
+      { id: 'edge-inference', label: '边缘推理', icon: '🧠', path: '/edge/inference' },
+      { id: 'edge-gateway', label: '边缘网关', icon: '🚪', path: '/edge/gateway' },
+      { id: 'edge-tsn', label: '5G TSN', icon: '📶', path: '/edge/tsn' }
+    ]
+  },
+  {
+    id: 'microservices',
+    label: '微服务',
+    icon: '🔗',
+    children: [
+      { id: 'service-ingestion', label: '数据摄入', icon: '📥', path: '/services/ingestion' },
+      { id: 'service-aggregator', label: '实时聚合', icon: '📊', path: '/services/aggregator' },
+      { id: 'service-dispatcher', label: '事件分发', icon: '📤', path: '/services/dispatcher' },
+      { id: 'service-performance', label: '性能模块', icon: '⚡', path: '/services/performance' }
     ]
   },
   {
