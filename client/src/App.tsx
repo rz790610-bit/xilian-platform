@@ -50,6 +50,7 @@ import FalcoMonitor from "./pages/security/FalcoMonitor";
 import SecurityScanner from "./pages/security/SecurityScanner";
 import EdgeNodes from "./pages/edge/EdgeNodes";
 import ServiceMonitor from "./pages/services/ServiceMonitor";
+import SmartMonitoring from "./pages/settings/SmartMonitoring";
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
@@ -137,6 +138,7 @@ function Router() {
       <Route path="/settings/infrastructure" component={Infrastructure} />
       <Route path="/settings/observability" component={Observability} />
       <Route path="/settings/ops" component={OpsDashboard} />
+      <Route path="/settings/monitoring" component={SmartMonitoring} />
       <Route path="/settings/models" component={Settings} />
       <Route path="/settings" component={Settings} />
       

@@ -18,6 +18,7 @@ import { infrastructureRouter } from "./infrastructure/infrastructureRouter";
 import { observabilityRouter } from "./observability/observabilityRouter";
 import { dataPipelineRouter } from "./dataPipeline/dataPipelineRouter";
 import { opsRouter } from "./ops/opsRouter";
+import { monitoringRouter } from "./monitoring/monitoringRouter";
 
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
@@ -80,6 +81,9 @@ export const appRouter = router({
 
   // 运维管理路由（仪表盘、自动化、边缘计算）
   ops: opsRouter,
+
+  // 智能监控路由
+  monitoring: monitoringRouter,
 });
 
 export type AppRouter = typeof appRouter;
