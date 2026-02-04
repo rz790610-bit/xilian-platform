@@ -513,3 +513,27 @@
 - [x] 实现告警静默管理
 - [x] 创建可观测性管理界面
 
+
+
+## 数据管道层实现
+
+### Airflow DAGs
+- [x] 创建 Airflow DAG 类型定义和管理服务
+- [x] 实现 daily_kg_optimization DAG（知识图谱去重合并社区摘要）
+- [x] 实现 weekly_vector_rebuild DAG（全量嵌入重建）
+- [x] 实现 model_retraining DAG（反馈清洗微调验证）
+- [x] 实现 backup DAG（增量 S3 验证）
+- [x] 创建 DAG 调度和执行 API
+
+### Kafka Connect
+- [x] 创建 Kafka Connect 类型定义和管理服务
+- [x] 实现 Debezium PostgreSQL CDC Source Connector
+- [x] 实现 Neo4j Sink Connector
+- [x] 实现 ClickHouse Sink Connector（传感器数据）
+- [x] 实现 Kafka Streams 清洗聚合处理（3个拓扑）
+- [x] 创建 Connector 管理 API
+
+### 管理界面
+- [x] 创建数据管道 API 路由
+- [x] 实现 DAG 状态监控 API
+- [x] 实现 Connector 配置和监控 API
