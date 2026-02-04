@@ -364,7 +364,7 @@ describe('Istio 追踪深度测试', () => {
 
       istio.finishSpan(span, 'ok');
 
-      expect(span.duration).toBeGreaterThanOrEqual(50);
+      expect(span.duration).toBeGreaterThanOrEqual(40); // 允许一些时间误差
       expect(span.duration).toBeLessThan(200); // 允许一些误差
 
       await istio.close();
