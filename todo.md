@@ -728,17 +728,18 @@
 ### 第三阶段：安全加固（第9-10周）
 
 #### HashiCorp Vault 集成
-- [ ] 部署 Vault 服务
-- [ ] 实现数据库凭证轮换
-- [ ] 实现 API 密钥管理
-- [ ] 实现 PKI 证书管理
-- [ ] 创建 VaultClient 服务
+- [x] 部署 Vault 服务（K8s StatefulSet + Agent Injector）
+- [x] 实现数据库凭证轮换（DatabaseCredentialManager）
+- [x] 实现 API 密钥管理（ApiKeyManager）
+- [x] 实现 PKI 证书管理（PKIManager）
+- [x] 创建 VaultClient 服务（28 tests passed）
 
 #### 安全扫描自动化
-- [ ] 集成 Trivy 依赖漏洞扫描
-- [ ] 集成 Trivy 容器镜像扫描
-- [ ] 集成 Semgrep 代码安全扫描
-- [ ] 集成 Gitleaks 密钥泄露检测
+- [x] 集成 Trivy 依赖漏洞扫描
+- [x] 集成 Trivy 容器镜像扫描
+- [x] 集成 Semgrep 代码安全扫描
+- [x] 集成 Gitleaks 密钥泄露检测
+- [x] 编写单元测试（33 tests passed）
 
 ### 第四阶段：运维增强（第11-12周）
 
