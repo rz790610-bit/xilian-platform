@@ -187,7 +187,7 @@ const DEFAULT_CONFIG: KongConfig = {
   },
 };
 
-// ============ 西联平台路由配置 ============
+// ============ PortAI Nexus路由配置 ============
 
 export const XILIAN_ROUTES: Route[] = [
   {
@@ -236,7 +236,7 @@ export const XILIAN_ROUTES: Route[] = [
   },
 ];
 
-// ============ 西联平台服务配置 ============
+// ============ PortAI Nexus服务配置 ============
 
 export const XILIAN_SERVICES: Service[] = [
   {
@@ -274,7 +274,7 @@ export const XILIAN_SERVICES: Service[] = [
   },
 ];
 
-// ============ 西联平台上游配置 ============
+// ============ PortAI Nexus上游配置 ============
 
 export const XILIAN_UPSTREAMS: Upstream[] = [
   {

@@ -49,7 +49,7 @@ const DEFAULT_CONFIG: KafkaConfig = {
   },
 };
 
-// 西联平台 Kafka 主题定义
+// PortAI Nexus Kafka 主题定义
 export const KAFKA_TOPICS = {
   // 传感器数据
   SENSOR_READINGS: 'xilian.sensor.readings',

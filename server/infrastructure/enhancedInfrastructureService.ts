@@ -1,5 +1,5 @@
 /**
- * 西联智能平台 - 增强版基础设施服务
+ * PortAI Nexus - 增强版基础设施服务
  * 整合 Kubernetes、Vault、ArgoCD 真实客户端
  */
 

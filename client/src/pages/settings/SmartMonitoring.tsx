@@ -1,5 +1,5 @@
 /**
- * 西联智能平台 - 智能监控页面
+ * PortAI Nexus - 智能监控页面
  * XiLian Intelligent Platform - Smart Monitoring Page
  * 
  * 真实功能版本 - 所有操作按钮均可执行真实操作

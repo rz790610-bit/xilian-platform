@@ -1,5 +1,5 @@
 /**
- * 西联智能平台 - 真实系统监控服务
+ * PortAI Nexus - 真实系统监控服务
  * XiLian Intelligent Platform - Real System Monitoring Service
  * 
  * 提供真实的数据库连接、系统资源、服务健康检查

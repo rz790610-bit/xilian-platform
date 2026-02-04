@@ -43,12 +43,12 @@ export function Sidebar() {
           "font-bold flex items-center gap-1.5",
           sidebarCollapsed ? "text-sm justify-center" : "text-sm"
         )}>
-          <span className="animate-float text-sm">⚡</span>
-          {!sidebarCollapsed && <span className="gradient-text">西联平台</span>}
+          <img src="https://files.manuscdn.com/user_upload_by_module/session_file/310519663271388233/dthcCVUTooiXlemp.png" alt="PortAI Nexus" className="w-6 h-6 object-contain" />
+          {!sidebarCollapsed && <span className="gradient-text">PortAI Nexus</span>}
         </h1>
         {!sidebarCollapsed && (
           <p className="text-[9px] text-muted-foreground mt-0.5 tracking-wider">
-            工业智能诊断系统
+            Industrial AI Platform
           </p>
         )}
       </div>

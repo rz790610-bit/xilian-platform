@@ -203,7 +203,7 @@ export default function Settings() {
   // 导出系统报告
   const handleExportReport = () => {
     const report = {
-      platform: '西联智能平台 v1.0.0',
+      platform: 'PortAI Nexus v1.0.0',
       hardware: 'Mac Studio M3 Ultra 512GB',
       timestamp: new Date().toISOString(),
       models: models.length,

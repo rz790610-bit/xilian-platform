@@ -1,5 +1,5 @@
 /**
- * 西联智能平台 - 智能监控服务
+ * PortAI Nexus - 智能监控服务
  * XiLian Intelligent Platform - Smart Monitoring Service
  * 
  * 监控平台的数据库、插件、引擎等全部资源
@@ -364,7 +364,7 @@ export class SmartMonitoringService {
         type: 'builtin',
         category: '数据处理',
         description: '智能日志分析和异常检测',
-        author: '西联智能',
+        author: 'PortAI',
         resources: {
           cpuPercent: Math.random() * 5 + 1,
           memoryMB: Math.floor(Math.random() * 100) + 50,
@@ -386,7 +386,7 @@ export class SmartMonitoringService {
         type: 'builtin',
         category: '数据质量',
         description: '数据格式和完整性验证',
-        author: '西联智能',
+        author: 'PortAI',
         resources: {
           cpuPercent: Math.random() * 3 + 0.5,
           memoryMB: Math.floor(Math.random() * 50) + 30,
@@ -408,7 +408,7 @@ export class SmartMonitoringService {
         type: 'builtin',
         category: '通知服务',
         description: '多渠道告警通知推送',
-        author: '西联智能',
+        author: 'PortAI',
         resources: {
           cpuPercent: Math.random() * 2 + 0.3,
           memoryMB: Math.floor(Math.random() * 30) + 20,
@@ -430,7 +430,7 @@ export class SmartMonitoringService {
         type: 'builtin',
         category: '数据处理',
         description: '数据格式转换和映射',
-        author: '西联智能',
+        author: 'PortAI',
         resources: {
           cpuPercent: Math.random() * 8 + 2,
           memoryMB: Math.floor(Math.random() * 150) + 80,
@@ -452,7 +452,7 @@ export class SmartMonitoringService {
         type: 'custom',
         category: '设备诊断',
         description: '基于 FFT 的振动信号分析',
-        author: '西联智能',
+        author: 'PortAI',
         resources: {
           cpuPercent: Math.random() * 15 + 5,
           memoryMB: Math.floor(Math.random() * 200) + 100,
@@ -474,7 +474,7 @@ export class SmartMonitoringService {
         type: 'custom',
         category: '预测分析',
         description: '设备故障预测和维护建议',
-        author: '西联智能',
+        author: 'PortAI',
         resources: {
           cpuPercent: Math.random() * 20 + 10,
           memoryMB: Math.floor(Math.random() * 300) + 150,

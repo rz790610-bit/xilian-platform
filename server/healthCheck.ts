@@ -114,7 +114,7 @@ const SYSTEM_SERVICES: ServiceConfig[] = [
     name: 'API服务',
     type: 'service',
     icon: '🌐',
-    description: '西联平台API服务',
+    description: 'PortAI NexusAPI服务',
     checkUrl: '/api/trpc/system.health',
     checkMethod: 'GET',
     checkTimeout: 3000,

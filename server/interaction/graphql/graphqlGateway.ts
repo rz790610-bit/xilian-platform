@@ -111,7 +111,7 @@ const DEFAULT_CONFIG: GraphQLGatewayConfig = {
   subscriptionEnabled: true,
 };
 
-// ============ 西联平台子图配置 ============
+// ============ PortAI Nexus子图配置 ============
 
 export const XILIAN_SUBGRAPHS: SubgraphConfig[] = [
   {

@@ -92,7 +92,7 @@ const MODE_CONFIG = {
     label: '智能对话',
     icon: <MessageSquare className="w-4 h-4" />,
     description: '通用 AI 对话，支持问答、分析、创作',
-    systemPrompt: `你是西联智能平台的 AI 助手，具备以下能力：
+    systemPrompt: `你是 PortAI Nexus 平台的 AI 助手，具备以下能力：
 1. 工业设备故障诊断和振动分析
 2. 技术问题解答和方案建议
 3. 数据分析和报告生成

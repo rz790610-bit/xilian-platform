@@ -1,6 +1,6 @@
 /**
  * Rust 模块桥接层
- * 西联智能平台 - TypeScript 与 Rust 高性能模块的桥接
+ * PortAI Nexus - TypeScript 与 Rust 高性能模块的桥接
  * 
  * 本模块提供 TypeScript 接口来调用 Rust 编写的高性能计算模块。
  * 在 Rust 模块编译为 WASM 或 Node.js 原生模块后，可以通过此接口调用。

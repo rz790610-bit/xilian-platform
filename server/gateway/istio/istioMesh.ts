@@ -290,7 +290,7 @@ const DEFAULT_CONFIG: IstioConfig = {
   },
 };
 
-// ============ 西联平台 VirtualService 配置 ============
+// ============ PortAI Nexus VirtualService 配置 ============
 
 export const XILIAN_VIRTUAL_SERVICES: VirtualService[] = [
   {
@@ -335,7 +335,7 @@ export const XILIAN_VIRTUAL_SERVICES: VirtualService[] = [
   },
 ];
 
-// ============ 西联平台 DestinationRule 配置 ============
+// ============ PortAI Nexus DestinationRule 配置 ============
 
 export const XILIAN_DESTINATION_RULES: DestinationRule[] = [
   {
@@ -383,7 +383,7 @@ export const XILIAN_DESTINATION_RULES: DestinationRule[] = [
   },
 ];
 
-// ============ 西联平台 PeerAuthentication 配置 ============
+// ============ PortAI Nexus PeerAuthentication 配置 ============
 
 export const XILIAN_PEER_AUTH: PeerAuthentication[] = [
   {

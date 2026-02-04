@@ -271,7 +271,7 @@ export const DEFAULT_INTERACTION: InteractionConfig = {
   },
 };
 
-// ============ 西联平台节点样式 ============
+// ============ PortAI Nexus节点样式 ============
 
 export const XILIAN_NODE_STYLES: NodeStyleConfig[] = [
   {
@@ -384,7 +384,7 @@ export const XILIAN_RELATIONSHIP_STYLES: RelationshipStyleConfig[] = [
   },
 ];
 
-// ============ 西联平台视角配置 ============
+// ============ PortAI Nexus视角配置 ============
 
 export const XILIAN_PERSPECTIVES: Perspective[] = [
   {

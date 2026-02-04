@@ -1,5 +1,5 @@
 /**
- * 西联智能平台 - 增强版可观测性服务
+ * PortAI Nexus - 增强版可观测性服务
  * 整合 Prometheus、Elasticsearch、Jaeger 真实客户端
  */
 

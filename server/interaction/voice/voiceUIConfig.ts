@@ -183,7 +183,7 @@ export const DEFAULT_LANGUAGES: SupportedLanguage[] = [
   { code: 'ko-KR', name: 'Korean', nativeName: '한국어', whisperCode: 'ko', ttsVoice: 'ko-KR-SunHiNeural' },
 ];
 
-// ============ 西联平台语音命令 ============
+// ============ PortAI Nexus语音命令 ============
 
 export const XILIAN_VOICE_COMMANDS: VoiceCommand[] = [
   // 设备查询命令

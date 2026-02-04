@@ -190,7 +190,7 @@ export interface MobileComponent {
 
 export const DEFAULT_APP_INFO: AppInfo = {
   name: 'xilian-mobile',
-  displayName: '西联智能',
+  displayName: 'PortAI',
   bundleId: 'com.xilian.mobile',
   version: '1.0.0',
   buildNumber: 1,
@@ -311,7 +311,7 @@ export const DEFAULT_NATIVE_CONFIG: NativeFeatureConfig = {
   },
 };
 
-// ============ 西联平台移动端屏幕配置 ============
+// ============ PortAI Nexus移动端屏幕配置 ============
 
 export const XILIAN_MOBILE_SCREENS: MobileScreen[] = [
   {

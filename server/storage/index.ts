@@ -1,7 +1,7 @@
 /**
  * 存储层统一导出
  * 
- * 西联智能平台存储层架构：
+ * PortAI Nexus存储层架构：
  * - ClickHouse: 时序数据存储（3节点2副本）
  * - PostgreSQL: 关系数据存储（Patroni HA）
  * - Neo4j: 图数据存储（Causal Cluster）

@@ -266,7 +266,7 @@ export const DEFAULT_SECURITY: SecurityConfig = {
   },
 };
 
-// ============ 西联平台路由配置 ============
+// ============ PortAI Nexus路由配置 ============
 
 export const XILIAN_ROUTES: RouteConfig[] = [
   {

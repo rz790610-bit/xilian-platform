@@ -1,6 +1,6 @@
 /**
  * 设备管理 CRUD API tRPC 路由
- * 西联智能平台 - 完整的设备生命周期管理 API
+ * PortAI Nexus - 完整的设备生命周期管理 API
  */
 
 import { z } from 'zod';
