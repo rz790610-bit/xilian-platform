@@ -39,6 +39,12 @@ function calcPercent(used: number, total: number): number {
 export default function Infrastructure() {
   const toast = useToast();
   const [activeTab, setActiveTab] = useState('cluster');
+  const [showCreatePolicyDialog, setShowCreatePolicyDialog] = useState(false);
+  const [newPolicy, setNewPolicy] = useState({
+    name: '',
+    namespace: 'default',
+    type: 'ingress' as 'ingress' | 'egress' | 'both',
+  });
 
   // tRPC 查询
   const { data: summary, refetch: refetchSummary } = trpc.infrastructure.getSummary.useQuery();
@@ -57,11 +63,67 @@ export default function Infrastructure() {
   const { data: pipelines } = trpc.infrastructure.getCicdPipelines.useQuery();
   const { data: argoCdApps } = trpc.infrastructure.getArgoCdApps.useQuery();
 
+  // Mutations
+  const createNetworkPolicyMutation = trpc.infrastructure.createNetworkPolicy.useMutation({
+    onSuccess: () => {
+      toast.success('网络策略已创建');
+      setShowCreatePolicyDialog(false);
+      setNewPolicy({ name: '', namespace: 'default', type: 'ingress' });
+    },
+    onError: (error) => {
+      toast.error(`创建失败: ${error.message}`);
+    }
+  });
+
+  const deleteNetworkPolicyMutation = trpc.infrastructure.deleteNetworkPolicy.useMutation({
+    onSuccess: () => {
+      toast.success('网络策略已删除');
+    },
+    onError: (error) => {
+      toast.error(`删除失败: ${error.message}`);
+    }
+  });
+
+  const syncArgoCdAppMutation = trpc.infrastructure.syncArgoCdApp.useMutation({
+    onSuccess: () => {
+      toast.success('ArgoCD 应用已同步');
+    },
+    onError: (error) => {
+      toast.error(`同步失败: ${error.message}`);
+    }
+  });
+
+  const toggleRunnerMutation = trpc.infrastructure.toggleRunner.useMutation({
+    onSuccess: () => {
+      toast.success('Runner 状态已更新');
+    },
+    onError: (error) => {
+      toast.error(`更新失败: ${error.message}`);
+    }
+  });
+
   // 刷新所有数据
   const handleRefresh = () => {
     refetchSummary();
     refetchNodes();
     toast.success('数据已刷新');
+  };
+
+  // 创建网络策略
+  const handleCreatePolicy = () => {
+    if (!newPolicy.name) {
+      toast.error('请输入策略名称');
+      return;
+    }
+    createNetworkPolicyMutation.mutate({
+      name: newPolicy.name,
+      namespace: newPolicy.namespace,
+      type: newPolicy.type,
+      podSelector: {},
+      ingressRules: [],
+      egressRules: [],
+      enabled: true,
+    });
   };
 
   const cluster = summary?.cluster;
@@ -290,7 +352,7 @@ export default function Infrastructure() {
                   <div>
                     <Shield className="w-12 h-12 mx-auto mb-2 opacity-50" />
                     <p>暂无网络策略</p>
-                    <Button variant="default" size="sm" className="mt-4">
+                    <Button variant="default" size="sm" className="mt-4" onClick={() => setShowCreatePolicyDialog(true)}>
                       <Plus className="w-4 h-4 mr-2" />
                       创建策略
                     </Button>
@@ -666,6 +728,57 @@ export default function Infrastructure() {
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* 创建网络策略对话框 */}
+      <Dialog open={showCreatePolicyDialog} onOpenChange={setShowCreatePolicyDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>创建网络策略</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">策略名称</label>
+              <Input
+                value={newPolicy.name}
+                onChange={(e) => setNewPolicy(prev => ({ ...prev, name: e.target.value }))}
+                placeholder="输入策略名称"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">命名空间</label>
+              <Input
+                value={newPolicy.namespace}
+                onChange={(e) => setNewPolicy(prev => ({ ...prev, namespace: e.target.value }))}
+                placeholder="default"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">策略类型</label>
+              <Select
+                value={newPolicy.type}
+                onValueChange={(value: 'ingress' | 'egress' | 'both') => setNewPolicy(prev => ({ ...prev, type: value }))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ingress">入站策略 (Ingress)</SelectItem>
+                  <SelectItem value="egress">出站策略 (Egress)</SelectItem>
+                  <SelectItem value="both">双向策略</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCreatePolicyDialog(false)}>
+              取消
+            </Button>
+            <Button onClick={handleCreatePolicy} disabled={createNetworkPolicyMutation.isPending}>
+              {createNetworkPolicyMutation.isPending ? '创建中...' : '创建'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </MainLayout>
   );
 }

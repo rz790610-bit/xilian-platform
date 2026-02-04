@@ -61,6 +61,43 @@ export default function OpsDashboard() {
   const { data: edgeModels } = trpc.ops.listEdgeModels.useQuery();
   const { data: edgeGateways } = trpc.ops.listEdgeGateways.useQuery();
 
+  // Mutations
+  const triggerScalingMutation = trpc.ops.triggerScaling.useMutation({
+    onSuccess: () => {
+      alert('扩缩容操作已触发');
+    },
+    onError: (error) => {
+      alert(`操作失败: ${error.message}`);
+    }
+  });
+
+  const triggerHealingMutation = trpc.ops.triggerHealing.useMutation({
+    onSuccess: () => {
+      alert('自愈操作已触发');
+    },
+    onError: (error) => {
+      alert(`操作失败: ${error.message}`);
+    }
+  });
+
+  const triggerBackupMutation = trpc.ops.triggerBackup.useMutation({
+    onSuccess: () => {
+      alert('备份操作已触发');
+    },
+    onError: (error) => {
+      alert(`操作失败: ${error.message}`);
+    }
+  });
+
+  const triggerRollbackMutation = trpc.ops.triggerRollback.useMutation({
+    onSuccess: () => {
+      alert('回滚操作已触发');
+    },
+    onError: (error) => {
+      alert(`操作失败: ${error.message}`);
+    }
+  });
+
   const handleRefresh = async () => {
     setRefreshing(true);
     await Promise.all([
@@ -71,6 +108,31 @@ export default function OpsDashboard() {
       refetchSecurity(),
     ]);
     setRefreshing(false);
+  };
+
+  // 操作处理函数
+  const handleTriggerScaling = (policyId: string, targetReplicas: number) => {
+    if (confirm(`确定要执行扩缩容操作吗？目标副本数: ${targetReplicas}`)) {
+      triggerScalingMutation.mutate({ policyId, targetReplicas });
+    }
+  };
+
+  const handleTriggerHealing = (ruleId: string, target: string) => {
+    if (confirm(`确定要触发自愈操作吗？目标: ${target}`)) {
+      triggerHealingMutation.mutate({ ruleId, target });
+    }
+  };
+
+  const handleTriggerBackup = (policyId: string) => {
+    if (confirm('确定要立即执行备份吗？')) {
+      triggerBackupMutation.mutate({ policyId });
+    }
+  };
+
+  const handleTriggerRollback = (policyId: string, targetRevision: number) => {
+    if (confirm(`确定要回滚到版本 ${targetRevision} 吗？`)) {
+      triggerRollbackMutation.mutate({ policyId, targetRevision, reason: '手动回滚' });
+    }
   };
 
   const formatBytes = (bytes: number) => {
