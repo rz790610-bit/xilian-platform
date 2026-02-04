@@ -788,3 +788,8 @@
 - [x] 创建边缘推理服务部署配置（DaemonSet + Deployment + HPA）
 - [x] 创建边缘网关部署配置（MQTT/OPC-UA/Modbus/HTTP）
 - [x] 创建 TSN 控制器部署配置（PTP/QBV/QBU/CBS + 5G URLLC）
+
+## Bug 修复（2026-02-04）
+
+### 数据流监控页面
+- [x] 修复数据流监控页面缺少左侧栏的问题（添加 MainLayout 包装）

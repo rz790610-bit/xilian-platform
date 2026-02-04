@@ -29,6 +29,7 @@ import {
   Cpu,
   Database
 } from 'lucide-react';
+import { MainLayout } from '@/components/layout/MainLayout';
 
 export default function DataStream() {
   // 使用 sonner toast
@@ -110,12 +111,13 @@ export default function DataStream() {
   };
 
   return (
-    <div className="container py-6 space-y-6">
+    <MainLayout title="数据流监控">
+    <div className="space-y-6">
       {/* 页面标题 */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">数据流监控</h1>
-          <p className="text-muted-foreground">实时监控事件总线、流处理和传感器数据</p>
+          <h1 className="text-xl font-bold">数据流监控</h1>
+          <p className="text-sm text-muted-foreground">实时监控事件总线、流处理和传感器数据</p>
         </div>
         <div className="flex items-center gap-2">
           <Select
@@ -645,6 +647,7 @@ export default function DataStream() {
           </Card>
         </TabsContent>
       </Tabs>
-    </div>
+      </div>
+    </MainLayout>
   );
 }
