@@ -1,0 +1,305 @@
+---
+# 边缘推理服务 Kubernetes 部署配置
+# 支持 TensorRT-LLM 推理、GPU 加速、多节点部署
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: edge-inference
+  labels:
+    app.kubernetes.io/name: edge-inference
+    app.kubernetes.io/part-of: xilian-platform
+---
+# ConfigMap - 边缘推理配置
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: edge-inference-config
+  namespace: edge-inference
+data:
+  config.yaml: |
+    server:
+      host: "0.0.0.0"
+      port: 8080
+      grpc_port: 50051
+      
+    inference:
+      # TensorRT-LLM 配置
+      tensorrt:
+        enabled: true
+        precision: "fp16"
+        max_batch_size: 32
+        max_input_len: 2048
+        max_output_len: 512
+        
+      # 模型缓存
+      cache:
+        enabled: true
+        max_size_gb: 10
+        eviction_policy: "lru"
+        
+      # 负载均衡
+      load_balancing:
+        strategy: "round_robin"
+        health_check_interval: 10s
+        
+    monitoring:
+      prometheus:
+        enabled: true
+        port: 9090
+      
+    logging:
+      level: "info"
+      format: "json"
+---
+# Secret - 边缘推理密钥
+apiVersion: v1
+kind: Secret
+metadata:
+  name: edge-inference-secrets
+  namespace: edge-inference
+type: Opaque
+stringData:
+  MODEL_REGISTRY_TOKEN: "${MODEL_REGISTRY_TOKEN}"
+  S3_ACCESS_KEY: "${S3_ACCESS_KEY}"
+  S3_SECRET_KEY: "${S3_SECRET_KEY}"
+---
+# DaemonSet - 边缘推理节点代理
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: edge-inference-agent
+  namespace: edge-inference
+  labels:
+    app: edge-inference-agent
+spec:
+  selector:
+    matchLabels:
+      app: edge-inference-agent
+  template:
+    metadata:
+      labels:
+        app: edge-inference-agent
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+    spec:
+      nodeSelector:
+        node-role.kubernetes.io/edge: "true"
+      tolerations:
+        - key: "nvidia.com/gpu"
+          operator: "Exists"
+          effect: "NoSchedule"
+        - key: "edge"
+          operator: "Exists"
+          effect: "NoSchedule"
+      containers:
+        - name: inference-agent
+          image: xilian/edge-inference-agent:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+              name: http
+            - containerPort: 50051
+              name: grpc
+            - containerPort: 9090
+              name: metrics
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+          envFrom:
+            - secretRef:
+                name: edge-inference-secrets
+          resources:
+            requests:
+              cpu: "2"
+              memory: "4Gi"
+              nvidia.com/gpu: "1"
+            limits:
+              cpu: "8"
+              memory: "16Gi"
+              nvidia.com/gpu: "1"
+          volumeMounts:
+            - name: config
+              mountPath: /etc/edge-inference
+            - name: model-cache
+              mountPath: /var/cache/models
+            - name: nvidia-driver
+              mountPath: /usr/local/nvidia
+              readOnly: true
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 5
+      volumes:
+        - name: config
+          configMap:
+            name: edge-inference-config
+        - name: model-cache
+          hostPath:
+            path: /var/cache/edge-models
+            type: DirectoryOrCreate
+        - name: nvidia-driver
+          hostPath:
+            path: /usr/local/nvidia
+            type: Directory
+---
+# Deployment - 边缘推理控制器
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: edge-inference-controller
+  namespace: edge-inference
+  labels:
+    app: edge-inference-controller
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: edge-inference-controller
+  template:
+    metadata:
+      labels:
+        app: edge-inference-controller
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app: edge-inference-controller
+                topologyKey: kubernetes.io/hostname
+      containers:
+        - name: controller
+          image: xilian/edge-inference-controller:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+              name: http
+            - containerPort: 9090
+              name: metrics
+          env:
+            - name: KUBERNETES_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          envFrom:
+            - secretRef:
+                name: edge-inference-secrets
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "512Mi"
+            limits:
+              cpu: "2"
+              memory: "2Gi"
+          volumeMounts:
+            - name: config
+              mountPath: /etc/edge-inference
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+        - name: config
+          configMap:
+            name: edge-inference-config
+---
+# Service - 边缘推理控制器服务
+apiVersion: v1
+kind: Service
+metadata:
+  name: edge-inference-controller
+  namespace: edge-inference
+  labels:
+    app: edge-inference-controller
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8080
+      targetPort: 8080
+      name: http
+    - port: 9090
+      targetPort: 9090
+      name: metrics
+  selector:
+    app: edge-inference-controller
+---
+# HPA - 边缘推理控制器自动扩缩容
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: edge-inference-controller-hpa
+  namespace: edge-inference
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: edge-inference-controller
+  minReplicas: 2
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+---
+# PodDisruptionBudget - 边缘推理控制器可用性保障
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: edge-inference-controller-pdb
+  namespace: edge-inference
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: edge-inference-controller
+---
+# ServiceMonitor - Prometheus 监控
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: edge-inference-monitor
+  namespace: edge-inference
+  labels:
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      app: edge-inference-controller
+  endpoints:
+    - port: metrics
+      interval: 15s
+      path: /metrics

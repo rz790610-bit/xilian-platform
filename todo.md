@@ -761,3 +761,30 @@
 - [x] 部署边缘网关（EdgeGatewayService）
 - [x] 配置 5G TSN 低延迟通信（TSNService）
 - [x] 编写单元测试（33 tests passed）
+
+
+## 运维模块集成（2026-02-04）
+
+### 前端 UI 页面
+- [ ] 创建运维仪表盘主页面
+- [ ] 创建集群概览仪表盘组件
+- [ ] 创建存储监控仪表盘组件
+- [ ] 创建数据流监控仪表盘组件
+- [ ] 创建 API 网关仪表盘组件
+- [ ] 创建安全态势仪表盘组件### 前端 UI 页面
+- [x] 创建运维仪表盘页面（OpsDashboard.tsx - 1400+ 行）
+- [x] 集成到现有可观测性管理界面
+
+### tRPC 路由集成
+- [x] 创建仪表盘 tRPC 路由
+- [x] 创建自动扩缩容 tRPC 路由
+- [x] 创建故障自愈 tRPC 路由
+- [x] 创建备份恢复 tRPC 路由
+- [x] 创建版本回滚 tRPC 路由
+- [x] 创建边缘计算 tRPC 路由
+- [x] 编写单元测试（24 tests passed）
+
+### K8s 部署配置
+- [x] 创建边缘推理服务部署配置（DaemonSet + Deployment + HPA）
+- [x] 创建边缘网关部署配置（MQTT/OPC-UA/Modbus/HTTP）
+- [x] 创建 TSN 控制器部署配置（PTP/QBV/QBU/CBS + 5G URLLC）

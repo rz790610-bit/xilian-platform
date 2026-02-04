@@ -1,0 +1,338 @@
+---
+# 边缘网关 Kubernetes 部署配置
+# 支持 MQTT、OPC-UA、Modbus、HTTP 协议
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: edge-gateway
+  labels:
+    app.kubernetes.io/name: edge-gateway
+    app.kubernetes.io/part-of: xilian-platform
+---
+# ConfigMap - 边缘网关配置
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: edge-gateway-config
+  namespace: edge-gateway
+data:
+  config.yaml: |
+    server:
+      host: "0.0.0.0"
+      http_port: 8080
+      mqtt_port: 1883
+      mqtts_port: 8883
+      opcua_port: 4840
+      modbus_port: 502
+      
+    protocols:
+      mqtt:
+        enabled: true
+        max_connections: 10000
+        max_message_size: 1048576
+        keep_alive: 60
+        qos_levels: [0, 1, 2]
+        
+      opcua:
+        enabled: true
+        security_mode: "SignAndEncrypt"
+        security_policy: "Basic256Sha256"
+        max_sessions: 1000
+        
+      modbus:
+        enabled: true
+        mode: "tcp"
+        timeout: 5000
+        retries: 3
+        
+      http:
+        enabled: true
+        max_connections: 5000
+        timeout: 30000
+        
+    buffer:
+      enabled: true
+      max_size_mb: 512
+      flush_interval: 1000
+      persistence: true
+      
+    upstream:
+      kafka:
+        enabled: true
+        brokers: "kafka-cluster:9092"
+        topic_prefix: "edge-data"
+        
+      http:
+        enabled: true
+        endpoint: "http://data-ingestion:8080/api/v1/data"
+        
+    monitoring:
+      prometheus:
+        enabled: true
+        port: 9090
+        
+    logging:
+      level: "info"
+      format: "json"
+---
+# Secret - 边缘网关密钥
+apiVersion: v1
+kind: Secret
+metadata:
+  name: edge-gateway-secrets
+  namespace: edge-gateway
+type: Opaque
+stringData:
+  MQTT_USERNAME: "${MQTT_USERNAME}"
+  MQTT_PASSWORD: "${MQTT_PASSWORD}"
+  OPCUA_CERT: "${OPCUA_CERT}"
+  OPCUA_KEY: "${OPCUA_KEY}"
+  KAFKA_SASL_USERNAME: "${KAFKA_SASL_USERNAME}"
+  KAFKA_SASL_PASSWORD: "${KAFKA_SASL_PASSWORD}"
+---
+# DaemonSet - 边缘网关代理
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: edge-gateway-agent
+  namespace: edge-gateway
+  labels:
+    app: edge-gateway-agent
+spec:
+  selector:
+    matchLabels:
+      app: edge-gateway-agent
+  template:
+    metadata:
+      labels:
+        app: edge-gateway-agent
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+    spec:
+      nodeSelector:
+        node-role.kubernetes.io/edge: "true"
+      tolerations:
+        - key: "edge"
+          operator: "Exists"
+          effect: "NoSchedule"
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      containers:
+        - name: gateway-agent
+          image: xilian/edge-gateway-agent:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+              name: http
+              hostPort: 8080
+            - containerPort: 1883
+              name: mqtt
+              hostPort: 1883
+            - containerPort: 8883
+              name: mqtts
+              hostPort: 8883
+            - containerPort: 4840
+              name: opcua
+              hostPort: 4840
+            - containerPort: 502
+              name: modbus
+              hostPort: 502
+            - containerPort: 9090
+              name: metrics
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+          envFrom:
+            - secretRef:
+                name: edge-gateway-secrets
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "512Mi"
+            limits:
+              cpu: "2"
+              memory: "2Gi"
+          volumeMounts:
+            - name: config
+              mountPath: /etc/edge-gateway
+            - name: data-buffer
+              mountPath: /var/lib/edge-gateway
+            - name: certs
+              mountPath: /etc/edge-gateway/certs
+              readOnly: true
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          securityContext:
+            capabilities:
+              add:
+                - NET_BIND_SERVICE
+      volumes:
+        - name: config
+          configMap:
+            name: edge-gateway-config
+        - name: data-buffer
+          hostPath:
+            path: /var/lib/edge-gateway
+            type: DirectoryOrCreate
+        - name: certs
+          secret:
+            secretName: edge-gateway-certs
+            optional: true
+---
+# Deployment - 边缘网关控制器
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: edge-gateway-controller
+  namespace: edge-gateway
+  labels:
+    app: edge-gateway-controller
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: edge-gateway-controller
+  template:
+    metadata:
+      labels:
+        app: edge-gateway-controller
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app: edge-gateway-controller
+                topologyKey: kubernetes.io/hostname
+      containers:
+        - name: controller
+          image: xilian/edge-gateway-controller:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+              name: http
+            - containerPort: 9090
+              name: metrics
+          env:
+            - name: KUBERNETES_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          envFrom:
+            - secretRef:
+                name: edge-gateway-secrets
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "256Mi"
+            limits:
+              cpu: "1"
+              memory: "1Gi"
+          volumeMounts:
+            - name: config
+              mountPath: /etc/edge-gateway
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+        - name: config
+          configMap:
+            name: edge-gateway-config
+---
+# Service - 边缘网关控制器服务
+apiVersion: v1
+kind: Service
+metadata:
+  name: edge-gateway-controller
+  namespace: edge-gateway
+  labels:
+    app: edge-gateway-controller
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8080
+      targetPort: 8080
+      name: http
+    - port: 9090
+      targetPort: 9090
+      name: metrics
+  selector:
+    app: edge-gateway-controller
+---
+# HPA - 边缘网关控制器自动扩缩容
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: edge-gateway-controller-hpa
+  namespace: edge-gateway
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: edge-gateway-controller
+  minReplicas: 2
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+---
+# PodDisruptionBudget - 边缘网关控制器可用性保障
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: edge-gateway-controller-pdb
+  namespace: edge-gateway
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: edge-gateway-controller
+---
+# ServiceMonitor - Prometheus 监控
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: edge-gateway-monitor
+  namespace: edge-gateway
+  labels:
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      app: edge-gateway-controller
+  endpoints:
+    - port: metrics
+      interval: 15s
+      path: /metrics

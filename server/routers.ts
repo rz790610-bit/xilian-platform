@@ -17,6 +17,7 @@ import { pluginRouter } from "./plugin/pluginRouter";
 import { infrastructureRouter } from "./infrastructure/infrastructureRouter";
 import { observabilityRouter } from "./observability/observabilityRouter";
 import { dataPipelineRouter } from "./dataPipeline/dataPipelineRouter";
+import { opsRouter } from "./ops/opsRouter";
 
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
@@ -76,6 +77,9 @@ export const appRouter = router({
 
   // 数据管道路由（Airflow DAGs + Kafka Connect）
   dataPipeline: dataPipelineRouter,
+
+  // 运维管理路由（仪表盘、自动化、边缘计算）
+  ops: opsRouter,
 });
 
 export type AppRouter = typeof appRouter;

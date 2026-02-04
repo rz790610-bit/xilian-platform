@@ -1,0 +1,380 @@
+---
+# 5G TSN 低延迟通信 Kubernetes 部署配置
+# 支持时间敏感网络、5G URLLC、确定性通信
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: edge-tsn
+  labels:
+    app.kubernetes.io/name: edge-tsn
+    app.kubernetes.io/part-of: xilian-platform
+---
+# ConfigMap - TSN 配置
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: edge-tsn-config
+  namespace: edge-tsn
+data:
+  config.yaml: |
+    server:
+      host: "0.0.0.0"
+      port: 8080
+      grpc_port: 50051
+      
+    tsn:
+      enabled: true
+      # 时间同步配置
+      ptp:
+        enabled: true
+        domain: 0
+        priority1: 128
+        priority2: 128
+        announce_interval: 1
+        sync_interval: -3
+        
+      # 流量调度配置
+      qbv:
+        enabled: true
+        cycle_time_ns: 1000000
+        gate_control_list:
+          - gate_state: 0xFF
+            time_interval_ns: 500000
+          - gate_state: 0x01
+            time_interval_ns: 500000
+            
+      # 帧抢占配置
+      qbu:
+        enabled: true
+        preemptable_queues: [0, 1, 2, 3]
+        express_queues: [4, 5, 6, 7]
+        
+      # 流量整形配置
+      cbs:
+        enabled: true
+        idle_slope: 75
+        send_slope: -25
+        hi_credit: 1500
+        lo_credit: -1500
+        
+    fiveg:
+      enabled: true
+      # 5G 切片配置
+      slice:
+        type: "urllc"
+        qos:
+          latency_ms: 1
+          reliability: 0.99999
+          bandwidth_mbps: 100
+          
+      # 5G 连接配置
+      connection:
+        apn: "industrial.5g"
+        technology: "5g-sa"
+        
+    monitoring:
+      prometheus:
+        enabled: true
+        port: 9090
+        
+    logging:
+      level: "info"
+      format: "json"
+---
+# Secret - TSN 密钥
+apiVersion: v1
+kind: Secret
+metadata:
+  name: edge-tsn-secrets
+  namespace: edge-tsn
+type: Opaque
+stringData:
+  FIVEG_SIM_PIN: "${FIVEG_SIM_PIN}"
+  FIVEG_APN_USERNAME: "${FIVEG_APN_USERNAME}"
+  FIVEG_APN_PASSWORD: "${FIVEG_APN_PASSWORD}"
+---
+# DaemonSet - TSN 代理
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: edge-tsn-agent
+  namespace: edge-tsn
+  labels:
+    app: edge-tsn-agent
+spec:
+  selector:
+    matchLabels:
+      app: edge-tsn-agent
+  template:
+    metadata:
+      labels:
+        app: edge-tsn-agent
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+    spec:
+      nodeSelector:
+        node-role.kubernetes.io/edge: "true"
+        tsn-capable: "true"
+      tolerations:
+        - key: "edge"
+          operator: "Exists"
+          effect: "NoSchedule"
+        - key: "tsn"
+          operator: "Exists"
+          effect: "NoSchedule"
+      hostNetwork: true
+      hostPID: true
+      dnsPolicy: ClusterFirstWithHostNet
+      containers:
+        - name: tsn-agent
+          image: xilian/edge-tsn-agent:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+              name: http
+            - containerPort: 50051
+              name: grpc
+            - containerPort: 9090
+              name: metrics
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+          envFrom:
+            - secretRef:
+                name: edge-tsn-secrets
+          resources:
+            requests:
+              cpu: "1"
+              memory: "1Gi"
+            limits:
+              cpu: "4"
+              memory: "4Gi"
+          volumeMounts:
+            - name: config
+              mountPath: /etc/edge-tsn
+            - name: sys
+              mountPath: /sys
+            - name: dev
+              mountPath: /dev
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          securityContext:
+            privileged: true
+            capabilities:
+              add:
+                - NET_ADMIN
+                - SYS_TIME
+                - SYS_RAWIO
+      volumes:
+        - name: config
+          configMap:
+            name: edge-tsn-config
+        - name: sys
+          hostPath:
+            path: /sys
+            type: Directory
+        - name: dev
+          hostPath:
+            path: /dev
+            type: Directory
+---
+# Deployment - TSN 控制器
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: edge-tsn-controller
+  namespace: edge-tsn
+  labels:
+    app: edge-tsn-controller
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: edge-tsn-controller
+  template:
+    metadata:
+      labels:
+        app: edge-tsn-controller
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app: edge-tsn-controller
+                topologyKey: kubernetes.io/hostname
+      containers:
+        - name: controller
+          image: xilian/edge-tsn-controller:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+              name: http
+            - containerPort: 50051
+              name: grpc
+            - containerPort: 9090
+              name: metrics
+          env:
+            - name: KUBERNETES_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          envFrom:
+            - secretRef:
+                name: edge-tsn-secrets
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "512Mi"
+            limits:
+              cpu: "2"
+              memory: "2Gi"
+          volumeMounts:
+            - name: config
+              mountPath: /etc/edge-tsn
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+        - name: config
+          configMap:
+            name: edge-tsn-config
+---
+# Service - TSN 控制器服务
+apiVersion: v1
+kind: Service
+metadata:
+  name: edge-tsn-controller
+  namespace: edge-tsn
+  labels:
+    app: edge-tsn-controller
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8080
+      targetPort: 8080
+      name: http
+    - port: 50051
+      targetPort: 50051
+      name: grpc
+    - port: 9090
+      targetPort: 9090
+      name: metrics
+  selector:
+    app: edge-tsn-controller
+---
+# HPA - TSN 控制器自动扩缩容
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: edge-tsn-controller-hpa
+  namespace: edge-tsn
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: edge-tsn-controller
+  minReplicas: 2
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 60
+---
+# PodDisruptionBudget - TSN 控制器可用性保障
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: edge-tsn-controller-pdb
+  namespace: edge-tsn
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: edge-tsn-controller
+---
+# ServiceMonitor - Prometheus 监控
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: edge-tsn-monitor
+  namespace: edge-tsn
+  labels:
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      app: edge-tsn-controller
+  endpoints:
+    - port: metrics
+      interval: 15s
+      path: /metrics
+---
+# NetworkPolicy - TSN 网络策略
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: edge-tsn-network-policy
+  namespace: edge-tsn
+spec:
+  podSelector:
+    matchLabels:
+      app: edge-tsn-controller
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: xilian-platform
+      ports:
+        - protocol: TCP
+          port: 8080
+        - protocol: TCP
+          port: 50051
+        - protocol: TCP
+          port: 9090
+  egress:
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 9092
+        - protocol: UDP
+          port: 319
+        - protocol: UDP
+          port: 320
