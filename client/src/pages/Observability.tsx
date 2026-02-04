@@ -205,7 +205,7 @@ export default function Observability() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    {(Array.isArray(nodeMetrics) ? nodeMetrics : [nodeMetrics]).filter(Boolean).map((node: any) => (
+                    {(nodeMetrics ? (Array.isArray(nodeMetrics) ? nodeMetrics : [nodeMetrics]) : []).filter(Boolean).map((node: any) => (
                       <div key={node.hostname} className="space-y-2">
                         <div className="flex justify-between items-center">
                           <span className="font-medium">{node.hostname}</span>
@@ -240,7 +240,7 @@ export default function Observability() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    {gpuMetrics?.slice(0, 8).map((gpu) => (
+                    {(gpuMetrics || []).slice(0, 8).map((gpu) => (
                       <div key={gpu.gpuId} className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <span className="text-sm font-medium">GPU {gpu.gpuId}</span>
@@ -293,7 +293,7 @@ export default function Observability() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-2">
-                    {serviceDeps?.map((dep, i) => (
+                    {(serviceDeps || []).map((dep, i) => (
                       <div key={i} className="flex items-center justify-between text-sm">
                         <div className="flex items-center gap-2">
                           <span>{dep.source}</span>
@@ -328,7 +328,7 @@ export default function Observability() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {containerMetrics?.map((c) => (
+                      {(containerMetrics || []).map((c) => (
                         <TableRow key={c.containerId}>
                           <TableCell className="font-medium">{c.containerName}</TableCell>
                           <TableCell>{c.cpuUsage.toFixed(1)}%</TableCell>
@@ -361,7 +361,7 @@ export default function Observability() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {(Array.isArray(appMetrics) ? appMetrics : [appMetrics]).slice(0, 6).map((m: any, i: number) => (
+                      {(Array.isArray(appMetrics) ? appMetrics : appMetrics ? [appMetrics] : []).filter(Boolean).slice(0, 6).map((m: any, i: number) => (
                         <TableRow key={i}>
                           <TableCell className="font-medium">{m.serviceName}</TableCell>
                           <TableCell>{m.requestLatencyP99.toFixed(0)}ms</TableCell>
@@ -397,7 +397,7 @@ export default function Observability() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {gpuMetrics?.map((g) => (
+                      {(gpuMetrics || []).map((g) => (
                         <TableRow key={g.gpuId}>
                           <TableCell className="font-medium">GPU {g.gpuId}</TableCell>
                           <TableCell className="text-xs">{g.name}</TableCell>
@@ -468,7 +468,7 @@ export default function Observability() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-2 max-h-96 overflow-y-auto font-mono text-sm">
-                  {logs?.map((log, i) => (
+                  {(logs || []).map((log, i) => (
                     <div key={i} className="flex gap-2 p-2 bg-muted/50 rounded">
                       <span className="text-muted-foreground w-44 shrink-0">
                         {new Date((log as any)['@timestamp'] || (log as any).timestamp).toLocaleString()}
@@ -506,14 +506,14 @@ export default function Observability() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {traces?.map((trace) => (
+                    {(traces || []).map((trace) => (
                       <TableRow key={trace.traceId}>
                         <TableCell className="font-mono text-xs">
                           {trace.traceId.substring(0, 16)}...
                         </TableCell>
                         <TableCell>
                           <div className="flex flex-wrap gap-1">
-                            {((trace as any).services || [(trace as any).serviceName]).map((s: string) => (
+                            {((trace as any).services || ((trace as any).serviceName ? [(trace as any).serviceName] : [])).filter(Boolean).map((s: string) => (
                               <Badge key={s} variant="outline" className="text-xs">
                                 {s}
                               </Badge>
@@ -557,7 +557,7 @@ export default function Observability() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    {alerts?.map((alert) => (
+                    {(alerts || []).map((alert) => (
                       <div key={alert.id} className="p-3 border rounded-lg space-y-2">
                         <div className="flex items-center justify-between">
                           <span className="font-medium">{(alert as any).alertname || (alert as any).name}</span>
@@ -589,7 +589,7 @@ export default function Observability() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    {alertRules?.map((rule) => (
+                    {(alertRules || []).map((rule) => (
                       <div key={(rule as any).id || rule.name} className="flex items-center justify-between p-2 border rounded">
                         <div className="flex items-center gap-2">
                           <Badge variant={getSeverityColor((rule as any).severity || rule.labels?.severity) as any}>
@@ -621,7 +621,7 @@ export default function Observability() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {receivers?.map((r) => (
+                      {(receivers || []).map((r) => (
                         <TableRow key={r.name}>
                           <TableCell className="font-medium">{r.name}</TableCell>
                           <TableCell>

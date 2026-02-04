@@ -424,3 +424,81 @@ echo "0 2 * * * /path/to/backup.sh" | crontab -
 **PortAI Nexus** - Industrial AI Platform  
 版本: 1.0.0  
 更新日期: 2026-02-04
+
+
+---
+
+## 开发环境问题修复
+
+### 问题 1: 页面不断刷新/闪烁
+
+**原因**：Vite HMR WebSocket 连接问题
+
+**解决方案**：
+
+编辑 `server/_core/vite.ts`，将 `hmr: { server },` 改为 `hmr: false,`
+
+```bash
+sed -i 's/hmr: { server },/hmr: false,/' server/_core/vite.ts
+```
+
+### 问题 2: 返回 401 未授权 / auth.me 返回 null
+
+**原因**：SKIP_AUTH 未生效
+
+**解决方案**：
+
+1. 确保 `.env` 中有以下配置：
+```env
+NODE_ENV=development
+SKIP_AUTH=true
+JWT_SECRET=local-dev-secret-key-12345678
+```
+
+2. 确保 `server/_core/env.ts` 开头有 `import 'dotenv/config';`
+
+3. 确保 `server/_core/sdk.ts` 的 `authenticateRequest` 函数开头有 SKIP_AUTH 检查：
+
+```typescript
+async authenticateRequest(req: Request): Promise<User> {
+  // Skip auth for local development
+  if (ENV.skipAuth) {
+    console.log('[Auth] SKIP_AUTH enabled, creating local dev user...');
+    let localUser = await db.getUserByOpenId("local-dev-user");
+    if (!localUser) {
+      await db.upsertUser({
+        openId: "local-dev-user",
+        name: "本地开发用户",
+        email: "local@dev.local",
+        loginMethod: "local",
+        role: "admin",
+        lastSignedIn: new Date(),
+      });
+      localUser = await db.getUserByOpenId("local-dev-user");
+    }
+    if (localUser) {
+      return localUser;
+    }
+  }
+  
+  // Regular authentication flow...
+}
+```
+
+### 问题 3: 组件报错 "undefined is not an object"
+
+**原因**：API 返回数据格式与前端期望不一致
+
+**解决方案**：
+
+1. 后端 API 应始终返回数组格式（即使只有一个元素）
+2. 前端使用防御性编程：`(data || []).map()`
+
+### 快速修复脚本
+
+运行以下脚本一键修复所有问题：
+
+```bash
+./scripts/local-deploy-fix.sh
+```
+
