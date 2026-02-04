@@ -1,0 +1,380 @@
+# Falco Sidekick 部署配置
+# 西联智能平台 - 安全事件转发和告警
+# Version: 2.28.0
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: falco-sidekick-config
+  namespace: falco-system
+  labels:
+    app.kubernetes.io/name: falco-sidekick
+data:
+  config.yaml: |
+    # Falco Sidekick 配置
+    # 西联智能平台定制配置
+    
+    # 调试模式
+    debug: false
+    
+    # 自定义字段
+    customfields:
+      platform: "xilian-intelligent"
+      environment: "production"
+      cluster: "xilian-k8s"
+    
+    # 模板化输出
+    templatedfields:
+      severity: '{{ if eq .Priority "Critical" }}P0{{ else if eq .Priority "Error" }}P1{{ else if eq .Priority "Warning" }}P2{{ else }}P3{{ end }}'
+    
+    # Alertmanager 集成
+    alertmanager:
+      hostport: "http://alertmanager.monitoring:9093"
+      minimumpriority: "warning"
+      endpoint: "/api/v1/alerts"
+      expiresafter: 300
+      extralabels:
+        source: "falco"
+        platform: "xilian"
+      customseveritymap:
+        critical: "critical"
+        error: "error"
+        warning: "warning"
+        notice: "info"
+        informational: "info"
+        debug: "info"
+    
+    # Prometheus 指标
+    prometheus:
+      extralabels:
+        platform: "xilian"
+    
+    # Elasticsearch 集成
+    elasticsearch:
+      hostport: "http://elasticsearch.logging:9200"
+      index: "falco-events"
+      type: "_doc"
+      minimumpriority: "debug"
+      suffix: "daily"
+      createindextemplate: true
+      numberofshards: 3
+      numberofreplicas: 1
+    
+    # Kafka 集成
+    kafka:
+      hostport: "kafka.xilian-platform:9092"
+      topic: "falco-events"
+      partition: 0
+      minimumpriority: "warning"
+      messageformat: "json"
+      sasl: ""
+      tls: false
+    
+    # Slack 集成（可选）
+    slack:
+      webhookurl: ""
+      channel: "#security-alerts"
+      footer: "Falco Sidekick - 西联智能平台"
+      icon: "https://falco.org/images/falco-logo.png"
+      username: "Falco Security"
+      outputformat: "all"
+      minimumpriority: "error"
+      messageformat: |
+        *Priority*: {{ .Priority }}
+        *Rule*: {{ .Rule }}
+        *Output*: {{ .Output }}
+        *Time*: {{ .Time }}
+        *Hostname*: {{ index .OutputFields "hostname" }}
+        *Container*: {{ index .OutputFields "container.name" }}
+    
+    # 企业微信集成
+    wechat:
+      webhookurl: ""
+      minimumpriority: "warning"
+    
+    # 钉钉集成
+    dingtalk:
+      webhookurl: ""
+      minimumpriority: "warning"
+      messageformat: |
+        ## Falco 安全告警
+        
+        **优先级**: {{ .Priority }}
+        **规则**: {{ .Rule }}
+        **时间**: {{ .Time }}
+        **详情**: {{ .Output }}
+    
+    # Webhook 通用集成
+    webhook:
+      address: ""
+      method: "POST"
+      customheaders:
+        Content-Type: "application/json"
+        X-Source: "falco-sidekick"
+      minimumpriority: "warning"
+    
+    # Loki 日志集成
+    loki:
+      hostport: "http://loki.logging:3100"
+      minimumpriority: "debug"
+      tenant: "xilian"
+      endpoint: "/loki/api/v1/push"
+      extralabels:
+        job: "falco"
+        platform: "xilian"
+    
+    # 输出统计
+    statsd:
+      forwarder: ""
+      namespace: "falco"
+    
+    # 输出过滤
+    outputs:
+      # 根据优先级路由
+      # P0 (Critical): Alertmanager + Slack + 企业微信
+      # P1 (Error): Alertmanager + Kafka + Elasticsearch
+      # P2 (Warning): Kafka + Elasticsearch + Loki
+      # P3 (Notice/Info): Elasticsearch + Loki
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: falco-sidekick
+  namespace: falco-system
+  labels:
+    app.kubernetes.io/name: falco-sidekick
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: falco-sidekick
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: falco-sidekick
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "2801"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: falco
+      containers:
+        - name: falco-sidekick
+          image: falcosecurity/falcosidekick:2.28.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 2801
+              protocol: TCP
+          env:
+            - name: LOG_LEVEL
+              value: "info"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: 2801
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /ping
+              port: 2801
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          volumeMounts:
+            - name: config
+              mountPath: /etc/falcosidekick
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: falco-sidekick-config
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: falco-sidekick
+  namespace: falco-system
+  labels:
+    app.kubernetes.io/name: falco-sidekick
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 2801
+      targetPort: 2801
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: falco-sidekick
+
+---
+# Falco Sidekick UI (可选)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: falco-sidekick-ui
+  namespace: falco-system
+  labels:
+    app.kubernetes.io/name: falco-sidekick-ui
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: falco-sidekick-ui
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: falco-sidekick-ui
+    spec:
+      containers:
+        - name: falco-sidekick-ui
+          image: falcosecurity/falcosidekick-ui:2.2.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 2802
+              protocol: TCP
+          env:
+            - name: FALCOSIDEKICK_UI_REDIS_URL
+              value: "redis://redis.xilian-platform:6379"
+            - name: FALCOSIDEKICK_UI_TTL
+              value: "604800"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+          livenessProbe:
+            httpGet:
+              path: /api/v1/healthz
+              port: 2802
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /api/v1/healthz
+              port: 2802
+            initialDelaySeconds: 5
+            periodSeconds: 5
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: falco-sidekick-ui
+  namespace: falco-system
+  labels:
+    app.kubernetes.io/name: falco-sidekick-ui
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 2802
+      targetPort: 2802
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: falco-sidekick-ui
+
+---
+# Ingress for Falco Sidekick UI
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: falco-sidekick-ui
+  namespace: falco-system
+  labels:
+    app.kubernetes.io/name: falco-sidekick-ui
+  annotations:
+    nginx.ingress.kubernetes.io/auth-type: basic
+    nginx.ingress.kubernetes.io/auth-secret: falco-basic-auth
+    nginx.ingress.kubernetes.io/auth-realm: "Falco Security Dashboard"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: falco.xilian.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: falco-sidekick-ui
+                port:
+                  number: 2802
+  tls:
+    - hosts:
+        - falco.xilian.local
+      secretName: falco-tls
+
+---
+# ServiceMonitor for Prometheus
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: falco-sidekick
+  namespace: falco-system
+  labels:
+    app.kubernetes.io/name: falco-sidekick
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: falco-sidekick
+  endpoints:
+    - port: http
+      interval: 15s
+      path: /metrics
+
+---
+# PrometheusRule for Falco alerts
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: falco-alerts
+  namespace: falco-system
+  labels:
+    app.kubernetes.io/name: falco
+    prometheus: kube-prometheus
+spec:
+  groups:
+    - name: falco.rules
+      rules:
+        - alert: FalcoCriticalAlert
+          expr: increase(falco_events{priority="Critical"}[5m]) > 0
+          for: 0m
+          labels:
+            severity: critical
+            platform: xilian
+          annotations:
+            summary: "Falco 检测到关键安全事件"
+            description: "在过去 5 分钟内检测到 {{ $value }} 个关键安全事件"
+        
+        - alert: FalcoHighAlertRate
+          expr: rate(falco_events{priority=~"Critical|Error"}[5m]) > 0.1
+          for: 5m
+          labels:
+            severity: warning
+            platform: xilian
+          annotations:
+            summary: "Falco 高频安全告警"
+            description: "安全事件告警率超过阈值: {{ $value }}/秒"
+        
+        - alert: FalcoDown
+          expr: up{job="falco"} == 0
+          for: 5m
+          labels:
+            severity: critical
+            platform: xilian
+          annotations:
+            summary: "Falco 服务不可用"
+            description: "Falco 安全监控服务已停止运行超过 5 分钟"

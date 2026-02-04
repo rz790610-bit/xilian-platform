@@ -8,6 +8,7 @@ import { modelRouter } from "./modelService";
 import { eventBusRouter } from "./eventBus";
 import { streamProcessorRouter } from "./streamProcessor";
 import { deviceRouter } from "./deviceService";
+import { deviceCrudRouter } from "./device/deviceCrudRouter";
 import { kafkaRouter } from "./kafka/kafkaRouter";
 import { redisRouter } from "./redis/redisRouter";
 import { clickhouseRouter } from "./clickhouse/clickhouseRouter";
@@ -48,6 +49,9 @@ export const appRouter = router({
 
   // 设备管理路由
   device: deviceRouter,
+
+  // 设备 CRUD 增强路由
+  deviceCrud: deviceCrudRouter,
 
   // Kafka 管理路由
   kafka: kafkaRouter,

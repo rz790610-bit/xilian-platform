@@ -667,3 +667,94 @@
 ### 用户交互层管理
 - [x] 创建用户交互层统一管理服务
 - [x] 编写单元测试
+
+
+## Bug 修复
+
+- [ ] 修复可观测性页面左侧边栏消失问题
+
+
+## 优化方案执行（2026-02-04）
+
+### 第一阶段：关键补全（第1-4周）
+
+#### Falco 运行时安全部署
+- [x] 创建 Falco DaemonSet 配置
+- [x] 配置 Falco 规则集（默认 + 自定义）
+- [x] 部署 Falco Sidekick 日志转发
+- [x] 集成 Alertmanager 告警通道
+- [x] 编写单元测试 (45 tests passed)
+
+#### 设备管理 CRUD API 完善
+- [x] 实现设备列表 API（分页、筛选、排序）
+- [x] 实现设备详情 API
+- [x] 实现创建设备 API
+- [x] 实现更新设备 API
+- [x] 实现删除设备 API
+- [x] 实现维护记录 API
+- [x] 实现告警历史 API
+- [x] 实现 KPI 指标 API
+- [x] 编写单元测试 (39 tests passed)
+
+#### Rust 性能模块开发
+- [x] 创建 rust-signal-processor 模块（FFT、滤波、异常检测）
+- [x] 创建 rust-data-aggregator 模块（时间窗口聚合、T-Digest）
+- [x] 创建 TypeScript 桥接层（模拟实现）
+- [x] 编写单元测试 (40 tests passed)
+- [ ] 实现 Node.js FFI 绑定（napi-rs）
+- [ ] 编写性能基准测试
+
+### 第二阶段：性能优化（第5-8周）
+
+#### Go 高并发服务开发
+- [ ] 创建 sensor-ingestion 服务（100K+ QPS）
+- [ ] 创建 realtime-aggregator 服务（50K+ QPS）
+- [ ] 创建 event-dispatcher 服务（200K+ QPS）
+- [ ] 编写 Dockerfile 和 K8s 部署配置
+
+#### 数据库查询优化
+- [ ] ClickHouse 物化视图预聚合优化
+- [ ] PostgreSQL 分区表 + BRIN 索引优化
+- [ ] Neo4j 图投影缓存优化
+- [ ] Qdrant 量化 + 预过滤优化
+
+#### 缓存策略优化
+- [ ] 实现 L1 本地缓存（100ms TTL）
+- [ ] 优化 L2 Redis 缓存（5min TTL）
+- [ ] 实现缓存回填机制
+- [ ] 监控缓存命中率
+
+### 第三阶段：安全加固（第9-10周）
+
+#### HashiCorp Vault 集成
+- [ ] 部署 Vault 服务
+- [ ] 实现数据库凭证轮换
+- [ ] 实现 API 密钥管理
+- [ ] 实现 PKI 证书管理
+- [ ] 创建 VaultClient 服务
+
+#### 安全扫描自动化
+- [ ] 集成 Trivy 依赖漏洞扫描
+- [ ] 集成 Trivy 容器镜像扫描
+- [ ] 集成 Semgrep 代码安全扫描
+- [ ] 集成 Gitleaks 密钥泄露检测
+
+### 第四阶段：运维增强（第11-12周）
+
+#### 统一监控仪表盘
+- [ ] 创建集群概览仪表盘
+- [ ] 创建存储监控仪表盘
+- [ ] 创建数据流监控仪表盘
+- [ ] 创建 API 网关仪表盘
+- [ ] 创建安全态势仪表盘
+
+#### 自动化运维工具
+- [ ] 实现自动扩缩容
+- [ ] 实现故障自愈
+- [ ] 实现备份恢复
+- [ ] 实现版本回滚
+
+#### 边缘计算增强
+- [ ] 集成 TensorRT-LLM 边缘推理
+- [ ] 部署边缘网关
+- [ ] 配置 5G TSN 低延迟通信
