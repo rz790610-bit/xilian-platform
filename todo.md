@@ -744,19 +744,20 @@
 ### 第四阶段：运维增强（第11-12周）
 
 #### 统一监控仪表盘
-- [ ] 创建集群概览仪表盘
-- [ ] 创建存储监控仪表盘
-- [ ] 创建数据流监控仪表盘
-- [ ] 创建 API 网关仪表盘
-- [ ] 创建安全态势仪表盘
+- [x] 创建集群概览仪表盘（节点、Pod、资源、告警、事件）
+- [x] 创建存储监控仪表盘（ClickHouse/PostgreSQL/Neo4j/Qdrant/Redis/MinIO）
+- [x] 创建数据流监控仪表盘（Kafka/Flink/Airflow/Connectors）
+- [x] 创建 API 网关仪表盘（Kong/Istio/限流）
+- [x] 创建安全态势仪表盘（漏洞/合规/运行时/密钥/访问）
 
 #### 自动化运维工具
-- [ ] 实现自动扩缩容
-- [ ] 实现故障自愈
-- [ ] 实现备份恢复
-- [ ] 实现版本回滚
+- [x] 实现自动扩缩容（AutoScalingService）
+- [x] 实现故障自愈（SelfHealingService）
+- [x] 实现备份恢复（BackupRecoveryService）
+- [x] 实现版本回滚（RollbackService）
 
 #### 边缘计算增强
-- [ ] 集成 TensorRT-LLM 边缘推理
-- [ ] 部署边缘网关
-- [ ] 配置 5G TSN 低延迟通信
+- [x] 集成 TensorRT-LLM 边缘推理（EdgeInferenceService）
+- [x] 部署边缘网关（EdgeGatewayService）
+- [x] 配置 5G TSN 低延迟通信（TSNService）
+- [x] 编写单元测试（33 tests passed）
