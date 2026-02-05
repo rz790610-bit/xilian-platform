@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect } from "react";
-import DashboardLayout from "@/components/DashboardLayout";
+import { MainLayout } from '@/components/layout/MainLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -389,8 +389,8 @@ export default function KafkaMonitor() {
   const consumeLatency = wsMetrics?.latency.consumeLatencyMs || 0;
 
   return (
-    <DashboardLayout>
-      <div className="flex-1 space-y-6 p-6">
+    <MainLayout title="数据流监控">
+      <div className="space-y-6">
         {/* 页面标题 */}
         <div className="flex items-center justify-between">
           <div>
@@ -738,6 +738,6 @@ export default function KafkaMonitor() {
           </TabsContent>
         </Tabs>
       </div>
-    </DashboardLayout>
+    </MainLayout>
   );
 }
