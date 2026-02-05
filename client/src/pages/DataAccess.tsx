@@ -131,7 +131,7 @@ function getStatusText(status: DataSource['status']) {
 
 // 类型图标
 function getTypeIcon(type: DataSourceType) {
-  const found = dataSourceTypes.find(t => t.type === type);
+  const found = (dataSourceTypes || []).find(t => t.type === type);
   return found?.icon || <Database className="w-4 h-4" />;
 }
 
@@ -148,7 +148,7 @@ export default function DataAccess() {
   // 过滤数据源
   const filteredSources = activeTab === 'all' 
     ? dataSources 
-    : dataSources.filter(s => s.type === activeTab);
+    : (dataSources || []).filter(s => s.type === activeTab);
 
   // 添加数据源
   const handleAddSource = () => {
@@ -235,7 +235,7 @@ export default function DataAccess() {
 
         {/* 数据源列表 */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
-          {filteredSources.map(source => (
+          {(filteredSources || []).map(source => (
             <PageCard key={source.id} className="p-3">
               <div className="flex items-start justify-between">
                 <div className="flex items-start gap-2">
@@ -329,7 +329,7 @@ export default function DataAccess() {
           <PageCard className="p-2">
             <div className="text-center">
               <div className="text-lg font-semibold text-emerald-400">
-                {dataSources.filter(s => s.status === 'connected').length}
+                {(dataSources || []).filter(s => s.status === 'connected').length}
               </div>
               <div className="text-[9px] text-gray-400">已连接</div>
             </div>
@@ -337,7 +337,7 @@ export default function DataAccess() {
           <PageCard className="p-2">
             <div className="text-center">
               <div className="text-lg font-semibold text-blue-400">
-                {dataSources.filter(s => s.status === 'syncing').length}
+                {(dataSources || []).filter(s => s.status === 'syncing').length}
               </div>
               <div className="text-[9px] text-gray-400">同步中</div>
             </div>
@@ -345,7 +345,7 @@ export default function DataAccess() {
           <PageCard className="p-2">
             <div className="text-center">
               <div className="text-lg font-semibold text-red-400">
-                {dataSources.filter(s => s.status === 'error').length}
+                {(dataSources || []).filter(s => s.status === 'error').length}
               </div>
               <div className="text-[9px] text-gray-400">异常</div>
             </div>
@@ -372,7 +372,7 @@ export default function DataAccess() {
             <div className="space-y-1">
               <Label className="text-[10px] text-gray-400">数据源类型</Label>
               <div className="grid grid-cols-3 gap-2">
-                {dataSourceTypes.map(type => (
+                {(dataSourceTypes || []).map(type => (
                   <button
                     key={type.type}
                     className={`p-2 rounded border text-left transition-colors ${

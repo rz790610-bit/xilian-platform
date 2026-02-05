@@ -153,8 +153,8 @@ export default function ServiceMonitor() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {services.reduce((sum, s) => sum + s.replicas.ready, 0)}/
-                {services.reduce((sum, s) => sum + s.replicas.total, 0)}
+                {(services || []).reduce((sum, s) => sum + s.replicas.ready, 0)}/
+                {(services || []).reduce((sum, s) => sum + s.replicas.total, 0)}
               </div>
               <p className="text-xs text-muted-foreground">就绪/总数</p>
             </CardContent>
@@ -163,7 +163,7 @@ export default function ServiceMonitor() {
 
         {/* 服务详情 */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          {services.map(service => (
+          {(services || []).map(service => (
             <Card key={service.id}>
               <CardHeader>
                 <div className="flex items-center justify-between">

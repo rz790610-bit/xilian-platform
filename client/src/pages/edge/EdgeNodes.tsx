@@ -95,7 +95,7 @@ export default function EdgeNodes() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-green-500">
-                {nodes.filter(n => n.status === 'online').length}
+                {(nodes || []).filter(n => n.status === 'online').length}
               </div>
             </CardContent>
           </Card>
@@ -108,7 +108,7 @@ export default function EdgeNodes() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {nodes.reduce((sum, n) => sum + n.models, 0)}
+                {(nodes || []).reduce((sum, n) => sum + n.models, 0)}
               </div>
             </CardContent>
           </Card>
@@ -121,7 +121,7 @@ export default function EdgeNodes() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-yellow-500">
-                {nodes.filter(n => n.status === 'warning').length}
+                {(nodes || []).filter(n => n.status === 'warning').length}
               </div>
             </CardContent>
           </Card>
@@ -150,7 +150,7 @@ export default function EdgeNodes() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {nodes.map(node => (
+                {(nodes || []).map(node => (
                   <TableRow key={node.id}>
                     <TableCell className="font-mono text-sm">{node.id}</TableCell>
                     <TableCell className="font-medium">{node.name}</TableCell>

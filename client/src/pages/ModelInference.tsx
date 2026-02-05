@@ -84,7 +84,7 @@ export default function ModelInference() {
     } catch (error) {
       // 模拟结果
       const mockFreqs = Array.from({ length: 100 }, (_, i) => i * 20);
-      const mockAmplitude = mockFreqs.map(f => 
+      const mockAmplitude = (mockFreqs || []).map(f => 
         Math.exp(-Math.pow(f - 500, 2) / 50000) * 100 + Math.random() * 10
       );
 
@@ -101,10 +101,10 @@ export default function ModelInference() {
   };
 
   const chartData = result?.spectrum ? {
-    labels: result.spectrum.freqs.filter(f => f <= 2000).map(f => f.toFixed(0)),
+    labels: (result.spectrum.freqs || []).filter(f => f <= 2000).map(f => f.toFixed(0)),
     datasets: [{
       label: '频谱幅值',
-      data: result.spectrum.amplitude.slice(0, result.spectrum.freqs.filter(f => f <= 2000).length),
+      data: (result.spectrum.amplitude || []).slice(0, (result.spectrum.freqs || []).filter(f => f <= 2000).length),
       borderColor: 'oklch(0.65 0.18 240)',
       backgroundColor: 'oklch(0.65 0.18 240 / 0.1)',
       fill: true,
@@ -154,7 +154,7 @@ export default function ModelInference() {
                       <SelectValue placeholder="选择模型" />
                     </SelectTrigger>
                     <SelectContent>
-                      {models.filter(m => m.type === 'llm').map((model) => (
+                      {(models || []).filter(m => m.type === 'llm').map((model) => (
                         <SelectItem key={model.id} value={model.name}>
                           {model.name}
                         </SelectItem>

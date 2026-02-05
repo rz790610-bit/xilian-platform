@@ -159,7 +159,7 @@ export default function VectorAdmin() {
       let projected: ProjectedPoint[] = [];
       if (vectorPoints.length > 0 && vectorPoints[0].vector.length > 0) {
         projected = vectorsToProjectedPoints(
-          points.map(p => ({
+          (points || []).map(p => ({
             id: p.id,
             vector: p.vector,
             payload: p.payload as Record<string, any>
@@ -192,7 +192,7 @@ export default function VectorAdmin() {
   // 简单的 2D 投影生成（实际应用中应使用 t-SNE 或 PCA）
   const generateProjection = (points: VectorPoint[]): ProjectedPoint[] => {
     // 使用简单的哈希函数生成伪随机但稳定的坐标
-    return points.map(p => {
+    return (points || []).map(p => {
       const hash1 = hashString(p.id + 'x');
       const hash2 = hashString(p.id + 'y');
       
@@ -273,7 +273,7 @@ export default function VectorAdmin() {
     
     // 构建 CSV 内容
     const headers = ['ID', '标题', 'X坐标', 'Y坐标', '类别', '聚类ID', '降维算法'];
-    const rows = projectedPoints.map((point, idx) => {
+    const rows = (projectedPoints || []).map((point, idx) => {
       const clusterId = showClusters && clusterResult ? clusterResult.assignments[idx] + 1 : '';
       return [
         point.id,
@@ -304,8 +304,8 @@ export default function VectorAdmin() {
   
   // 统计信息
   const stats = useMemo(() => {
-    const totalVectors = collections.reduce((sum, c) => sum + c.vectorsCount, 0);
-    const totalPoints = collections.reduce((sum, c) => sum + c.pointsCount, 0);
+    const totalVectors = (collections || []).reduce((sum, c) => sum + c.vectorsCount, 0);
+    const totalPoints = (collections || []).reduce((sum, c) => sum + c.pointsCount, 0);
     
     return {
       collectionsCount: collections.length,
@@ -443,7 +443,7 @@ export default function VectorAdmin() {
                     </div>
                   ) : (
                     <div className="space-y-3">
-                      {collections.map(col => (
+                      {(collections || []).map(col => (
                         <div
                           key={col.name}
                           className="flex items-center justify-between p-4 rounded-lg border bg-card hover:bg-accent/50 transition-colors"
@@ -535,7 +535,7 @@ export default function VectorAdmin() {
                           <SelectValue placeholder="选择集合" />
                         </SelectTrigger>
                         <SelectContent>
-                          {collections.map(col => (
+                          {(collections || []).map(col => (
                             <SelectItem key={col.name} value={col.name}>
                               {col.name}
                             </SelectItem>
@@ -663,7 +663,7 @@ export default function VectorAdmin() {
                         <rect width="100" height="100" fill="url(#grid)" />
                         
                         {/* 聚类中心点和连接线 */}
-                        {showClusters && clusterResult && clusterResult.clusters.map((cluster) => (
+                        {showClusters && clusterResult && (clusterResult.clusters || []).map((cluster) => (
                           <g key={`cluster-${cluster.id}`}>
                             {/* 聚类中心点 */}
                             <circle
@@ -692,7 +692,7 @@ export default function VectorAdmin() {
                         ))}
                         
                         {/* 数据点 */}
-                        {projectedPoints.map((point, idx) => {
+                        {(projectedPoints || []).map((point, idx) => {
                           // 如果启用聚类，使用聚类颜色
                           const pointColor = showClusters && clusterResult 
                             ? getClusterColor(clusterResult.assignments[idx])
@@ -707,7 +707,7 @@ export default function VectorAdmin() {
                                 fill={pointColor}
                                 className="cursor-pointer hover:opacity-80 transition-opacity"
                                 onClick={() => {
-                                  const vector = vectors.find(v => v.id === point.id);
+                                  const vector = (vectors || []).find(v => v.id === point.id);
                                   if (vector) viewVectorDetails(vector);
                                 }}
                               >
@@ -724,7 +724,7 @@ export default function VectorAdmin() {
                           <>
                             <p className="text-xs font-medium mb-2">聚类图例</p>
                             <div className="space-y-1">
-                              {clusterResult.clusters.map((cluster) => (
+                              {(clusterResult.clusters || []).map((cluster) => (
                                 <div key={cluster.id} className="flex items-center gap-2 text-xs">
                                   <div className="w-3 h-3 rounded-full" style={{ backgroundColor: cluster.color }} />
                                   <span>聚类 {cluster.id + 1} ({cluster.size} 个)</span>
@@ -752,8 +752,8 @@ export default function VectorAdmin() {
                   {/* 聚类统计信息 */}
                   {showClusters && clusterResult && (
                     <div className="mt-4 grid grid-cols-2 md:grid-cols-5 gap-2">
-                      {clusterResult.clusters.map((cluster) => {
-                        const representativePoint = projectedPoints.find(p => p.id === cluster.representativePoint);
+                      {(clusterResult.clusters || []).map((cluster) => {
+                        const representativePoint = (projectedPoints || []).find(p => p.id === cluster.representativePoint);
                         return (
                           <div 
                             key={cluster.id} 
@@ -802,7 +802,7 @@ export default function VectorAdmin() {
                         <SelectValue placeholder="选择集合" />
                       </SelectTrigger>
                       <SelectContent>
-                        {collections.map(col => (
+                        {(collections || []).map(col => (
                           <SelectItem key={col.name} value={col.name}>
                             {col.name}
                           </SelectItem>
@@ -850,7 +850,7 @@ export default function VectorAdmin() {
                   {searchResults.length > 0 && (
                     <div className="space-y-3 mt-4">
                       <h4 className="font-medium">搜索结果 ({searchResults.length})</h4>
-                      {searchResults.map((result, idx) => (
+                      {(searchResults || []).map((result, idx) => (
                         <div
                           key={result.id}
                           className="p-4 rounded-lg border bg-card hover:bg-accent/50 transition-colors cursor-pointer"
@@ -904,7 +904,7 @@ export default function VectorAdmin() {
                           <SelectValue placeholder="选择集合" />
                         </SelectTrigger>
                         <SelectContent>
-                          {collections.map(col => (
+                          {(collections || []).map(col => (
                             <SelectItem key={col.name} value={col.name}>
                               {col.name}
                             </SelectItem>
@@ -935,7 +935,7 @@ export default function VectorAdmin() {
                   ) : (
                     <ScrollArea className="h-[500px]">
                       <div className="space-y-2">
-                        {vectors.map((vector, idx) => (
+                        {(vectors || []).map((vector, idx) => (
                           <div
                             key={vector.id}
                             className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors"

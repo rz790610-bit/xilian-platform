@@ -808,7 +808,7 @@ export default function SmartMonitoring() {
                     </div>
                     {/* 健康检查 */}
                     <div className="space-y-1">
-                      {service.checks.map((check, idx) => (
+                      {(service.checks || []).map((check, idx) => (
                         <div key={idx} className="flex items-center justify-between text-xs">
                           <span className="flex items-center gap-1">
                             {check.status === 'pass' ? (
@@ -842,7 +842,7 @@ export default function SmartMonitoring() {
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
-                {dashboard.alerts.map((alert) => (
+                {(dashboard.alerts || []).map((alert) => (
                   <div 
                     key={alert.id} 
                     className={`p-3 rounded-lg border flex items-start justify-between ${

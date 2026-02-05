@@ -112,7 +112,7 @@ export default function DataManage() {
     if (selectedFiles.length === 0) return;
     if (!confirm(`确定删除选中的 ${selectedFiles.length} 个文件吗？`)) return;
     
-    selectedFiles.forEach(id => removeDataFile(id));
+    (selectedFiles || []).forEach(id => removeDataFile(id));
     clearFileSelection();
     toast.success('已删除选中文件');
   };
@@ -239,7 +239,7 @@ export default function DataManage() {
         >
           {filteredFiles.length > 0 ? (
             <div className="space-y-2">
-              {filteredFiles.map((file) => (
+              {(filteredFiles || []).map((file) => (
                 <div
                   key={file.id}
                   className={cn(
@@ -261,7 +261,7 @@ export default function DataManage() {
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    {file.tags.map((tag, i) => (
+                    {(file.tags || []).map((tag, i) => (
                       <Badge key={i} variant="info">{tag}</Badge>
                     ))}
                   </div>

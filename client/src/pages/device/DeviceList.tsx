@@ -61,7 +61,7 @@ export default function DeviceList() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
 
-  const filteredDevices = devices.filter(device => {
+  const filteredDevices = (devices || []).filter(device => {
     const matchesSearch = device.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          device.id.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesType = typeFilter === 'all' || device.type === typeFilter;
@@ -111,7 +111,7 @@ export default function DeviceList() {
                       <SelectValue placeholder="选择设备类型" />
                     </SelectTrigger>
                     <SelectContent>
-                      {deviceTypes.slice(1).map(type => (
+                      {(deviceTypes || []).slice(1).map(type => (
                         <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>
                       ))}
                     </SelectContent>
@@ -149,7 +149,7 @@ export default function DeviceList() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-green-500">
-                {devices.filter(d => d.status === 'online').length}
+                {(devices || []).filter(d => d.status === 'online').length}
               </div>
             </CardContent>
           </Card>
@@ -162,7 +162,7 @@ export default function DeviceList() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-yellow-500">
-                {devices.filter(d => d.status === 'warning').length}
+                {(devices || []).filter(d => d.status === 'warning').length}
               </div>
             </CardContent>
           </Card>
@@ -175,7 +175,7 @@ export default function DeviceList() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-gray-500">
-                {devices.filter(d => d.status === 'offline').length}
+                {(devices || []).filter(d => d.status === 'offline').length}
               </div>
             </CardContent>
           </Card>
@@ -207,7 +207,7 @@ export default function DeviceList() {
                   <SelectValue placeholder="设备类型" />
                 </SelectTrigger>
                 <SelectContent>
-                  {deviceTypes.map(type => (
+                  {(deviceTypes || []).map(type => (
                     <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>
                   ))}
                 </SelectContent>
@@ -251,7 +251,7 @@ export default function DeviceList() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredDevices.map(device => (
+                {(filteredDevices || []).map(device => (
                   <TableRow key={device.id}>
                     <TableCell className="font-mono text-sm">{device.id}</TableCell>
                     <TableCell className="font-medium">{device.name}</TableCell>

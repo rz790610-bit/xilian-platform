@@ -199,14 +199,14 @@ export default function Agents() {
       if (isOnline) {
         setOllamaStatus('online');
         const modelList = await ollama.getModels();
-        const formattedModels = modelList.map(m => ({
+        const formattedModels = (modelList || []).map(m => ({
           name: m.name,
           size: m.size,
           parameterSize: m.details.parameter_size
         }));
         setModels(formattedModels);
         
-        if (formattedModels.length > 0 && !formattedModels.find(m => m.name === selectedModel)) {
+        if (formattedModels.length > 0 && !(formattedModels || []).find(m => m.name === selectedModel)) {
           setSelectedModel(formattedModels[0].name);
         }
       } else {
@@ -474,7 +474,7 @@ export default function Agents() {
         <PageCard title="六大专家智能体" icon={<Bot className="w-4 h-4" />} className="mb-3">
           <p className="text-[10px] text-muted-foreground mb-3">点击智能体卡片开始专业诊断对话</p>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
-            {agents.map((agent) => (
+            {(agents || []).map((agent) => (
               <div
                 key={agent.id}
                 onClick={() => handleSelectAgent(agent)}
@@ -512,7 +512,7 @@ export default function Agents() {
                       <SelectValue placeholder="选择模型" />
                     </SelectTrigger>
                     <SelectContent>
-                      {models.map((model) => (
+                      {(models || []).map((model) => (
                         <SelectItem key={model.name} value={model.name} className="text-[10px]">
                           {model.name}
                         </SelectItem>
@@ -527,7 +527,7 @@ export default function Agents() {
                   {/* Messages */}
                   <ScrollArea className="h-[350px] pr-3" ref={scrollRef}>
                     <div className="space-y-3">
-                      {messages.map((message) => (
+                      {(messages || []).map((message) => (
                         <div
                           key={message.id}
                           className={`flex gap-2 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
@@ -674,7 +674,7 @@ export default function Agents() {
                   className="w-full h-7 text-[10px]"
                   onClick={() => {
                     if (messages.length > 0) {
-                      const content = messages.map(m => 
+                      const content = (messages || []).map(m => 
                         `[${m.role === 'user' ? '用户' : '智能体'}] ${m.content}`
                       ).join('\n\n');
                       const blob = new Blob([content], { type: 'text/plain' });

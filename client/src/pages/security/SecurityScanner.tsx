@@ -204,7 +204,7 @@ export default function SecurityScanner() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {mockTrivyResults.map(vuln => (
+                    {(mockTrivyResults || []).map(vuln => (
                       <TableRow key={vuln.id}>
                         <TableCell className="font-mono text-sm">{vuln.id}</TableCell>
                         <TableCell>
@@ -240,7 +240,7 @@ export default function SecurityScanner() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {mockSemgrepResults.map(issue => (
+                    {(mockSemgrepResults || []).map(issue => (
                       <TableRow key={issue.id}>
                         <TableCell className="font-mono text-sm">{issue.rule}</TableCell>
                         <TableCell>
@@ -276,7 +276,7 @@ export default function SecurityScanner() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {mockGitleaksResults.map(leak => (
+                    {(mockGitleaksResults || []).map(leak => (
                       <TableRow key={leak.id}>
                         <TableCell className="font-mono text-sm">{leak.rule}</TableCell>
                         <TableCell className="font-medium">{leak.file}</TableCell>

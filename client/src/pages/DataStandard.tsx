@@ -160,7 +160,7 @@ function FaultCategoryTree({ categories, level = 0 }: { categories: FaultCategor
 
   return (
     <div className="space-y-0.5">
-      {categories.map(cat => (
+      {(categories || []).map(cat => (
         <div key={cat.id}>
           <div 
             className={`flex items-center gap-1.5 py-1 px-2 rounded hover:bg-slate-700/30 cursor-pointer`}
@@ -176,7 +176,7 @@ function FaultCategoryTree({ categories, level = 0 }: { categories: FaultCategor
             <span className="text-[10px] text-gray-300">{cat.name}</span>
             {cat.symptoms && (
               <span className="text-[9px] text-gray-500 ml-auto">
-                {cat.symptoms.slice(0, 2).join(', ')}
+                {(cat.symptoms || []).slice(0, 2).join(', ')}
               </span>
             )}
           </div>
@@ -223,7 +223,7 @@ export default function DataStandard() {
 
   // 切换规则启用状态
   const toggleRuleEnabled = (id: string) => {
-    setQualityRules(rules => rules.map(r => 
+    setQualityRules(rules => (rules || []).map(r => 
       r.id === id ? { ...r, enabled: !r.enabled } : r
     ));
   };
@@ -285,7 +285,7 @@ export default function DataStandard() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
             <PageCard title="编码规范" icon={<Tag className="w-3.5 h-3.5" />}>
               <div className="space-y-3">
-                {deviceStandards.map(std => (
+                {(deviceStandards || []).map(std => (
                   <div key={std.id} className="p-2 bg-slate-800/30 rounded border border-slate-700/50">
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
@@ -311,7 +311,7 @@ export default function DataStandard() {
                       </code>
                     </div>
                     <div className="flex flex-wrap gap-1">
-                      {std.segments.map((seg, idx) => (
+                      {(std.segments || []).map((seg, idx) => (
                         <span key={idx} className="text-[8px] px-1.5 py-0.5 bg-slate-700/50 text-gray-300 rounded">
                           {seg.name}
                         </span>
@@ -381,7 +381,7 @@ export default function DataStandard() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
             <PageCard title="测点编码规范" icon={<Activity className="w-3.5 h-3.5" />}>
               <div className="space-y-3">
-                {measureStandards.map(std => (
+                {(measureStandards || []).map(std => (
                   <div key={std.id} className="p-2 bg-slate-800/30 rounded border border-slate-700/50">
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-[11px] font-medium text-white">{std.name}</span>
@@ -407,7 +407,7 @@ export default function DataStandard() {
                   <div key={seg.code} className="p-2 bg-slate-800/30 rounded border border-slate-700/50">
                     <div className="text-[10px] font-medium text-white mb-1.5">{seg.name} ({seg.code})</div>
                     <div className="grid grid-cols-2 gap-1">
-                      {seg.options.map(opt => (
+                      {(seg.options || []).map(opt => (
                         <div key={opt.code} className="flex items-center gap-1.5 text-[9px]">
                           <code className="font-mono text-blue-400 bg-slate-900/50 px-1 rounded">{opt.code}</code>
                           <span className="text-gray-400">{opt.name}</span>
@@ -433,7 +433,7 @@ export default function DataStandard() {
                 <div>换算公式</div>
                 <div>操作</div>
               </div>
-              {unitConversions.map(conv => (
+              {(unitConversions || []).map(conv => (
                 <div key={conv.id} className="grid grid-cols-6 gap-2 items-center py-1.5 border-b border-slate-700/30">
                   <div className="text-[10px] text-white">{conv.name}</div>
                   <div className="text-[9px] text-gray-400">{conv.category}</div>
@@ -519,7 +519,7 @@ export default function DataStandard() {
                 <div>参考标准</div>
                 <div>操作</div>
               </div>
-              {thresholds.map(th => (
+              {(thresholds || []).map(th => (
                 <div key={th.id} className="grid grid-cols-8 gap-2 items-center py-1.5 border-b border-slate-700/30">
                   <div className="col-span-2 text-[10px] text-white">{th.name}</div>
                   <div className="text-[10px] font-mono text-gray-400">{th.unit}</div>
@@ -572,7 +572,7 @@ export default function DataStandard() {
                 <div>处理方式</div>
                 <div>操作</div>
               </div>
-              {qualityRules.map(rule => (
+              {(qualityRules || []).map(rule => (
                 <div key={rule.id} className="grid grid-cols-7 gap-2 items-center py-1.5 border-b border-slate-700/30">
                   <div>
                     <Switch 

@@ -117,7 +117,7 @@ export default function Documents() {
         >
           {documents.length > 0 ? (
             <div className="space-y-2">
-              {documents.map((doc) => (
+              {(documents || []).map((doc) => (
                 <div
                   key={doc.id}
                   className="flex items-center justify-between p-4 bg-secondary rounded-xl"

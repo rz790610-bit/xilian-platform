@@ -156,8 +156,8 @@ export default function KnowledgeGraph() {
         
         // 计算引力（边）
         for (const edge of edges) {
-          const source = nodes.find(n => n.id === edge.source);
-          const target = nodes.find(n => n.id === edge.target);
+          const source = (nodes || []).find(n => n.id === edge.source);
+          const target = (nodes || []).find(n => n.id === edge.target);
           if (!source || !target) continue;
           
           const dx = target.x - source.x;
@@ -226,8 +226,8 @@ export default function KnowledgeGraph() {
     
     // 绘制边
     for (const edge of graphData.edges) {
-      const source = graphData.nodes.find(n => n.id === edge.source);
-      const target = graphData.nodes.find(n => n.id === edge.target);
+      const source = (graphData.nodes || []).find(n => n.id === edge.source);
+      const target = (graphData.nodes || []).find(n => n.id === edge.target);
       if (!source || !target) continue;
       
       ctx.beginPath();
@@ -321,7 +321,7 @@ export default function KnowledgeGraph() {
     const y = (e.clientY - rect.top - offset.y) / zoom;
     
     // 检查是否点击了节点
-    const clickedNode = graphData.nodes.find(node => {
+    const clickedNode = (graphData.nodes || []).find(node => {
       const dx = node.x - x;
       const dy = node.y - y;
       return Math.sqrt(dx * dx + dy * dy) < 25;
@@ -352,7 +352,7 @@ export default function KnowledgeGraph() {
     const x = (e.clientX - rect.left - offset.x) / zoom;
     const y = (e.clientY - rect.top - offset.y) / zoom;
     
-    const hovered = graphData.nodes.find(node => {
+    const hovered = (graphData.nodes || []).find(node => {
       const dx = node.x - x;
       const dy = node.y - y;
       return Math.sqrt(dx * dx + dy * dy) < 25;
@@ -373,7 +373,7 @@ export default function KnowledgeGraph() {
   }, []);
 
   // 过滤节点
-  const filteredNodes = graphData.nodes.filter(node => {
+  const filteredNodes = (graphData.nodes || []).filter(node => {
     const matchesSearch = node.label.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesType = filterType === 'all' || node.type === filterType;
     return matchesSearch && matchesType;
@@ -383,10 +383,10 @@ export default function KnowledgeGraph() {
   const stats = {
     totalNodes: graphData.nodes.length,
     totalEdges: graphData.edges.length,
-    entityCount: graphData.nodes.filter(n => n.type === 'entity').length,
-    equipmentCount: graphData.nodes.filter(n => n.type === 'equipment').length,
-    faultCount: graphData.nodes.filter(n => n.type === 'fault').length,
-    conceptCount: graphData.nodes.filter(n => n.type === 'concept').length
+    entityCount: (graphData.nodes || []).filter(n => n.type === 'entity').length,
+    equipmentCount: (graphData.nodes || []).filter(n => n.type === 'equipment').length,
+    faultCount: (graphData.nodes || []).filter(n => n.type === 'fault').length,
+    conceptCount: (graphData.nodes || []).filter(n => n.type === 'concept').length
   };
 
   // 添加节点
@@ -410,8 +410,8 @@ export default function KnowledgeGraph() {
   const deleteSelectedNode = () => {
     if (!selectedNode) return;
     setGraphData(prev => ({
-      nodes: prev.nodes.filter(n => n.id !== selectedNode.id),
-      edges: prev.edges.filter(e => e.source !== selectedNode.id && e.target !== selectedNode.id)
+      nodes: (prev.nodes || []).filter(n => n.id !== selectedNode.id),
+      edges: (prev.edges || []).filter(e => e.source !== selectedNode.id && e.target !== selectedNode.id)
     }));
     setSelectedNode(null);
   };
@@ -597,7 +597,7 @@ export default function KnowledgeGraph() {
                   <div className="text-sm">
                     <div className="text-gray-400 mb-1">关联关系</div>
                     <div className="text-gray-300">
-                      {graphData.edges.filter(e => e.source === selectedNode.id || e.target === selectedNode.id).length} 条
+                      {(graphData.edges || []).filter(e => e.source === selectedNode.id || e.target === selectedNode.id).length} 条
                     </div>
                   </div>
                   <Button 
@@ -620,7 +620,7 @@ export default function KnowledgeGraph() {
             {/* 节点列表 */}
             <PageCard title={`节点列表 (${filteredNodes.length})`}>
               <div className="max-h-[300px] overflow-y-auto space-y-1">
-                {filteredNodes.map(node => (
+                {(filteredNodes || []).map(node => (
                   <div
                     key={node.id}
                     onClick={() => setSelectedNode(node)}

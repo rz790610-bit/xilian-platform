@@ -166,9 +166,9 @@ export default function ModelCenter() {
   // 统计数据
   const stats = {
     total: filteredModels.length,
-    loaded: filteredModels.filter(m => m.status === 'loaded').length,
-    llmCount: filteredModels.filter(m => m.type === 'llm').length,
-    embeddingCount: filteredModels.filter(m => m.type === 'embedding').length,
+    loaded: (filteredModels || []).filter(m => m.status === 'loaded').length,
+    llmCount: (filteredModels || []).filter(m => m.type === 'llm').length,
+    embeddingCount: (filteredModels || []).filter(m => m.type === 'embedding').length,
   };
 
   // 发送消息
@@ -229,7 +229,7 @@ export default function ModelCenter() {
 
   // 打开配置对话框
   const openConfigDialog = (modelId: string) => {
-    const model = filteredModels.find(m => m.modelId === modelId);
+    const model = (filteredModels || []).find(m => m.modelId === modelId);
     if (model) {
       setSelectedModelId(modelId);
       const config = model.config as typeof modelConfig | null;
@@ -364,7 +364,7 @@ export default function ModelCenter() {
                     <p className="text-sm mt-2">点击"同步 Ollama"从本地 Ollama 导入模型</p>
                   </div>
                 ) : (
-                  filteredModels.map((model) => {
+                  (filteredModels || []).map((model) => {
                     const typeInfo = getTypeLabel(model.type);
                     return (
                       <div 
@@ -558,7 +558,7 @@ export default function ModelCenter() {
                         </div>
                       </div>
                     ) : (
-                      messages.map((msg) => (
+                      (messages || []).map((msg) => (
                         <div
                           key={msg.id}
                           className={cn(
@@ -681,7 +681,7 @@ export default function ModelCenter() {
 
               <PageCard title="模型使用分布" icon="📈">
                 <div className="space-y-4">
-                  {filteredModels.filter(m => m.type === 'llm').slice(0, 5).map(model => (
+                  {(filteredModels || []).filter(m => m.type === 'llm').slice(0, 5).map(model => (
                     <div key={model.modelId} className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center text-lg">
                         🧠

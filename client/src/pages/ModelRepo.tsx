@@ -44,13 +44,13 @@ export default function ModelRepo() {
   // 统计
   const stats = {
     total: models.length,
-    loaded: models.filter(m => m.status === 'loaded').length,
+    loaded: (models || []).filter(m => m.status === 'loaded').length,
     totalSize: '45.5 GB',
-    labelModels: models.filter(m => m.type === 'label').length
+    labelModels: (models || []).filter(m => m.type === 'label').length
   };
 
   // 过滤模型
-  const filteredModels = models.filter(m => {
+  const filteredModels = (models || []).filter(m => {
     const matchSearch = m.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                        m.description.toLowerCase().includes(searchQuery.toLowerCase());
     const matchType = filterType === 'all' || m.type === filterType;
@@ -71,7 +71,7 @@ export default function ModelRepo() {
 
   // 删除模型
   const deleteModel = (id: string) => {
-    const model = models.find(m => m.id === id);
+    const model = (models || []).find(m => m.id === id);
     if (!model) return;
     if (!confirm(`确定要删除模型 ${model.name} 吗？`)) return;
     
@@ -202,7 +202,7 @@ export default function ModelRepo() {
                 <p>没有找到匹配的模型</p>
               </div>
             ) : (
-              filteredModels.map((model) => {
+              (filteredModels || []).map((model) => {
                 const typeInfo = getTypeLabel(model.type);
                 return (
                   <div 
@@ -309,12 +309,12 @@ export default function ModelRepo() {
           }
         >
           <div className="space-y-3">
-            {models.filter(m => m.type === 'label').length === 0 ? (
+            {(models || []).filter(m => m.type === 'label').length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
                 暂无标注模型
               </div>
             ) : (
-              models.filter(m => m.type === 'label').map((model) => (
+              (models || []).filter(m => m.type === 'label').map((model) => (
                 <div 
                   key={model.id}
                   className="flex items-center justify-between p-3 bg-secondary/50 rounded-lg"

@@ -208,7 +208,7 @@ export default function KnowledgeBase() {
     }
   };
 
-  const totalPoints = collections.reduce((sum, c) => sum + c.points_count, 0);
+  const totalPoints = (collections || []).reduce((sum, c) => sum + c.points_count, 0);
 
   return (
     <MainLayout title="知识库">
@@ -309,7 +309,7 @@ export default function KnowledgeBase() {
                       暂无集合，点击"初始化"创建默认知识库
                     </div>
                   ) : (
-                    collections.map((col) => (
+                    (collections || []).map((col) => (
                       <div
                         key={col.name}
                         onClick={() => setSelectedCollection(col.name)}
@@ -372,7 +372,7 @@ export default function KnowledgeBase() {
                     <div className="text-[10px] text-muted-foreground">
                       找到 {searchResults.length} 条相关结果
                     </div>
-                    {searchResults.map((result) => (
+                    {(searchResults || []).map((result) => (
                       <div
                         key={result.id}
                         onClick={() => {
@@ -444,7 +444,7 @@ export default function KnowledgeBase() {
                 ) : (
                   <ScrollArea className="h-[450px]">
                     <div className="space-y-2 pr-3">
-                      {knowledgePoints.map((point) => (
+                      {(knowledgePoints || []).map((point) => (
                         <div
                           key={point.id}
                           className="p-3 bg-secondary rounded-lg hover:bg-accent/50 transition-colors cursor-pointer"
@@ -608,7 +608,7 @@ export default function KnowledgeBase() {
                 {selectedPoint.tags.length > 0 && (
                   <div className="flex items-center gap-1 flex-wrap">
                     <span className="text-[10px] text-muted-foreground">标签：</span>
-                    {selectedPoint.tags.map((tag, i) => (
+                    {(selectedPoint.tags || []).map((tag, i) => (
                       <Badge key={i} variant="default" className="text-[9px]">
                         {tag}
                       </Badge>

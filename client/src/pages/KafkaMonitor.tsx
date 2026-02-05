@@ -112,7 +112,7 @@ function TopicList({ topics }: { topics: string[] }) {
       <CardContent>
         <ScrollArea className="h-[300px]">
           <div className="space-y-2">
-            {topics.map((topic) => (
+            {(topics || []).map((topic) => (
               <div
                 key={topic}
                 className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
@@ -246,7 +246,7 @@ function AnomalyList({
             </div>
           ) : (
             <div className="space-y-3">
-              {anomalies.map((anomaly) => (
+              {(anomalies || []).map((anomaly) => (
                 <div
                   key={anomaly.id}
                   className="flex items-start gap-3 p-3 rounded-lg bg-muted/50"

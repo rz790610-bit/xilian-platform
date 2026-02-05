@@ -624,7 +624,7 @@ export default function DataStream() {
                 <div>
                   <h4 className="font-medium mb-2">模拟设备列表</h4>
                   <div className="flex flex-wrap gap-2">
-                    {simulatorStatus.data.devices.map((deviceId: string) => (
+                    {(simulatorStatus.data.devices || []).map((deviceId: string) => (
                       <Badge key={deviceId} variant="outline">
                         {deviceId}
                       </Badge>

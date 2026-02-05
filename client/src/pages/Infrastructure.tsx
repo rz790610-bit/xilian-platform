@@ -325,7 +325,7 @@ export default function Infrastructure() {
                       Host: <span className="text-foreground">{ingress.host}</span>
                     </div>
                     <div className="space-y-1">
-                      {ingress.paths.map((path: any, i: number) => (
+                      {(ingress.paths || []).map((path: any, i: number) => (
                         <div key={i} className="flex justify-between text-xs">
                           <span>{path.path}</span>
                           <span className="text-muted-foreground">
@@ -703,7 +703,7 @@ export default function Infrastructure() {
                         </Badge>
                       </div>
                       <div className="flex items-center gap-2">
-                        {pipeline.stages.map((stage: any, i: number) => (
+                        {(pipeline.stages || []).map((stage: any, i: number) => (
                           <div key={stage.name} className="flex items-center gap-2">
                             <div className={cn(
                               "px-3 py-1 rounded text-xs",

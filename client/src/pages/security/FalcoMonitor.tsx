@@ -103,7 +103,7 @@ export default function FalcoMonitor() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-red-500">
-                {events.filter(e => e.priority === 'Critical').length}
+                {(events || []).filter(e => e.priority === 'Critical').length}
               </div>
               <p className="text-xs text-muted-foreground">过去24小时</p>
             </CardContent>
@@ -117,7 +117,7 @@ export default function FalcoMonitor() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-yellow-500">
-                {events.filter(e => e.priority === 'Warning').length}
+                {(events || []).filter(e => e.priority === 'Warning').length}
               </div>
               <p className="text-xs text-muted-foreground">过去24小时</p>
             </CardContent>
@@ -131,7 +131,7 @@ export default function FalcoMonitor() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {rules.filter(r => r.enabled).length}/{rules.length}
+                {(rules || []).filter(r => r.enabled).length}/{rules.length}
               </div>
               <p className="text-xs text-muted-foreground">规则启用</p>
             </CardContent>
@@ -166,7 +166,7 @@ export default function FalcoMonitor() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {events.map(event => (
+                      {(events || []).map(event => (
                         <TableRow key={event.id}>
                           <TableCell className="text-sm text-muted-foreground">{event.time}</TableCell>
                           <TableCell>
@@ -203,7 +203,7 @@ export default function FalcoMonitor() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {rules.map(rule => (
+                    {(rules || []).map(rule => (
                       <TableRow key={rule.name}>
                         <TableCell className="font-medium">{rule.name}</TableCell>
                         <TableCell>

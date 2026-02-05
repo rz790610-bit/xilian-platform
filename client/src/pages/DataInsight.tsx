@@ -122,7 +122,7 @@ export default function DataInsight() {
           {/* File type distribution */}
           <PageCard title="文件类型分布" icon="📊">
             <div className="space-y-4">
-              {typeDistribution.map((item) => (
+              {(typeDistribution || []).map((item) => (
                 <div key={item.type} className="space-y-2">
                   <div className="flex justify-between text-sm">
                     <span>{item.type}</span>
@@ -142,7 +142,7 @@ export default function DataInsight() {
           {/* Label status distribution */}
           <PageCard title="标注状态分布" icon="🏷️">
             <div className="space-y-4">
-              {labelDistribution.map((item) => (
+              {(labelDistribution || []).map((item) => (
                 <div key={item.status} className="space-y-2">
                   <div className="flex justify-between text-sm">
                     <span>{item.status}</span>
@@ -164,7 +164,7 @@ export default function DataInsight() {
           {/* Condition stats */}
           <PageCard title="工况类型统计" icon="📋">
             <div className="space-y-4">
-              {conditionStats.map((item) => (
+              {(conditionStats || []).map((item) => (
                 <div key={item.condition} className="space-y-2">
                   <div className="flex justify-between text-sm">
                     <span className="flex items-center gap-2">
@@ -207,7 +207,7 @@ export default function DataInsight() {
                 
                 {/* Detail items */}
                 <div className="space-y-3">
-                  {qualityResult.items.map((item: any) => (
+                  {(qualityResult.items || []).map((item: any) => (
                     <div key={item.name} className="flex items-center justify-between p-3 bg-secondary/50 rounded-lg">
                       <div className="flex items-center gap-3">
                         {item.status === 'good' ? (
@@ -259,7 +259,7 @@ export default function DataInsight() {
                 </tr>
               </thead>
               <tbody>
-                {files.map((file, index) => (
+                {(files || []).map((file, index) => (
                   <tr key={index} className="border-b border-border/50 hover:bg-secondary/50">
                     <td className="py-3 px-4 font-medium">{file.name}</td>
                     <td className="py-3 px-4">{file.type}</td>

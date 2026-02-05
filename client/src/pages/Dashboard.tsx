@@ -54,7 +54,7 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
           <PageCard title="快捷入口" icon="⚡">
             <div className="grid grid-cols-2 gap-2">
-              {quickActions.map((action) => (
+              {(quickActions || []).map((action) => (
                 <Button
                   key={action.id}
                   variant={action.variant}

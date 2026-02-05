@@ -210,7 +210,7 @@ export default function Settings() {
       plugins: plugins.length,
       uptime: formatUptime(uptime),
       config: modelConfig,
-      logs: systemLogs.slice(-50)
+      logs: (systemLogs || []).slice(-50)
     };
     
     const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
@@ -304,7 +304,7 @@ export default function Settings() {
     setEngines(prev => prev.map(e => 
       e.id === engineId ? { ...e, enabled: !e.enabled } : e
     ));
-    const engine = engines.find(e => e.id === engineId);
+    const engine = (engines || []).find(e => e.id === engineId);
     if (engine) {
       toast.success(`${engine.name} 已${engine.enabled ? '禁用' : '启用'}`);
     }
@@ -312,11 +312,11 @@ export default function Settings() {
 
   // 切换插件状态
   const togglePlugin = (pluginId: string) => {
-    const updatedPlugins = plugins.map(p => 
+    const updatedPlugins = (plugins || []).map(p => 
       p.id === pluginId ? { ...p, enabled: !p.enabled } : p
     );
     setPlugins(updatedPlugins);
-    const plugin = plugins.find(p => p.id === pluginId);
+    const plugin = (plugins || []).find(p => p.id === pluginId);
     if (plugin) {
       toast.success(`${plugin.name} 已${plugin.enabled ? '禁用' : '启用'}`);
     }
@@ -358,7 +358,7 @@ export default function Settings() {
     }
     
     const typeX: Record<string, number> = { source: 50, plugin: 200, engine: 500, output: 650 };
-    const sameTypeCount = topoNodes.filter(n => n.type === newNode.type).length;
+    const sameTypeCount = (topoNodes || []).filter(n => n.type === newNode.type).length;
     
     const node: TopoNode = {
       id: `node_${Date.now()}`,
@@ -395,11 +395,11 @@ export default function Settings() {
   const renderTopoEdges = () => {
     const visibleEdges = topoView === 'all' 
       ? topoEdges 
-      : topoEdges.filter(e => e.type === (topoView === 'flow' ? 'data' : 'dep'));
+      : (topoEdges || []).filter(e => e.type === (topoView === 'flow' ? 'data' : 'dep'));
     
-    return visibleEdges.map((edge, i) => {
-      const fromNode = topoNodes.find(n => n.id === edge.from);
-      const toNode = topoNodes.find(n => n.id === edge.to);
+    return (visibleEdges || []).map((edge, i) => {
+      const fromNode = (topoNodes || []).find(n => n.id === edge.from);
+      const toNode = (topoNodes || []).find(n => n.id === edge.to);
       if (!fromNode || !toNode) return null;
       
       const x1 = fromNode.x + 60;
@@ -431,7 +431,7 @@ export default function Settings() {
   // 过滤日志
   const filteredLogs = logFilter === 'all' 
     ? systemLogs 
-    : systemLogs.filter(log => log.type === logFilter);
+    : (systemLogs || []).filter(log => log.type === logFilter);
 
   return (
     <MainLayout title="系统设置">
@@ -472,7 +472,7 @@ export default function Settings() {
               <StatCard value={models.length} label="大模型" icon="🧠" />
               <StatCard value={databases.length} label="数据库" icon="🗄️" />
               <StatCard value={plugins.length} label="插件" icon="🧩" />
-              <StatCard value={engines.filter(e => e.enabled).length} label="引擎模块" icon="⚡" />
+              <StatCard value={(engines || []).filter(e => e.enabled).length} label="引擎模块" icon="⚡" />
               <StatCard value={formatUptime(uptime)} label="运行时长" icon="⏱️" />
             </div>
 
@@ -487,7 +487,7 @@ export default function Settings() {
               }
             >
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5">
-                {services.map((service, i) => (
+                {(services || []).map((service, i) => (
                   <div
                     key={i}
                     className={cn(
@@ -594,7 +594,7 @@ export default function Settings() {
                   }
                 >
                   <div className="space-y-3">
-                    {models.map((model) => (
+                    {(models || []).map((model) => (
                       <div
                         key={model.id}
                         className={cn(
@@ -701,7 +701,7 @@ export default function Settings() {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          {models.map(m => (
+                          {(models || []).map(m => (
                             <SelectItem key={m.id} value={m.name}>{m.name}</SelectItem>
                           ))}
                         </SelectContent>
@@ -771,7 +771,7 @@ export default function Settings() {
           {/* ========== 数据库管理 ========== */}
           <TabsContent value="databases">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-              {databases.map((db) => (
+              {(databases || []).map((db) => (
                 <PageCard key={db.id}>
                   <div className="flex items-start gap-4">
                     <div className="w-12 h-12 bg-secondary rounded-xl flex items-center justify-center">
@@ -815,7 +815,7 @@ export default function Settings() {
           {/* ========== 插件管理 ========== */}
           <TabsContent value="plugins">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {plugins.map((plugin) => (
+              {(plugins || []).map((plugin) => (
                 <PageCard key={plugin.id}>
                   <div className="flex items-start gap-3">
                     <div className="w-10 h-10 bg-secondary rounded-lg flex items-center justify-center text-xl">
@@ -841,7 +841,7 @@ export default function Settings() {
           {/* ========== 引擎模块 ========== */}
           <TabsContent value="engines">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {engines.map((engine) => (
+              {(engines || []).map((engine) => (
                 <PageCard key={engine.id}>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
@@ -893,7 +893,7 @@ export default function Settings() {
                       {renderTopoEdges()}
                       
                       {/* 节点 */}
-                      {topoNodes.map((node) => (
+                      {(topoNodes || []).map((node) => (
                         <g key={node.id} transform={`translate(${node.x}, ${node.y})`}>
                           <rect
                             width="120"
@@ -950,15 +950,15 @@ export default function Settings() {
                     </div>
                     <div className="flex justify-between items-center p-3 bg-secondary rounded-lg">
                       <span className="text-muted-foreground">数据源</span>
-                      <span className="font-medium">{topoNodes.filter(n => n.type === 'source').length}</span>
+                      <span className="font-medium">{(topoNodes || []).filter(n => n.type === 'source').length}</span>
                     </div>
                     <div className="flex justify-between items-center p-3 bg-secondary rounded-lg">
                       <span className="text-muted-foreground">插件</span>
-                      <span className="font-medium">{topoNodes.filter(n => n.type === 'plugin').length}</span>
+                      <span className="font-medium">{(topoNodes || []).filter(n => n.type === 'plugin').length}</span>
                     </div>
                     <div className="flex justify-between items-center p-3 bg-secondary rounded-lg">
                       <span className="text-muted-foreground">引擎</span>
-                      <span className="font-medium">{topoNodes.filter(n => n.type === 'engine').length}</span>
+                      <span className="font-medium">{(topoNodes || []).filter(n => n.type === 'engine').length}</span>
                     </div>
                     <div className="flex justify-between items-center p-3 bg-secondary rounded-lg">
                       <span className="text-muted-foreground">连接数</span>
@@ -1018,7 +1018,7 @@ export default function Settings() {
                     暂无日志记录
                   </div>
                 ) : (
-                  filteredLogs.slice().reverse().map((log, i) => (
+                  (filteredLogs || []).slice().reverse().map((log, i) => (
                     <div key={i} className="py-1 border-b border-border/30">
                       <span className="text-muted-foreground">[{log.time}]</span>{' '}
                       <span className={cn(

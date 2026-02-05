@@ -122,7 +122,7 @@ export default function SystemTopology() {
   // 手动触发健康检查
   const checkHealthMutation = trpc.topology.checkServicesHealth.useMutation({
     onSuccess: (result) => {
-      const onlineCount = result.results.filter(r => r.online).length;
+      const onlineCount = (result.results || []).filter(r => r.online).length;
       toast.success(`健康检查完成: ${onlineCount}/${result.results.length} 服务在线`);
       refetchTopology();
       refetchServices();
@@ -207,7 +207,7 @@ export default function SystemTopology() {
   // 自动发现并生成拓扑
   const autoDiscoverMutation = trpc.topology.autoDiscover.useMutation({
     onSuccess: (result) => {
-      const onlineServices = result.discovered.filter(s => s.online).length;
+      const onlineServices = (result.discovered || []).filter(s => s.online).length;
       toast.success(`自动发现完成: 发现 ${onlineServices} 个在线服务\n新增 ${result.nodesCreated} 个节点, ${result.edgesCreated} 个连接`);
       refetchTopology();
     },
@@ -217,7 +217,7 @@ export default function SystemTopology() {
   // 重新生成拓扑（清空后重建）
   const regenerateMutation = trpc.topology.regenerate.useMutation({
     onSuccess: (result) => {
-      const onlineServices = result.discovered.filter(s => s.online).length;
+      const onlineServices = (result.discovered || []).filter(s => s.online).length;
       toast.success(`拓扑已重新生成: 发现 ${onlineServices} 个在线服务\n创建 ${result.nodesCreated} 个节点, ${result.edgesCreated} 个连接`);
       refetchTopology();
     },
@@ -239,7 +239,7 @@ export default function SystemTopology() {
   // 过滤显示的连接
   const visibleEdges = viewMode === 'all' 
     ? edges 
-    : edges.filter(e => e.type === viewMode);
+    : (edges || []).filter(e => e.type === viewMode);
   
   // 处理节点拖拽
   const handleMouseDown = (e: React.MouseEvent, nodeId: string) => {
@@ -261,7 +261,7 @@ export default function SystemTopology() {
       return;
     }
     
-    const node = nodes.find(n => n.nodeId === nodeId);
+    const node = (nodes || []).find(n => n.nodeId === nodeId);
     if (!node) return;
     
     const svg = svgRef.current;
@@ -295,7 +295,7 @@ export default function SystemTopology() {
   
   const handleMouseUp = useCallback(() => {
     if (isDragging && dragNode) {
-      const node = nodes.find(n => n.nodeId === dragNode);
+      const node = (nodes || []).find(n => n.nodeId === dragNode);
       if (node) {
         updateNodePositionMutation.mutate({
           nodeId: dragNode,
@@ -330,7 +330,7 @@ export default function SystemTopology() {
     const typeX: Record<string, number> = { 
       source: 50, plugin: 200, engine: 350, agent: 350, output: 500, database: 500, service: 500 
     };
-    const sameTypeCount = nodes.filter(n => n.type === newNode.type).length;
+    const sameTypeCount = (nodes || []).filter(n => n.type === newNode.type).length;
     
     createNodeMutation.mutate({
       nodeId,
@@ -370,7 +370,7 @@ export default function SystemTopology() {
     saveLayoutMutation.mutate({
       name: layoutName,
       layoutData: {
-        nodes: nodes.map(n => ({ nodeId: n.nodeId, x: n.x, y: n.y })),
+        nodes: (nodes || []).map(n => ({ nodeId: n.nodeId, x: n.x, y: n.y })),
         zoom,
         panX: pan.x,
         panY: pan.y,
@@ -381,7 +381,7 @@ export default function SystemTopology() {
   // 导出拓扑数据
   const handleExportTopology = () => {
     const data = {
-      nodes: nodes.map(n => ({
+      nodes: (nodes || []).map(n => ({
         nodeId: n.nodeId,
         name: n.name,
         type: n.type,
@@ -391,7 +391,7 @@ export default function SystemTopology() {
         y: n.y,
         status: n.status,
       })),
-      edges: edges.map(e => ({
+      edges: (edges || []).map(e => ({
         edgeId: e.edgeId,
         sourceNodeId: e.sourceNodeId,
         targetNodeId: e.targetNodeId,
@@ -412,9 +412,9 @@ export default function SystemTopology() {
   
   // 渲染连接线
   const renderEdges = () => {
-    return visibleEdges.map((edge) => {
-      const fromNode = nodes.find(n => n.nodeId === edge.sourceNodeId);
-      const toNode = nodes.find(n => n.nodeId === edge.targetNodeId);
+    return (visibleEdges || []).map((edge) => {
+      const fromNode = (nodes || []).find(n => n.nodeId === edge.sourceNodeId);
+      const toNode = (nodes || []).find(n => n.nodeId === edge.targetNodeId);
       if (!fromNode || !toNode) return null;
       
       const x1 = fromNode.x + 120;
@@ -475,7 +475,7 @@ export default function SystemTopology() {
   
   // 渲染节点
   const renderNodes = () => {
-    return nodes.map((node) => {
+    return (nodes || []).map((node) => {
       const isSelected = selectedNode?.nodeId === node.nodeId;
       const isConnectSource = connectSource === node.nodeId;
       const typeConfig = nodeTypeConfig[node.type];
@@ -655,10 +655,10 @@ export default function SystemTopology() {
         {/* 统计卡片 */}
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-2 mb-4">
           <StatCard value={nodes.length} label="总节点" icon="🔷" />
-          <StatCard value={nodes.filter(n => n.status === 'online').length} label="在线节点" icon="✅" />
+          <StatCard value={(nodes || []).filter(n => n.status === 'online').length} label="在线节点" icon="✅" />
           <StatCard value={edges.length} label="连接数" icon="🔗" />
-          <StatCard value={nodes.filter(n => n.type === 'source').length} label="数据源" icon="📡" />
-          <StatCard value={nodes.filter(n => n.type === 'engine').length} label="引擎" icon="🤖" />
+          <StatCard value={(nodes || []).filter(n => n.type === 'source').length} label="数据源" icon="📡" />
+          <StatCard value={(nodes || []).filter(n => n.type === 'engine').length} label="引擎" icon="🤖" />
         </div>
         
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
@@ -950,7 +950,7 @@ export default function SystemTopology() {
             <PageCard title="节点分布" icon="📈">
               <div className="space-y-2">
                 {Object.entries(nodeTypeConfig).map(([type, config]) => {
-                  const count = nodes.filter(n => n.type === type).length;
+                  const count = (nodes || []).filter(n => n.type === type).length;
                   if (count === 0) return null;
                   return (
                     <div key={type} className="flex justify-between items-center p-2 bg-secondary rounded-lg text-sm">
@@ -1067,7 +1067,7 @@ export default function SystemTopology() {
                   <SelectValue placeholder="选择源节点" />
                 </SelectTrigger>
                 <SelectContent>
-                  {nodes.map(node => (
+                  {(nodes || []).map(node => (
                     <SelectItem key={node.nodeId} value={node.nodeId}>
                       {node.icon || nodeTypeConfig[node.type].icon} {node.name}
                     </SelectItem>
@@ -1082,7 +1082,7 @@ export default function SystemTopology() {
                   <SelectValue placeholder="选择目标节点" />
                 </SelectTrigger>
                 <SelectContent>
-                  {nodes.filter(n => n.nodeId !== newEdge.sourceNodeId).map(node => (
+                  {(nodes || []).filter(n => n.nodeId !== newEdge.sourceNodeId).map(node => (
                     <SelectItem key={node.nodeId} value={node.nodeId}>
                       {node.icon || nodeTypeConfig[node.type].icon} {node.name}
                     </SelectItem>

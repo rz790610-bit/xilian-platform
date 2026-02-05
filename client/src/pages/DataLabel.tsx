@@ -82,16 +82,16 @@ export default function DataLabel() {
   // 统计数据
   const stats = {
     total: files.length,
-    done: files.filter(f => f.status === 'done').length,
-    pending: files.filter(f => f.status === 'pending').length,
-    inProgress: files.filter(f => f.status === 'in_progress').length,
+    done: (files || []).filter(f => f.status === 'done').length,
+    pending: (files || []).filter(f => f.status === 'pending').length,
+    inProgress: (files || []).filter(f => f.status === 'in_progress').length,
     progress: Math.round((files.filter(f => f.status === 'done').length / files.length) * 100)
   };
 
   // 过滤文件列表
   const filteredFiles = filterStatus === 'all' 
     ? files 
-    : files.filter(f => f.status === filterStatus);
+    : (files || []).filter(f => f.status === filterStatus);
 
   // 选择文件进行标注
   const selectFile = (file: LabelFile) => {
@@ -145,7 +145,7 @@ export default function DataLabel() {
     toast.success('标注已保存');
     
     // 自动选择下一个待标注文件
-    const nextPending = files.find(f => f.id !== selectedFile.id && f.status === 'pending');
+    const nextPending = (files || []).find(f => f.id !== selectedFile.id && f.status === 'pending');
     if (nextPending) {
       selectFile(nextPending);
     } else {
@@ -156,7 +156,7 @@ export default function DataLabel() {
   // 跳过当前文件
   const skipFile = () => {
     if (!selectedFile) return;
-    const nextPending = files.find(f => f.id !== selectedFile.id && f.status === 'pending');
+    const nextPending = (files || []).find(f => f.id !== selectedFile.id && f.status === 'pending');
     if (nextPending) {
       selectFile(nextPending);
     } else {
@@ -171,7 +171,7 @@ export default function DataLabel() {
     
     // 模拟 AI 标注过程
     setTimeout(() => {
-      const pendingFiles = files.filter(f => f.status === 'pending');
+      const pendingFiles = (files || []).filter(f => f.status === 'pending');
       const conditions = ['正常', '预警', '故障'];
       
       setFiles(prev => prev.map(f => {
@@ -199,7 +199,7 @@ export default function DataLabel() {
 
   // 导出标注数据
   const exportLabels = () => {
-    const labeledData = files.filter(f => f.labels && f.labels.length > 0).map(f => ({
+    const labeledData = (files || []).filter(f => f.labels && f.labels.length > 0).map(f => ({
       filename: f.name,
       type: f.type,
       labels: f.labels,
@@ -323,7 +323,7 @@ export default function DataLabel() {
                   <p>暂无数据，请先在数据管理中上传文件</p>
                 </div>
               ) : (
-                filteredFiles.map((file) => (
+                (filteredFiles || []).map((file) => (
                   <div
                     key={file.id}
                     className={cn(
@@ -404,7 +404,7 @@ export default function DataLabel() {
                   {selectedFile.labels && selectedFile.labels.length > 0 && (
                     <div className="mt-3 pt-3 border-t border-border">
                       <div className="text-sm text-muted-foreground mb-2">已有标注：</div>
-                      {selectedFile.labels.map((label) => (
+                      {(selectedFile.labels || []).map((label) => (
                         <div key={label.id} className="flex items-center gap-2">
                           <Badge variant={
                             label.value === '正常' ? 'success' :
@@ -430,7 +430,7 @@ export default function DataLabel() {
                   <div>
                     <label className="text-sm text-muted-foreground mb-2 block">工况类型 *</label>
                     <div className="grid grid-cols-4 gap-2">
-                      {labelTypes.map((type) => (
+                      {(labelTypes || []).map((type) => (
                         <Button
                           key={type.id}
                           variant={labelForm.condition === type.name ? 'default' : 'secondary'}
@@ -572,7 +572,7 @@ export default function DataLabel() {
               <h4 className="font-medium mb-3">标注分布</h4>
               <div className="space-y-2">
                 {['正常', '预警', '故障', '未知'].map((label) => {
-                  const count = files.filter(f => 
+                  const count = (files || []).filter(f => 
                     f.labels?.some(l => l.value === label)
                   ).length;
                   const percent = stats.done > 0 ? (count / stats.done * 100) : 0;

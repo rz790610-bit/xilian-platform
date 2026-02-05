@@ -75,10 +75,10 @@ export default function KnowledgeManager() {
   // 统计数据
   const stats = {
     totalDocs: documents.length,
-    processedDocs: documents.filter(d => d.status === 'completed').length,
-    totalEntities: documents.reduce((sum, d) => sum + (d.entities || 0), 0),
-    totalRelations: documents.reduce((sum, d) => sum + (d.relations || 0), 0),
-    totalChunks: documents.reduce((sum, d) => sum + (d.chunks || 0), 0)
+    processedDocs: (documents || []).filter(d => d.status === 'completed').length,
+    totalEntities: (documents || []).reduce((sum, d) => sum + (d.entities || 0), 0),
+    totalRelations: (documents || []).reduce((sum, d) => sum + (d.relations || 0), 0),
+    totalChunks: (documents || []).reduce((sum, d) => sum + (d.chunks || 0), 0)
   };
 
   // 检查 Qdrant 状态
@@ -179,7 +179,7 @@ export default function KnowledgeManager() {
 
   // 处理文档（提取、向量化、实体抽取）
   const processDocument = async (docId: string) => {
-    const doc = documents.find(d => d.id === docId);
+    const doc = (documents || []).find(d => d.id === docId);
     if (!doc) return;
     
     // 创建处理任务
@@ -207,7 +207,7 @@ export default function KnowledgeManager() {
       
       // 简单分块
       const chunks = content.match(/[^。！？\n]+[。！？\n]?/g) || [content];
-      const validChunks = chunks.filter(c => c.trim().length > 10);
+      const validChunks = (chunks || []).filter(c => c.trim().length > 10);
       
       // 更新进度
       setTasks(prev => prev.map(t => 
@@ -220,7 +220,7 @@ export default function KnowledgeManager() {
         
         // 确保集合存在
         const existingCols = await qdrant.getCollections();
-        if (!existingCols.find(c => c.name === collectionName)) {
+        if (!(existingCols || []).find(c => c.name === collectionName)) {
           await qdrant.createCollection(collectionName);
         }
         
@@ -305,7 +305,7 @@ export default function KnowledgeManager() {
 
   // 批量删除
   const deleteSelected = () => {
-    selectedDocs.forEach(docId => {
+    (selectedDocs || []).forEach(docId => {
       localStorage.removeItem(`doc_content_${docId}`);
     });
     setDocuments(prev => prev.filter(d => !selectedDocs.has(d.id)));
@@ -321,7 +321,7 @@ export default function KnowledgeManager() {
   };
 
   // 过滤文档
-  const filteredDocs = documents.filter(doc => {
+  const filteredDocs = (documents || []).filter(doc => {
     const matchesSearch = doc.filename.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesType = filterType === 'all' || doc.fileType === filterType;
     return matchesSearch && matchesType;
@@ -408,9 +408,9 @@ export default function KnowledgeManager() {
                 : 'text-gray-400 hover:text-white hover:bg-gray-700'
             }`}
           >
-            ⚙️ 处理任务 {tasks.filter(t => t.status === 'running').length > 0 && (
+            ⚙️ 处理任务 {(tasks || []).filter(t => t.status === 'running').length > 0 && (
               <span className="ml-1 px-1.5 py-0.5 bg-yellow-500 text-black text-xs rounded-full">
-                {tasks.filter(t => t.status === 'running').length}
+                {(tasks || []).filter(t => t.status === 'running').length}
               </span>
             )}
           </button>
@@ -445,7 +445,7 @@ export default function KnowledgeManager() {
                   className="px-3 py-1.5 bg-gray-700 border border-gray-600 rounded-lg text-sm text-white focus:outline-none focus:border-blue-500"
                 >
                   <option value="all">全部类型</option>
-                  {fileTypes.map(type => (
+                  {(fileTypes || []).map(type => (
                     <option key={type} value={type}>{type.toUpperCase()}</option>
                   ))}
                 </select>
@@ -493,7 +493,7 @@ export default function KnowledgeManager() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredDocs.map(doc => (
+                    {(filteredDocs || []).map(doc => (
                       <tr key={doc.id} className="border-b border-gray-700/50 hover:bg-gray-700/30">
                         <td className="py-3 pr-4">
                           <input
@@ -580,8 +580,8 @@ export default function KnowledgeManager() {
               </div>
             ) : (
               <div className="space-y-3">
-                {tasks.slice().reverse().map(task => {
-                  const doc = documents.find(d => d.id === task.documentId);
+                {(tasks || []).slice().reverse().map(task => {
+                  const doc = (documents || []).find(d => d.id === task.documentId);
                   return (
                     <div key={task.id} className="p-4 bg-gray-700/50 rounded-lg">
                       <div className="flex items-center justify-between mb-2">
@@ -651,7 +651,7 @@ export default function KnowledgeManager() {
                     <p className="text-gray-400">暂无集合</p>
                   ) : (
                     <div className="space-y-2">
-                      {collections.map(col => (
+                      {(collections || []).map(col => (
                         <div key={col.name} className="flex items-center justify-between p-3 bg-gray-600/50 rounded-lg">
                           <div>
                             <span className="text-white">{col.name}</span>

@@ -186,10 +186,10 @@ export default function AIChat() {
   useEffect(() => {
     if (models.length > 0) {
       if (mode === 'document') {
-        const qwenModel = models.find(m => m.name.includes('qwen'));
+        const qwenModel = (models || []).find(m => m.name.includes('qwen'));
         if (qwenModel) setSelectedModel(qwenModel.name);
       } else if (mode === 'chat') {
-        const llamaModel = models.find(m => m.name.includes('llama'));
+        const llamaModel = (models || []).find(m => m.name.includes('llama'));
         if (llamaModel) setSelectedModel(llamaModel.name);
       }
     }
@@ -202,14 +202,14 @@ export default function AIChat() {
       if (isOnline) {
         setOllamaStatus('online');
         const modelList = await ollama.getModels();
-        const formattedModels = modelList.map(m => ({
+        const formattedModels = (modelList || []).map(m => ({
           name: m.name,
           size: m.size,
           parameterSize: m.details.parameter_size
         }));
         setModels(formattedModels);
         
-        if (formattedModels.length > 0 && !formattedModels.find(m => m.name === selectedModel)) {
+        if (formattedModels.length > 0 && !(formattedModels || []).find(m => m.name === selectedModel)) {
           setSelectedModel(formattedModels[0].name);
         }
         
@@ -231,7 +231,7 @@ export default function AIChat() {
       if (isOnline) {
         setQdrantStatus('online');
         const collectionsInfo = await qdrant.getCollections();
-        const collections = collectionsInfo.map(c => c.name);
+        const collections = (collectionsInfo || []).map(c => c.name);
         setKnowledgeCollections(collections);
         if (collections.length > 0 && !collections.includes(selectedCollection)) {
           setSelectedCollection(collections[0]);
@@ -252,7 +252,7 @@ export default function AIChat() {
       const results = await qdrant.searchKnowledge(selectedCollection, query, 3);
       if (results.length === 0) return '';
       
-      const context = results.map((r: qdrant.SearchResult, i: number) => 
+      const context = (results || []).map((r: qdrant.SearchResult, i: number) => 
         `[知识${i + 1}] ${r.payload.title || ''}:\n${r.payload.content}`
       ).join('\n\n');
       
@@ -426,7 +426,7 @@ export default function AIChat() {
         toast.error('请输入或上传文档内容');
         return;
       }
-      const action = DOC_ACTIONS.find(a => a.id === docAction);
+      const action = (DOC_ACTIONS || []).find(a => a.id === docAction);
       userContent = (action?.prompt || '') + docContent;
       
       // 如果勾选了保存到知识库，则异步保存
@@ -439,7 +439,7 @@ export default function AIChat() {
       // 构建带附件的消息
       userContent = input.trim();
       if (attachments.length > 0) {
-        const attachmentContext = attachments.map(a => 
+        const attachmentContext = (attachments || []).map(a => 
           `\n\n【附件: ${a.name}】\n${a.content}`
         ).join('');
         userContent = userContent + attachmentContext;
@@ -571,7 +571,7 @@ export default function AIChat() {
 
   // 导出对话
   const exportChat = () => {
-    const content = messages.map(m => 
+    const content = (messages || []).map(m => 
       `[${m.role === 'user' ? '用户' : 'AI'}] ${m.timestamp.toLocaleString()}\n${m.content}`
     ).join('\n\n---\n\n');
     
@@ -686,7 +686,7 @@ export default function AIChat() {
                     <SelectValue placeholder="选择模型" />
                   </SelectTrigger>
                   <SelectContent>
-                    {models.map((model) => (
+                    {(models || []).map((model) => (
                       <SelectItem key={model.name} value={model.name} className="text-[10px]">
                         {model.name} ({model.parameterSize})
                       </SelectItem>
@@ -705,7 +705,7 @@ export default function AIChat() {
                 <div className="mb-3 space-y-3">
                   {/* 操作选择 */}
                   <div className="grid grid-cols-4 gap-2">
-                    {DOC_ACTIONS.map((action) => (
+                    {(DOC_ACTIONS || []).map((action) => (
                       <button
                         key={action.id}
                         onClick={() => setDocAction(action.id)}
@@ -764,7 +764,7 @@ export default function AIChat() {
                               </div>
                             ) : documentsQuery.data?.documents && documentsQuery.data.documents.length > 0 ? (
                               <div className="space-y-2">
-                                {documentsQuery.data.documents.map((doc: {id: number; title: string; content: string; fileType: string}) => (
+                                {(documentsQuery.data.documents || []).map((doc: {id: number; title: string; content: string; fileType: string}) => (
                                   <div
                                     key={doc.id}
                                     onClick={() => {
@@ -845,7 +845,7 @@ export default function AIChat() {
               {/* 消息列表 */}
               <ScrollArea className={`pr-3 ${mode === 'document' ? 'h-[250px]' : 'h-[350px]'}`} ref={scrollRef}>
                 <div className="space-y-3">
-                  {messages.filter(m => mode === 'document' || m.mode === mode || !m.mode).length === 0 && (
+                  {(messages || []).filter(m => mode === 'document' || m.mode === mode || !m.mode).length === 0 && (
                     <div className="text-center py-12 text-muted-foreground">
                       {MODE_CONFIG[mode].icon}
                       <p className="text-xs mt-3">{MODE_CONFIG[mode].description}</p>
@@ -884,7 +884,7 @@ export default function AIChat() {
                           {/* 显示附件标签 */}
                           {message.attachments && message.attachments.length > 0 && (
                             <div className="flex flex-wrap gap-1 mt-2 pt-2 border-t border-current/20">
-                              {message.attachments.map(att => (
+                              {(message.attachments || []).map(att => (
                                 <span key={att.id} className="inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 bg-black/10 rounded">
                                   <Paperclip className="w-2.5 h-2.5" />
                                   {att.name}
@@ -923,7 +923,7 @@ export default function AIChat() {
                   {/* 附件预览 */}
                   {attachments.length > 0 && (
                     <div className="flex flex-wrap gap-2 p-2 bg-secondary/50 rounded-lg">
-                      {attachments.map(att => (
+                      {(attachments || []).map(att => (
                         <div 
                           key={att.id} 
                           className="flex items-center gap-1.5 px-2 py-1 bg-background rounded text-[10px] group"
@@ -988,7 +988,7 @@ export default function AIChat() {
                               </div>
                             ) : documentsQuery.data?.documents && documentsQuery.data.documents.length > 0 ? (
                               <div className="space-y-2">
-                                {documentsQuery.data.documents.map((doc: {id: number; title: string; content: string; fileType: string}) => (
+                                {(documentsQuery.data.documents || []).map((doc: {id: number; title: string; content: string; fileType: string}) => (
                                   <div
                                     key={doc.id}
                                     onClick={() => handleSelectKnowledgeDoc(doc)}
@@ -1077,7 +1077,7 @@ export default function AIChat() {
                       <SelectValue placeholder="选择知识库" />
                     </SelectTrigger>
                     <SelectContent>
-                      {knowledgeCollections.map((col) => (
+                      {(knowledgeCollections || []).map((col) => (
                         <SelectItem key={col} value={col} className="text-[10px]">
                           {col}
                         </SelectItem>
@@ -1115,7 +1115,7 @@ export default function AIChat() {
             <PageCard title="模型信息" icon={<span>🤖</span>}>
               {models.length > 0 ? (
                 <div className="space-y-2">
-                  {models.map((model) => (
+                  {(models || []).map((model) => (
                     <div 
                       key={model.name}
                       onClick={() => setSelectedModel(model.name)}

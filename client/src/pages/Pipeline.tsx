@@ -184,7 +184,7 @@ export default function Pipeline() {
         // 导入节点（生成新的 ID 以避免冲突）
         const idMap = new Map<string, string>();
         
-        config.nodes.forEach((node) => {
+        (config.nodes || []).forEach((node) => {
           const newId = nanoid();
           idMap.set(node.id, newId);
           
@@ -221,9 +221,9 @@ export default function Pipeline() {
 
   // 渲染连接线
   const renderConnections = () => {
-    return pipelineConnections.map((conn) => {
-      const fromNode = pipelineNodes.find(n => n.id === conn.from);
-      const toNode = pipelineNodes.find(n => n.id === conn.to);
+    return (pipelineConnections || []).map((conn) => {
+      const fromNode = (pipelineNodes || []).find(n => n.id === conn.from);
+      const toNode = (pipelineNodes || []).find(n => n.id === conn.to);
       if (!fromNode || !toNode) return null;
 
       const x1 = fromNode.x + 120;
@@ -284,7 +284,7 @@ export default function Pipeline() {
               <div className="w-[180px] shrink-0">
                 <PageCard title="插件" icon="🧩" className="sticky top-24">
                   <div className="space-y-2 max-h-[350px] overflow-y-auto">
-                    {plugins.map((plugin) => (
+                    {(plugins || []).map((plugin) => (
                       <div
                         key={plugin.id}
                         draggable
@@ -372,7 +372,7 @@ export default function Pipeline() {
                     </svg>
 
                     {/* Nodes */}
-                    {pipelineNodes.map((node) => (
+                    {(pipelineNodes || []).map((node) => (
                       <div
                         key={node.id}
                         onClick={() => setSelectedNode(node.id)}
@@ -417,7 +417,7 @@ export default function Pipeline() {
                     <div className="mt-4 p-4 bg-secondary rounded-xl">
                       <h4 className="font-medium mb-2">执行日志</h4>
                       <div className="space-y-1 text-sm font-mono">
-                        {executionLog.map((log, i) => (
+                        {(executionLog || []).map((log, i) => (
                           <div key={i} className={cn(
                             log.includes('✅') ? 'text-success' : 
                             log.includes('✓') ? 'text-primary' : 
@@ -457,7 +457,7 @@ export default function Pipeline() {
 
           <TabsContent value="plugins">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {plugins.map((plugin) => (
+              {(plugins || []).map((plugin) => (
                 <PageCard key={plugin.id}>
                   <div className="flex items-start gap-4">
                     <div className="w-12 h-12 bg-secondary rounded-xl flex items-center justify-center text-2xl">
@@ -482,7 +482,7 @@ export default function Pipeline() {
           <TabsContent value="templates">
             <p className="text-sm text-muted-foreground mb-4">点击模板快速加载到画布</p>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {pipelineTemplates.map((template) => (
+              {(pipelineTemplates || []).map((template) => (
                 <PageCard 
                   key={template.id}
                   className="cursor-pointer hover:border-primary/50 transition-colors"

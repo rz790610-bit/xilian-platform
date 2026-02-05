@@ -219,7 +219,7 @@ export default function BaseLibrary() {
 
   // 获取当前类型的数据
   const currentData = data[activeType] || [];
-  const filteredData = currentData.filter(item => 
+  const filteredData = (currentData || []).filter(item => 
     item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     item.code.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -257,7 +257,7 @@ export default function BaseLibrary() {
     
     const newData = {
       ...data,
-      [activeType]: currentData.filter(item => item.id !== id)
+      [activeType]: (currentData || []).filter(item => item.id !== id)
     };
     saveData(newData);
     if (selectedItem?.id === id) {
@@ -269,7 +269,7 @@ export default function BaseLibrary() {
   const toggleStatus = (id: string) => {
     const newData = {
       ...data,
-      [activeType]: currentData.map(item => 
+      [activeType]: (currentData || []).map(item => 
         item.id === id 
           ? { ...item, status: item.status === 'active' ? 'inactive' : 'active' as const }
           : item
@@ -278,7 +278,7 @@ export default function BaseLibrary() {
     saveData(newData);
   };
 
-  const activeConfig = libraryTypes.find(c => c.key === activeType);
+  const activeConfig = (libraryTypes || []).find(c => c.key === activeType);
 
   // 渲染详情面板
   const renderDetailPanel = () => {
@@ -362,7 +362,7 @@ export default function BaseLibrary() {
           <div className="col-span-2">
             <PageCard title="数据类型" className="h-full">
               <div className="space-y-1">
-                {libraryTypes.map((lib) => (
+                {(libraryTypes || []).map((lib) => (
                   <div
                     key={lib.key}
                     onClick={() => { setActiveType(lib.key); setSelectedItem(null); }}
@@ -464,7 +464,7 @@ export default function BaseLibrary() {
                 <table className="w-full text-xs">
                   <thead>
                     <tr className="border-b border-border">
-                      {columns.map(col => (
+                      {(columns || []).map(col => (
                         <th key={col.key} className={`text-left py-2 px-2 font-medium text-muted-foreground ${col.width || ''}`}>
                           {col.label}
                         </th>
@@ -474,7 +474,7 @@ export default function BaseLibrary() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredData.map((item) => (
+                    {(filteredData || []).map((item) => (
                       <tr 
                         key={item.id} 
                         className={`border-b border-border/50 cursor-pointer transition-colors ${
@@ -482,7 +482,7 @@ export default function BaseLibrary() {
                         }`}
                         onClick={() => setSelectedItem(item)}
                       >
-                        {columns.map(col => (
+                        {(columns || []).map(col => (
                           <td key={col.key} className={`py-2 px-2 ${col.width || ''}`}>
                             {col.key === 'code' ? (
                               <code className="px-1.5 py-0.5 bg-muted rounded text-[10px]">{item[col.key]}</code>
@@ -533,7 +533,7 @@ export default function BaseLibrary() {
               {/* 统计信息 */}
               <div className="mt-3 pt-3 border-t border-border flex items-center justify-between text-[10px] text-muted-foreground">
                 <span>共 {filteredData.length} 条记录</span>
-                <span>启用 {filteredData.filter(i => i.status === 'active').length} 条</span>
+                <span>启用 {(filteredData || []).filter(i => i.status === 'active').length} 条</span>
               </div>
             </PageCard>
           </div>

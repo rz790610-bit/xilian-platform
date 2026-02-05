@@ -127,7 +127,7 @@ export default function BaseRules() {
 
   // 获取当前类型的数据
   const currentData = data[activeType] || [];
-  const filteredData = currentData.filter(item => 
+  const filteredData = (currentData || []).filter(item => 
     item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     item.code.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -162,7 +162,7 @@ export default function BaseRules() {
     
     const newData = {
       ...data,
-      [activeType]: currentData.map(item => 
+      [activeType]: (currentData || []).map(item => 
         item.id === editingItem.id 
           ? { ...editingItem, updatedAt: new Date().toISOString().split('T')[0] }
           : item
@@ -178,7 +178,7 @@ export default function BaseRules() {
     
     const newData = {
       ...data,
-      [activeType]: currentData.filter(item => item.id !== id)
+      [activeType]: (currentData || []).filter(item => item.id !== id)
     };
     saveData(newData);
   };
@@ -187,7 +187,7 @@ export default function BaseRules() {
   const toggleStatus = (id: string) => {
     const newData = {
       ...data,
-      [activeType]: currentData.map(item => 
+      [activeType]: (currentData || []).map(item => 
         item.id === id 
           ? { ...item, status: item.status === 'active' ? 'inactive' : 'active' as const }
           : item
@@ -196,7 +196,7 @@ export default function BaseRules() {
     saveData(newData);
   };
 
-  const activeConfig = configTypes.find(c => c.key === activeType);
+  const activeConfig = (configTypes || []).find(c => c.key === activeType);
 
   return (
     <MainLayout title="基础规则配置">
@@ -212,7 +212,7 @@ export default function BaseRules() {
           <div className="col-span-3">
             <PageCard title="配置类型" className="h-full">
               <div className="space-y-1">
-                {configTypes.map((config) => (
+                {(configTypes || []).map((config) => (
                   <div
                     key={config.key}
                     onClick={() => setActiveType(config.key)}
@@ -309,7 +309,7 @@ export default function BaseRules() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredData.map((item) => (
+                    {(filteredData || []).map((item) => (
                       <tr key={item.id} className="border-b border-border/50 hover:bg-muted/30">
                         {editingItem?.id === item.id ? (
                           <>
@@ -393,7 +393,7 @@ export default function BaseRules() {
               {/* 统计信息 */}
               <div className="mt-3 pt-3 border-t border-border flex items-center justify-between text-[10px] text-muted-foreground">
                 <span>共 {filteredData.length} 条记录</span>
-                <span>启用 {filteredData.filter(i => i.status === 'active').length} 条</span>
+                <span>启用 {(filteredData || []).filter(i => i.status === 'active').length} 条</span>
               </div>
             </PageCard>
           </div>
