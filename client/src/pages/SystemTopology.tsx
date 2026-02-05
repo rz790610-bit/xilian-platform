@@ -317,6 +317,7 @@ export default function SystemTopology() {
         window.removeEventListener('mouseup', handleMouseUp);
       };
     }
+    return undefined;
   }, [isDragging, handleMouseMove, handleMouseUp]);
   
   // 创建节点

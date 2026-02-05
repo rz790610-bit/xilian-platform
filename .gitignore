@@ -105,3 +105,13 @@ temp/
 *.db
 *.sqlite
 *.sqlite3
+
+# Manus AI tool directory
+.manus/
+
+# Deploy artifacts
+*.tar.gz
+xilian-platform-deploy.*
+
+# Root level placeholder
+.gitkeep

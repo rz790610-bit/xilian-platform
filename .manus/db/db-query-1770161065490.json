@@ -1,9 +1,0 @@
-{
-  "query": "CREATE TABLE IF NOT EXISTS `device_operation_logs` (\n\t`id` int AUTO_INCREMENT NOT NULL,\n\t`logId` varchar(64) NOT NULL,\n\t`deviceId` varchar(64) NOT NULL,\n\t`operationType` enum('start','stop','restart','config_change','firmware_update','calibration','mode_change','error','recovery') NOT NULL,\n\t`previousState` varchar(50),\n\t`newState` varchar(50),\n\t`operatedBy` varchar(100),\n\t`reason` text,\n\t`details` json,\n\t`success` boolean NOT NULL DEFAULT true,\n\t`errorMessage` text,\n\t`duration` int,\n\t`timestamp` timestamp NOT NULL DEFAULT (now()),\n\t`createdAt` timestamp NOT NULL DEFAULT (now()),\n\tCONSTRAINT `device_operation_logs_id` PRIMARY KEY(`id`),\n\tCONSTRAINT `device_operation_logs_logId_unique` UNIQUE(`logId`)\n);",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2aAMmqBppocQapr.371334c61bab --database Yf7nNWn9GkFGdXXjzFJzEd --execute CREATE TABLE IF NOT EXISTS `device_operation_logs` (\n\t`id` int AUTO_INCREMENT NOT NULL,\n\t`logId` varchar(64) NOT NULL,\n\t`deviceId` varchar(64) NOT NULL,\n\t`operationType` enum('start','stop','restart','config_change','firmware_update','calibration','mode_change','error','recovery') NOT NULL,\n\t`previousState` varchar(50),\n\t`newState` varchar(50),\n\t`operatedBy` varchar(100),\n\t`reason` text,\n\t`details` json,\n\t`success` boolean NOT NULL DEFAULT true,\n\t`errorMessage` text,\n\t`duration` int,\n\t`timestamp` timestamp NOT NULL DEFAULT (now()),\n\t`createdAt` timestamp NOT NULL DEFAULT (now()),\n\tCONSTRAINT `device_operation_logs_id` PRIMARY KEY(`id`),\n\tCONSTRAINT `device_operation_logs_logId_unique` UNIQUE(`logId`)\n);",
-  "rows": [],
-  "messages": [],
-  "stdout": "",
-  "stderr": "",
-  "execution_time_ms": 349
-}
