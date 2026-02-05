@@ -34,6 +34,25 @@ import {
   Zap,
 } from 'lucide-react';
 
+// 安全获取数字值
+const safeNumber = (val: any, defaultVal: number = 0): number => {
+  if (val === null || val === undefined || isNaN(val)) return defaultVal;
+  return Number(val);
+};
+
+// 安全获取字符串值
+const safeString = (val: any, defaultVal: string = ''): string => {
+  if (val === null || val === undefined) return defaultVal;
+  return String(val);
+};
+
+// 安全转换为数组
+const safeArray = <T,>(val: any): T[] => {
+  if (!val) return [];
+  if (Array.isArray(val)) return val;
+  return [val];
+};
+
 export default function Observability() {
   const [activeTab, setActiveTab] = useState('overview');
   const [logLevel, setLogLevel] = useState<string>('');
@@ -82,16 +101,18 @@ export default function Observability() {
   // 获取告警接收器
   const { data: receivers } = trpc.observability.getReceivers.useQuery();
 
-  const formatBytes = (bytes: number) => {
-    if (bytes >= 1024 * 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024 * 1024 * 1024)).toFixed(1)} TB`;
-    if (bytes >= 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
-    if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-    if (bytes >= 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${bytes} B`;
+  const formatBytes = (bytes: any) => {
+    const b = safeNumber(bytes);
+    if (b >= 1024 * 1024 * 1024 * 1024) return `${(b / (1024 * 1024 * 1024 * 1024)).toFixed(1)} TB`;
+    if (b >= 1024 * 1024 * 1024) return `${(b / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+    if (b >= 1024 * 1024) return `${(b / (1024 * 1024)).toFixed(1)} MB`;
+    if (b >= 1024) return `${(b / 1024).toFixed(1)} KB`;
+    return `${b} B`;
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
+  const getStatusColor = (status: any) => {
+    const s = safeString(status);
+    switch (s) {
       case 'healthy': return 'bg-green-500';
       case 'degraded': return 'bg-yellow-500';
       case 'down': return 'bg-red-500';
@@ -99,8 +120,9 @@ export default function Observability() {
     }
   };
 
-  const getSeverityColor = (severity: string) => {
-    switch (severity) {
+  const getSeverityColor = (severity: any) => {
+    const s = safeString(severity);
+    switch (s) {
       case 'P0': return 'destructive';
       case 'P1': return 'destructive';
       case 'P2': return 'secondary';
@@ -109,8 +131,9 @@ export default function Observability() {
     }
   };
 
-  const getLogLevelColor = (level: string) => {
-    switch (level) {
+  const getLogLevelColor = (level: any) => {
+    const l = safeString(level);
+    switch (l) {
       case 'ERROR':
       case 'FATAL': return 'text-red-500';
       case 'WARN': return 'text-yellow-500';
@@ -119,6 +142,36 @@ export default function Observability() {
       default: return 'text-gray-500';
     }
   };
+
+  // 安全获取 summary 数据
+  const summaryData = summary || {};
+  const prometheusStatus = (summaryData as any)?.metrics?.prometheusStatus || (summaryData as any)?.prometheus?.status || 'down';
+  const targetsUp = safeNumber((summaryData as any)?.metrics?.targetsUp || (summaryData as any)?.prometheus?.metrics?.cpu, 0);
+  const elkStatus = (summaryData as any)?.logs?.elkStatus || (summaryData as any)?.elasticsearch?.status || 'down';
+  const logsPerMinute = safeNumber((summaryData as any)?.logs?.indexCount || (summaryData as any)?.elasticsearch?.logsPerMinute, 0);
+  const jaegerStatus = (summaryData as any)?.traces?.jaegerStatus || (summaryData as any)?.jaeger?.status || 'down';
+  const samplingRate = safeNumber((summaryData as any)?.traces?.samplingRate, 100);
+  const jaegerServices = safeNumber((summaryData as any)?.traces?.tracesPerSecond || (summaryData as any)?.jaeger?.services, 0);
+  const alertmanagerStatus = (summaryData as any)?.alerts?.alertmanagerStatus || 'down';
+  const firingAlerts = safeNumber((summaryData as any)?.alerts?.firingAlerts || (summaryData as any)?.alerts?.critical, 0);
+  const rulesEnabled = safeNumber((summaryData as any)?.alerts?.rulesEnabled || (summaryData as any)?.alerts?.total, 0);
+
+  // 安全转换数据为数组
+  const nodeMetricsArray = safeArray<any>(nodeMetrics);
+  const containerMetricsArray = safeArray<any>(containerMetrics);
+  const gpuMetricsArray = safeArray<any>(gpuMetrics);
+  const appMetricsArray = safeArray<any>(appMetrics);
+  const logsArray = safeArray<any>(logs);
+  const tracesArray = safeArray<any>(traces);
+  const serviceDepsArray = safeArray<any>(serviceDeps);
+  const alertsArray = safeArray<any>(alerts);
+  const alertRulesArray = safeArray<any>(alertRules);
+  const receiversArray = safeArray<any>(receivers);
+
+  // 安全获取 logStats
+  const logStatsData = logStats || {};
+  const logLevels = (logStatsData as any)?.byLevel || (logStatsData as any)?.levels || {};
+  const recentErrors = safeNumber((logStatsData as any)?.recentErrors || (logStatsData as any)?.levels?.ERROR, 0);
 
   return (
     <MainLayout title="可观测性">
@@ -132,8 +185,8 @@ export default function Observability() {
             </CardHeader>
             <CardContent>
               <div className="flex items-center space-x-2">
-                <div className={`w-2 h-2 rounded-full ${getStatusColor((summary as any)?.metrics?.prometheusStatus || (summary as any)?.prometheus?.status || 'down')}`} />
-                <span className="text-2xl font-bold">{(summary as any)?.metrics?.targetsUp || (summary as any)?.prometheus?.metrics?.cpu?.toFixed(0) || 0}%</span>
+                <div className={`w-2 h-2 rounded-full ${getStatusColor(prometheusStatus)}`} />
+                <span className="text-2xl font-bold">{targetsUp.toFixed(0)}%</span>
               </div>
               <p className="text-xs text-muted-foreground">目标在线</p>
             </CardContent>
@@ -146,10 +199,10 @@ export default function Observability() {
             </CardHeader>
             <CardContent>
               <div className="flex items-center space-x-2">
-                <div className={`w-2 h-2 rounded-full ${getStatusColor((summary as any)?.logs?.elkStatus || (summary as any)?.elasticsearch?.status || 'down')}`} />
-                <span className="text-2xl font-bold">{(summary as any)?.logs?.indexCount || Math.round((summary as any)?.elasticsearch?.logsPerMinute || 0)}</span>
+                <div className={`w-2 h-2 rounded-full ${getStatusColor(elkStatus)}`} />
+                <span className="text-2xl font-bold">{Math.round(logsPerMinute)}</span>
               </div>
-              <p className="text-xs text-muted-foreground">日志/分钟 · {(summary as any)?.elasticsearch?.logsPerMinute?.toFixed(0) || 0}</p>
+              <p className="text-xs text-muted-foreground">日志/分钟 · {logsPerMinute.toFixed(0)}</p>
             </CardContent>
           </Card>
 
@@ -160,10 +213,10 @@ export default function Observability() {
             </CardHeader>
             <CardContent>
               <div className="flex items-center space-x-2">
-                <div className={`w-2 h-2 rounded-full ${getStatusColor((summary as any)?.traces?.jaegerStatus || (summary as any)?.jaeger?.status || 'down')}`} />
-                <span className="text-2xl font-bold">{(summary as any)?.traces?.samplingRate?.toFixed(0) || 100}%</span>
+                <div className={`w-2 h-2 rounded-full ${getStatusColor(jaegerStatus)}`} />
+                <span className="text-2xl font-bold">{samplingRate.toFixed(0)}%</span>
               </div>
-              <p className="text-xs text-muted-foreground">采样率 · {(summary as any)?.traces?.tracesPerSecond?.toFixed(0) || (summary as any)?.jaeger?.services || 0} 服务</p>
+              <p className="text-xs text-muted-foreground">采样率 · {jaegerServices.toFixed(0)} 服务</p>
             </CardContent>
           </Card>
 
@@ -174,10 +227,10 @@ export default function Observability() {
             </CardHeader>
             <CardContent>
               <div className="flex items-center space-x-2">
-                <div className={`w-2 h-2 rounded-full ${getStatusColor((summary?.alerts as any)?.alertmanagerStatus || 'down')}`} />
-                <span className="text-2xl font-bold text-red-500">{(summary?.alerts as any)?.firingAlerts || (summary?.alerts as any)?.critical || 0}</span>
+                <div className={`w-2 h-2 rounded-full ${getStatusColor(alertmanagerStatus)}`} />
+                <span className="text-2xl font-bold text-red-500">{firingAlerts}</span>
               </div>
-              <p className="text-xs text-muted-foreground">活跃告警 · {(summary?.alerts as any)?.rulesEnabled || (summary?.alerts as any)?.total || 0} 规则启用</p>
+              <p className="text-xs text-muted-foreground">活跃告警 · {rulesEnabled} 规则启用</p>
             </CardContent>
           </Card>
         </div>
@@ -205,27 +258,36 @@ export default function Observability() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    {(nodeMetrics ? (Array.isArray(nodeMetrics) ? nodeMetrics : [nodeMetrics]) : []).filter(Boolean).map((node: any) => (
-                      <div key={node.hostname} className="space-y-2">
-                        <div className="flex justify-between items-center">
-                          <span className="font-medium">{node.hostname}</span>
-                          <Badge variant={node.cpuUsage > 80 ? 'destructive' : 'secondary'}>
-                            CPU {node.cpuUsage.toFixed(1)}%
-                          </Badge>
-                        </div>
-                        <div className="grid grid-cols-2 gap-2 text-sm">
-                          <div className="flex items-center gap-2">
-                            <MemoryStick className="h-4 w-4 text-muted-foreground" />
-                            <span>内存: {node.memoryUsage.toFixed(1)}%</span>
+                    {nodeMetricsArray.filter(Boolean).map((node: any, index: number) => {
+                      const hostname = safeString(node?.hostname, `node-${index}`);
+                      const cpuUsage = safeNumber(node?.cpuUsage);
+                      const memoryUsage = safeNumber(node?.memoryUsage);
+                      const diskUsage = safeNumber(node?.diskUsage);
+                      return (
+                        <div key={hostname} className="space-y-2">
+                          <div className="flex justify-between items-center">
+                            <span className="font-medium">{hostname}</span>
+                            <Badge variant={cpuUsage > 80 ? 'destructive' : 'secondary'}>
+                              CPU {cpuUsage.toFixed(1)}%
+                            </Badge>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <HardDrive className="h-4 w-4 text-muted-foreground" />
-                            <span>磁盘: {node.diskUsage.toFixed(1)}%</span>
+                          <div className="grid grid-cols-2 gap-2 text-sm">
+                            <div className="flex items-center gap-2">
+                              <MemoryStick className="h-4 w-4 text-muted-foreground" />
+                              <span>内存: {memoryUsage.toFixed(1)}%</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <HardDrive className="h-4 w-4 text-muted-foreground" />
+                              <span>磁盘: {diskUsage.toFixed(1)}%</span>
+                            </div>
                           </div>
+                          <Progress value={cpuUsage} className="h-1" />
                         </div>
-                        <Progress value={node.cpuUsage} className="h-1" />
-                      </div>
-                    ))}
+                      );
+                    })}
+                    {nodeMetricsArray.length === 0 && (
+                      <p className="text-center text-muted-foreground py-4">暂无节点数据</p>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -240,18 +302,26 @@ export default function Observability() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    {(gpuMetrics || []).slice(0, 8).map((gpu) => (
-                      <div key={gpu.gpuId} className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium">GPU {gpu.gpuId}</span>
-                          <span className="text-xs text-muted-foreground">{gpu.temperature.toFixed(0)}°C</span>
+                    {gpuMetricsArray.slice(0, 8).map((gpu: any, index: number) => {
+                      const gpuId = safeNumber(gpu?.gpuId, index);
+                      const temperature = safeNumber(gpu?.temperature);
+                      const gpuUtilization = safeNumber(gpu?.gpuUtilization);
+                      return (
+                        <div key={gpuId} className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium">GPU {gpuId}</span>
+                            <span className="text-xs text-muted-foreground">{temperature.toFixed(0)}°C</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Progress value={gpuUtilization} className="w-20 h-2" />
+                            <span className="text-sm w-12 text-right">{gpuUtilization.toFixed(0)}%</span>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <Progress value={gpu.gpuUtilization} className="w-20 h-2" />
-                          <span className="text-sm w-12 text-right">{gpu.gpuUtilization.toFixed(0)}%</span>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
+                    {gpuMetricsArray.length === 0 && (
+                      <p className="text-center text-muted-foreground py-4">暂无 GPU 数据</p>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -268,16 +338,19 @@ export default function Observability() {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <p className="text-sm text-muted-foreground">按级别</p>
-                      {logStats && Object.entries((logStats as any).byLevel || (logStats as any).levels || {}).map(([level, count]) => (
+                      {Object.entries(logLevels).map(([level, count]) => (
                         <div key={level} className="flex justify-between">
                           <span className={getLogLevelColor(level)}>{level}</span>
-                          <span>{count as number}</span>
+                          <span>{safeNumber(count)}</span>
                         </div>
                       ))}
+                      {Object.keys(logLevels).length === 0 && (
+                        <p className="text-muted-foreground text-sm">暂无数据</p>
+                      )}
                     </div>
                     <div className="space-y-2">
                       <p className="text-sm text-muted-foreground">最近 1 小时错误</p>
-                      <p className="text-3xl font-bold text-red-500">{(logStats as any)?.recentErrors || (logStats as any)?.levels?.ERROR || 0}</p>
+                      <p className="text-3xl font-bold text-red-500">{recentErrors}</p>
                     </div>
                   </div>
                 </CardContent>
@@ -293,16 +366,24 @@ export default function Observability() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-2">
-                    {(serviceDeps || []).map((dep, i) => (
-                      <div key={i} className="flex items-center justify-between text-sm">
-                        <div className="flex items-center gap-2">
-                          <span>{dep.source}</span>
-                          <span className="text-muted-foreground">→</span>
-                          <span>{dep.target}</span>
+                    {serviceDepsArray.map((dep: any, i: number) => {
+                      const source = safeString(dep?.source, 'unknown');
+                      const target = safeString(dep?.target, 'unknown');
+                      const callCount = safeNumber(dep?.callCount);
+                      return (
+                        <div key={i} className="flex items-center justify-between text-sm">
+                          <div className="flex items-center gap-2">
+                            <span>{source}</span>
+                            <span className="text-muted-foreground">→</span>
+                            <span>{target}</span>
+                          </div>
+                          <Badge variant="outline">{callCount} 调用</Badge>
                         </div>
-                        <Badge variant="outline">{dep.callCount} 调用</Badge>
-                      </div>
-                    ))}
+                      );
+                    })}
+                    {serviceDepsArray.length === 0 && (
+                      <p className="text-center text-muted-foreground py-4">暂无服务依赖数据</p>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -328,18 +409,30 @@ export default function Observability() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {(containerMetrics || []).map((c) => (
-                        <TableRow key={c.containerId}>
-                          <TableCell className="font-medium">{c.containerName}</TableCell>
-                          <TableCell>{c.cpuUsage.toFixed(1)}%</TableCell>
-                          <TableCell>{formatBytes(c.memoryUsage)}</TableCell>
-                          <TableCell>
-                            <Badge variant={c.status === 'running' ? 'default' : 'destructive'}>
-                              {c.status}
-                            </Badge>
-                          </TableCell>
+                      {containerMetricsArray.map((c: any, index: number) => {
+                        const containerId = safeString(c?.containerId, `container-${index}`);
+                        const containerName = safeString(c?.containerName, 'unknown');
+                        const cpuUsage = safeNumber(c?.cpuUsage);
+                        const memoryUsage = safeNumber(c?.memoryUsage);
+                        const status = safeString(c?.status, 'unknown');
+                        return (
+                          <TableRow key={containerId}>
+                            <TableCell className="font-medium">{containerName}</TableCell>
+                            <TableCell>{cpuUsage.toFixed(1)}%</TableCell>
+                            <TableCell>{formatBytes(memoryUsage)}</TableCell>
+                            <TableCell>
+                              <Badge variant={status === 'running' ? 'default' : 'destructive'}>
+                                {status}
+                              </Badge>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                      {containerMetricsArray.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={4} className="text-center text-muted-foreground">暂无容器数据</TableCell>
                         </TableRow>
-                      ))}
+                      )}
                     </TableBody>
                   </Table>
                 </CardContent>
@@ -361,18 +454,29 @@ export default function Observability() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {(Array.isArray(appMetrics) ? appMetrics : appMetrics ? [appMetrics] : []).filter(Boolean).slice(0, 6).map((m: any, i: number) => (
-                        <TableRow key={i}>
-                          <TableCell className="font-medium">{m.serviceName}</TableCell>
-                          <TableCell>{m.requestLatencyP99.toFixed(0)}ms</TableCell>
-                          <TableCell>{m.throughput.toFixed(0)}/s</TableCell>
-                          <TableCell>
-                            <span className={m.errorRate > 1 ? 'text-red-500' : ''}>
-                              {m.errorRate.toFixed(2)}%
-                            </span>
-                          </TableCell>
+                      {appMetricsArray.slice(0, 6).map((m: any, i: number) => {
+                        const serviceName = safeString(m?.serviceName, `service-${i}`);
+                        const requestLatencyP99 = safeNumber(m?.requestLatencyP99);
+                        const throughput = safeNumber(m?.throughput);
+                        const errorRate = safeNumber(m?.errorRate);
+                        return (
+                          <TableRow key={`${serviceName}-${i}`}>
+                            <TableCell className="font-medium">{serviceName}</TableCell>
+                            <TableCell>{requestLatencyP99.toFixed(0)}ms</TableCell>
+                            <TableCell>{throughput.toFixed(0)}/s</TableCell>
+                            <TableCell>
+                              <span className={errorRate > 1 ? 'text-red-500' : ''}>
+                                {errorRate.toFixed(2)}%
+                              </span>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                      {appMetricsArray.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={4} className="text-center text-muted-foreground">暂无应用指标数据</TableCell>
                         </TableRow>
-                      ))}
+                      )}
                     </TableBody>
                   </Table>
                 </CardContent>
@@ -397,30 +501,46 @@ export default function Observability() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {(gpuMetrics || []).map((g) => (
-                        <TableRow key={g.gpuId}>
-                          <TableCell className="font-medium">GPU {g.gpuId}</TableCell>
-                          <TableCell className="text-xs">{g.name}</TableCell>
-                          <TableCell>
-                            <span className={g.temperature > 80 ? 'text-red-500' : ''}>
-                              {g.temperature.toFixed(0)}°C
-                            </span>
-                          </TableCell>
-                          <TableCell>{g.powerUsage.toFixed(0)}W / {g.powerLimit}W</TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              <Progress value={g.gpuUtilization} className="w-16 h-2" />
-                              <span>{g.gpuUtilization.toFixed(0)}%</span>
-                            </div>
-                          </TableCell>
-                          <TableCell>{formatBytes(g.memoryUsed)} / {formatBytes(g.memoryTotal)}</TableCell>
-                          <TableCell>
-                            <Badge variant={g.eccErrors > 0 ? 'destructive' : 'secondary'}>
-                              {g.eccErrors}
-                            </Badge>
-                          </TableCell>
+                      {gpuMetricsArray.map((g: any, index: number) => {
+                        const gpuId = safeNumber(g?.gpuId, index);
+                        const name = safeString(g?.name, 'Unknown GPU');
+                        const temperature = safeNumber(g?.temperature);
+                        const powerUsage = safeNumber(g?.powerUsage);
+                        const powerLimit = safeNumber(g?.powerLimit, 400);
+                        const gpuUtilization = safeNumber(g?.gpuUtilization);
+                        const memoryUsed = safeNumber(g?.memoryUsed);
+                        const memoryTotal = safeNumber(g?.memoryTotal, 80 * 1024 * 1024 * 1024);
+                        const eccErrors = safeNumber(g?.eccErrors);
+                        return (
+                          <TableRow key={gpuId}>
+                            <TableCell className="font-medium">GPU {gpuId}</TableCell>
+                            <TableCell className="text-xs">{name}</TableCell>
+                            <TableCell>
+                              <span className={temperature > 80 ? 'text-red-500' : ''}>
+                                {temperature.toFixed(0)}°C
+                              </span>
+                            </TableCell>
+                            <TableCell>{powerUsage.toFixed(0)}W / {powerLimit}W</TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <Progress value={gpuUtilization} className="w-16 h-2" />
+                                <span>{gpuUtilization.toFixed(0)}%</span>
+                              </div>
+                            </TableCell>
+                            <TableCell>{formatBytes(memoryUsed)} / {formatBytes(memoryTotal)}</TableCell>
+                            <TableCell>
+                              <Badge variant={eccErrors > 0 ? 'destructive' : 'secondary'}>
+                                {eccErrors}
+                              </Badge>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                      {gpuMetricsArray.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={7} className="text-center text-muted-foreground">暂无 GPU 数据</TableCell>
                         </TableRow>
-                      ))}
+                      )}
                     </TableBody>
                   </Table>
                 </CardContent>
@@ -440,7 +560,7 @@ export default function Observability() {
                         <SelectValue placeholder="日志级别" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">全部</SelectItem>
+                        <SelectItem value="all">全部</SelectItem>
                         <SelectItem value="DEBUG">DEBUG</SelectItem>
                         <SelectItem value="INFO">INFO</SelectItem>
                         <SelectItem value="WARN">WARN</SelectItem>
@@ -453,7 +573,7 @@ export default function Observability() {
                         <SelectValue placeholder="服务" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">全部服务</SelectItem>
+                        <SelectItem value="all">全部服务</SelectItem>
                         <SelectItem value="api-gateway">api-gateway</SelectItem>
                         <SelectItem value="knowledge-service">knowledge-service</SelectItem>
                         <SelectItem value="model-service">model-service</SelectItem>
@@ -468,18 +588,27 @@ export default function Observability() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-2 max-h-96 overflow-y-auto font-mono text-sm">
-                  {(logs || []).map((log, i) => (
-                    <div key={i} className="flex gap-2 p-2 bg-muted/50 rounded">
-                      <span className="text-muted-foreground w-44 shrink-0">
-                        {new Date((log as any)['@timestamp'] || (log as any).timestamp).toLocaleString()}
-                      </span>
-                      <span className={`w-12 shrink-0 ${getLogLevelColor(log.level)}`}>
-                        {log.level}
-                      </span>
-                      <span className="text-blue-500 w-32 shrink-0">{log.service}</span>
-                      <span className="truncate">{log.message}</span>
-                    </div>
-                  ))}
+                  {logsArray.map((log: any, i: number) => {
+                    const timestamp = (log as any)?.['@timestamp'] || (log as any)?.timestamp || Date.now();
+                    const level = safeString(log?.level, 'INFO');
+                    const service = safeString(log?.service, 'unknown');
+                    const message = safeString(log?.message, '');
+                    return (
+                      <div key={i} className="flex gap-2 p-2 bg-muted/50 rounded">
+                        <span className="text-muted-foreground w-44 shrink-0">
+                          {new Date(timestamp).toLocaleString()}
+                        </span>
+                        <span className={`w-12 shrink-0 ${getLogLevelColor(level)}`}>
+                          {level}
+                        </span>
+                        <span className="text-blue-500 w-32 shrink-0">{service}</span>
+                        <span className="truncate">{message}</span>
+                      </div>
+                    );
+                  })}
+                  {logsArray.length === 0 && (
+                    <p className="text-center text-muted-foreground py-4">暂无日志数据</p>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -506,27 +635,41 @@ export default function Observability() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {(traces || []).map((trace) => (
-                      <TableRow key={trace.traceId}>
-                        <TableCell className="font-mono text-xs">
-                          {trace.traceId.substring(0, 16)}...
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex flex-wrap gap-1">
-                            {((trace as any).services || ((trace as any).serviceName ? [(trace as any).serviceName] : [])).filter(Boolean).map((s: string) => (
-                              <Badge key={s} variant="outline" className="text-xs">
-                                {s}
-                              </Badge>
-                            ))}
-                          </div>
-                        </TableCell>
-                        <TableCell>{(trace as any).spans?.length || (trace as any).spanCount}</TableCell>
-                        <TableCell>{(trace.duration / 1000).toFixed(0)}ms</TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {new Date(typeof (trace as any).startTime === 'number' ? (trace as any).startTime / 1000 : (trace as any).startTime).toLocaleString()}
-                        </TableCell>
+                    {tracesArray.map((trace: any, index: number) => {
+                      const traceId = safeString(trace?.traceId, `trace-${index}`);
+                      const services = safeArray<string>((trace as any)?.services || ((trace as any)?.serviceName ? [(trace as any)?.serviceName] : []));
+                      const spanCount = safeNumber((trace as any)?.spans?.length || (trace as any)?.spanCount);
+                      const duration = safeNumber(trace?.duration);
+                      const startTime = (trace as any)?.startTime;
+                      const startTimeMs = typeof startTime === 'number' && startTime > 1e12 ? startTime / 1000 : startTime;
+                      return (
+                        <TableRow key={traceId}>
+                          <TableCell className="font-mono text-xs">
+                            {traceId.substring(0, 16)}...
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex flex-wrap gap-1">
+                              {services.filter(Boolean).map((s: string, idx: number) => (
+                                <Badge key={`${s}-${idx}`} variant="outline" className="text-xs">
+                                  {s}
+                                </Badge>
+                              ))}
+                              {services.length === 0 && <span className="text-muted-foreground">-</span>}
+                            </div>
+                          </TableCell>
+                          <TableCell>{spanCount}</TableCell>
+                          <TableCell>{(duration / 1000).toFixed(0)}ms</TableCell>
+                          <TableCell className="text-muted-foreground">
+                            {startTimeMs ? new Date(startTimeMs).toLocaleString() : '-'}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                    {tracesArray.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center text-muted-foreground">暂无追踪数据</TableCell>
                       </TableRow>
-                    ))}
+                    )}
                   </TableBody>
                 </Table>
               </CardContent>
@@ -546,7 +689,7 @@ export default function Observability() {
                         <SelectValue placeholder="级别" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">全部</SelectItem>
+                        <SelectItem value="all">全部</SelectItem>
                         <SelectItem value="P0">P0</SelectItem>
                         <SelectItem value="P1">P1</SelectItem>
                         <SelectItem value="P2">P2</SelectItem>
@@ -557,22 +700,29 @@ export default function Observability() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    {(alerts || []).map((alert) => (
-                      <div key={alert.id} className="p-3 border rounded-lg space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="font-medium">{(alert as any).alertname || (alert as any).name}</span>
-                          <Badge variant={getSeverityColor(alert.severity) as any}>
-                            {alert.severity}
-                          </Badge>
+                    {alertsArray.map((alert: any, index: number) => {
+                      const id = safeString(alert?.id, `alert-${index}`);
+                      const alertname = safeString((alert as any)?.alertname || (alert as any)?.name, 'Unknown Alert');
+                      const severity = safeString(alert?.severity, 'P3');
+                      const summary = safeString((alert as any)?.annotations?.summary || (alert as any)?.message, '');
+                      const startsAt = (alert as any)?.startsAt || (alert as any)?.startTime || Date.now();
+                      return (
+                        <div key={id} className="p-3 border rounded-lg space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="font-medium">{alertname}</span>
+                            <Badge variant={getSeverityColor(severity) as any}>
+                              {severity}
+                            </Badge>
+                          </div>
+                          <p className="text-sm text-muted-foreground">{summary}</p>
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <Clock className="h-3 w-3" />
+                            <span>开始于 {new Date(startsAt).toLocaleString()}</span>
+                          </div>
                         </div>
-                        <p className="text-sm text-muted-foreground">{(alert as any).annotations?.summary || (alert as any).message}</p>
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <Clock className="h-3 w-3" />
-                          <span>开始于 {new Date((alert as any).startsAt || (alert as any).startTime).toLocaleString()}</span>
-                        </div>
-                      </div>
-                    ))}
-                    {(!alerts || alerts.length === 0) && (
+                      );
+                    })}
+                    {alertsArray.length === 0 && (
                       <p className="text-center text-muted-foreground py-4">暂无活跃告警</p>
                     )}
                   </div>
@@ -589,19 +739,28 @@ export default function Observability() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    {(alertRules || []).map((rule) => (
-                      <div key={(rule as any).id || rule.name} className="flex items-center justify-between p-2 border rounded">
-                        <div className="flex items-center gap-2">
-                          <Badge variant={getSeverityColor((rule as any).severity || rule.labels?.severity) as any}>
-                            {(rule as any).severity || rule.labels?.severity}
+                    {alertRulesArray.map((rule: any, index: number) => {
+                      const id = safeString((rule as any)?.id || rule?.name, `rule-${index}`);
+                      const name = safeString(rule?.name, 'Unknown Rule');
+                      const severity = safeString((rule as any)?.severity || rule?.labels?.severity, 'P3');
+                      const enabled = (rule as any)?.enabled !== false;
+                      return (
+                        <div key={id} className="flex items-center justify-between p-2 border rounded">
+                          <div className="flex items-center gap-2">
+                            <Badge variant={getSeverityColor(severity) as any}>
+                              {severity}
+                            </Badge>
+                            <span className="font-medium">{name}</span>
+                          </div>
+                          <Badge variant={enabled ? 'default' : 'outline'}>
+                            {enabled ? '启用' : '禁用'}
                           </Badge>
-                          <span className="font-medium">{rule.name}</span>
                         </div>
-                        <Badge variant={(rule as any).enabled !== false ? 'default' : 'outline'}>
-                          {(rule as any).enabled !== false ? '启用' : '禁用'}
-                        </Badge>
-                      </div>
-                    ))}
+                      );
+                    })}
+                    {alertRulesArray.length === 0 && (
+                      <p className="text-center text-muted-foreground py-4">暂无告警规则</p>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -621,19 +780,29 @@ export default function Observability() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {(receivers || []).map((r) => (
-                        <TableRow key={r.name}>
-                          <TableCell className="font-medium">{r.name}</TableCell>
-                          <TableCell>
-                            <Badge variant="outline">{r.type}</Badge>
-                          </TableCell>
-                          <TableCell className="text-muted-foreground text-sm">
-                            {r.type === 'pagerduty' && 'PagerDuty 电话通知'}
-                            {r.type === 'wechat' && '企业微信消息推送'}
-                            {r.type === 'email' && 'Email 邮件通知'}
-                          </TableCell>
+                      {receiversArray.map((r: any, index: number) => {
+                        const name = safeString(r?.name, `receiver-${index}`);
+                        const type = safeString(r?.type, 'unknown');
+                        return (
+                          <TableRow key={name}>
+                            <TableCell className="font-medium">{name}</TableCell>
+                            <TableCell>
+                              <Badge variant="outline">{type}</Badge>
+                            </TableCell>
+                            <TableCell className="text-muted-foreground text-sm">
+                              {type === 'pagerduty' && 'PagerDuty 电话通知'}
+                              {type === 'wechat' && '企业微信消息推送'}
+                              {type === 'email' && 'Email 邮件通知'}
+                              {!['pagerduty', 'wechat', 'email'].includes(type) && '-'}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                      {receiversArray.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={3} className="text-center text-muted-foreground">暂无告警接收器</TableCell>
                         </TableRow>
-                      ))}
+                      )}
                     </TableBody>
                   </Table>
                 </CardContent>
