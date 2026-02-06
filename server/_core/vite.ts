@@ -1,7 +1,6 @@
 import express, { type Express } from "express";
 import fs from "fs";
 import { type Server } from "http";
-import { nanoid } from "nanoid";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import viteConfig from "../../vite.config";
@@ -34,11 +33,10 @@ export async function setupVite(app: Express, server: Server) {
       );
 
       // always reload the index.html file from disk incase it changes
-      let template = await fs.promises.readFile(clientTemplate, "utf-8");
-      template = template.replace(
-        `src="/src/main.tsx"`,
-        `src="/src/main.tsx?v=${nanoid()}"`
-      );
+      const template = await fs.promises.readFile(clientTemplate, "utf-8");
+      // 注意：不再对 main.tsx 的 src 添加随机 nanoid 查询参数
+      // 之前的 nanoid 会导致每次请求 HTML 时 Vite 认为是新模块，
+      // 触发 full page reload，形成无限刷新循环
       const page = await vite.transformIndexHtml(url, template);
       res.status(200).set({ "Content-Type": "text/html" }).end(page);
     } catch (e) {

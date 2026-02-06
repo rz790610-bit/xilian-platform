@@ -1,6 +1,11 @@
 /**
  * Kafka 指标 WebSocket 服务
  * 提供实时吞吐量、延迟等指标的推送
+ * 
+ * 注意：使用 noServer 模式，手动处理 upgrade 事件，
+ * 避免与 Vite HMR WebSocket 冲突（ws 库的 WebSocketServer 
+ * 在 path 不匹配时会 abortHandshake 关闭 socket，
+ * 导致 Vite HMR 永远无法建立连接）
  */
 
 import { WebSocketServer, WebSocket } from "ws";
@@ -232,6 +237,8 @@ async function collectAndBroadcastMetrics() {
   }
 }
 
+const KAFKA_WS_PATH = "/ws/kafka-metrics";
+
 // 初始化 WebSocket 服务器
 export function initKafkaMetricsWebSocket(server: Server) {
   if (wss) {
@@ -239,12 +246,23 @@ export function initKafkaMetricsWebSocket(server: Server) {
     return;
   }
 
-  wss = new WebSocketServer({ 
-    server, 
-    path: "/ws/kafka-metrics" 
-  });
+  // 使用 noServer 模式，避免自动注册 upgrade handler
+  // 这样不会与 Vite HMR WebSocket 冲突
+  wss = new WebSocketServer({ noServer: true });
 
-  console.log("[KafkaMetricsWS] WebSocket server initialized at /ws/kafka-metrics");
+  console.log("[KafkaMetricsWS] WebSocket server initialized at " + KAFKA_WS_PATH);
+
+  // 手动处理 upgrade 事件，只处理 /ws/kafka-metrics 路径
+  server.on("upgrade", (request, socket, head) => {
+    const { pathname } = new URL(request.url || "/", `http://${request.headers.host}`);
+    
+    if (pathname === KAFKA_WS_PATH) {
+      wss!.handleUpgrade(request, socket, head, (ws) => {
+        wss!.emit("connection", ws, request);
+      });
+    }
+    // 不匹配的路径不做任何处理，让其他 handler（如 Vite HMR）处理
+  });
 
   wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
     console.log("[KafkaMetricsWS] Client connected from:", req.socket.remoteAddress);
