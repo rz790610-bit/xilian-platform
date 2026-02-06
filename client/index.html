@@ -15,10 +15,20 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
-    <script
-      defer
-      src="%VITE_ANALYTICS_ENDPOINT%/umami"
-      data-website-id="%VITE_ANALYTICS_WEBSITE_ID%"></script>
+    <!-- Analytics script - only loads if environment variables are configured -->
+    <script>
+      (function() {
+        var endpoint = import.meta.env?.VITE_ANALYTICS_ENDPOINT;
+        var websiteId = import.meta.env?.VITE_ANALYTICS_WEBSITE_ID;
+        if (endpoint && websiteId && !endpoint.includes('%')) {
+          var script = document.createElement('script');
+          script.defer = true;
+          script.src = endpoint + '/umami';
+          script.setAttribute('data-website-id', websiteId);
+          document.body.appendChild(script);
+        }
+      })();
+    </script>
   </body>
 
 </html>
