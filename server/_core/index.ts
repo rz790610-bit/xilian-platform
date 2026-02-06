@@ -28,6 +28,119 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
   throw new Error(`No available port found starting from ${startPort}`);
 }
 
+/**
+ * 初始化 v1.9 性能优化服务
+ * 统一管理所有新增服务的启动和生命周期
+ */
+async function initPerformanceServices(): Promise<void> {
+  console.log('[v1.9] Initializing performance optimization services...');
+
+  try {
+    // 1. Outbox 混合发布器
+    const { outboxPublisher } = await import('../outbox');
+    await outboxPublisher.start();
+    console.log('[v1.9] ✓ Outbox Publisher started');
+  } catch (err) {
+    console.error('[v1.9] ✗ Outbox Publisher failed to start:', err);
+  }
+
+  try {
+    // 2. Saga 编排器
+    const { sagaOrchestrator, registerRollbackSaga } = await import('../saga');
+    await sagaOrchestrator.start();
+    registerRollbackSaga(); // 注册内置 Saga 定义
+    console.log('[v1.9] ✓ Saga Orchestrator started');
+  } catch (err) {
+    console.error('[v1.9] ✗ Saga Orchestrator failed to start:', err);
+  }
+
+  try {
+    // 3. 自适应采样服务
+    const { adaptiveSamplingService } = await import('../monitoring');
+    await adaptiveSamplingService.start();
+    console.log('[v1.9] ✓ Adaptive Sampling Service started');
+  } catch (err) {
+    console.error('[v1.9] ✗ Adaptive Sampling Service failed to start:', err);
+  }
+
+  try {
+    // 4. 读写分离服务
+    const { readReplicaService } = await import('../db/readReplicaService');
+    await readReplicaService.start();
+    console.log('[v1.9] ✓ Read Replica Service started');
+  } catch (err) {
+    console.error('[v1.9] ✗ Read Replica Service failed to start:', err);
+  }
+
+  try {
+    // 5. 图查询优化器
+    const { graphQueryOptimizer } = await import('../knowledge/graphQueryOptimizer');
+    await graphQueryOptimizer.start();
+    console.log('[v1.9] ✓ Graph Query Optimizer started');
+  } catch (err) {
+    console.error('[v1.9] ✗ Graph Query Optimizer failed to start:', err);
+  }
+
+  console.log('[v1.9] Performance optimization services initialized');
+}
+
+/**
+ * 注册 v1.9 服务到事件总线
+ * 实现模块间的事件驱动通信
+ */
+async function registerEventBusIntegration(): Promise<void> {
+  try {
+    const { eventBus, TOPICS } = await import('../eventBus');
+    const { deduplicationService } = await import('../redis/deduplicationService');
+
+    // 所有事件经过去重服务
+    eventBus.subscribeAll(async (event) => {
+      try {
+        const result = await deduplicationService.isDuplicate(event.eventId, 'global');
+        if (result.isDuplicate) {
+          console.log(`[v1.9] Duplicate event filtered: ${event.eventId}`);
+          return;
+        }
+        await deduplicationService.markProcessed(event.eventId, event.eventType || 'unknown', 'global');
+      } catch (err) {
+        // 去重服务失败不应阻塞事件处理
+        console.warn('[v1.9] Deduplication check failed:', err);
+      }
+    });
+
+    // Outbox 发布器监听关键事件
+    eventBus.subscribe(TOPICS.DEVICE_STATUS, async (event) => {
+      try {
+        const { outboxPublisher } = await import('../outbox');
+        await outboxPublisher.addEvent({
+          eventType: 'DeviceUpdated',
+          aggregateType: 'Device',
+          aggregateId: event.deviceId || 'unknown',
+          payload: event.payload,
+          metadata: { source: 'eventBus', correlationId: event.eventId },
+        });
+      } catch (err) {
+        console.warn('[v1.9] Outbox event forwarding failed:', err);
+      }
+    });
+
+    // 异常事件触发自适应采样调整
+    eventBus.subscribe(TOPICS.ANOMALY_DETECTED, async (event) => {
+      try {
+        const { adaptiveSamplingService } = await import('../monitoring');
+        // 异常检测到时，可能需要提高采样率
+        console.log(`[v1.9] Anomaly detected, adaptive sampling may adjust: ${event.eventId}`);
+      } catch (err) {
+        console.warn('[v1.9] Adaptive sampling notification failed:', err);
+      }
+    });
+
+    console.log('[v1.9] ✓ Event bus integration registered');
+  } catch (err) {
+    console.error('[v1.9] ✗ Event bus integration failed:', err);
+  }
+}
+
 async function startServer() {
   const app = express();
   const server = createServer(app);
@@ -44,18 +157,19 @@ async function startServer() {
       createContext,
     })
   );
-  // development mode uses Vite, production mode uses static files
-  if (process.env.NODE_ENV === "development") {
-    await setupVite(app, server);
-  } else {
-    serveStatic(app);
-  }
-
+  // 先确定实际端口，再初始化 Vite（Vite HMR 客户端需要知道正确的端口）
   const preferredPort = parseInt(process.env.PORT || "3000");
   const port = await findAvailablePort(preferredPort);
 
   if (port !== preferredPort) {
     console.log(`Port ${preferredPort} is busy, using port ${port} instead`);
+  }
+
+  // development mode uses Vite, production mode uses static files
+  if (process.env.NODE_ENV === "development") {
+    await setupVite(app, server, port);
+  } else {
+    serveStatic(app);
   }
 
   // 初始化 Kafka 指标 WebSocket
@@ -69,6 +183,16 @@ async function startServer() {
       startPeriodicHealthCheck(30000);
     }).catch(err => {
       console.error('[Server] Failed to start health check:', err);
+    });
+
+    // 初始化 v1.9 性能优化服务
+    initPerformanceServices().catch(err => {
+      console.error('[Server] Failed to initialize v1.9 services:', err);
+    });
+
+    // 注册事件总线集成
+    registerEventBusIntegration().catch(err => {
+      console.error('[Server] Failed to register event bus integration:', err);
     });
   });
 }

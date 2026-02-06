@@ -115,3 +115,5 @@ xilian-platform-deploy.*
 
 # Root level placeholder
 .gitkeep
+.manus-logs/
+client/public/__manus__/

@@ -52,6 +52,15 @@ import EdgeNodes from "./pages/edge/EdgeNodes";
 import ServiceMonitor from "./pages/services/ServiceMonitor";
 import SmartMonitoring from "./pages/settings/SmartMonitoring";
 
+// v1.9 性能优化模块页面
+import PerformanceOverview from "./pages/PerformanceOverview";
+import OutboxManager from "./pages/OutboxManager";
+import SagaManager from "./pages/SagaManager";
+import AdaptiveSampling from "./pages/AdaptiveSampling";
+import DeduplicationManager from "./pages/DeduplicationManager";
+import ReadReplicaManager from "./pages/ReadReplicaManager";
+import GraphQueryManager from "./pages/GraphQueryManager";
+
 function Router() {
   // make sure to consider if you need authentication for certain routes
   return (
@@ -126,6 +135,18 @@ function Router() {
       <Route path="/services/aggregator" component={ServiceMonitor} />
       <Route path="/services/dispatcher" component={ServiceMonitor} />
       <Route path="/services/performance" component={ServiceMonitor} />
+
+      {/* Performance - 性能优化 v1.9 */}
+      <Route path="/performance">
+        <Redirect to="/performance/overview" />
+      </Route>
+      <Route path="/performance/overview" component={PerformanceOverview} />
+      <Route path="/performance/outbox" component={OutboxManager} />
+      <Route path="/performance/saga" component={SagaManager} />
+      <Route path="/performance/sampling" component={AdaptiveSampling} />
+      <Route path="/performance/dedup" component={DeduplicationManager} />
+      <Route path="/performance/replica" component={ReadReplicaManager} />
+      <Route path="/performance/graph" component={GraphQueryManager} />
       
       {/* Settings */}
       <Route path="/settings/resources" component={Settings} />
