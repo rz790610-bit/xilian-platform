@@ -100,6 +100,9 @@ function Router() {
       <Route path="/evolution/board" component={EvolutionBoard} />
       
       {/* Performance - 性能优化 v1.9 */}
+      <Route path="/performance">
+        <Redirect to="/performance/overview" />
+      </Route>
       <Route path="/performance/overview" component={PerformanceOverview} />
       <Route path="/performance/outbox" component={OutboxManager} />
       <Route path="/performance/saga" component={SagaManager} />
