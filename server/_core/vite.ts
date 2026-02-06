@@ -7,16 +7,17 @@ import { createServer as createViteServer } from "vite";
 import viteConfig from "../../vite.config";
 
 export async function setupVite(app: Express, server: Server) {
-  const serverOptions = {
-    middlewareMode: true,
-    hmr: { server },
-    allowedHosts: true as const,
-  };
+  // 从 viteConfig 中提取非 server 配置，避免覆盖 HMR 设置
+  const { server: _serverConfig, ...restConfig } = viteConfig;
 
   const vite = await createViteServer({
-    ...viteConfig,
+    ...restConfig,
     configFile: false,
-    server: serverOptions,
+    server: {
+      middlewareMode: true,
+      hmr: { server },
+      allowedHosts: true as const,
+    },
     appType: "custom",
   });
 
