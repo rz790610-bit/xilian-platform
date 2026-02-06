@@ -614,3 +614,192 @@ CREATE TABLE IF NOT EXISTS device_alerts (
 -- ============================================================
 
 SELECT 'MySQL schema initialization completed successfully!' AS status;
+
+-- ============================================================
+-- v1.9 性能优化模块表
+-- ============================================================
+
+-- Outbox 事件表 - 事务性消息发布
+CREATE TABLE IF NOT EXISTS outbox_events (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  eventId VARCHAR(64) NOT NULL UNIQUE,
+  eventType VARCHAR(100) NOT NULL,
+  aggregateId VARCHAR(64) NOT NULL,
+  aggregateType VARCHAR(100) NOT NULL,
+  payload JSON NOT NULL,
+  metadata JSON,
+  status ENUM('pending', 'processing', 'published', 'failed', 'dead_letter') NOT NULL DEFAULT 'pending',
+  retryCount INT NOT NULL DEFAULT 0,
+  maxRetries INT NOT NULL DEFAULT 3,
+  lastError TEXT,
+  publishedAt TIMESTAMP NULL,
+  createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_outbox_status (status),
+  INDEX idx_outbox_type (eventType),
+  INDEX idx_outbox_aggregate (aggregateId, aggregateType)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Outbox 路由配置表
+CREATE TABLE IF NOT EXISTS outbox_routing_config (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  eventType VARCHAR(100) NOT NULL UNIQUE,
+  publishMode ENUM('cdc', 'polling') NOT NULL DEFAULT 'cdc',
+  cdcEnabled BOOLEAN NOT NULL DEFAULT TRUE,
+  pollingIntervalMs INT,
+  pollingBatchSize INT,
+  requiresProcessing BOOLEAN NOT NULL DEFAULT FALSE,
+  processorClass VARCHAR(200),
+  description TEXT,
+  isActive BOOLEAN NOT NULL DEFAULT TRUE,
+  createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Saga 实例表
+CREATE TABLE IF NOT EXISTS saga_instances (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  sagaId VARCHAR(64) NOT NULL UNIQUE,
+  sagaType VARCHAR(100) NOT NULL,
+  status ENUM('running', 'completed', 'failed', 'compensating', 'compensated', 'partial') NOT NULL DEFAULT 'running',
+  currentStep INT NOT NULL DEFAULT 0,
+  totalSteps INT NOT NULL,
+  input JSON,
+  output JSON,
+  checkpoint JSON,
+  error TEXT,
+  startedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  completedAt TIMESTAMP NULL,
+  timeoutAt TIMESTAMP NULL,
+  createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_saga_status (status),
+  INDEX idx_saga_type (sagaType)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Saga 步骤表
+CREATE TABLE IF NOT EXISTS saga_steps (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  stepId VARCHAR(64) NOT NULL UNIQUE,
+  sagaId VARCHAR(64) NOT NULL,
+  stepIndex INT NOT NULL,
+  stepName VARCHAR(100) NOT NULL,
+  stepType ENUM('action', 'compensation') NOT NULL DEFAULT 'action',
+  status ENUM('pending', 'running', 'completed', 'failed', 'skipped', 'compensated') NOT NULL DEFAULT 'pending',
+  input JSON,
+  output JSON,
+  error TEXT,
+  retryCount INT NOT NULL DEFAULT 0,
+  startedAt TIMESTAMP NULL,
+  completedAt TIMESTAMP NULL,
+  createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_saga_steps_sagaId (sagaId)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Saga 死信队列表
+CREATE TABLE IF NOT EXISTS saga_dead_letters (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  deadLetterId VARCHAR(64) NOT NULL UNIQUE,
+  sagaId VARCHAR(64) NOT NULL,
+  sagaType VARCHAR(100) NOT NULL,
+  failureReason TEXT NOT NULL,
+  failureType ENUM('timeout', 'max_retries', 'compensation_failed', 'unknown') NOT NULL,
+  originalInput JSON,
+  lastCheckpoint JSON,
+  retryable BOOLEAN NOT NULL DEFAULT TRUE,
+  retryCount INT NOT NULL DEFAULT 0,
+  lastRetryAt TIMESTAMP NULL,
+  resolvedAt TIMESTAMP NULL,
+  resolvedBy VARCHAR(100),
+  resolution TEXT,
+  createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_saga_dl_sagaId (sagaId),
+  INDEX idx_saga_dl_type (failureType)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 已处理事件表
+CREATE TABLE IF NOT EXISTS processed_events (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  eventId VARCHAR(64) NOT NULL,
+  consumerGroup VARCHAR(100) NOT NULL,
+  processedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  expiresAt TIMESTAMP NOT NULL,
+  metadata JSON,
+  createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_event_consumer (eventId, consumerGroup),
+  INDEX idx_processed_expires (expiresAt)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 设备采样配置表
+CREATE TABLE IF NOT EXISTS device_sampling_config (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  deviceId VARCHAR(64) NOT NULL,
+  sensorType VARCHAR(50) NOT NULL,
+  baseSamplingRateMs INT NOT NULL DEFAULT 1000,
+  currentSamplingRateMs INT NOT NULL DEFAULT 1000,
+  minSamplingRateMs INT NOT NULL DEFAULT 100,
+  maxSamplingRateMs INT NOT NULL DEFAULT 60000,
+  adaptiveEnabled BOOLEAN NOT NULL DEFAULT TRUE,
+  lastAdjustedAt TIMESTAMP NULL,
+  adjustmentReason VARCHAR(200),
+  priority ENUM('low', 'normal', 'high', 'critical') NOT NULL DEFAULT 'normal',
+  createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_device_sensor (deviceId, sensorType)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 幂等记录表
+CREATE TABLE IF NOT EXISTS idempotent_records (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  idempotencyKey VARCHAR(128) NOT NULL UNIQUE,
+  operationType VARCHAR(100) NOT NULL,
+  status ENUM('processing', 'completed', 'failed') NOT NULL DEFAULT 'processing',
+  requestHash VARCHAR(64),
+  response JSON,
+  expiresAt TIMESTAMP NOT NULL,
+  createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_idempotent_expires (expiresAt)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 回滚执行表
+CREATE TABLE IF NOT EXISTS rollback_executions (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  executionId VARCHAR(64) NOT NULL UNIQUE,
+  sagaId VARCHAR(64),
+  triggerId VARCHAR(64) NOT NULL,
+  targetType ENUM('rule', 'model', 'config', 'firmware') NOT NULL,
+  targetId VARCHAR(64) NOT NULL,
+  fromVersion VARCHAR(50) NOT NULL,
+  toVersion VARCHAR(50) NOT NULL,
+  triggerReason TEXT,
+  status ENUM('pending', 'executing', 'completed', 'failed', 'partial', 'cancelled') NOT NULL DEFAULT 'pending',
+  totalDevices INT,
+  completedDevices INT DEFAULT 0,
+  failedDevices INT DEFAULT 0,
+  checkpoint JSON,
+  result JSON,
+  startedAt TIMESTAMP NULL,
+  completedAt TIMESTAMP NULL,
+  createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_rollback_status (status),
+  INDEX idx_rollback_sagaId (sagaId)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 系统容量指标表
+CREATE TABLE IF NOT EXISTS system_capacity_metrics (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  metricId VARCHAR(64) NOT NULL UNIQUE,
+  metricType ENUM('kafka_lag', 'db_connections', 'memory_usage', 'cpu_usage', 'queue_depth') NOT NULL,
+  componentName VARCHAR(100) NOT NULL,
+  currentValue DOUBLE NOT NULL,
+  threshold DOUBLE NOT NULL,
+  status ENUM('normal', 'warning', 'critical') NOT NULL DEFAULT 'normal',
+  lastCheckedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+SELECT 'v1.9 performance module tables created successfully!' AS status;
