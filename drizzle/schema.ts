@@ -807,3 +807,247 @@ export const deviceKpis = mysqlTable("device_kpis", {
 
 export type DeviceKpi = typeof deviceKpis.$inferSelect;
 export type InsertDeviceKpi = typeof deviceKpis.$inferInsert;
+
+
+// ============ v1.9 性能优化模块表 ============
+
+/**
+ * Outbox 事件表 - 事务性事件发布（Outbox 模式）
+ */
+export const outboxEvents = mysqlTable("outbox_events", {
+  id: int("id").autoincrement().primaryKey(),
+  eventId: varchar("eventId", { length: 64 }).notNull().unique(),
+  eventType: varchar("eventType", { length: 100 }).notNull(),
+  aggregateType: varchar("aggregateType", { length: 100 }).notNull(),
+  aggregateId: varchar("aggregateId", { length: 64 }).notNull(),
+  payload: json("payload").$type<Record<string, unknown>>().notNull(),
+  metadata: json("metadata").$type<{
+    correlationId?: string;
+    causationId?: string;
+    userId?: string;
+    source?: string;
+  }>(),
+  status: mysqlEnum("status", ["pending", "processing", "published", "failed"]).default("pending").notNull(),
+  retryCount: int("retryCount").default(0).notNull(),
+  maxRetries: int("maxRetries").default(3).notNull(),
+  lastError: text("lastError"),
+  publishedAt: timestamp("publishedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type OutboxEvent = typeof outboxEvents.$inferSelect;
+export type InsertOutboxEvent = typeof outboxEvents.$inferInsert;
+
+/**
+ * Outbox 路由配置表 - 事件路由策略配置
+ */
+export const outboxRoutingConfig = mysqlTable("outbox_routing_config", {
+  id: int("id").autoincrement().primaryKey(),
+  eventType: varchar("eventType", { length: 100 }).notNull().unique(),
+  publishMode: mysqlEnum("publishMode", ["cdc", "polling"]).default("cdc").notNull(),
+  cdcEnabled: boolean("cdcEnabled").default(true).notNull(),
+  pollingIntervalMs: int("pollingIntervalMs"),
+  pollingBatchSize: int("pollingBatchSize"),
+  requiresProcessing: boolean("requiresProcessing").default(false).notNull(),
+  processorClass: varchar("processorClass", { length: 200 }),
+  description: text("description"),
+  isActive: boolean("isActive").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type OutboxRoutingConfig = typeof outboxRoutingConfig.$inferSelect;
+export type InsertOutboxRoutingConfig = typeof outboxRoutingConfig.$inferInsert;
+
+/**
+ * Saga 实例表 - Saga 编排实例
+ */
+export const sagaInstances = mysqlTable("saga_instances", {
+  id: int("id").autoincrement().primaryKey(),
+  sagaId: varchar("sagaId", { length: 64 }).notNull().unique(),
+  sagaType: varchar("sagaType", { length: 100 }).notNull(),
+  status: mysqlEnum("status", ["running", "completed", "failed", "compensating", "compensated", "partial"]).default("running").notNull(),
+  currentStep: int("currentStep").default(0).notNull(),
+  totalSteps: int("totalSteps").notNull(),
+  input: json("input").$type<Record<string, unknown>>(),
+  output: json("output").$type<Record<string, unknown>>(),
+  checkpoint: json("checkpoint").$type<{
+    processed: string[];
+    failed: Array<{ item: string; error: string }>;
+    lastCompletedStep: number;
+  }>(),
+  error: text("error"),
+  startedAt: timestamp("startedAt").defaultNow().notNull(),
+  completedAt: timestamp("completedAt"),
+  timeoutAt: timestamp("timeoutAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type SagaInstance = typeof sagaInstances.$inferSelect;
+export type InsertSagaInstance = typeof sagaInstances.$inferInsert;
+
+/**
+ * Saga 步骤表 - Saga 执行步骤记录
+ */
+export const sagaSteps = mysqlTable("saga_steps", {
+  id: int("id").autoincrement().primaryKey(),
+  stepId: varchar("stepId", { length: 64 }).notNull().unique(),
+  sagaId: varchar("sagaId", { length: 64 }).notNull(),
+  stepIndex: int("stepIndex").notNull(),
+  stepName: varchar("stepName", { length: 100 }).notNull(),
+  stepType: mysqlEnum("stepType", ["action", "compensation"]).default("action").notNull(),
+  status: mysqlEnum("status", ["pending", "running", "completed", "failed", "skipped", "compensated"]).default("pending").notNull(),
+  input: json("input").$type<Record<string, unknown>>(),
+  output: json("output").$type<Record<string, unknown>>(),
+  error: text("error"),
+  retryCount: int("retryCount").default(0).notNull(),
+  startedAt: timestamp("startedAt"),
+  completedAt: timestamp("completedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type SagaStep = typeof sagaSteps.$inferSelect;
+export type InsertSagaStep = typeof sagaSteps.$inferInsert;
+
+/**
+ * Saga 死信队列表 - 失败的 Saga 记录
+ */
+export const sagaDeadLetters = mysqlTable("saga_dead_letters", {
+  id: int("id").autoincrement().primaryKey(),
+  deadLetterId: varchar("deadLetterId", { length: 64 }).notNull().unique(),
+  sagaId: varchar("sagaId", { length: 64 }).notNull(),
+  sagaType: varchar("sagaType", { length: 100 }).notNull(),
+  failureReason: text("failureReason").notNull(),
+  failureType: mysqlEnum("failureType", ["timeout", "max_retries", "compensation_failed", "unknown"]).notNull(),
+  originalInput: json("originalInput").$type<Record<string, unknown>>(),
+  lastCheckpoint: json("lastCheckpoint").$type<Record<string, unknown>>(),
+  retryable: boolean("retryable").default(true).notNull(),
+  retryCount: int("retryCount").default(0).notNull(),
+  lastRetryAt: timestamp("lastRetryAt"),
+  resolvedAt: timestamp("resolvedAt"),
+  resolvedBy: varchar("resolvedBy", { length: 100 }),
+  resolution: text("resolution"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type SagaDeadLetter = typeof sagaDeadLetters.$inferSelect;
+export type InsertSagaDeadLetter = typeof sagaDeadLetters.$inferInsert;
+
+/**
+ * 已处理事件表 - 幂等性去重记录
+ */
+export const processedEvents = mysqlTable("processed_events", {
+  id: int("id").autoincrement().primaryKey(),
+  eventId: varchar("eventId", { length: 64 }).notNull().unique(),
+  eventType: varchar("eventType", { length: 100 }).notNull(),
+  consumerGroup: varchar("consumerGroup", { length: 100 }).notNull(),
+  processedAt: timestamp("processedAt").defaultNow().notNull(),
+  expiresAt: timestamp("expiresAt").notNull(),
+  metadata: json("metadata").$type<{
+    partition?: number;
+    offset?: string;
+    processingTimeMs?: number;
+  }>(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type ProcessedEvent = typeof processedEvents.$inferSelect;
+export type InsertProcessedEvent = typeof processedEvents.$inferInsert;
+
+/**
+ * 设备采样配置表 - 自适应采样率配置
+ */
+export const deviceSamplingConfig = mysqlTable("device_sampling_config", {
+  id: int("id").autoincrement().primaryKey(),
+  deviceId: varchar("deviceId", { length: 64 }).notNull(),
+  sensorType: varchar("sensorType", { length: 50 }).notNull(),
+  baseSamplingRateMs: int("baseSamplingRateMs").default(1000).notNull(),
+  currentSamplingRateMs: int("currentSamplingRateMs").default(1000).notNull(),
+  minSamplingRateMs: int("minSamplingRateMs").default(100).notNull(),
+  maxSamplingRateMs: int("maxSamplingRateMs").default(60000).notNull(),
+  adaptiveEnabled: boolean("adaptiveEnabled").default(true).notNull(),
+  lastAdjustedAt: timestamp("lastAdjustedAt"),
+  adjustmentReason: varchar("adjustmentReason", { length: 200 }),
+  priority: mysqlEnum("priority", ["low", "normal", "high", "critical"]).default("normal").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type DeviceSamplingConfig = typeof deviceSamplingConfig.$inferSelect;
+export type InsertDeviceSamplingConfig = typeof deviceSamplingConfig.$inferInsert;
+
+/**
+ * 幂等记录表 - 通用幂等性控制
+ */
+export const idempotentRecords = mysqlTable("idempotent_records", {
+  id: int("id").autoincrement().primaryKey(),
+  idempotencyKey: varchar("idempotencyKey", { length: 128 }).notNull().unique(),
+  operationType: varchar("operationType", { length: 100 }).notNull(),
+  status: mysqlEnum("status", ["processing", "completed", "failed"]).default("processing").notNull(),
+  requestHash: varchar("requestHash", { length: 64 }),
+  response: json("response").$type<Record<string, unknown>>(),
+  expiresAt: timestamp("expiresAt").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type IdempotentRecord = typeof idempotentRecords.$inferSelect;
+export type InsertIdempotentRecord = typeof idempotentRecords.$inferInsert;
+
+/**
+ * 回滚执行表扩展 - 支持 Saga 模式
+ */
+export const rollbackExecutions = mysqlTable("rollback_executions", {
+  id: int("id").autoincrement().primaryKey(),
+  executionId: varchar("executionId", { length: 64 }).notNull().unique(),
+  sagaId: varchar("sagaId", { length: 64 }),
+  triggerId: varchar("triggerId", { length: 64 }).notNull(),
+  targetType: mysqlEnum("targetType", ["rule", "model", "config", "firmware"]).notNull(),
+  targetId: varchar("targetId", { length: 64 }).notNull(),
+  fromVersion: varchar("fromVersion", { length: 50 }).notNull(),
+  toVersion: varchar("toVersion", { length: 50 }).notNull(),
+  triggerReason: text("triggerReason"),
+  status: mysqlEnum("status", ["pending", "executing", "completed", "failed", "partial", "cancelled"]).default("pending").notNull(),
+  totalDevices: int("totalDevices"),
+  completedDevices: int("completedDevices").default(0),
+  failedDevices: int("failedDevices").default(0),
+  checkpoint: json("checkpoint").$type<{
+    processed: string[];
+    failed: Array<{ device: string; error: string }>;
+  }>(),
+  result: json("result").$type<{
+    total: number;
+    succeeded: number;
+    failed: number;
+    details?: Array<{ deviceId: string; status: string; error?: string }>;
+  }>(),
+  startedAt: timestamp("startedAt"),
+  completedAt: timestamp("completedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type RollbackExecution = typeof rollbackExecutions.$inferSelect;
+export type InsertRollbackExecution = typeof rollbackExecutions.$inferInsert;
+
+/**
+ * 系统容量指标表 - 用于自适应配置
+ */
+export const systemCapacityMetrics = mysqlTable("system_capacity_metrics", {
+  id: int("id").autoincrement().primaryKey(),
+  metricId: varchar("metricId", { length: 64 }).notNull().unique(),
+  metricType: mysqlEnum("metricType", ["kafka_lag", "db_connections", "memory_usage", "cpu_usage", "queue_depth"]).notNull(),
+  componentName: varchar("componentName", { length: 100 }).notNull(),
+  currentValue: double("currentValue").notNull(),
+  threshold: double("threshold").notNull(),
+  status: mysqlEnum("status", ["normal", "warning", "critical"]).default("normal").notNull(),
+  lastCheckedAt: timestamp("lastCheckedAt").defaultNow().notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type SystemCapacityMetric = typeof systemCapacityMetrics.$inferSelect;
+export type InsertSystemCapacityMetric = typeof systemCapacityMetrics.$inferInsert;

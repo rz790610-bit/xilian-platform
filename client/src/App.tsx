@@ -41,6 +41,13 @@ import DataStream from "./pages/DataStream";
 import KafkaMonitor from "./pages/KafkaMonitor";
 import PipelineEditor from "./pages/PipelineEditor";
 import Infrastructure from "./pages/Infrastructure";
+import PerformanceOverview from "./pages/PerformanceOverview";
+import OutboxManager from "./pages/OutboxManager";
+import SagaManager from "./pages/SagaManager";
+import AdaptiveSampling from "./pages/AdaptiveSampling";
+import DeduplicationManager from "./pages/DeduplicationManager";
+import ReadReplicaManager from "./pages/ReadReplicaManager";
+import GraphQueryManager from "./pages/GraphQueryManager";
 function Router() {
   // make sure to consider if you need authentication for certain routes
   return (
@@ -91,6 +98,15 @@ function Router() {
       <Route path="/evolution/learning" component={ActiveLearning} />
       <Route path="/evolution/train" component={AutoTrain} />
       <Route path="/evolution/board" component={EvolutionBoard} />
+      
+      {/* Performance - 性能优化 v1.9 */}
+      <Route path="/performance/overview" component={PerformanceOverview} />
+      <Route path="/performance/outbox" component={OutboxManager} />
+      <Route path="/performance/saga" component={SagaManager} />
+      <Route path="/performance/sampling" component={AdaptiveSampling} />
+      <Route path="/performance/dedup" component={DeduplicationManager} />
+      <Route path="/performance/replica" component={ReadReplicaManager} />
+      <Route path="/performance/graph" component={GraphQueryManager} />
       
       {/* Settings */}
       <Route path="/settings/resources" component={Settings} />

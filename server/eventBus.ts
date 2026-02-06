@@ -61,6 +61,23 @@ export const TOPICS = {
   // 工作流相关
   WORKFLOW_TRIGGERED: 'workflow.triggered',
   WORKFLOW_COMPLETED: 'workflow.completed',
+
+  // v1.9 性能优化相关
+  OUTBOX_EVENT_PUBLISHED: 'outbox.event.published',
+  OUTBOX_EVENT_FAILED: 'outbox.event.failed',
+  OUTBOX_CDC_FALLBACK: 'outbox.cdc.fallback',
+  SAGA_STARTED: 'saga.started',
+  SAGA_COMPLETED: 'saga.completed',
+  SAGA_FAILED: 'saga.failed',
+  SAGA_COMPENSATED: 'saga.compensated',
+  SAGA_DEAD_LETTER: 'saga.dead_letter',
+  SAMPLING_ADJUSTED: 'sampling.adjusted',
+  SAMPLING_ALERT: 'sampling.alert',
+  DEDUP_DUPLICATE_DETECTED: 'dedup.duplicate_detected',
+  REPLICA_FAILOVER: 'replica.failover',
+  REPLICA_LAG_WARNING: 'replica.lag_warning',
+  GRAPH_QUERY_SLOW: 'graph.query.slow',
+  GRAPH_INDEX_REBUILT: 'graph.index.rebuilt',
 } as const;
 
 // ============ 事件总线类 ============

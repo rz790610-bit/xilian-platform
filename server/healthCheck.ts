@@ -119,7 +119,165 @@ const SYSTEM_SERVICES: ServiceConfig[] = [
     checkMethod: 'GET',
     checkTimeout: 3000,
     parseResponse: () => ({ online: true })
-  }
+  },
+
+  // ============ v1.9 性能优化服务 ============
+  {
+    nodeId: 'outbox_publisher',
+    name: 'Outbox发布器',
+    type: 'service',
+    icon: '📤',
+    description: 'CDC+轮询混合事件发布',
+    checkTimeout: 3000,
+    customCheck: async () => {
+      const startTime = Date.now();
+      try {
+        const { outboxPublisher } = await import('./outbox');
+        const metrics = outboxPublisher.getMetrics();
+        return {
+          online: metrics.isRunning,
+          latency: Date.now() - startTime,
+          metrics: {
+            publishedCount: metrics.publishedCount,
+            failedCount: metrics.failedCount,
+            cdcHealthy: metrics.cdcHealthy ? 1 : 0,
+          },
+        };
+      } catch (error: any) {
+        return { online: false, latency: Date.now() - startTime, error: error.message };
+      }
+    }
+  },
+  {
+    nodeId: 'saga_orchestrator',
+    name: 'Saga编排器',
+    type: 'service',
+    icon: '🔄',
+    description: '分布式事务补偿机制',
+    checkTimeout: 3000,
+    customCheck: async () => {
+      const startTime = Date.now();
+      try {
+        const { sagaOrchestrator } = await import('./saga');
+        const metrics = sagaOrchestrator.getMetrics();
+        return {
+          online: metrics.isRunning,
+          latency: Date.now() - startTime,
+          metrics: {
+            totalExecuted: metrics.totalExecuted,
+            completed: metrics.completed,
+            failed: metrics.failed,
+            compensated: metrics.compensated,
+          },
+        };
+      } catch (error: any) {
+        return { online: false, latency: Date.now() - startTime, error: error.message };
+      }
+    }
+  },
+  {
+    nodeId: 'adaptive_sampling',
+    name: '自适应采样',
+    type: 'service',
+    icon: '📉',
+    description: '实时监控触发采样调整',
+    checkTimeout: 3000,
+    customCheck: async () => {
+      const startTime = Date.now();
+      try {
+        const { adaptiveSamplingService } = await import('./monitoring');
+        const metrics = adaptiveSamplingService.getMetrics();
+        return {
+          online: metrics.isRunning,
+          latency: Date.now() - startTime,
+          metrics: {
+            adjustmentsMade: metrics.adjustmentsMade,
+            totalChecks: metrics.totalChecks,
+          },
+        };
+      } catch (error: any) {
+        return { online: false, latency: Date.now() - startTime, error: error.message };
+      }
+    }
+  },
+  {
+    nodeId: 'dedup_service',
+    name: 'Redis去重',
+    type: 'service',
+    icon: '🔒',
+    description: 'Redis辅助去重+异步刷盘',
+    checkTimeout: 3000,
+    customCheck: async () => {
+      const startTime = Date.now();
+      try {
+        const { deduplicationService } = await import('./redis/deduplicationService');
+        const metrics = deduplicationService.getMetrics();
+        return {
+          online: true,
+          latency: Date.now() - startTime,
+          metrics: {
+            totalChecks: metrics.totalChecks,
+            duplicatesFound: metrics.duplicatesFound,
+            pendingFlush: metrics.pendingFlush,
+          },
+        };
+      } catch (error: any) {
+        return { online: false, latency: Date.now() - startTime, error: error.message };
+      }
+    }
+  },
+  {
+    nodeId: 'read_replica',
+    name: '读写分离',
+    type: 'service',
+    icon: '📊',
+    description: '只读副本分离服务',
+    checkTimeout: 3000,
+    customCheck: async () => {
+      const startTime = Date.now();
+      try {
+        const { readReplicaService } = await import('./db/readReplicaService');
+        const stats = readReplicaService.getStats();
+        return {
+          online: stats.isRunning,
+          latency: Date.now() - startTime,
+          metrics: {
+            totalReads: stats.totalReads,
+            totalWrites: stats.totalWrites,
+            replicaCount: stats.replicaCount,
+          },
+        };
+      } catch (error: any) {
+        return { online: false, latency: Date.now() - startTime, error: error.message };
+      }
+    }
+  },
+  {
+    nodeId: 'graph_optimizer',
+    name: '图查询优化',
+    type: 'service',
+    icon: '🗂️',
+    description: 'Nebula索引+LOOKUP查询优化',
+    checkTimeout: 3000,
+    customCheck: async () => {
+      const startTime = Date.now();
+      try {
+        const { graphQueryOptimizer } = await import('./knowledge/graphQueryOptimizer');
+        const stats = graphQueryOptimizer.getStats();
+        return {
+          online: stats.isRunning,
+          latency: Date.now() - startTime,
+          metrics: {
+            totalQueries: stats.totalQueries,
+            cacheHits: stats.cacheHits,
+            indexCount: stats.indexCount,
+          },
+        };
+      } catch (error: any) {
+        return { online: false, latency: Date.now() - startTime, error: error.message };
+      }
+    }
+  },
 ];
 
 // 检查单个服务状态
@@ -286,6 +444,12 @@ function getDefaultY(nodeId: string): number {
     redis: 130,
     kafka: 230,
     api_server: 280,
+    outbox_publisher: 330,
+    saga_orchestrator: 380,
+    adaptive_sampling: 430,
+    dedup_service: 480,
+    read_replica: 530,
+    graph_optimizer: 580,
   };
   return nodeY[nodeId] || 100;
 }

@@ -15,8 +15,10 @@ const LOCAL_DEV_USER: User = {
   name: "本地开发用户",
   email: "dev@localhost",
   loginMethod: "local",
+  role: "admin",
   lastSignedIn: new Date(),
   createdAt: new Date(),
+  updatedAt: new Date(),
 };
 
 export async function createContext(

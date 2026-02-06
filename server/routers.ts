@@ -15,6 +15,14 @@ import { pipelineRouter } from "./pipeline/pipelineRouter";
 import { pluginRouter } from "./plugin/pluginRouter";
 import { infrastructureRouter } from "./infrastructure/infrastructureRouter";
 
+// ============ v1.9 性能优化模块路由 ============
+import { outboxRouter } from "./outbox/outboxRouter";
+import { sagaRouter } from "./saga/sagaRouter";
+import { adaptiveSamplingRouter } from "./monitoring/adaptiveSamplingRouter";
+import { deduplicationRouter } from "./redis/deduplicationRouter";
+import { readReplicaRouter } from "./db/readReplicaRouter";
+import { graphQueryRouter } from "./knowledge/graphQueryRouter";
+
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
   system: systemRouter,
@@ -64,6 +72,26 @@ export const appRouter = router({
 
   // 基础设施管理路由
   infrastructure: infrastructureRouter,
+
+  // ============ v1.9 性能优化模块 ============
+
+  // Outbox 混合发布器（CDC + 轮询）
+  outbox: outboxRouter,
+
+  // Saga 补偿机制（分布式事务）
+  saga: sagaRouter,
+
+  // 自适应采样配置
+  adaptiveSampling: adaptiveSamplingRouter,
+
+  // Redis 去重服务
+  deduplication: deduplicationRouter,
+
+  // 读写分离管理
+  readReplica: readReplicaRouter,
+
+  // 图查询优化
+  graphQuery: graphQueryRouter,
 });
 
 export type AppRouter = typeof appRouter;

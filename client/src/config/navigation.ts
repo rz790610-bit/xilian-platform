@@ -90,6 +90,20 @@ export const navigationConfig: NavItem[] = [
     ]
   },
   {
+    id: 'performance',
+    label: '性能优化',
+    icon: '⚡',
+    children: [
+      { id: 'perf-overview', label: '性能总览', icon: '📊', path: '/performance/overview' },
+      { id: 'perf-outbox', label: 'Outbox发布器', icon: '📤', path: '/performance/outbox' },
+      { id: 'perf-saga', label: 'Saga补偿', icon: '🔄', path: '/performance/saga' },
+      { id: 'perf-sampling', label: '自适应采样', icon: '📉', path: '/performance/sampling' },
+      { id: 'perf-dedup', label: '事件去重', icon: '🔒', path: '/performance/dedup' },
+      { id: 'perf-replica', label: '读写分离', icon: '📊', path: '/performance/replica' },
+      { id: 'perf-graph', label: '图查询优化', icon: '🗂️', path: '/performance/graph' }
+    ]
+  },
+  {
     id: 'settings',
     label: '系统设置',
     icon: '⚙️',
