@@ -5,7 +5,7 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import viteConfig from "../../vite.config";
 
-export async function setupVite(app: Express, server: Server) {
+export async function setupVite(app: Express, server: Server, port: number) {
   // 从 viteConfig 中提取非 server 配置，避免覆盖 HMR 设置
   const { server: _serverConfig, ...restConfig } = viteConfig;
 
@@ -14,6 +14,9 @@ export async function setupVite(app: Express, server: Server) {
     configFile: false,
     server: {
       middlewareMode: true,
+      // 显式设置端口，让 Vite 客户端的 HMR WebSocket 连接到正确的端口
+      // 不设置的话默认是 5173，导致 WebSocket 连接失败 → 不断 polling → full reload 循环
+      port,
       hmr: { server },
       allowedHosts: true as const,
     },
@@ -34,9 +37,6 @@ export async function setupVite(app: Express, server: Server) {
 
       // always reload the index.html file from disk incase it changes
       const template = await fs.promises.readFile(clientTemplate, "utf-8");
-      // 注意：不再对 main.tsx 的 src 添加随机 nanoid 查询参数
-      // 之前的 nanoid 会导致每次请求 HTML 时 Vite 认为是新模块，
-      // 触发 full page reload，形成无限刷新循环
       const page = await vite.transformIndexHtml(url, template);
       res.status(200).set({ "Content-Type": "text/html" }).end(page);
     } catch (e) {
