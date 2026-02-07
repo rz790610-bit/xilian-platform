@@ -61,6 +61,17 @@ import DeduplicationManager from "./pages/DeduplicationManager";
 import ReadReplicaManager from "./pages/ReadReplicaManager";
 import GraphQueryManager from "./pages/GraphQueryManager";
 
+// v1.5 数据库模块页面
+import {
+  DatabaseOverview,
+  AssetManager,
+  ConfigManager,
+  SliceManager,
+  CleanManager,
+  EventManager,
+  StorageStatus
+} from "./pages/database";
+
 function Router() {
   // make sure to consider if you need authentication for certain routes
   return (
@@ -136,7 +147,19 @@ function Router() {
       <Route path="/services/dispatcher" component={ServiceMonitor} />
       <Route path="/services/performance" component={ServiceMonitor} />
 
-      {/* Performance - 性能优化 v1.9 */}
+      {/* Database - 数据库模块 v1.5 */}
+      <Route path="/database">
+        <Redirect to="/database/overview" />
+      </Route>
+      <Route path="/database/overview" component={DatabaseOverview} />
+      <Route path="/database/assets" component={AssetManager} />
+      <Route path="/database/config" component={ConfigManager} />
+      <Route path="/database/slices" component={SliceManager} />
+      <Route path="/database/clean" component={CleanManager} />
+      <Route path="/database/events" component={EventManager} />
+      <Route path="/database/storage" component={StorageStatus} />
+
+      {/* Performance - 性能优化 v1.9 (保留原路径兼容 + 系统设置入口) */}
       <Route path="/performance">
         <Redirect to="/performance/overview" />
       </Route>
@@ -147,6 +170,13 @@ function Router() {
       <Route path="/performance/dedup" component={DeduplicationManager} />
       <Route path="/performance/replica" component={ReadReplicaManager} />
       <Route path="/performance/graph" component={GraphQueryManager} />
+      <Route path="/settings/performance" component={PerformanceOverview} />
+      <Route path="/settings/performance/outbox" component={OutboxManager} />
+      <Route path="/settings/performance/saga" component={SagaManager} />
+      <Route path="/settings/performance/sampling" component={AdaptiveSampling} />
+      <Route path="/settings/performance/dedup" component={DeduplicationManager} />
+      <Route path="/settings/performance/replica" component={ReadReplicaManager} />
+      <Route path="/settings/performance/graph" component={GraphQueryManager} />
       
       {/* Settings */}
       <Route path="/settings/resources" component={Settings} />

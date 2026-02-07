@@ -1,4 +1,4 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, json, boolean, double } from "drizzle-orm/mysql-core";
+import { int, bigint, tinyint, smallint, mysqlEnum, mysqlTable, text, timestamp, varchar, json, boolean, double, date, datetime, index, uniqueIndex } from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -1051,3 +1051,574 @@ export const systemCapacityMetrics = mysqlTable("system_capacity_metrics", {
 
 export type SystemCapacityMetric = typeof systemCapacityMetrics.$inferSelect;
 export type InsertSystemCapacityMetric = typeof systemCapacityMetrics.$inferInsert;
+
+
+// ============ v1.5 数据库模块 ============
+
+// ============ 编码管理 ============
+
+/**
+ * 编码生成规则表
+ */
+export const baseCodeRules = mysqlTable("base_code_rules", {
+  id: int("id").autoincrement().primaryKey(),
+  ruleCode: varchar("rule_code", { length: 64 }).notNull().unique(),
+  name: varchar("name", { length: 100 }).notNull(),
+  segments: json("segments").notNull(),
+  currentSequences: json("current_sequences").notNull(),
+  description: text("description"),
+  isActive: tinyint("is_active").default(1).notNull(),
+  version: int("version").default(1).notNull(),
+  createdBy: varchar("created_by", { length: 64 }),
+  createdAt: datetime("created_at", { fsp: 3 }).notNull(),
+  updatedBy: varchar("updated_by", { length: 64 }),
+  updatedAt: datetime("updated_at", { fsp: 3 }).notNull(),
+  isDeleted: tinyint("is_deleted").default(0).notNull(),
+});
+
+export type BaseCodeRule = typeof baseCodeRules.$inferSelect;
+export type InsertBaseCodeRule = typeof baseCodeRules.$inferInsert;
+
+// ============ 基础库（模板） ============
+
+/**
+ * 节点类型模板表
+ */
+export const baseNodeTemplates = mysqlTable("base_node_templates", {
+  id: int("id").autoincrement().primaryKey(),
+  code: varchar("code", { length: 64 }).notNull().unique(),
+  name: varchar("name", { length: 100 }).notNull(),
+  level: tinyint("level").notNull(),
+  nodeType: varchar("node_type", { length: 20 }).notNull(),
+  derivedFrom: varchar("derived_from", { length: 64 }),
+  codeRule: varchar("code_rule", { length: 64 }),
+  codePrefix: varchar("code_prefix", { length: 30 }),
+  icon: varchar("icon", { length: 50 }),
+  isSystem: tinyint("is_system").default(0).notNull(),
+  isActive: tinyint("is_active").default(1).notNull(),
+  children: json("children"),
+  attributes: json("attributes"),
+  measurementPoints: json("measurement_points"),
+  description: text("description"),
+  version: int("version").default(1).notNull(),
+  createdBy: varchar("created_by", { length: 64 }),
+  createdAt: datetime("created_at", { fsp: 3 }).notNull(),
+  updatedBy: varchar("updated_by", { length: 64 }),
+  updatedAt: datetime("updated_at", { fsp: 3 }).notNull(),
+  isDeleted: tinyint("is_deleted").default(0).notNull(),
+});
+
+export type BaseNodeTemplate = typeof baseNodeTemplates.$inferSelect;
+export type InsertBaseNodeTemplate = typeof baseNodeTemplates.$inferInsert;
+
+/**
+ * 测点类型模板表
+ */
+export const baseMpTemplates = mysqlTable("base_mp_templates", {
+  id: int("id").autoincrement().primaryKey(),
+  code: varchar("code", { length: 64 }).notNull().unique(),
+  name: varchar("name", { length: 100 }).notNull(),
+  measurementType: varchar("measurement_type", { length: 30 }).notNull(),
+  physicalQuantity: varchar("physical_quantity", { length: 50 }),
+  defaultUnit: varchar("default_unit", { length: 20 }),
+  defaultSampleRate: int("default_sample_rate"),
+  defaultWarning: double("default_warning"),
+  defaultCritical: double("default_critical"),
+  sensorConfig: json("sensor_config"),
+  thresholdConfig: json("threshold_config"),
+  description: text("description"),
+  isActive: tinyint("is_active").default(1).notNull(),
+  version: int("version").default(1).notNull(),
+  createdBy: varchar("created_by", { length: 64 }),
+  createdAt: datetime("created_at", { fsp: 3 }).notNull(),
+  updatedBy: varchar("updated_by", { length: 64 }),
+  updatedAt: datetime("updated_at", { fsp: 3 }).notNull(),
+  isDeleted: tinyint("is_deleted").default(0).notNull(),
+});
+
+export type BaseMpTemplate = typeof baseMpTemplates.$inferSelect;
+export type InsertBaseMpTemplate = typeof baseMpTemplates.$inferInsert;
+
+// ============ 档案库（实例） ============
+
+/**
+ * 资产节点表（设备树）
+ */
+export const assetNodes = mysqlTable("asset_nodes", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  nodeId: varchar("node_id", { length: 64 }).notNull().unique(),
+  code: varchar("code", { length: 100 }).notNull().unique(),
+  name: varchar("name", { length: 200 }).notNull(),
+  level: tinyint("level").notNull(),
+  nodeType: varchar("node_type", { length: 20 }).notNull(),
+  parentNodeId: varchar("parent_node_id", { length: 64 }),
+  rootNodeId: varchar("root_node_id", { length: 64 }).notNull(),
+  templateCode: varchar("template_code", { length: 64 }),
+  status: varchar("status", { length: 20 }).default("unknown").notNull(),
+  path: text("path").notNull(),
+  levelCodes: varchar("level_codes", { length: 200 }),
+  depth: tinyint("depth").default(1).notNull(),
+  serialNumber: varchar("serial_number", { length: 100 }),
+  location: varchar("location", { length: 255 }),
+  department: varchar("department", { length: 100 }),
+  lastHeartbeat: datetime("last_heartbeat", { fsp: 3 }),
+  installDate: date("install_date"),
+  warrantyExpiry: date("warranty_expiry"),
+  attributes: json("attributes"),
+  sortOrder: int("sort_order").default(0).notNull(),
+  isActive: tinyint("is_active").default(1).notNull(),
+  version: int("version").default(1).notNull(),
+  createdBy: varchar("created_by", { length: 64 }),
+  createdAt: datetime("created_at", { fsp: 3 }).notNull(),
+  updatedBy: varchar("updated_by", { length: 64 }),
+  updatedAt: datetime("updated_at", { fsp: 3 }).notNull(),
+  isDeleted: tinyint("is_deleted").default(0).notNull(),
+  deletedAt: datetime("deleted_at", { fsp: 3 }),
+  deletedBy: varchar("deleted_by", { length: 64 }),
+});
+
+export type AssetNode = typeof assetNodes.$inferSelect;
+export type InsertAssetNode = typeof assetNodes.$inferInsert;
+
+/**
+ * 测点实例表
+ */
+export const assetMeasurementPoints = mysqlTable("asset_measurement_points", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  mpId: varchar("mp_id", { length: 64 }).notNull().unique(),
+  nodeId: varchar("node_id", { length: 64 }).notNull(),
+  deviceCode: varchar("device_code", { length: 100 }).notNull(),
+  templateCode: varchar("template_code", { length: 64 }),
+  name: varchar("name", { length: 100 }).notNull(),
+  position: varchar("position", { length: 100 }),
+  measurementType: varchar("measurement_type", { length: 30 }).notNull(),
+  warningThreshold: double("warning_threshold"),
+  criticalThreshold: double("critical_threshold"),
+  thresholdConfig: json("threshold_config"),
+  isActive: tinyint("is_active").default(1).notNull(),
+  version: int("version").default(1).notNull(),
+  createdBy: varchar("created_by", { length: 64 }),
+  createdAt: datetime("created_at", { fsp: 3 }).notNull(),
+  updatedBy: varchar("updated_by", { length: 64 }),
+  updatedAt: datetime("updated_at", { fsp: 3 }).notNull(),
+  isDeleted: tinyint("is_deleted").default(0).notNull(),
+});
+
+export type AssetMeasurementPoint = typeof assetMeasurementPoints.$inferSelect;
+export type InsertAssetMeasurementPoint = typeof assetMeasurementPoints.$inferInsert;
+
+/**
+ * 传感器实例表
+ */
+export const assetSensors = mysqlTable("asset_sensors", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  deviceCode: varchar("device_code", { length: 100 }).notNull(),
+  sensorId: varchar("sensor_id", { length: 64 }).notNull(),
+  mpId: varchar("mp_id", { length: 64 }).notNull(),
+  name: varchar("name", { length: 100 }),
+  channel: varchar("channel", { length: 10 }),
+  sampleRate: int("sample_rate"),
+  physicalQuantity: varchar("physical_quantity", { length: 50 }),
+  unit: varchar("unit", { length: 20 }),
+  warningThreshold: double("warning_threshold"),
+  criticalThreshold: double("critical_threshold"),
+  status: varchar("status", { length: 20 }).default("active").notNull(),
+  lastValue: double("last_value"),
+  lastReadingAt: datetime("last_reading_at", { fsp: 3 }),
+  manufacturer: varchar("manufacturer", { length: 100 }),
+  model: varchar("model", { length: 100 }),
+  serialNumber: varchar("serial_number", { length: 100 }),
+  installDate: date("install_date"),
+  calibrationDate: date("calibration_date"),
+  fileNamePattern: varchar("file_name_pattern", { length: 255 }),
+  metadata: json("metadata"),
+  isActive: tinyint("is_active").default(1).notNull(),
+  version: int("version").default(1).notNull(),
+  createdBy: varchar("created_by", { length: 64 }),
+  createdAt: datetime("created_at", { fsp: 3 }).notNull(),
+  updatedBy: varchar("updated_by", { length: 64 }),
+  updatedAt: datetime("updated_at", { fsp: 3 }).notNull(),
+  isDeleted: tinyint("is_deleted").default(0).notNull(),
+});
+
+export type AssetSensor = typeof assetSensors.$inferSelect;
+export type InsertAssetSensor = typeof assetSensors.$inferInsert;
+
+// ============ 标注维度 ============
+
+/**
+ * 标注维度定义表
+ */
+export const baseLabelDimensions = mysqlTable("base_label_dimensions", {
+  id: int("id").autoincrement().primaryKey(),
+  code: varchar("code", { length: 64 }).notNull().unique(),
+  name: varchar("name", { length: 100 }).notNull(),
+  dimType: varchar("dim_type", { length: 20 }).notNull(),
+  isRequired: tinyint("is_required").default(0).notNull(),
+  sortOrder: int("sort_order").default(0).notNull(),
+  allowSources: json("allow_sources"),
+  applyTo: json("apply_to"),
+  description: text("description"),
+  isActive: tinyint("is_active").default(1).notNull(),
+  version: int("version").default(1).notNull(),
+  createdBy: varchar("created_by", { length: 64 }),
+  createdAt: datetime("created_at", { fsp: 3 }).notNull(),
+  updatedBy: varchar("updated_by", { length: 64 }),
+  updatedAt: datetime("updated_at", { fsp: 3 }).notNull(),
+  isDeleted: tinyint("is_deleted").default(0).notNull(),
+});
+
+export type BaseLabelDimension = typeof baseLabelDimensions.$inferSelect;
+export type InsertBaseLabelDimension = typeof baseLabelDimensions.$inferInsert;
+
+/**
+ * 标注值选项表
+ */
+export const baseLabelOptions = mysqlTable("base_label_options", {
+  id: int("id").autoincrement().primaryKey(),
+  dimensionCode: varchar("dimension_code", { length: 64 }).notNull(),
+  code: varchar("code", { length: 64 }).notNull(),
+  label: varchar("label", { length: 100 }).notNull(),
+  parentCode: varchar("parent_code", { length: 64 }),
+  color: varchar("color", { length: 20 }),
+  icon: varchar("icon", { length: 50 }),
+  isNormal: tinyint("is_normal").default(1).notNull(),
+  samplePriority: tinyint("sample_priority").default(5).notNull(),
+  sortOrder: int("sort_order").default(0).notNull(),
+  autoRule: json("auto_rule"),
+  isActive: tinyint("is_active").default(1).notNull(),
+  version: int("version").default(1).notNull(),
+  createdBy: varchar("created_by", { length: 64 }),
+  createdAt: datetime("created_at", { fsp: 3 }).notNull(),
+  updatedBy: varchar("updated_by", { length: 64 }),
+  updatedAt: datetime("updated_at", { fsp: 3 }).notNull(),
+  isDeleted: tinyint("is_deleted").default(0).notNull(),
+});
+
+export type BaseLabelOption = typeof baseLabelOptions.$inferSelect;
+export type InsertBaseLabelOption = typeof baseLabelOptions.$inferInsert;
+
+// ============ 数据切片 ============
+
+/**
+ * 切片触发规则表（带版本）
+ */
+export const baseSliceRules = mysqlTable("base_slice_rules", {
+  id: int("id").autoincrement().primaryKey(),
+  ruleId: varchar("rule_id", { length: 64 }).notNull(),
+  ruleVersion: int("rule_version").default(1).notNull(),
+  name: varchar("name", { length: 100 }).notNull(),
+  deviceType: varchar("device_type", { length: 50 }),
+  mechanismType: varchar("mechanism_type", { length: 50 }),
+  triggerType: varchar("trigger_type", { length: 30 }).notNull(),
+  triggerConfig: json("trigger_config").notNull(),
+  minDurationSec: int("min_duration_sec").default(5).notNull(),
+  maxDurationSec: int("max_duration_sec").default(3600).notNull(),
+  mergeGapSec: int("merge_gap_sec").default(10).notNull(),
+  autoLabels: json("auto_labels"),
+  priority: int("priority").default(5).notNull(),
+  isActive: tinyint("is_active").default(1).notNull(),
+  isCurrent: tinyint("is_current").default(1).notNull(),
+  version: int("version").default(1).notNull(),
+  createdBy: varchar("created_by", { length: 64 }),
+  createdAt: datetime("created_at", { fsp: 3 }).notNull(),
+  updatedBy: varchar("updated_by", { length: 64 }),
+  updatedAt: datetime("updated_at", { fsp: 3 }).notNull(),
+  isDeleted: tinyint("is_deleted").default(0).notNull(),
+});
+
+export type BaseSliceRule = typeof baseSliceRules.$inferSelect;
+export type InsertBaseSliceRule = typeof baseSliceRules.$inferInsert;
+
+/**
+ * 数据切片表
+ */
+export const dataSlices = mysqlTable("data_slices", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  sliceId: varchar("slice_id", { length: 64 }).notNull().unique(),
+  deviceCode: varchar("device_code", { length: 100 }).notNull(),
+  nodeId: varchar("node_id", { length: 64 }),
+  nodePath: text("node_path"),
+  workConditionCode: varchar("work_condition_code", { length: 64 }),
+  qualityCode: varchar("quality_code", { length: 64 }),
+  faultTypeCode: varchar("fault_type_code", { length: 64 }),
+  loadRate: double("load_rate"),
+  startTime: datetime("start_time", { fsp: 3 }).notNull(),
+  endTime: datetime("end_time", { fsp: 3 }),
+  durationMs: int("duration_ms"),
+  status: varchar("status", { length: 20 }).default("recording").notNull(),
+  labelStatus: varchar("label_status", { length: 20 }).default("auto_only").notNull(),
+  labelCountAuto: smallint("label_count_auto").default(0).notNull(),
+  labelCountManual: smallint("label_count_manual").default(0).notNull(),
+  labels: json("labels").notNull(),
+  sensors: json("sensors"),
+  dataLocation: json("data_location"),
+  summary: json("summary"),
+  qualityScore: double("quality_score"),
+  dataQuality: json("data_quality"),
+  isSample: tinyint("is_sample").default(0).notNull(),
+  samplePurpose: varchar("sample_purpose", { length: 20 }),
+  sampleDatasetId: varchar("sample_dataset_id", { length: 64 }),
+  appliedRuleId: varchar("applied_rule_id", { length: 64 }),
+  appliedRuleVersion: int("applied_rule_version"),
+  notes: text("notes"),
+  version: int("version").default(1).notNull(),
+  createdBy: varchar("created_by", { length: 64 }),
+  createdAt: datetime("created_at", { fsp: 3 }).notNull(),
+  updatedBy: varchar("updated_by", { length: 64 }),
+  updatedAt: datetime("updated_at", { fsp: 3 }).notNull(),
+  verifiedBy: varchar("verified_by", { length: 64 }),
+  verifiedAt: datetime("verified_at", { fsp: 3 }),
+  isDeleted: tinyint("is_deleted").default(0).notNull(),
+});
+
+export type DataSlice = typeof dataSlices.$inferSelect;
+export type InsertDataSlice = typeof dataSlices.$inferInsert;
+
+/**
+ * 标注修改历史表
+ */
+export const dataSliceLabelHistory = mysqlTable("data_slice_label_history", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  sliceId: varchar("slice_id", { length: 64 }).notNull(),
+  dimensionCode: varchar("dimension_code", { length: 64 }).notNull(),
+  oldValue: varchar("old_value", { length: 255 }),
+  newValue: varchar("new_value", { length: 255 }),
+  oldSource: varchar("old_source", { length: 20 }),
+  newSource: varchar("new_source", { length: 20 }),
+  changedBy: varchar("changed_by", { length: 64 }).notNull(),
+  changedAt: datetime("changed_at", { fsp: 3 }).notNull(),
+  reason: text("reason"),
+});
+
+export type DataSliceLabelHistory = typeof dataSliceLabelHistory.$inferSelect;
+export type InsertDataSliceLabelHistory = typeof dataSliceLabelHistory.$inferInsert;
+
+// ============ 数据清洗 ============
+
+/**
+ * 清洗规则表（带版本）
+ */
+export const baseCleanRules = mysqlTable("base_clean_rules", {
+  id: int("id").autoincrement().primaryKey(),
+  ruleId: varchar("rule_id", { length: 64 }).notNull(),
+  ruleVersion: int("rule_version").default(1).notNull(),
+  name: varchar("name", { length: 100 }).notNull(),
+  deviceType: varchar("device_type", { length: 50 }),
+  sensorType: varchar("sensor_type", { length: 50 }),
+  measurementType: varchar("measurement_type", { length: 50 }),
+  ruleType: varchar("rule_type", { length: 30 }).notNull(),
+  detectConfig: json("detect_config").notNull(),
+  actionType: varchar("action_type", { length: 30 }).notNull(),
+  actionConfig: json("action_config"),
+  priority: int("priority").default(5).notNull(),
+  isActive: tinyint("is_active").default(1).notNull(),
+  isCurrent: tinyint("is_current").default(1).notNull(),
+  description: text("description"),
+  version: int("version").default(1).notNull(),
+  createdBy: varchar("created_by", { length: 64 }),
+  createdAt: datetime("created_at", { fsp: 3 }).notNull(),
+  updatedBy: varchar("updated_by", { length: 64 }),
+  updatedAt: datetime("updated_at", { fsp: 3 }).notNull(),
+  isDeleted: tinyint("is_deleted").default(0).notNull(),
+});
+
+export type BaseCleanRule = typeof baseCleanRules.$inferSelect;
+export type InsertBaseCleanRule = typeof baseCleanRules.$inferInsert;
+
+/**
+ * 清洗任务表
+ */
+export const dataCleanTasks = mysqlTable("data_clean_tasks", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  taskId: varchar("task_id", { length: 64 }).notNull().unique(),
+  idempotentKey: varchar("idempotent_key", { length: 64 }).notNull().unique(),
+  name: varchar("name", { length: 100 }),
+  deviceCode: varchar("device_code", { length: 100 }),
+  sensorIds: json("sensor_ids"),
+  timeStart: datetime("time_start", { fsp: 3 }).notNull(),
+  timeEnd: datetime("time_end", { fsp: 3 }).notNull(),
+  ruleIds: json("rule_ids"),
+  ruleSnapshot: json("rule_snapshot"),
+  status: varchar("status", { length: 20 }).default("pending").notNull(),
+  progress: tinyint("progress").default(0).notNull(),
+  stats: json("stats"),
+  startedAt: datetime("started_at", { fsp: 3 }),
+  completedAt: datetime("completed_at", { fsp: 3 }),
+  errorMessage: text("error_message"),
+  version: int("version").default(1).notNull(),
+  createdBy: varchar("created_by", { length: 64 }),
+  createdAt: datetime("created_at", { fsp: 3 }).notNull(),
+  updatedBy: varchar("updated_by", { length: 64 }),
+  updatedAt: datetime("updated_at", { fsp: 3 }).notNull(),
+});
+
+export type DataCleanTask = typeof dataCleanTasks.$inferSelect;
+export type InsertDataCleanTask = typeof dataCleanTasks.$inferInsert;
+
+/**
+ * 清洗记录表
+ */
+export const dataCleanLogs = mysqlTable("data_clean_logs", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  taskId: varchar("task_id", { length: 64 }),
+  sliceId: varchar("slice_id", { length: 64 }),
+  deviceCode: varchar("device_code", { length: 100 }).notNull(),
+  sensorId: varchar("sensor_id", { length: 64 }).notNull(),
+  dataTime: datetime("data_time", { fsp: 3 }).notNull(),
+  ruleId: varchar("rule_id", { length: 64 }).notNull(),
+  ruleVersion: int("rule_version").notNull(),
+  issueType: varchar("issue_type", { length: 50 }).notNull(),
+  originalValue: double("original_value"),
+  cleanedValue: double("cleaned_value"),
+  actionTaken: varchar("action_taken", { length: 50 }).notNull(),
+  isFixed: tinyint("is_fixed").default(0).notNull(),
+  context: json("context"),
+  createdAt: datetime("created_at", { fsp: 3 }).notNull(),
+});
+
+export type DataCleanLog = typeof dataCleanLogs.$inferSelect;
+export type InsertDataCleanLog = typeof dataCleanLogs.$inferInsert;
+
+/**
+ * 质量报告表
+ */
+export const dataQualityReports = mysqlTable("data_quality_reports", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  reportType: varchar("report_type", { length: 20 }).notNull(),
+  reportDate: date("report_date").notNull(),
+  deviceCode: varchar("device_code", { length: 100 }),
+  sensorId: varchar("sensor_id", { length: 64 }),
+  totalRecords: bigint("total_records", { mode: "number" }).default(0).notNull(),
+  validRecords: bigint("valid_records", { mode: "number" }).default(0).notNull(),
+  completeness: double("completeness"),
+  accuracy: double("accuracy"),
+  qualityScore: double("quality_score"),
+  metrics: json("metrics").notNull(),
+  prevQualityScore: double("prev_quality_score"),
+  scoreChange: double("score_change"),
+  createdAt: datetime("created_at", { fsp: 3 }).notNull(),
+});
+
+export type DataQualityReport = typeof dataQualityReports.$inferSelect;
+export type InsertDataQualityReport = typeof dataQualityReports.$inferInsert;
+
+/**
+ * 传感器校准表
+ */
+export const sensorCalibrations = mysqlTable("sensor_calibrations", {
+  id: int("id").autoincrement().primaryKey(),
+  deviceCode: varchar("device_code", { length: 100 }).notNull(),
+  sensorId: varchar("sensor_id", { length: 64 }).notNull(),
+  calibrationDate: date("calibration_date").notNull(),
+  calibrationType: varchar("calibration_type", { length: 20 }).notNull(),
+  offsetBefore: double("offset_before"),
+  offsetAfter: double("offset_after"),
+  scaleBefore: double("scale_before"),
+  scaleAfter: double("scale_after"),
+  calibrationFormula: varchar("calibration_formula", { length: 255 }),
+  applyToHistory: tinyint("apply_to_history").default(0).notNull(),
+  historyStartTime: datetime("history_start_time", { fsp: 3 }),
+  status: varchar("status", { length: 20 }).default("pending").notNull(),
+  appliedAt: datetime("applied_at", { fsp: 3 }),
+  notes: text("notes"),
+  version: int("version").default(1).notNull(),
+  createdBy: varchar("created_by", { length: 64 }),
+  createdAt: datetime("created_at", { fsp: 3 }).notNull(),
+  updatedBy: varchar("updated_by", { length: 64 }),
+  updatedAt: datetime("updated_at", { fsp: 3 }).notNull(),
+});
+
+export type SensorCalibration = typeof sensorCalibrations.$inferSelect;
+export type InsertSensorCalibration = typeof sensorCalibrations.$inferInsert;
+
+// ============ 数据字典 ============
+
+/**
+ * 字典分类表
+ */
+export const baseDictCategories = mysqlTable("base_dict_categories", {
+  id: int("id").autoincrement().primaryKey(),
+  code: varchar("code", { length: 64 }).notNull().unique(),
+  name: varchar("name", { length: 100 }).notNull(),
+  description: text("description"),
+  isSystem: tinyint("is_system").default(0).notNull(),
+  isActive: tinyint("is_active").default(1).notNull(),
+  sortOrder: int("sort_order").default(0).notNull(),
+  version: int("version").default(1).notNull(),
+  createdBy: varchar("created_by", { length: 64 }),
+  createdAt: datetime("created_at", { fsp: 3 }).notNull(),
+  updatedBy: varchar("updated_by", { length: 64 }),
+  updatedAt: datetime("updated_at", { fsp: 3 }).notNull(),
+  isDeleted: tinyint("is_deleted").default(0).notNull(),
+});
+
+export type BaseDictCategory = typeof baseDictCategories.$inferSelect;
+export type InsertBaseDictCategory = typeof baseDictCategories.$inferInsert;
+
+/**
+ * 字典项表
+ */
+export const baseDictItems = mysqlTable("base_dict_items", {
+  id: int("id").autoincrement().primaryKey(),
+  categoryCode: varchar("category_code", { length: 64 }).notNull(),
+  code: varchar("code", { length: 64 }).notNull(),
+  label: varchar("label", { length: 100 }).notNull(),
+  value: varchar("value", { length: 255 }),
+  parentCode: varchar("parent_code", { length: 64 }),
+  icon: varchar("icon", { length: 50 }),
+  color: varchar("color", { length: 20 }),
+  metadata: json("metadata"),
+  isActive: tinyint("is_active").default(1).notNull(),
+  sortOrder: int("sort_order").default(0).notNull(),
+  version: int("version").default(1).notNull(),
+  createdBy: varchar("created_by", { length: 64 }),
+  createdAt: datetime("created_at", { fsp: 3 }).notNull(),
+  updatedBy: varchar("updated_by", { length: 64 }),
+  updatedAt: datetime("updated_at", { fsp: 3 }).notNull(),
+  isDeleted: tinyint("is_deleted").default(0).notNull(),
+});
+
+export type BaseDictItem = typeof baseDictItems.$inferSelect;
+export type InsertBaseDictItem = typeof baseDictItems.$inferInsert;
+
+// ============ 事件溯源 ============
+
+/**
+ * 事件存储表
+ */
+export const eventStore = mysqlTable("event_store", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  eventId: varchar("event_id", { length: 64 }).notNull().unique(),
+  eventType: varchar("event_type", { length: 100 }).notNull(),
+  eventVersion: smallint("event_version").default(1).notNull(),
+  aggregateType: varchar("aggregate_type", { length: 50 }).notNull(),
+  aggregateId: varchar("aggregate_id", { length: 100 }).notNull(),
+  aggregateVersion: bigint("aggregate_version", { mode: "number" }).notNull(),
+  payload: json("payload").notNull(),
+  metadata: json("metadata"),
+  causationId: varchar("causation_id", { length: 64 }),
+  correlationId: varchar("correlation_id", { length: 64 }),
+  occurredAt: datetime("occurred_at", { fsp: 3 }).notNull(),
+  recordedAt: datetime("recorded_at", { fsp: 3 }).notNull(),
+  actorId: varchar("actor_id", { length: 64 }),
+  actorType: varchar("actor_type", { length: 20 }),
+});
+
+export type EventStoreEntry = typeof eventStore.$inferSelect;
+export type InsertEventStoreEntry = typeof eventStore.$inferInsert;
+
+/**
+ * 聚合快照表
+ */
+export const eventSnapshots = mysqlTable("event_snapshots", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  aggregateType: varchar("aggregate_type", { length: 50 }).notNull(),
+  aggregateId: varchar("aggregate_id", { length: 100 }).notNull(),
+  aggregateVersion: bigint("aggregate_version", { mode: "number" }).notNull(),
+  state: json("state").notNull(),
+  createdAt: datetime("created_at", { fsp: 3 }).notNull(),
+});
+
+export type EventSnapshot = typeof eventSnapshots.$inferSelect;
+export type InsertEventSnapshot = typeof eventSnapshots.$inferInsert;

@@ -26,6 +26,20 @@ export const navigationConfig: NavItem[] = [
     path: '/pipeline'
   },
   {
+    id: 'database-module',
+    label: '数据库',
+    icon: '🗄️',
+    children: [
+      { id: 'db-overview', label: '数据库总览', icon: '📊', path: '/database/overview' },
+      { id: 'db-assets', label: '设备档案', icon: '🏭', path: '/database/assets' },
+      { id: 'db-config', label: '基础配置', icon: '⚙️', path: '/database/config' },
+      { id: 'db-slices', label: '数据切片', icon: '✂️', path: '/database/slices' },
+      { id: 'db-clean', label: '数据清洗', icon: '🧹', path: '/database/clean' },
+      { id: 'db-events', label: '事件溯源', icon: '📜', path: '/database/events' },
+      { id: 'db-storage', label: '存储状态', icon: '💾', path: '/database/storage' }
+    ]
+  },
+  {
     id: 'device-management',
     label: '设备管理',
     icon: '🔧',
@@ -134,20 +148,6 @@ export const navigationConfig: NavItem[] = [
     ]
   },
   {
-    id: 'performance',
-    label: '性能优化',
-    icon: '🚀',
-    children: [
-      { id: 'perf-overview', label: '性能总览', icon: '📊', path: '/performance/overview' },
-      { id: 'perf-outbox', label: 'Outbox发布器', icon: '📤', path: '/performance/outbox' },
-      { id: 'perf-saga', label: 'Saga补偿', icon: '🔄', path: '/performance/saga' },
-      { id: 'perf-sampling', label: '自适应采样', icon: '📉', path: '/performance/sampling' },
-      { id: 'perf-dedup', label: '事件去重', icon: '🔒', path: '/performance/dedup' },
-      { id: 'perf-replica', label: '读写分离', icon: '📊', path: '/performance/replica' },
-      { id: 'perf-graph', label: '图查询优化', icon: '🗂️', path: '/performance/graph' }
-    ]
-  },
-  {
     id: 'settings',
     label: '系统设置',
     icon: '⚙️',
@@ -163,7 +163,14 @@ export const navigationConfig: NavItem[] = [
       { id: 'settings-observability', label: '可观测性', icon: '📊', path: '/settings/observability' },
       { id: 'settings-ops', label: '运维管理', icon: '🛠️', path: '/settings/ops' },
       { id: 'settings-monitoring', label: '智能监控', icon: '📱', path: '/settings/monitoring' },
-      { id: 'settings-models', label: '模型库', icon: '📦', path: '/settings/models' }
+      { id: 'settings-models', label: '模型库', icon: '📦', path: '/settings/models' },
+      { id: 'settings-perf-overview', label: '性能总览', icon: '🚀', path: '/performance/overview' },
+      { id: 'settings-perf-outbox', label: 'Outbox发布器', icon: '📤', path: '/performance/outbox' },
+      { id: 'settings-perf-saga', label: 'Saga补偿', icon: '🔄', path: '/performance/saga' },
+      { id: 'settings-perf-sampling', label: '自适应采样', icon: '📉', path: '/performance/sampling' },
+      { id: 'settings-perf-dedup', label: '事件去重', icon: '🔒', path: '/performance/dedup' },
+      { id: 'settings-perf-replica', label: '读写分离', icon: '📊', path: '/performance/replica' },
+      { id: 'settings-perf-graph', label: '图查询优化', icon: '🗂️', path: '/performance/graph' }
     ]
   }
 ];

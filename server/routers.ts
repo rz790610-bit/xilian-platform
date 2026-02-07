@@ -27,6 +27,9 @@ import { deduplicationRouter } from "./redis/deduplicationRouter";
 import { readReplicaRouter } from "./db/readReplicaRouter";
 import { graphQueryRouter } from "./knowledge/graphQueryRouter";
 
+// ============ v1.5 数据库模块路由 ============
+import { databaseRouter } from "./database/databaseRouter";
+
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
   system: systemRouter,
@@ -111,6 +114,10 @@ export const appRouter = router({
 
   // 图查询优化
   graphQuery: graphQueryRouter,
+
+  // ============ v1.5 数据库模块 ============
+  // 数据库管理（资产/配置/切片/清洗/事件）
+  database: databaseRouter,
 });
 
 export type AppRouter = typeof appRouter;
