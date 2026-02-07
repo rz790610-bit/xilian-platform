@@ -149,6 +149,15 @@ async function startServer() {
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
+  // REST API 桥接层 — 数据库工作台自动生成的 RESTful 端点
+  try {
+    const { restRouter } = await import('../database/restBridge');
+    app.use('/api/rest', restRouter);
+    console.log('[REST Bridge] ✓ Auto-generated REST API registered at /api/rest');
+  } catch (err) {
+    console.error('[REST Bridge] ✗ Failed to register REST API:', err);
+  }
+
   // tRPC API
   app.use(
     "/api/trpc",

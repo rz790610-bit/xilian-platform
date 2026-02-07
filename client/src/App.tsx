@@ -69,7 +69,8 @@ import {
   SliceManager,
   CleanManager,
   EventManager,
-  StorageStatus
+  StorageStatus,
+  DatabaseWorkbench
 } from "./pages/database";
 
 function Router() {
@@ -158,6 +159,7 @@ function Router() {
       <Route path="/database/clean" component={CleanManager} />
       <Route path="/database/events" component={EventManager} />
       <Route path="/database/storage" component={StorageStatus} />
+      <Route path="/database/workbench" component={DatabaseWorkbench} />
 
       {/* Performance - 性能优化 v1.9 (保留原路径兼容 + 系统设置入口) */}
       <Route path="/performance">

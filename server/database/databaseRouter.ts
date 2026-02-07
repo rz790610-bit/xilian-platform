@@ -10,7 +10,8 @@
  * - event: 事件溯源（事件存储、快照）
  */
 import { z } from 'zod';
-import { publicProcedure, router } from '../_core/trpc';
+import { router, publicProcedure } from "../_core/trpc";
+import { workbenchRouter } from "./workbenchRouter";
 import { assetNodeService, measurementPointService, assetSensorService } from './assetService';
 import { codeRuleService, nodeTemplateService, mpTemplateService, labelDimensionService, labelOptionService, dictService } from './configService';
 import { sliceRuleService, dataSliceService, cleanRuleService, cleanTaskService, qualityReportService, calibrationService, eventStoreService, eventSnapshotService } from './dataService';
@@ -672,4 +673,5 @@ export const databaseRouter = router({
   slice: sliceRouter,
   clean: cleanRouter,
   event: eventRouter,
+  workbench: workbenchRouter,
 });
