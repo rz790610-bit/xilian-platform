@@ -2,10 +2,12 @@ import express, { type Express } from "express";
 import fs from "fs";
 import { type Server } from "http";
 import path from "path";
-import { createServer as createViteServer } from "vite";
-import viteConfig from "../../vite.config";
 
 export async function setupVite(app: Express, server: Server, port: number) {
+  // 动态 import vite，仅在开发模式下加载，避免生产环境缺少 vite 包导致崩溃
+  const { createServer: createViteServer } = await import("vite");
+  const viteConfig = (await import("../../vite.config")).default;
+
   // 从 viteConfig 中提取非 server 配置，避免覆盖 HMR 设置
   const { server: _serverConfig, ...restConfig } = viteConfig;
 
