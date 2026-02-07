@@ -146,7 +146,7 @@ ON DUPLICATE KEY UPDATE name = VALUES(name), status = VALUES(status);
 -- 示例传感器数据
 -- ============================================================
 
-INSERT INTO sensors (sensorId, deviceId, name, type, unit, minValue, maxValue, warningThreshold, criticalThreshold, status) VALUES
+INSERT INTO sensors (sensorId, deviceId, name, type, unit, `minValue`, `maxValue`, warningThreshold, criticalThreshold, status) VALUES
 -- AGV-1号车传感器
 ('SEN-AGV001-VIB', 'DEV-AGV-001', '驱动电机振动', 'vibration', 'mm/s', 0, 100, 50, 80, 'active'),
 ('SEN-AGV001-TEMP', 'DEV-AGV-001', '电池温度', 'temperature', '°C', -20, 80, 45, 60, 'active'),

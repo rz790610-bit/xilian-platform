@@ -176,7 +176,7 @@ CREATE TABLE IF NOT EXISTS asset_sensors (
   warning_threshold DOUBLE NULL,
   critical_threshold DOUBLE NULL,
   status VARCHAR(20) NOT NULL DEFAULT 'active',
-  last_value DOUBLE NULL,
+  `last_value` DOUBLE NULL,
   last_reading_at DATETIME(3) NULL,
   manufacturer VARCHAR(100) NULL,
   model VARCHAR(100) NULL,

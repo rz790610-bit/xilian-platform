@@ -82,7 +82,7 @@ export const sliceRuleService = {
 };
 
 // ============================================
-// 数据切片
+// 数据切片（所有方法定义在对象内，避免动态扩展）
 // ============================================
 
 export const dataSliceService = {
@@ -155,8 +155,48 @@ export const dataSliceService = {
     await db.update(dataSlices).set({
       labels, labelStatus: 'manual_verified',
       updatedAt: new Date(), updatedBy: changedBy, verifiedBy: changedBy, verifiedAt: new Date(),
-    }).where(eq(dataSlices.sliceId, sliceId));
+    } as any).where(eq(dataSlices.sliceId, sliceId));
     return this.getById(sliceId);
+  },
+
+  async create(input: {
+    sliceId: string; deviceCode: string; ruleId?: string;
+    startTime: string; endTime: string; durationSec?: number;
+    workConditionCode?: string; faultTypeCode?: string;
+    qualityScore?: number; status?: string;
+  }) {
+    const db = await getDb();
+    if (!db) throw new Error('Database not available');
+    const now = new Date();
+    await db.insert(dataSlices).values({
+      sliceId: input.sliceId, deviceCode: input.deviceCode,
+      ruleId: input.ruleId || null,
+      startTime: new Date(input.startTime), endTime: new Date(input.endTime),
+      durationSec: input.durationSec || 0,
+      workConditionCode: input.workConditionCode || null,
+      faultTypeCode: input.faultTypeCode || null,
+      qualityScore: input.qualityScore || null,
+      status: input.status || 'raw',
+      labelStatus: 'unlabeled',
+      version: 1, createdBy: 'system', createdAt: now, updatedBy: 'system', updatedAt: now, isDeleted: 0,
+    } as any);
+    return this.getById(input.sliceId);
+  },
+
+  async delete(sliceId: string) {
+    const db = await getDb();
+    if (!db) throw new Error('Database not available');
+    await db.update(dataSlices).set({ isDeleted: 1, updatedAt: new Date() } as any)
+      .where(eq(dataSlices.sliceId, sliceId));
+    return { success: true };
+  },
+
+  async getLabels(sliceId: string) {
+    const db = await getDb();
+    if (!db) return [];
+    return db.select().from(dataSliceLabelHistory)
+      .where(eq(dataSliceLabelHistory.sliceId, sliceId))
+      .orderBy(desc(dataSliceLabelHistory.changedAt));
   },
 };
 
@@ -358,7 +398,7 @@ export const calibrationService = {
     const now = new Date();
     await db.insert(sensorCalibrations).values({
       deviceCode: input.deviceCode, sensorId: input.sensorId,
-      calibrationDate: input.calibrationDate,
+      calibrationDate: new Date(input.calibrationDate),
       calibrationType: input.calibrationType,
       offsetBefore: input.offsetBefore ?? null, offsetAfter: input.offsetAfter ?? null,
       scaleBefore: input.scaleBefore ?? null, scaleAfter: input.scaleAfter ?? null,
@@ -450,51 +490,6 @@ export const eventStoreService = {
       byAggregate: Object.fromEntries(byAggregate.map(r => [r.aggregateType, r.count])),
     };
   },
-};
-
-// ============================================
-// 数据切片 - 补充 create / delete / getLabels
-// ============================================
-
-// 扩展 dataSliceService
-dataSliceService.create = async function(input: {
-  sliceId: string; deviceCode: string; ruleId?: string;
-  startTime: string; endTime: string; durationSec?: number;
-  workConditionCode?: string; faultTypeCode?: string;
-  qualityScore?: number; status?: string;
-}) {
-  const db = await getDb();
-  if (!db) throw new Error('Database not available');
-  const now = new Date();
-  await db.insert(dataSlices).values({
-    sliceId: input.sliceId, deviceCode: input.deviceCode,
-    ruleId: input.ruleId || null,
-    startTime: new Date(input.startTime), endTime: new Date(input.endTime),
-    durationSec: input.durationSec || 0,
-    workConditionCode: input.workConditionCode || null,
-    faultTypeCode: input.faultTypeCode || null,
-    qualityScore: input.qualityScore || null,
-    status: input.status || 'raw',
-    labelStatus: 'unlabeled',
-    version: 1, createdBy: 'system', createdAt: now, updatedBy: 'system', updatedAt: now, isDeleted: 0,
-  } as any);
-  return this.getById(input.sliceId);
-};
-
-dataSliceService.delete = async function(sliceId: string) {
-  const db = await getDb();
-  if (!db) throw new Error('Database not available');
-  await db.update(dataSlices).set({ isDeleted: 1, updatedAt: new Date() } as any)
-    .where(eq(dataSlices.sliceId, sliceId));
-  return { success: true };
-};
-
-dataSliceService.getLabels = async function(sliceId: string) {
-  const db = await getDb();
-  if (!db) return [];
-  return db.select().from(dataSliceLabelHistory)
-    .where(eq(dataSliceLabelHistory.sliceId, sliceId))
-    .orderBy(desc(dataSliceLabelHistory.changedAt));
 };
 
 // ============================================

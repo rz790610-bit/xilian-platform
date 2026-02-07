@@ -434,10 +434,11 @@ const sliceRouter = router({
       workConditionCode: z.string().optional(),
       faultTypeCode: z.string().optional(),
       labelStatus: z.string().optional(),
+      limit: z.number().optional(),
       page: z.number().optional(),
       pageSize: z.number().optional(),
     }).optional())
-    .query(({ input }) => dataSliceService.list(input ?? undefined)),
+    .query(({ input }) => dataSliceService.list({ ...input, pageSize: input?.limit || input?.pageSize })),
 
   getSlice: publicProcedure
     .input(z.object({ sliceId: z.string() }))
