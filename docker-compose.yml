@@ -1,6 +1,6 @@
 # ============================================================
 # PortAI Nexus - 全栈一键部署 Docker Compose
-# 包含: MySQL + Redis + ClickHouse + MinIO + Qdrant + Kafka + NebulaGraph
+# 包含: MySQL + Redis + ClickHouse + MinIO + Qdrant + Kafka + Neo4j
 # ============================================================
 # 启动方式:
 #   全部启动:   docker-compose up -d
@@ -36,12 +36,15 @@ services:
       - CLICKHOUSE_HOST=clickhouse
       - CLICKHOUSE_PORT=8123
       - CLICKHOUSE_DATABASE=portai_timeseries
-      - MINIO_ENDPOINT=minio
+      - MINIO_ENDPOINT=http://minio:9000
       - MINIO_PORT=9000
       - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY:-portai}
       - MINIO_SECRET_KEY=${MINIO_SECRET_KEY:-portai123456}
-      - NEBULA_HOST=nebula-graphd
-      - NEBULA_PORT=9669
+      - NEO4J_HOST=neo4j
+      - NEO4J_HTTP_PORT=7474
+      - NEO4J_BOLT_PORT=7687
+      - NEO4J_USER=${NEO4J_USER:-neo4j}
+      - NEO4J_PASSWORD=${NEO4J_PASSWORD:-portai123}
       - LOG_LEVEL=${LOG_LEVEL:-info}
     depends_on:
       mysql:
