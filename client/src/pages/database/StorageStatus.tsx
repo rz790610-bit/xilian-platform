@@ -11,81 +11,26 @@ import { RefreshCw, Database, HardDrive, Server, Activity, Clock, Layers } from 
 export default function StorageStatus() {
   const toast = useToast();
 
+  // tRPC 查询 - 存储引擎健康检查（实时检测）
+  const { data: storageData, refetch: refetchStorage, isLoading: loadingStorage } =
+    trpc.database.workbench.storage.healthCheck.useQuery(undefined, {
+      refetchInterval: 30000, // 每30秒自动刷新
+    });
+
   // tRPC 查询 - 汇总各模块统计
-  const { data: assetStats, refetch: refetchAssets, isLoading: la } = trpc.database.asset.getStats.useQuery();
-  const { data: sliceStats, refetch: refetchSlices, isLoading: ls } = trpc.database.slice.getSliceStats.useQuery();
-  const { data: eventStats, refetch: refetchEvents, isLoading: le } = trpc.database.event.getEventStats.useQuery();
-  const { data: qualityStats, refetch: refetchQuality, isLoading: lq } = trpc.database.clean.getQualityStats.useQuery();
+  const { data: assetStats, refetch: refetchAssets } = trpc.database.asset.getStats.useQuery();
+  const { data: sliceStats, refetch: refetchSlices } = trpc.database.slice.getSliceStats.useQuery();
+  const { data: eventStats, refetch: refetchEvents } = trpc.database.event.getEventStats.useQuery();
+  const { data: qualityStats, refetch: refetchQuality } = trpc.database.clean.getQualityStats.useQuery();
 
   const handleRefresh = () => {
+    refetchStorage();
     refetchAssets(); refetchSlices(); refetchEvents(); refetchQuality();
     toast.success('存储状态已刷新');
   };
 
-  const isLoading = la || ls || le || lq;
-
-  // 存储引擎列表（前端预留，后续可对接 ClickHouse/MinIO 等）
-  const storageEngines = [
-    {
-      name: 'MySQL 8.0',
-      type: 'RDBMS',
-      status: 'online',
-      icon: '🐬',
-      description: '关系型主数据库，存储资产树、配置、事件等结构化数据',
-      tables: assetStats?.total !== undefined ? '已连接' : '未连接',
-      metrics: {
-        '资产节点': assetStats?.total ?? 0,
-        '数据切片': sliceStats?.total ?? 0,
-        '事件记录': eventStats?.totalEvents ?? 0,
-        '质量报告': qualityStats?.totalReports ?? 0,
-      }
-    },
-    {
-      name: 'ClickHouse',
-      type: 'TSDB',
-      status: 'standby',
-      icon: '⚡',
-      description: '时序数据库，用于存储高频传感器数据和聚合指标',
-      tables: '待部署',
-      metrics: { '时序表': '-', '数据点': '-', '压缩率': '-', '查询延迟': '-' }
-    },
-    {
-      name: 'MinIO / S3',
-      type: 'Object Store',
-      status: 'standby',
-      icon: '📦',
-      description: '对象存储，用于存储波形文件、频谱图、模型文件等大文件',
-      tables: '待部署',
-      metrics: { '存储桶': '-', '对象数': '-', '总容量': '-', '可用空间': '-' }
-    },
-    {
-      name: 'Redis 7',
-      type: 'Cache',
-      status: 'online',
-      icon: '🔴',
-      description: '缓存层，用于设备状态缓存、会话管理、事件去重',
-      tables: '已连接',
-      metrics: { '缓存键': '-', '内存使用': '-', '命中率': '-', '连接数': '-' }
-    },
-    {
-      name: 'NebulaGraph',
-      type: 'Graph DB',
-      status: 'standby',
-      icon: '🕸️',
-      description: '图数据库，用于知识图谱和设备关系拓扑',
-      tables: '待部署',
-      metrics: { '顶点数': '-', '边数': '-', '图空间': '-', '查询延迟': '-' }
-    },
-    {
-      name: 'Qdrant',
-      type: 'Vector DB',
-      status: 'standby',
-      icon: '🧮',
-      description: '向量数据库，用于相似故障检索和语义搜索',
-      tables: '待部署',
-      metrics: { '集合数': '-', '向量数': '-', '维度': '-', '索引状态': '-' }
-    },
-  ];
+  const engines = storageData?.engines ?? [];
+  const summary = storageData?.summary;
 
   return (
     <MainLayout title="存储状态">
@@ -93,38 +38,57 @@ export default function StorageStatus() {
         <div className="flex justify-between items-center">
           <div>
             <h2 className="text-lg font-bold text-foreground">存储引擎状态</h2>
-            <p className="text-xs text-muted-foreground mt-0.5">MySQL · ClickHouse · MinIO · Redis · NebulaGraph · Qdrant</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              MySQL · ClickHouse · MinIO · Redis · Kafka · NebulaGraph · Qdrant
+              {summary?.checkedAt && (
+                <span className="ml-2 text-[10px]">
+                  最后检测: {new Date(summary.checkedAt).toLocaleTimeString()}
+                </span>
+              )}
+            </p>
           </div>
-          <Button size="sm" variant="outline" onClick={handleRefresh} className="text-xs" disabled={isLoading}>
-            <RefreshCw className={`w-3 h-3 mr-1 ${isLoading ? 'animate-spin' : ''}`} />
-            {isLoading ? '加载中...' : '刷新状态'}
+          <Button size="sm" variant="outline" onClick={handleRefresh} className="text-xs" disabled={loadingStorage}>
+            <RefreshCw className={`w-3 h-3 mr-1 ${loadingStorage ? 'animate-spin' : ''}`} />
+            {loadingStorage ? '检测中...' : '刷新状态'}
           </Button>
         </div>
 
         {/* 总览统计 */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <StatCard value={storageEngines.filter(e => e.status === 'online').length} label="在线引擎" icon="✅" />
-          <StatCard value={storageEngines.filter(e => e.status === 'standby').length} label="待部署" icon="⏳" />
-          <StatCard value={assetStats?.total ?? 0} label="MySQL 记录数" icon="🐬" />
-          <StatCard value={eventStats?.totalEvents ?? 0} label="事件存储量" icon="📝" />
+          <StatCard value={summary?.online ?? 0} label="在线引擎" icon="✅" />
+          <StatCard value={summary?.offline ?? 0} label="离线引擎" icon="⏳" />
+          <StatCard value={summary?.total ?? 0} label="总引擎数" icon="🗄️" />
+          <StatCard
+            value={summary?.online && summary?.total ? `${Math.round((summary.online / summary.total) * 100)}%` : '-'}
+            label="可用率"
+            icon="📊"
+          />
         </div>
 
-        {/* 存储引擎卡片 */}
+        {/* 存储引擎卡片 - 实时状态 */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-          {storageEngines.map(engine => (
+          {engines.length > 0 ? engines.map(engine => (
             <PageCard key={engine.name} className="relative">
               <div className="flex items-start gap-3">
                 <div className="text-2xl flex-shrink-0">{engine.icon}</div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5">
                     <span className="font-medium text-sm text-foreground">{engine.name}</span>
-                    <Badge variant={engine.status === 'online' ? 'success' : engine.status === 'standby' ? 'warning' : 'danger'} dot className="text-[9px]">
+                    <Badge
+                      variant={engine.status === 'online' ? 'success' : engine.status === 'standby' ? 'warning' : 'danger'}
+                      dot
+                      className="text-[9px]"
+                    >
                       {engine.status === 'online' ? '在线' : engine.status === 'standby' ? '待部署' : '离线'}
                     </Badge>
+                    {engine.status === 'online' && engine.latency > 0 && (
+                      <span className="text-[9px] text-muted-foreground font-mono">{engine.latency}ms</span>
+                    )}
                   </div>
-                  <div className="text-[10px] text-muted-foreground mt-0.5">{engine.type} · {engine.tables}</div>
+                  <div className="text-[10px] text-muted-foreground mt-0.5">
+                    {engine.type} · {engine.connectionInfo}
+                  </div>
                   <div className="text-[10px] text-muted-foreground mt-1">{engine.description}</div>
-
                   <div className="grid grid-cols-2 gap-x-3 gap-y-1 mt-2">
                     {Object.entries(engine.metrics).map(([key, val]) => (
                       <div key={key} className="flex justify-between text-[10px]">
@@ -133,13 +97,32 @@ export default function StorageStatus() {
                       </div>
                     ))}
                   </div>
+                  {engine.error && (
+                    <div className="mt-2 text-[9px] text-red-500 truncate" title={engine.error}>
+                      错误: {engine.error}
+                    </div>
+                  )}
                 </div>
               </div>
             </PageCard>
-          ))}
+          )) : (
+            // 加载中的骨架屏
+            Array.from({ length: 7 }).map((_, i) => (
+              <PageCard key={i} className="animate-pulse">
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 bg-secondary rounded" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-4 bg-secondary rounded w-1/3" />
+                    <div className="h-3 bg-secondary rounded w-2/3" />
+                    <div className="h-3 bg-secondary rounded w-full" />
+                  </div>
+                </div>
+              </PageCard>
+            ))
+          )}
         </div>
 
-        {/* MySQL 表统计 */}
+        {/* MySQL 数据表统计 */}
         <PageCard title="MySQL 数据表统计" icon={<Database className="w-3.5 h-3.5" />}>
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2">
             {[
@@ -166,6 +149,25 @@ export default function StorageStatus() {
                 <div className="text-[8px] text-muted-foreground/60 font-mono">{t.table}</div>
               </div>
             ))}
+          </div>
+        </PageCard>
+
+        {/* Docker 一键部署提示 */}
+        <PageCard title="一键部署" icon={<Server className="w-3.5 h-3.5" />}>
+          <div className="space-y-2">
+            <p className="text-xs text-muted-foreground">
+              使用 Docker Compose 一键启动所有存储引擎：
+            </p>
+            <div className="bg-secondary/80 rounded-lg p-3 font-mono text-xs space-y-1">
+              <div className="text-muted-foreground"># 启动全部服务</div>
+              <div className="text-foreground">docker-compose up -d</div>
+              <div className="text-muted-foreground mt-2"># 仅启动核心服务 (MySQL + Redis)</div>
+              <div className="text-foreground">docker-compose up -d mysql redis</div>
+              <div className="text-muted-foreground mt-2"># 启动核心数据库集群</div>
+              <div className="text-foreground">docker-compose up -d mysql redis clickhouse qdrant minio</div>
+              <div className="text-muted-foreground mt-2"># 查看服务状态</div>
+              <div className="text-foreground">docker-compose ps</div>
+            </div>
           </div>
         </PageCard>
       </div>

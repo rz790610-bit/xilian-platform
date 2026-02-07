@@ -12,6 +12,7 @@
 import { z } from "zod";
 import { router, publicProcedure } from "../_core/trpc";
 import { connectionService, tableService, dataService, sqlService, moduleService } from "./workbenchService";
+import { checkAllStorageEngines } from "./storageHealthService";
 
 // ============ 连接管理路由 ============
 const connectionRouter = router({
@@ -274,6 +275,13 @@ const moduleRouter = router({
     }),
 });
 
+// ============ 存储引擎健康检查路由 ============
+const storageRouter = router({
+  healthCheck: publicProcedure.query(async () => {
+    return checkAllStorageEngines();
+  }),
+});
+
 // ============ 导出工作台路由 ============
 export const workbenchRouter = router({
   connection: connectionRouter,
@@ -281,4 +289,5 @@ export const workbenchRouter = router({
   data: dataRouter,
   sql: sqlRouter,
   module: moduleRouter,
+  storage: storageRouter,
 });
