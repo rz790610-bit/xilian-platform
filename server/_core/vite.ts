@@ -4,20 +4,41 @@ import { type Server } from "http";
 import path from "path";
 
 export async function setupVite(app: Express, server: Server, port: number) {
-  // 动态 import vite，仅在开发模式下加载，避免生产环境缺少 vite 包导致崩溃
+  // 动态 import，仅在开发模式下加载，避免生产环境缺少这些 dev 包导致崩溃
   const { createServer: createViteServer } = await import("vite");
-  const viteConfig = (await import("../../vite.config")).default;
+  const react = (await import("@vitejs/plugin-react")).default;
+  const tailwindcss = (await import("@tailwindcss/vite")).default;
 
-  // 从 viteConfig 中提取非 server 配置，避免覆盖 HMR 设置
-  const { server: _serverConfig, ...restConfig } = viteConfig;
+  // 可选加载 jsx-loc 插件（可能未安装）
+  let plugins: any[] = [react(), tailwindcss()];
+  try {
+    const { jsxLocPlugin } = await import("@builder.io/vite-plugin-jsx-loc");
+    plugins.push(jsxLocPlugin());
+  } catch {
+    // jsx-loc 插件不可用，跳过
+  }
+
+  const rootDir = path.resolve(import.meta.dirname, "../..");
 
   const vite = await createViteServer({
-    ...restConfig,
+    plugins,
+    resolve: {
+      alias: {
+        "@": path.resolve(rootDir, "client", "src"),
+        "@shared": path.resolve(rootDir, "shared"),
+        "@assets": path.resolve(rootDir, "attached_assets"),
+      },
+    },
+    envDir: rootDir,
+    root: path.resolve(rootDir, "client"),
+    publicDir: path.resolve(rootDir, "client", "public"),
+    build: {
+      outDir: path.resolve(rootDir, "dist/public"),
+      emptyOutDir: true,
+    },
     configFile: false,
     server: {
       middlewareMode: true,
-      // 显式设置端口，让 Vite 客户端的 HMR WebSocket 连接到正确的端口
-      // 不设置的话默认是 5173，导致 WebSocket 连接失败 → 不断 polling → full reload 循环
       port,
       hmr: { server },
       allowedHosts: true as const,
@@ -30,12 +51,7 @@ export async function setupVite(app: Express, server: Server, port: number) {
     const url = req.originalUrl;
 
     try {
-      const clientTemplate = path.resolve(
-        import.meta.dirname,
-        "../..",
-        "client",
-        "index.html"
-      );
+      const clientTemplate = path.resolve(rootDir, "client", "index.html");
 
       // always reload the index.html file from disk incase it changes
       const template = await fs.promises.readFile(clientTemplate, "utf-8");
