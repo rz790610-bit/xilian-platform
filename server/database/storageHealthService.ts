@@ -359,44 +359,45 @@ async function checkKafka(): Promise<StorageEngineStatus> {
 }
 
 /**
- * 检测 NebulaGraph 连接状态
+ * 检测 Neo4j 连接状态
  */
-async function checkNebulaGraph(): Promise<StorageEngineStatus> {
+async function checkNeo4j(): Promise<StorageEngineStatus> {
   const start = Date.now();
   try {
-    const host = process.env.NEBULA_HOST || 'localhost';
-    // NebulaGraph graphd HTTP status endpoint
-    const response = await fetchWithTimeout(`http://${host}:19669/status`, 3000);
+    const host = process.env.NEO4J_HOST || 'localhost';
+    const port = process.env.NEO4J_HTTP_PORT || '7474';
+    // Neo4j HTTP API endpoint
+    const response = await fetchWithTimeout(`http://${host}:${port}`, 3000);
     const latency = Date.now() - start;
 
     if (response.ok) {
       return {
-        name: 'NebulaGraph',
+        name: 'Neo4j',
         type: 'Graph DB',
         icon: '🕸️',
-        description: '图数据库，用于知识图谱和设备关系拓扑',
+        description: '图数据库，用于知识图谱和设备关系拓扑（Cypher 查询语言）',
         status: 'online',
         latency,
         connectionInfo: '已连接',
         metrics: {
           '顶点数': '-',
           '边数': '-',
-          '图空间': '-',
+          '数据库': 'neo4j',
           '查询延迟': `${latency}ms`,
         }
       };
     }
-    throw new Error('NebulaGraph check failed');
+    throw new Error('Neo4j check failed');
   } catch (e: any) {
     return {
-      name: 'NebulaGraph',
+      name: 'Neo4j',
       type: 'Graph DB',
       icon: '🕸️',
-      description: '图数据库，用于知识图谱和设备关系拓扑',
+      description: '图数据库，用于知识图谱和设备关系拓扑（Cypher 查询语言）',
       status: 'offline',
       latency: Date.now() - start,
       connectionInfo: '未连接',
-      metrics: { '顶点数': '-', '边数': '-', '图空间': '-', '查询延迟': '-' },
+      metrics: { '顶点数': '-', '边数': '-', '数据库': '-', '查询延迟': '-' },
       error: e.message
     };
   }
@@ -436,13 +437,13 @@ export async function checkAllStorageEngines(): Promise<{
     checkMinIO(),
     checkQdrant(),
     checkKafka(),
-    checkNebulaGraph(),
+    checkNeo4j(),
   ]);
 
   const engines = results.map((r, i) => {
     if (r.status === 'fulfilled') return r.value;
     // fallback for rejected promises
-    const names = ['MySQL 8.0', 'Redis 7', 'ClickHouse', 'MinIO / S3', 'Qdrant', 'Kafka', 'NebulaGraph'];
+    const names = ['MySQL 8.0', 'Redis 7', 'ClickHouse', 'MinIO / S3', 'Qdrant', 'Kafka', 'Neo4j'];
     return {
       name: names[i],
       type: 'Unknown',

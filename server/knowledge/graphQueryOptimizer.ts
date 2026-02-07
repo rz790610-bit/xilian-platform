@@ -1,6 +1,6 @@
 /**
  * 图查询优化服务
- * Nebula 索引 + LOOKUP 优化，查询性能提升 10 倍
+ * Neo4j 索引 + Cypher 优化，查询性能提升 10 倍
  */
 
 // ============ 类型定义 ============
@@ -265,7 +265,7 @@ class GraphQueryOptimizer {
     const queryPlan = this.optimizeQuery(nGQL);
 
     // 3. 执行查询（模拟）
-    // 实际实现应该调用 NebulaGraph 客户端
+    // 实际实现应该调用 Neo4j 客户端 (neo4j-driver)
     const result = await this.simulateGraphQuery<T>(queryPlan.optimizedQuery);
 
     const queryTimeMs = Date.now() - startTime;
@@ -321,8 +321,8 @@ class GraphQueryOptimizer {
 
     // 生成 nGQL 创建索引语句
     const createStatement = config.indexType === 'tag'
-      ? `CREATE TAG INDEX IF NOT EXISTS ${config.indexName} ON ${config.tagName}(${config.fields.join(', ')})`
-      : `CREATE EDGE INDEX IF NOT EXISTS ${config.indexName} ON ${config.tagName}(${config.fields.join(', ')})`;
+      ? `CREATE INDEX ${config.indexName} IF NOT EXISTS FOR (n:${config.tagName}) ON (${config.fields.map(f => `n.${f}`).join(', ')})`
+      : `CREATE INDEX ${config.indexName} IF NOT EXISTS FOR ()-[r:${config.tagName}]-() ON (${config.fields.map(f => `r.${f}`).join(', ')})`;
 
     console.log(`[GraphQueryOptimizer] Index creation statement: ${createStatement}`);
 

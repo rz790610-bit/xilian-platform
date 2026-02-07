@@ -251,107 +251,40 @@ services:
       retries: 5
       start_period: 30s
 
-  # ==================== Graph DB: NebulaGraph ====================
-  # 图数据库 — 知识图谱和设备关系拓扑
-  nebula-metad:
-    image: vesoft/nebula-metad:v3.6.0
-    container_name: portai-nebula-metad
+  # ==================== Graph DB: Neo4j ====================
+  # 图数据库 — 知识图谱和设备关系拓扑（替代 NebulaGraph，原生支持 ARM64）
+  neo4j:
+    image: neo4j:5.18-community
+    container_name: portai-neo4j
     restart: unless-stopped
-    environment:
-      USER: root
-      TZ: Asia/Shanghai
-    command:
-      - --meta_server_addrs=nebula-metad:9559
-      - --local_ip=nebula-metad
-      - --ws_ip=nebula-metad
-      - --port=9559
-      - --ws_http_port=19559
-      - --data_path=/data/meta
-      - --log_dir=/logs
-      - --v=0
-      - --minloglevel=0
-    volumes:
-      - nebula_metad_data:/data/meta
-      - nebula_metad_logs:/logs
-    networks:
-      - portai-network
-    healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://nebula-metad:19559/status || wget -qO- http://nebula-metad:19559/status || exit 1"]
-      interval: 15s
-      timeout: 10s
-      retries: 20
-      start_period: 30s
-
-  nebula-storaged:
-    image: vesoft/nebula-storaged:v3.6.0
-    container_name: portai-nebula-storaged
-    restart: unless-stopped
-    environment:
-      USER: root
-      TZ: Asia/Shanghai
-    command:
-      - --meta_server_addrs=nebula-metad:9559
-      - --local_ip=nebula-storaged
-      - --ws_ip=nebula-storaged
-      - --port=9779
-      - --ws_http_port=19779
-      - --data_path=/data/storage
-      - --log_dir=/logs
-      - --v=0
-      - --minloglevel=0
-    volumes:
-      - nebula_storaged_data:/data/storage
-      - nebula_storaged_logs:/logs
-    depends_on:
-      nebula-metad:
-        condition: service_healthy
-    networks:
-      - portai-network
-    healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://nebula-storaged:19779/status || wget -qO- http://nebula-storaged:19779/status || exit 1"]
-      interval: 15s
-      timeout: 10s
-      retries: 20
-      start_period: 60s
-
-  nebula-graphd:
-    image: vesoft/nebula-graphd:v3.6.0
-    container_name: portai-nebula-graphd
-    restart: unless-stopped
-    environment:
-      USER: root
-      TZ: Asia/Shanghai
     ports:
-      - "${NEBULA_PORT:-9669}:9669"
-      - "19669:19669"
-    command:
-      - --meta_server_addrs=nebula-metad:9559
-      - --local_ip=nebula-graphd
-      - --ws_ip=nebula-graphd
-      - --port=9669
-      - --ws_http_port=19669
-      - --log_dir=/logs
-      - --v=0
-      - --minloglevel=0
+      - "${NEO4J_HTTP_PORT:-7474}:7474"
+      - "${NEO4J_BOLT_PORT:-7687}:7687"
+    environment:
+      NEO4J_AUTH: ${NEO4J_USER:-neo4j}/${NEO4J_PASSWORD:-portai123}
+      NEO4J_PLUGINS: '["apoc"]'
+      NEO4J_server_memory_heap_initial__size: 256m
+      NEO4J_server_memory_heap_max__size: 512m
+      NEO4J_server_memory_pagecache_size: 256m
+      TZ: Asia/Shanghai
     volumes:
-      - nebula_graphd_logs:/logs
-    depends_on:
-      nebula-storaged:
-        condition: service_healthy
+      - neo4j_data:/data
+      - neo4j_logs:/logs
     networks:
       - portai-network
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://nebula-graphd:19669/status || wget -qO- http://nebula-graphd:19669/status || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:7474 || exit 1"]
       interval: 15s
       timeout: 10s
-      retries: 20
-      start_period: 60s
+      retries: 10
+      start_period: 30s
 
   # ==================== LLM Engine: Ollama ====================
   # 大模型推理引擎
   ollama:
     image: ollama/ollama:latest
     container_name: portai-ollama
+    profiles: ["llm", "full"]
     restart: unless-stopped
     ports:
       - "${OLLAMA_PORT:-11434}:11434"
@@ -427,16 +360,10 @@ volumes:
     name: portai-qdrant-data
   kafka_data:
     name: portai-kafka-data
-  nebula_metad_data:
-    name: portai-nebula-metad-data
-  nebula_metad_logs:
-    name: portai-nebula-metad-logs
-  nebula_storaged_data:
-    name: portai-nebula-storaged-data
-  nebula_storaged_logs:
-    name: portai-nebula-storaged-logs
-  nebula_graphd_logs:
-    name: portai-nebula-graphd-logs
+  neo4j_data:
+    name: portai-neo4j-data
+  neo4j_logs:
+    name: portai-neo4j-logs
   ollama_data:
     name: portai-ollama-data
   prometheus_data:

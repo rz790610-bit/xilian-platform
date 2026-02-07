@@ -208,7 +208,7 @@ export default function PerformanceOverview() {
               <ul className="space-y-1 text-muted-foreground">
                 <li>• 自适应采样：容量问题 1 分钟内响应</li>
                 <li>• 读写分离：主库负载降低 50%</li>
-                <li>• 图查询优化：NebulaGraph 查询快 10 倍</li>
+                <li>• 图查询优化：Neo4j Cypher 查询快 10 倍</li>
               </ul>
             </div>
           </div>

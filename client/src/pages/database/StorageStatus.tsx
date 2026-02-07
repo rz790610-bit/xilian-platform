@@ -39,7 +39,7 @@ export default function StorageStatus() {
           <div>
             <h2 className="text-lg font-bold text-foreground">存储引擎状态</h2>
             <p className="text-xs text-muted-foreground mt-0.5">
-              MySQL · ClickHouse · MinIO · Redis · Kafka · NebulaGraph · Qdrant
+              MySQL · ClickHouse · MinIO · Redis · Kafka · Neo4j · Qdrant
               {summary?.checkedAt && (
                 <span className="ml-2 text-[10px]">
                   最后检测: {new Date(summary.checkedAt).toLocaleTimeString()}
