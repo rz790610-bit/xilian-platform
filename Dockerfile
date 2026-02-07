@@ -8,8 +8,9 @@ WORKDIR /app
 # 安装 pnpm
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
-# 复制依赖文件
+# 复制依赖文件和补丁
 COPY package.json pnpm-lock.yaml ./
+COPY patches/ ./patches/
 
 # 安装依赖
 RUN pnpm install --frozen-lockfile
@@ -32,8 +33,9 @@ RUN corepack enable && corepack prepare pnpm@latest --activate
 RUN addgroup -g 1001 -S nodejs && \
     adduser -S portai -u 1001
 
-# 复制依赖文件
+# 复制依赖文件和补丁
 COPY package.json pnpm-lock.yaml ./
+COPY patches/ ./patches/
 
 # 只安装生产依赖
 RUN pnpm install --frozen-lockfile --prod
