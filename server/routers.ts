@@ -1,36 +1,36 @@
 import { COOKIE_NAME } from "@shared/const";
-import { getSessionCookieOptions } from "./_core/cookies";
-import { systemRouter } from "./_core/systemRouter";
-import { publicProcedure, router } from "./_core/trpc";
-import { knowledgeRouter } from "./knowledge";
-import { topologyRouter } from "./topology";
-import { modelRouter } from "./modelService";
-import { eventBusRouter } from "./eventBus";
-import { streamProcessorRouter } from "./streamProcessor";
-import { deviceRouter } from "./deviceService";
-import { kafkaRouter } from "./kafka/kafkaRouter";
-import { redisRouter } from "./redis/redisRouter";
-import { clickhouseRouter } from "./clickhouse/clickhouseRouter";
-import { pipelineRouter } from "./pipeline/pipelineRouter";
-import { pluginRouter } from "./plugin/pluginRouter";
-import { infrastructureRouter } from "./infrastructure/infrastructureRouter";
-import { observabilityRouter } from "./observability/observabilityRouter";
-import { dataPipelineRouter } from "./dataPipeline/dataPipelineRouter";
-import { opsRouter } from "./ops/opsRouter";
-import { monitoringRouter } from "./monitoring/monitoringRouter";
+import { getSessionCookieOptions } from "./core/cookies";
+import { systemRouter } from "./core/systemRouter";
+import { publicProcedure, router } from "./core/trpc";
+import { knowledgeRouter } from "./services/knowledge.service";
+import { topologyRouter } from "./services/topology.service";
+import { modelRouter } from "./services/model.service";
+import { eventBusRouter } from "./services/eventBus.service";
+import { streamProcessorRouter } from "./services/streamProcessor.service";
+import { deviceRouter } from "./services/device.service";
+import { kafkaRouter } from "./api/kafka.router";
+import { redisRouter } from "./api/redis.router";
+import { clickhouseRouter } from "./api/clickhouse.router";
+import { pipelineRouter } from "./api/pipeline.router";
+import { pluginRouter } from "./api/plugin.router";
+import { infrastructureRouter } from "./api/infrastructure.router";
+import { observabilityRouter } from "./api/observability.router";
+import { dataPipelineRouter } from "./api/dataPipeline.router";
+import { opsRouter } from "./api/ops.router";
+import { monitoringRouter } from "./api/monitoring.router";
 // ============ v1.9 性能优化模块路由 ============
-import { outboxRouter } from "./outbox/outboxRouter";
-import { sagaRouter } from "./saga/sagaRouter";
-import { adaptiveSamplingRouter } from "./monitoring/adaptiveSamplingRouter";
-import { deduplicationRouter } from "./redis/deduplicationRouter";
-import { readReplicaRouter } from "./db/readReplicaRouter";
-import { graphQueryRouter } from "./knowledge/graphQueryRouter";
+import { outboxRouter } from "./api/outbox.router";
+import { sagaRouter } from "./api/saga.router";
+import { adaptiveSamplingRouter } from "./api/adaptiveSampling.router";
+import { deduplicationRouter } from "./api/deduplication.router";
+import { readReplicaRouter } from "./api/readReplica.router";
+import { graphQueryRouter } from "./api/graphQuery.router";
 
 // ============ v1.5 数据库模块路由 ============
-import { databaseRouter } from "./database/databaseRouter";
+import { databaseRouter } from "./api/database.router";
 
 export const appRouter = router({
-    // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
+    // if you need to use socket.io, read and register route in server/core/index.ts, all api should start with '/api/' so that the gateway can route correctly
   system: systemRouter,
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
