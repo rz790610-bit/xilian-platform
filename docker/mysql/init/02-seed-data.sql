@@ -22,7 +22,7 @@ SET FOREIGN_KEY_CHECKS = 0;
 -- 管理员用户
 -- ============================================================
 
-INSERT INTO users (openId, name, email, role, loginMethod) VALUES
+INSERT INTO users (open_id, name, email, role, login_method) VALUES
 ('admin-001', '系统管理员', 'admin@xilian.com', 'admin', 'password'),
 ('admin-002', '运维管理员', 'ops@xilian.com', 'admin', 'password')
 ON DUPLICATE KEY UPDATE name = VALUES(name);
@@ -31,7 +31,7 @@ ON DUPLICATE KEY UPDATE name = VALUES(name);
 -- 知识库初始数据
 -- ============================================================
 
-INSERT INTO kb_collections (name, description, isPublic) VALUES
+INSERT INTO kb_collections (name, description, is_public) VALUES
 ('设备故障诊断知识库', '包含各类工业设备的故障诊断知识和解决方案', TRUE),
 ('维护保养手册库', '设备维护保养的标准操作流程和最佳实践', TRUE),
 ('安全操作规程库', '工业安全操作规程和应急处理指南', TRUE)
@@ -41,7 +41,7 @@ ON DUPLICATE KEY UPDATE description = VALUES(description);
 -- 系统拓扑初始节点
 -- ============================================================
 
-INSERT INTO topo_nodes (nodeId, name, type, icon, description, status, x, y) VALUES
+INSERT INTO topo_nodes (node_id, name, type, icon, description, status, x, y) VALUES
 -- 数据源层
 ('source-mqtt', 'MQTT Broker', 'source', '📡', 'MQTT 消息代理服务', 'online', 100, 100),
 ('source-opcua', 'OPC-UA Server', 'source', '🔌', 'OPC-UA 数据采集服务', 'online', 100, 200),
@@ -69,7 +69,7 @@ ON DUPLICATE KEY UPDATE name = VALUES(name), status = VALUES(status);
 -- 系统拓扑连接
 -- ============================================================
 
-INSERT INTO topo_edges (edgeId, sourceNodeId, targetNodeId, type, label, status) VALUES
+INSERT INTO topo_edges (edge_id, source_node_id, target_node_id, type, label, status) VALUES
 -- 数据源到 Kafka
 ('edge-mqtt-kafka', 'source-mqtt', 'engine-kafka', 'data', 'MQTT数据', 'active'),
 ('edge-opcua-kafka', 'source-opcua', 'engine-kafka', 'data', 'OPC-UA数据', 'active'),
@@ -101,7 +101,7 @@ ON DUPLICATE KEY UPDATE label = VALUES(label), status = VALUES(status);
 -- 默认布局
 -- ============================================================
 
-INSERT INTO topo_layouts (name, description, isDefault, layoutData) VALUES
+INSERT INTO topo_layouts (name, description, is_default, layout_data) VALUES
 ('默认布局', '系统默认拓扑布局', TRUE, JSON_OBJECT(
   'zoom', 1.0,
   'panX', 0,
@@ -114,7 +114,7 @@ ON DUPLICATE KEY UPDATE description = VALUES(description);
 -- AI 模型初始数据
 -- ============================================================
 
-INSERT INTO models (modelId, name, displayName, type, provider, size, parameters, description, status, isDefault, capabilities) VALUES
+INSERT INTO models (model_id, name, display_name, type, provider, size, parameters, description, status, is_default, capabilities) VALUES
 ('qwen2.5-7b', 'Qwen 2.5 7B', 'Qwen 2.5 7B 通用模型', 'llm', 'ollama', '4.4GB', '7B', '阿里云通义千问 2.5 7B 参数模型，适用于通用对话和文本生成', 'available', TRUE, 
   JSON_OBJECT('chat', TRUE, 'completion', TRUE, 'embedding', FALSE, 'vision', FALSE, 'functionCalling', TRUE)),
 
@@ -142,7 +142,7 @@ ON DUPLICATE KEY UPDATE displayName = VALUES(displayName), description = VALUES(
 -- 诊断规则初始数据
 -- ============================================================
 
-INSERT INTO diagnosis_rules (ruleId, name, description, category, deviceType, sensorType, conditionExpr, actionType, severity, isActive, priority) VALUES
+INSERT INTO diagnosis_rules (rule_id, name, description, category, device_type, sensor_type, condition_expr, action_type, severity, is_active, priority) VALUES
 ('RULE-VIB-HIGH', '振动过高告警', '当振动值超过警戒阈值时触发告警', '振动监测', NULL, 'vibration', 
   'value > warningThreshold', 'alert', 'high', TRUE, 1),
 
@@ -169,7 +169,7 @@ ON DUPLICATE KEY UPDATE name = VALUES(name), description = VALUES(description);
 -- 备件库存初始数据
 -- ============================================================
 
-INSERT INTO device_spare_parts (partId, name, partNumber, category, manufacturer, quantity, minQuantity, unitPrice, location, status) VALUES
+INSERT INTO device_spare_parts (part_id, name, part_number, category, manufacturer, quantity, min_quantity, unit_price, location, status) VALUES
 ('PART-BEARING-001', 'SKF 6205-2RS 深沟球轴承', 'SKF-6205-2RS', '轴承', 'SKF', 50, 10, 85.00, 'A-01-01', 'in_stock'),
 ('PART-BEARING-002', 'SKF 6308-2Z 深沟球轴承', 'SKF-6308-2Z', '轴承', 'SKF', 30, 5, 156.00, 'A-01-02', 'in_stock'),
 ('PART-SEAL-001', 'NOK TC 油封 35x52x7', 'NOK-TC-35527', '密封件', 'NOK', 100, 20, 12.50, 'A-02-01', 'in_stock'),
@@ -460,7 +460,7 @@ INSERT INTO data_quality_reports (report_type, report_date, device_code, sensor_
 -- ============================================================
 -- 3. 设备告警数据 (device_alerts)
 -- ============================================================
-INSERT INTO device_alerts (alertId, node_id, sensorId, alertType, title, message, severity, `status`, triggerValue, thresholdValue, acknowledgedBy, acknowledgedAt, resolvedBy, resolvedAt, resolution, createdAt) VALUES
+INSERT INTO device_alerts (alert_id, node_id, sensor_id, alert_type, title, message, severity, `status`, trigger_value, threshold_value, acknowledged_by, acknowledged_at, resolved_by, resolved_at, resolution, created_at) VALUES
 ('ALT-001', 'DEV-QC-002', 'SEN-QC002-VIB', 'threshold', '岸桥Q02大梁振动超限', '振动值265.8mm/s超过临界阈值240mm/s，设备已自动停机', 'critical', 'active', 265.8, 240, NULL, NULL, NULL, NULL, NULL, DATE_SUB(NOW(), INTERVAL 30 MINUTE)),
 ('ALT-002', 'DEV-QC-002', 'SEN-QC002-TEMP', 'threshold', '岸桥Q02电机温度过高', '电机温度142.5°C超过预警阈值100°C，存在过热风险', 'error', 'active', 142.5, 100, NULL, NULL, NULL, NULL, NULL, DATE_SUB(NOW(), INTERVAL 28 MINUTE)),
 ('ALT-003', 'DEV-RTG-002', NULL, 'maintenance_due', 'RTG-R02定期维护到期', '设备已到计划维护时间，请安排维护作业', 'warning', 'acknowledged', NULL, NULL, '张工', DATE_SUB(NOW(), INTERVAL 1 HOUR), NULL, NULL, NULL, DATE_SUB(NOW(), INTERVAL 3 HOUR)),
@@ -474,7 +474,7 @@ ON DUPLICATE KEY UPDATE title=VALUES(title);
 -- ============================================================
 -- 4. 维护记录数据 (device_maintenance_records)
 -- ============================================================
-INSERT INTO device_maintenance_records (recordId, node_id, maintenanceType, title, description, scheduledDate, startedAt, completedAt, `status`, priority, assignedTo, performedBy, cost, findings, recommendations, nextMaintenanceDate, createdAt) VALUES
+INSERT INTO device_maintenance_records (record_id, node_id, maintenance_type, title, description, scheduled_date, started_at, completed_at, `status`, priority, assigned_to, performed_by, cost, findings, recommendations, next_maintenance_date, created_at) VALUES
 ('MNT-001', 'DEV-RTG-002', 'preventive', 'RTG-R02季度预防性维护', '按照维护计划进行季度全面检查，包括液压系统、电气系统、机械结构检查', NOW(), DATE_SUB(NOW(), INTERVAL 2 HOUR), NULL, 'in_progress', 'high', '张工', '张工', 15000, NULL, NULL, DATE_ADD(NOW(), INTERVAL 90 DAY), DATE_SUB(NOW(), INTERVAL 7 DAY)),
 ('MNT-002', 'DEV-QC-001', 'preventive', '岸桥Q01月度检查', '月度例行检查：钢丝绳磨损、制动器间隙、润滑系统', DATE_ADD(NOW(), INTERVAL 5 DAY), NULL, NULL, 'scheduled', 'medium', '李工', NULL, NULL, NULL, NULL, DATE_ADD(NOW(), INTERVAL 30 DAY), NOW()),
 ('MNT-003', 'DEV-QC-002', 'corrective', '岸桥Q02振动异常修复', '针对大梁振动超限告警进行紧急检修，排查振动原因', NOW(), NULL, NULL, 'scheduled', 'critical', '王工', NULL, NULL, NULL, NULL, NULL, DATE_SUB(NOW(), INTERVAL 30 MINUTE)),
@@ -487,7 +487,7 @@ ON DUPLICATE KEY UPDATE title=VALUES(title);
 -- ============================================================
 -- 5. 设备 KPI 数据 (device_kpis)
 -- ============================================================
-INSERT INTO device_kpis (node_id, periodType, periodStart, periodEnd, availability, performance, quality, oee, runningTime, downtime, idleTime, plannedDowntime, unplannedDowntime, mtbf, mttr, failureCount, productionCount, defectCount, energyConsumption, energyEfficiency) VALUES
+INSERT INTO device_kpis (node_id, period_type, period_start, period_end, availability, performance, quality, oee, running_time, downtime, idle_time, planned_downtime, unplanned_downtime, mtbf, mttr, failure_count, production_count, defect_count, energy_consumption, energy_efficiency) VALUES
 -- AGV-001 日度 KPI
 ('DEV-AGV-001', 'daily', DATE_SUB(NOW(), INTERVAL 1 DAY), NOW(), 96.5, 92.3, 99.1, 88.3, 83376, 1800, 1224, 1200, 600, 720, 0.5, 1, 1250, 3, 85.2, 14.7),
 ('DEV-AGV-001', 'daily', DATE_SUB(NOW(), INTERVAL 2 DAY), DATE_SUB(NOW(), INTERVAL 1 DAY), 98.2, 94.1, 99.5, 91.9, 84845, 900, 655, 900, 0, 1440, 0, 0, 1380, 2, 88.5, 15.6),
@@ -508,7 +508,7 @@ INSERT INTO device_kpis (node_id, periodType, periodStart, periodEnd, availabili
 -- ============================================================
 -- 6. 设备运行日志 (device_operation_logs)
 -- ============================================================
-INSERT INTO device_operation_logs (logId, node_id, operationType, previousState, newState, operatedBy, reason, success, duration, `timestamp`) VALUES
+INSERT INTO device_operation_logs (log_id, node_id, operation_type, previous_state, new_state, operated_by, reason, success, duration, `timestamp`) VALUES
 ('LOG-001', 'DEV-QC-002', 'stop', 'online', 'error', '系统', '振动超限自动停机保护', 1, 500, DATE_SUB(NOW(), INTERVAL 30 MINUTE)),
 ('LOG-002', 'DEV-RTG-002', 'stop', 'online', 'maintenance', '张工', '计划维护停机', 1, 1200, DATE_SUB(NOW(), INTERVAL 2 HOUR)),
 ('LOG-003', 'DEV-CONV-001', 'restart', 'offline', 'online', '赵工', '皮带更换完成，恢复运行', 1, 3000, DATE_SUB(NOW(), INTERVAL 10 HOUR)),

@@ -12,14 +12,14 @@ export const users = mysqlTable("users", {
    */
   id: int("id").autoincrement().primaryKey(),
   /** Manus OAuth identifier (openId) returned from the OAuth callback. Unique per user. */
-  openId: varchar("openId", { length: 64 }).notNull().unique(),
+  openId: varchar("open_id", { length: 64 }).notNull().unique(),
   name: text("name"),
   email: varchar("email", { length: 320 }),
-  loginMethod: varchar("loginMethod", { length: 64 }),
+  loginMethod: varchar("login_method", { length: 64 }),
   role: mysqlEnum("role", ["user", "admin"]).default("user").notNull(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-  lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  lastSignedIn: timestamp("last_signed_in").defaultNow().notNull(),
 });
 
 export type User = typeof users.$inferSelect;
@@ -34,10 +34,10 @@ export const kbCollections = mysqlTable("kb_collections", {
   id: int("id").autoincrement().primaryKey(),
   name: varchar("name", { length: 100 }).notNull().unique(),
   description: text("description"),
-  userId: int("userId"),
-  isPublic: boolean("isPublic").default(true).notNull(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  userId: int("user_id"),
+  isPublic: boolean("is_public").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
 });
 
 export type KbCollection = typeof kbCollections.$inferSelect;
@@ -48,7 +48,7 @@ export type InsertKbCollection = typeof kbCollections.$inferInsert;
  */
 export const kbPoints = mysqlTable("kb_points", {
   id: int("id").autoincrement().primaryKey(),
-  collectionId: int("collectionId").notNull(),
+  collectionId: int("collection_id").notNull(),
   title: varchar("title", { length: 255 }).notNull(),
   content: text("content").notNull(),
   category: varchar("category", { length: 50 }).default("general").notNull(),
@@ -57,8 +57,8 @@ export const kbPoints = mysqlTable("kb_points", {
   entities: json("entities").$type<string[]>(),
   relations: json("relations").$type<Array<{ source: string; target: string; type: string }>>(),
   embedding: json("embedding").$type<number[]>(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
 });
 
 export type KbPoint = typeof kbPoints.$inferSelect;
@@ -69,17 +69,17 @@ export type InsertKbPoint = typeof kbPoints.$inferInsert;
  */
 export const kbDocuments = mysqlTable("kb_documents", {
   id: int("id").autoincrement().primaryKey(),
-  collectionId: int("collectionId").notNull(),
+  collectionId: int("collection_id").notNull(),
   filename: varchar("filename", { length: 255 }).notNull(),
-  mimeType: varchar("mimeType", { length: 100 }),
-  fileSize: int("fileSize"),
-  storageUrl: varchar("storageUrl", { length: 500 }),
+  mimeType: varchar("mime_type", { length: 100 }),
+  fileSize: int("file_size"),
+  storageUrl: varchar("storage_url", { length: 500 }),
   status: mysqlEnum("status", ["pending", "processing", "completed", "failed"]).default("pending").notNull(),
-  processedAt: timestamp("processedAt"),
-  chunksCount: int("chunksCount").default(0),
-  entitiesCount: int("entitiesCount").default(0),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  processedAt: timestamp("processed_at"),
+  chunksCount: int("chunks_count").default(0),
+  entitiesCount: int("entities_count").default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
 });
 
 export type KbDocument = typeof kbDocuments.$inferSelect;
@@ -92,15 +92,15 @@ export type InsertKbDocument = typeof kbDocuments.$inferInsert;
  */
 export const kgNodes = mysqlTable("kg_nodes", {
   id: int("id").autoincrement().primaryKey(),
-  collectionId: int("collectionId").notNull(),
-  nodeId: varchar("nodeId", { length: 100 }).notNull(),
+  collectionId: int("collection_id").notNull(),
+  nodeId: varchar("node_id", { length: 100 }).notNull(),
   label: varchar("label", { length: 255 }).notNull(),
   type: varchar("type", { length: 50 }).default("entity").notNull(),
   properties: json("properties").$type<Record<string, unknown>>(),
   x: int("x"),
   y: int("y"),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
 });
 
 export type KgNode = typeof kgNodes.$inferSelect;
@@ -111,15 +111,15 @@ export type InsertKgNode = typeof kgNodes.$inferInsert;
  */
 export const kgEdges = mysqlTable("kg_edges", {
   id: int("id").autoincrement().primaryKey(),
-  collectionId: int("collectionId").notNull(),
-  edgeId: varchar("edgeId", { length: 100 }).notNull(),
-  sourceNodeId: varchar("sourceNodeId", { length: 100 }).notNull(),
-  targetNodeId: varchar("targetNodeId", { length: 100 }).notNull(),
+  collectionId: int("collection_id").notNull(),
+  edgeId: varchar("edge_id", { length: 100 }).notNull(),
+  sourceNodeId: varchar("source_node_id", { length: 100 }).notNull(),
+  targetNodeId: varchar("target_node_id", { length: 100 }).notNull(),
   label: varchar("label", { length: 100 }).notNull(),
   type: varchar("type", { length: 50 }).default("related_to").notNull(),
   weight: int("weight").default(1),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
 });
 
 export type KgEdge = typeof kgEdges.$inferSelect;
@@ -132,7 +132,7 @@ export type InsertKgEdge = typeof kgEdges.$inferInsert;
  */
 export const topoNodes = mysqlTable("topo_nodes", {
   id: int("id").autoincrement().primaryKey(),
-  nodeId: varchar("nodeId", { length: 64 }).notNull().unique(),
+  nodeId: varchar("node_id", { length: 64 }).notNull().unique(),
   name: varchar("name", { length: 100 }).notNull(),
   type: mysqlEnum("type", ["source", "plugin", "engine", "agent", "output", "database", "service"]).notNull(),
   icon: varchar("icon", { length: 20 }).default("📦"),
@@ -142,9 +142,9 @@ export const topoNodes = mysqlTable("topo_nodes", {
   y: int("y").default(0).notNull(),
   config: json("config").$type<Record<string, unknown>>(),
   metrics: json("metrics").$type<{ cpu?: number; memory?: number; latency?: number; throughput?: number }>(),
-  lastHeartbeat: timestamp("lastHeartbeat"),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  lastHeartbeat: timestamp("last_heartbeat"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
 });
 
 export type TopoNode = typeof topoNodes.$inferSelect;
@@ -155,15 +155,15 @@ export type InsertTopoNode = typeof topoNodes.$inferInsert;
  */
 export const topoEdges = mysqlTable("topo_edges", {
   id: int("id").autoincrement().primaryKey(),
-  edgeId: varchar("edgeId", { length: 64 }).notNull().unique(),
-  sourceNodeId: varchar("sourceNodeId", { length: 64 }).notNull(),
-  targetNodeId: varchar("targetNodeId", { length: 64 }).notNull(),
+  edgeId: varchar("edge_id", { length: 64 }).notNull().unique(),
+  sourceNodeId: varchar("source_node_id", { length: 64 }).notNull(),
+  targetNodeId: varchar("target_node_id", { length: 64 }).notNull(),
   type: mysqlEnum("type", ["data", "dependency", "control"]).default("data").notNull(),
   label: varchar("label", { length: 100 }),
   config: json("config").$type<{ bandwidth?: number; latency?: number; protocol?: string }>(),
   status: mysqlEnum("status", ["active", "inactive", "error"]).default("active").notNull(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
 });
 
 export type TopoEdge = typeof topoEdges.$inferSelect;
@@ -176,11 +176,11 @@ export const topoLayouts = mysqlTable("topo_layouts", {
   id: int("id").autoincrement().primaryKey(),
   name: varchar("name", { length: 100 }).notNull(),
   description: text("description"),
-  userId: int("userId"),
-  isDefault: boolean("isDefault").default(false).notNull(),
-  layoutData: json("layoutData").$type<{ nodes: Array<{ nodeId: string; x: number; y: number }>; zoom: number; panX: number; panY: number }>(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  userId: int("user_id"),
+  isDefault: boolean("is_default").default(false).notNull(),
+  layoutData: json("layout_data").$type<{ nodes: Array<{ nodeId: string; x: number; y: number }>; zoom: number; panX: number; panY: number }>(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
 });
 
 export type TopoLayout = typeof topoLayouts.$inferSelect;
@@ -193,9 +193,9 @@ export type InsertTopoLayout = typeof topoLayouts.$inferInsert;
  */
 export const models = mysqlTable("models", {
   id: int("id").autoincrement().primaryKey(),
-  modelId: varchar("modelId", { length: 100 }).notNull().unique(),
+  modelId: varchar("model_id", { length: 100 }).notNull().unique(),
   name: varchar("name", { length: 100 }).notNull(),
-  displayName: varchar("displayName", { length: 200 }),
+  displayName: varchar("display_name", { length: 200 }),
   type: mysqlEnum("type", ["llm", "embedding", "label", "diagnostic", "vision", "audio"]).notNull(),
   provider: mysqlEnum("provider", ["ollama", "openai", "anthropic", "local", "custom"]).default("ollama").notNull(),
   size: varchar("size", { length: 50 }),
@@ -203,8 +203,8 @@ export const models = mysqlTable("models", {
   quantization: varchar("quantization", { length: 20 }),
   description: text("description"),
   status: mysqlEnum("status", ["available", "loaded", "downloading", "error"]).default("available").notNull(),
-  downloadProgress: int("downloadProgress").default(0),
-  isDefault: boolean("isDefault").default(false).notNull(),
+  downloadProgress: int("download_progress").default(0),
+  isDefault: boolean("is_default").default(false).notNull(),
   config: json("config").$type<{
     temperature?: number;
     maxTokens?: number;
@@ -227,8 +227,8 @@ export const models = mysqlTable("models", {
     successRate?: number;
     tokensGenerated?: number;
   }>(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
 });
 
 export type Model = typeof models.$inferSelect;
@@ -239,20 +239,20 @@ export type InsertModel = typeof models.$inferInsert;
  */
 export const modelConversations = mysqlTable("model_conversations", {
   id: int("id").autoincrement().primaryKey(),
-  conversationId: varchar("conversationId", { length: 64 }).notNull().unique(),
-  userId: int("userId"),
-  modelId: varchar("modelId", { length: 100 }).notNull(),
+  conversationId: varchar("conversation_id", { length: 64 }).notNull().unique(),
+  userId: int("user_id"),
+  modelId: varchar("model_id", { length: 100 }).notNull(),
   title: varchar("title", { length: 255 }),
-  messageCount: int("messageCount").default(0).notNull(),
-  totalTokens: int("totalTokens").default(0),
+  messageCount: int("message_count").default(0).notNull(),
+  totalTokens: int("total_tokens").default(0),
   status: mysqlEnum("status", ["active", "archived", "deleted"]).default("active").notNull(),
   metadata: json("metadata").$type<{
     knowledgeBaseId?: number;
     systemPrompt?: string;
     temperature?: number;
   }>(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
 });
 
 export type ModelConversation = typeof modelConversations.$inferSelect;
@@ -263,8 +263,8 @@ export type InsertModelConversation = typeof modelConversations.$inferInsert;
  */
 export const modelMessages = mysqlTable("model_messages", {
   id: int("id").autoincrement().primaryKey(),
-  messageId: varchar("messageId", { length: 64 }).notNull().unique(),
-  conversationId: varchar("conversationId", { length: 64 }).notNull(),
+  messageId: varchar("message_id", { length: 64 }).notNull().unique(),
+  conversationId: varchar("conversation_id", { length: 64 }).notNull(),
   role: mysqlEnum("role", ["system", "user", "assistant", "tool"]).notNull(),
   content: text("content").notNull(),
   tokens: int("tokens"),
@@ -274,14 +274,14 @@ export const modelMessages = mysqlTable("model_messages", {
     url: string;
     name?: string;
   }>>(),
-  toolCalls: json("toolCalls").$type<Array<{
+  toolCalls: json("tool_calls").$type<Array<{
     id: string;
     name: string;
     arguments: string;
     result?: string;
   }>>(),
   metadata: json("metadata").$type<Record<string, unknown>>(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 export type ModelMessage = typeof modelMessages.$inferSelect;
@@ -292,16 +292,16 @@ export type InsertModelMessage = typeof modelMessages.$inferInsert;
  */
 export const modelFineTuneTasks = mysqlTable("model_fine_tune_tasks", {
   id: int("id").autoincrement().primaryKey(),
-  taskId: varchar("taskId", { length: 64 }).notNull().unique(),
-  userId: int("userId"),
-  baseModelId: varchar("baseModelId", { length: 100 }).notNull(),
-  outputModelId: varchar("outputModelId", { length: 100 }),
+  taskId: varchar("task_id", { length: 64 }).notNull().unique(),
+  userId: int("user_id"),
+  baseModelId: varchar("base_model_id", { length: 100 }).notNull(),
+  outputModelId: varchar("output_model_id", { length: 100 }),
   name: varchar("name", { length: 200 }).notNull(),
   description: text("description"),
   status: mysqlEnum("status", ["pending", "preparing", "training", "completed", "failed", "cancelled"]).default("pending").notNull(),
   progress: int("progress").default(0),
-  datasetPath: varchar("datasetPath", { length: 500 }),
-  datasetSize: int("datasetSize"),
+  datasetPath: varchar("dataset_path", { length: 500 }),
+  datasetSize: int("dataset_size"),
   config: json("config").$type<{
     epochs?: number;
     batchSize?: number;
@@ -318,10 +318,10 @@ export const modelFineTuneTasks = mysqlTable("model_fine_tune_tasks", {
     currentStep?: number;
   }>(),
   error: text("error"),
-  startedAt: timestamp("startedAt"),
-  completedAt: timestamp("completedAt"),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
 });
 
 export type ModelFineTuneTask = typeof modelFineTuneTasks.$inferSelect;
@@ -332,16 +332,16 @@ export type InsertModelFineTuneTask = typeof modelFineTuneTasks.$inferInsert;
  */
 export const modelEvaluations = mysqlTable("model_evaluations", {
   id: int("id").autoincrement().primaryKey(),
-  evaluationId: varchar("evaluationId", { length: 64 }).notNull().unique(),
-  userId: int("userId"),
-  modelId: varchar("modelId", { length: 100 }).notNull(),
+  evaluationId: varchar("evaluation_id", { length: 64 }).notNull().unique(),
+  userId: int("user_id"),
+  modelId: varchar("model_id", { length: 100 }).notNull(),
   name: varchar("name", { length: 200 }).notNull(),
   description: text("description"),
   status: mysqlEnum("status", ["pending", "running", "completed", "failed"]).default("pending").notNull(),
   progress: int("progress").default(0),
-  datasetPath: varchar("datasetPath", { length: 500 }),
-  datasetSize: int("datasetSize"),
-  evaluationType: mysqlEnum("evaluationType", ["accuracy", "perplexity", "bleu", "rouge", "custom"]).default("accuracy").notNull(),
+  datasetPath: varchar("dataset_path", { length: 500 }),
+  datasetSize: int("dataset_size"),
+  evaluationType: mysqlEnum("evaluation_type", ["accuracy", "perplexity", "bleu", "rouge", "custom"]).default("accuracy").notNull(),
   results: json("results").$type<{
     accuracy?: number;
     precision?: number;
@@ -355,10 +355,10 @@ export const modelEvaluations = mysqlTable("model_evaluations", {
     sampleResults?: Array<{ input: string; expected: string; actual: string; correct: boolean }>;
   }>(),
   error: text("error"),
-  startedAt: timestamp("startedAt"),
-  completedAt: timestamp("completedAt"),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
 });
 
 export type ModelEvaluation = typeof modelEvaluations.$inferSelect;
@@ -369,18 +369,18 @@ export type InsertModelEvaluation = typeof modelEvaluations.$inferInsert;
  */
 export const modelUsageLogs = mysqlTable("model_usage_logs", {
   id: int("id").autoincrement().primaryKey(),
-  logId: varchar("logId", { length: 64 }).notNull().unique(),
-  userId: int("userId"),
-  modelId: varchar("modelId", { length: 100 }).notNull(),
-  conversationId: varchar("conversationId", { length: 64 }),
-  requestType: mysqlEnum("requestType", ["chat", "completion", "embedding", "inference"]).notNull(),
-  inputTokens: int("inputTokens"),
-  outputTokens: int("outputTokens"),
+  logId: varchar("log_id", { length: 64 }).notNull().unique(),
+  userId: int("user_id"),
+  modelId: varchar("model_id", { length: 100 }).notNull(),
+  conversationId: varchar("conversation_id", { length: 64 }),
+  requestType: mysqlEnum("request_type", ["chat", "completion", "embedding", "inference"]).notNull(),
+  inputTokens: int("input_tokens"),
+  outputTokens: int("output_tokens"),
   latency: int("latency"),
   status: mysqlEnum("status", ["success", "error", "timeout"]).notNull(),
   error: text("error"),
   metadata: json("metadata").$type<Record<string, unknown>>(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 export type ModelUsageLog = typeof modelUsageLogs.$inferSelect;
@@ -410,18 +410,18 @@ export type InsertModelUsageLog = typeof modelUsageLogs.$inferInsert;
  */
 export const eventLogs = mysqlTable("event_logs", {
   id: int("id").autoincrement().primaryKey(),
-  eventId: varchar("eventId", { length: 64 }).notNull().unique(),
+  eventId: varchar("event_id", { length: 64 }).notNull().unique(),
   topic: varchar("topic", { length: 100 }).notNull(),
-  eventType: varchar("eventType", { length: 50 }).notNull(),
+  eventType: varchar("event_type", { length: 50 }).notNull(),
   source: varchar("source", { length: 100 }),
   nodeId: varchar("node_id", { length: 64 }), // 资产节点ID
-  sensorId: varchar("sensorId", { length: 64 }),
+  sensorId: varchar("sensor_id", { length: 64 }),
   severity: mysqlEnum("severity", ["info", "warning", "error", "critical"]).default("info").notNull(),
   payload: json("payload").$type<Record<string, unknown>>(),
   processed: boolean("processed").default(false).notNull(),
-  processedAt: timestamp("processedAt"),
-  processedBy: varchar("processedBy", { length: 100 }),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  processedAt: timestamp("processed_at"),
+  processedBy: varchar("processed_by", { length: 100 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 export type EventLog = typeof eventLogs.$inferSelect;
@@ -432,24 +432,24 @@ export type InsertEventLog = typeof eventLogs.$inferInsert;
  */
 export const anomalyDetections = mysqlTable("anomaly_detections", {
   id: int("id").autoincrement().primaryKey(),
-  detectionId: varchar("detectionId", { length: 64 }).notNull().unique(),
-  sensorId: varchar("sensorId", { length: 64 }).notNull(),
+  detectionId: varchar("detection_id", { length: 64 }).notNull().unique(),
+  sensorId: varchar("sensor_id", { length: 64 }).notNull(),
   nodeId: varchar("node_id", { length: 64 }).notNull(), // 资产节点ID，引用 asset_nodes
-  algorithmType: mysqlEnum("algorithmType", ["zscore", "iqr", "mad", "isolation_forest", "custom"]).default("zscore").notNull(),
-  windowSize: int("windowSize").default(60), // 窗口大小（秒）
+  algorithmType: mysqlEnum("algorithm_type", ["zscore", "iqr", "mad", "isolation_forest", "custom"]).default("zscore").notNull(),
+  windowSize: int("window_size").default(60), // 窗口大小（秒）
   threshold: int("threshold"), // 阈值 * 100
-  currentValue: int("currentValue"),
-  expectedValue: int("expectedValue"),
+  currentValue: int("current_value"),
+  expectedValue: int("expected_value"),
   deviation: int("deviation"), // 偏差 * 100
   score: int("score"), // 异常分数 * 100
   severity: mysqlEnum("severity", ["low", "medium", "high", "critical"]).default("low").notNull(),
   status: mysqlEnum("status", ["open", "acknowledged", "resolved", "false_positive"]).default("open").notNull(),
-  acknowledgedBy: varchar("acknowledgedBy", { length: 100 }),
-  acknowledgedAt: timestamp("acknowledgedAt"),
-  resolvedAt: timestamp("resolvedAt"),
+  acknowledgedBy: varchar("acknowledged_by", { length: 100 }),
+  acknowledgedAt: timestamp("acknowledged_at"),
+  resolvedAt: timestamp("resolved_at"),
   notes: text("notes"),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
 });
 
 export type AnomalyDetection = typeof anomalyDetections.$inferSelect;
@@ -460,27 +460,27 @@ export type InsertAnomalyDetection = typeof anomalyDetections.$inferInsert;
  */
 export const diagnosisRules = mysqlTable("diagnosis_rules", {
   id: int("id").autoincrement().primaryKey(),
-  ruleId: varchar("ruleId", { length: 64 }).notNull().unique(),
+  ruleId: varchar("rule_id", { length: 64 }).notNull().unique(),
   name: varchar("name", { length: 200 }).notNull(),
   description: text("description"),
   category: varchar("category", { length: 50 }),
-  deviceType: varchar("deviceType", { length: 50 }),
-  sensorType: varchar("sensorType", { length: 50 }),
-  conditionExpr: text("conditionExpr").notNull(), // 条件表达式
-  actionType: mysqlEnum("actionType", ["alert", "notification", "workflow", "auto_fix"]).default("alert").notNull(),
-  actionConfig: json("actionConfig").$type<{
+  deviceType: varchar("device_type", { length: 50 }),
+  sensorType: varchar("sensor_type", { length: 50 }),
+  conditionExpr: text("condition_expr").notNull(), // 条件表达式
+  actionType: mysqlEnum("action_type", ["alert", "notification", "workflow", "auto_fix"]).default("alert").notNull(),
+  actionConfig: json("action_config").$type<{
     notifyChannels?: string[];
     workflowId?: string;
     autoFixScript?: string;
     escalationTime?: number;
   }>(),
   severity: mysqlEnum("severity", ["low", "medium", "high", "critical"]).default("medium").notNull(),
-  isActive: boolean("isActive").default(true).notNull(),
+  isActive: boolean("is_active").default(true).notNull(),
   priority: int("priority").default(5),
-  triggerCount: int("triggerCount").default(0),
-  lastTriggeredAt: timestamp("lastTriggeredAt"),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  triggerCount: int("trigger_count").default(0),
+  lastTriggeredAt: timestamp("last_triggered_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
 });
 
 export type DiagnosisRule = typeof diagnosisRules.$inferSelect;
@@ -491,15 +491,15 @@ export type InsertDiagnosisRule = typeof diagnosisRules.$inferInsert;
  */
 export const diagnosisTasks = mysqlTable("diagnosis_tasks", {
   id: int("id").autoincrement().primaryKey(),
-  taskId: varchar("taskId", { length: 64 }).notNull().unique(),
+  taskId: varchar("task_id", { length: 64 }).notNull().unique(),
   nodeId: varchar("node_id", { length: 64 }), // 资产节点ID
-  sensorId: varchar("sensorId", { length: 64 }),
-  ruleId: varchar("ruleId", { length: 64 }),
-  anomalyId: varchar("anomalyId", { length: 64 }),
-  taskType: mysqlEnum("taskType", ["routine", "anomaly", "manual", "scheduled"]).default("routine").notNull(),
+  sensorId: varchar("sensor_id", { length: 64 }),
+  ruleId: varchar("rule_id", { length: 64 }),
+  anomalyId: varchar("anomaly_id", { length: 64 }),
+  taskType: mysqlEnum("task_type", ["routine", "anomaly", "manual", "scheduled"]).default("routine").notNull(),
   status: mysqlEnum("status", ["pending", "running", "completed", "failed", "cancelled"]).default("pending").notNull(),
   priority: int("priority").default(5),
-  inputData: json("inputData").$type<{
+  inputData: json("input_data").$type<{
     sensorData?: Array<{ timestamp: string; value: number }>;
     contextData?: Record<string, unknown>;
     userQuery?: string;
@@ -512,10 +512,10 @@ export const diagnosisTasks = mysqlTable("diagnosis_tasks", {
     affectedComponents?: string[];
   }>(),
   error: text("error"),
-  startedAt: timestamp("startedAt"),
-  completedAt: timestamp("completedAt"),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
 });
 
 export type DiagnosisTask = typeof diagnosisTasks.$inferSelect;
@@ -534,27 +534,27 @@ export type InsertDiagnosisTask = typeof diagnosisTasks.$inferInsert;
  */
 export const deviceMaintenanceRecords = mysqlTable("device_maintenance_records", {
   id: int("id").autoincrement().primaryKey(),
-  recordId: varchar("recordId", { length: 64 }).notNull().unique(),
+  recordId: varchar("record_id", { length: 64 }).notNull().unique(),
   nodeId: varchar("node_id", { length: 64 }).notNull(), // 资产节点ID，引用 asset_nodes
-  maintenanceType: mysqlEnum("maintenanceType", ["preventive", "corrective", "predictive", "emergency", "calibration", "inspection"]).default("preventive").notNull(),
+  maintenanceType: mysqlEnum("maintenance_type", ["preventive", "corrective", "predictive", "emergency", "calibration", "inspection"]).default("preventive").notNull(),
   title: varchar("title", { length: 200 }).notNull(),
   description: text("description"),
-  scheduledDate: timestamp("scheduledDate"),
-  startedAt: timestamp("startedAt"),
-  completedAt: timestamp("completedAt"),
+  scheduledDate: timestamp("scheduled_date"),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
   status: mysqlEnum("status", ["scheduled", "in_progress", "completed", "cancelled", "overdue"]).default("scheduled").notNull(),
   priority: mysqlEnum("priority", ["low", "medium", "high", "critical"]).default("medium").notNull(),
-  assignedTo: varchar("assignedTo", { length: 100 }),
-  performedBy: varchar("performedBy", { length: 100 }),
+  assignedTo: varchar("assigned_to", { length: 100 }),
+  performedBy: varchar("performed_by", { length: 100 }),
   cost: double("cost"),
   currency: varchar("currency", { length: 10 }).default("CNY"),
   parts: json("parts").$type<Array<{ partId: string; name: string; quantity: number; cost: number }>>(),
   findings: text("findings"),
   recommendations: text("recommendations"),
   attachments: json("attachments").$type<Array<{ name: string; url: string; type: string }>>(),
-  nextMaintenanceDate: timestamp("nextMaintenanceDate"),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  nextMaintenanceDate: timestamp("next_maintenance_date"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
 });
 
 export type DeviceMaintenanceRecord = typeof deviceMaintenanceRecords.$inferSelect;
@@ -565,29 +565,29 @@ export type InsertDeviceMaintenanceRecord = typeof deviceMaintenanceRecords.$inf
  */
 export const deviceSpareParts = mysqlTable("device_spare_parts", {
   id: int("id").autoincrement().primaryKey(),
-  partId: varchar("partId", { length: 64 }).notNull().unique(),
+  partId: varchar("part_id", { length: 64 }).notNull().unique(),
   name: varchar("name", { length: 200 }).notNull(),
-  partNumber: varchar("partNumber", { length: 100 }),
+  partNumber: varchar("part_number", { length: 100 }),
   category: varchar("category", { length: 50 }),
-  compatibleDeviceTypes: json("compatibleDeviceTypes").$type<string[]>(),
+  compatibleDeviceTypes: json("compatible_device_types").$type<string[]>(),
   manufacturer: varchar("manufacturer", { length: 100 }),
   supplier: varchar("supplier", { length: 100 }),
   quantity: int("quantity").default(0).notNull(),
-  minQuantity: int("minQuantity").default(1),
-  maxQuantity: int("maxQuantity"),
-  unitPrice: double("unitPrice"),
+  minQuantity: int("min_quantity").default(1),
+  maxQuantity: int("max_quantity"),
+  unitPrice: double("unit_price"),
   currency: varchar("currency", { length: 10 }).default("CNY"),
   location: varchar("location", { length: 100 }),
   status: mysqlEnum("status", ["in_stock", "low_stock", "out_of_stock", "ordered", "discontinued"]).default("in_stock").notNull(),
-  lastRestockedAt: timestamp("lastRestockedAt"),
-  expiryDate: timestamp("expiryDate"),
+  lastRestockedAt: timestamp("last_restocked_at"),
+  expiryDate: timestamp("expiry_date"),
   metadata: json("metadata").$type<{
     specifications?: Record<string, string>;
     warranty?: string;
     notes?: string;
   }>(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
 });
 
 export type DeviceSparePart = typeof deviceSpareParts.$inferSelect;
@@ -598,19 +598,19 @@ export type InsertDeviceSparePart = typeof deviceSpareParts.$inferInsert;
  */
 export const deviceOperationLogs = mysqlTable("device_operation_logs", {
   id: int("id").autoincrement().primaryKey(),
-  logId: varchar("logId", { length: 64 }).notNull().unique(),
+  logId: varchar("log_id", { length: 64 }).notNull().unique(),
   nodeId: varchar("node_id", { length: 64 }).notNull(), // 资产节点ID，引用 asset_nodes
-  operationType: mysqlEnum("operationType", ["start", "stop", "restart", "config_change", "firmware_update", "calibration", "mode_change", "error", "recovery"]).notNull(),
-  previousState: varchar("previousState", { length: 50 }),
-  newState: varchar("newState", { length: 50 }),
-  operatedBy: varchar("operatedBy", { length: 100 }),
+  operationType: mysqlEnum("operation_type", ["start", "stop", "restart", "config_change", "firmware_update", "calibration", "mode_change", "error", "recovery"]).notNull(),
+  previousState: varchar("previous_state", { length: 50 }),
+  newState: varchar("new_state", { length: 50 }),
+  operatedBy: varchar("operated_by", { length: 100 }),
   reason: text("reason"),
   details: json("details").$type<Record<string, unknown>>(),
   success: boolean("success").default(true).notNull(),
-  errorMessage: text("errorMessage"),
+  errorMessage: text("error_message"),
   duration: int("duration"), // 操作耗时（毫秒）
   timestamp: timestamp("timestamp").defaultNow().notNull(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 export type DeviceOperationLog = typeof deviceOperationLogs.$inferSelect;
@@ -621,26 +621,26 @@ export type InsertDeviceOperationLog = typeof deviceOperationLogs.$inferInsert;
  */
 export const deviceAlerts = mysqlTable("device_alerts", {
   id: int("id").autoincrement().primaryKey(),
-  alertId: varchar("alertId", { length: 64 }).notNull().unique(),
+  alertId: varchar("alert_id", { length: 64 }).notNull().unique(),
   nodeId: varchar("node_id", { length: 64 }).notNull(), // 资产节点ID，引用 asset_nodes
-  sensorId: varchar("sensorId", { length: 64 }),
-  alertType: mysqlEnum("alertType", ["threshold", "anomaly", "offline", "error", "maintenance_due", "warranty_expiry", "custom"]).notNull(),
+  sensorId: varchar("sensor_id", { length: 64 }),
+  alertType: mysqlEnum("alert_type", ["threshold", "anomaly", "offline", "error", "maintenance_due", "warranty_expiry", "custom"]).notNull(),
   title: varchar("title", { length: 200 }).notNull(),
   message: text("message"),
   severity: mysqlEnum("severity", ["info", "warning", "error", "critical"]).default("warning").notNull(),
   status: mysqlEnum("status", ["active", "acknowledged", "resolved", "suppressed"]).default("active").notNull(),
-  triggerValue: double("triggerValue"),
-  thresholdValue: double("thresholdValue"),
-  acknowledgedBy: varchar("acknowledgedBy", { length: 100 }),
-  acknowledgedAt: timestamp("acknowledgedAt"),
-  resolvedBy: varchar("resolvedBy", { length: 100 }),
-  resolvedAt: timestamp("resolvedAt"),
+  triggerValue: double("trigger_value"),
+  thresholdValue: double("threshold_value"),
+  acknowledgedBy: varchar("acknowledged_by", { length: 100 }),
+  acknowledgedAt: timestamp("acknowledged_at"),
+  resolvedBy: varchar("resolved_by", { length: 100 }),
+  resolvedAt: timestamp("resolved_at"),
   resolution: text("resolution"),
-  escalationLevel: int("escalationLevel").default(0),
-  notificationsSent: json("notificationsSent").$type<Array<{ channel: string; sentAt: string; recipient: string }>>(),
+  escalationLevel: int("escalation_level").default(0),
+  notificationsSent: json("notifications_sent").$type<Array<{ channel: string; sentAt: string; recipient: string }>>(),
   metadata: json("metadata").$type<Record<string, unknown>>(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
 });
 
 export type DeviceAlert = typeof deviceAlerts.$inferSelect;
@@ -652,31 +652,31 @@ export type InsertDeviceAlert = typeof deviceAlerts.$inferInsert;
 export const deviceKpis = mysqlTable("device_kpis", {
   id: int("id").autoincrement().primaryKey(),
   nodeId: varchar("node_id", { length: 64 }).notNull(), // 资产节点ID，引用 asset_nodes
-  periodType: mysqlEnum("periodType", ["hourly", "daily", "weekly", "monthly"]).notNull(),
-  periodStart: timestamp("periodStart").notNull(),
-  periodEnd: timestamp("periodEnd").notNull(),
+  periodType: mysqlEnum("period_type", ["hourly", "daily", "weekly", "monthly"]).notNull(),
+  periodStart: timestamp("period_start").notNull(),
+  periodEnd: timestamp("period_end").notNull(),
   // OEE 指标
   availability: double("availability"), // 可用率 (%)
   performance: double("performance"), // 性能率 (%)
   quality: double("quality"), // 质量率 (%)
   oee: double("oee"), // 设备综合效率 (%)
   // 运行指标
-  runningTime: int("runningTime"), // 运行时间（秒）
+  runningTime: int("running_time"), // 运行时间（秒）
   downtime: int("downtime"), // 停机时间（秒）
-  idleTime: int("idleTime"), // 空闲时间（秒）
-  plannedDowntime: int("plannedDowntime"), // 计划停机时间（秒）
-  unplannedDowntime: int("unplannedDowntime"), // 非计划停机时间（秒）
+  idleTime: int("idle_time"), // 空闲时间（秒）
+  plannedDowntime: int("planned_downtime"), // 计划停机时间（秒）
+  unplannedDowntime: int("unplanned_downtime"), // 非计划停机时间（秒）
   // 故障指标
   mtbf: double("mtbf"), // 平均故障间隔时间（小时）
   mttr: double("mttr"), // 平均修复时间（小时）
-  failureCount: int("failureCount").default(0), // 故障次数
+  failureCount: int("failure_count").default(0), // 故障次数
   // 产出指标
-  productionCount: int("productionCount"), // 生产数量
-  defectCount: int("defectCount"), // 缺陷数量
+  productionCount: int("production_count"), // 生产数量
+  defectCount: int("defect_count"), // 缺陷数量
   // 能耗指标
-  energyConsumption: double("energyConsumption"), // 能耗 (kWh)
-  energyEfficiency: double("energyEfficiency"), // 能效 (单位产出/kWh)
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  energyConsumption: double("energy_consumption"), // 能耗 (kWh)
+  energyEfficiency: double("energy_efficiency"), // 能效 (单位产出/kWh)
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 export type DeviceKpi = typeof deviceKpis.$inferSelect;
@@ -690,10 +690,10 @@ export type InsertDeviceKpi = typeof deviceKpis.$inferInsert;
  */
 export const outboxEvents = mysqlTable("outbox_events", {
   id: int("id").autoincrement().primaryKey(),
-  eventId: varchar("eventId", { length: 64 }).notNull().unique(),
-  eventType: varchar("eventType", { length: 100 }).notNull(),
-  aggregateType: varchar("aggregateType", { length: 100 }).notNull(),
-  aggregateId: varchar("aggregateId", { length: 64 }).notNull(),
+  eventId: varchar("event_id", { length: 64 }).notNull().unique(),
+  eventType: varchar("event_type", { length: 100 }).notNull(),
+  aggregateType: varchar("aggregate_type", { length: 100 }).notNull(),
+  aggregateId: varchar("aggregate_id", { length: 64 }).notNull(),
   payload: json("payload").$type<Record<string, unknown>>().notNull(),
   metadata: json("metadata").$type<{
     correlationId?: string;
@@ -702,12 +702,12 @@ export const outboxEvents = mysqlTable("outbox_events", {
     source?: string;
   }>(),
   status: mysqlEnum("status", ["pending", "processing", "published", "failed"]).default("pending").notNull(),
-  retryCount: int("retryCount").default(0).notNull(),
-  maxRetries: int("maxRetries").default(3).notNull(),
-  lastError: text("lastError"),
-  publishedAt: timestamp("publishedAt"),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  retryCount: int("retry_count").default(0).notNull(),
+  maxRetries: int("max_retries").default(3).notNull(),
+  lastError: text("last_error"),
+  publishedAt: timestamp("published_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
 });
 
 export type OutboxEvent = typeof outboxEvents.$inferSelect;
@@ -718,17 +718,17 @@ export type InsertOutboxEvent = typeof outboxEvents.$inferInsert;
  */
 export const outboxRoutingConfig = mysqlTable("outbox_routing_config", {
   id: int("id").autoincrement().primaryKey(),
-  eventType: varchar("eventType", { length: 100 }).notNull().unique(),
-  publishMode: mysqlEnum("publishMode", ["cdc", "polling"]).default("cdc").notNull(),
-  cdcEnabled: boolean("cdcEnabled").default(true).notNull(),
-  pollingIntervalMs: int("pollingIntervalMs"),
-  pollingBatchSize: int("pollingBatchSize"),
-  requiresProcessing: boolean("requiresProcessing").default(false).notNull(),
-  processorClass: varchar("processorClass", { length: 200 }),
+  eventType: varchar("event_type", { length: 100 }).notNull().unique(),
+  publishMode: mysqlEnum("publish_mode", ["cdc", "polling"]).default("cdc").notNull(),
+  cdcEnabled: boolean("cdc_enabled").default(true).notNull(),
+  pollingIntervalMs: int("polling_interval_ms"),
+  pollingBatchSize: int("polling_batch_size"),
+  requiresProcessing: boolean("requires_processing").default(false).notNull(),
+  processorClass: varchar("processor_class", { length: 200 }),
   description: text("description"),
-  isActive: boolean("isActive").default(true).notNull(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
 });
 
 export type OutboxRoutingConfig = typeof outboxRoutingConfig.$inferSelect;
@@ -739,11 +739,11 @@ export type InsertOutboxRoutingConfig = typeof outboxRoutingConfig.$inferInsert;
  */
 export const sagaInstances = mysqlTable("saga_instances", {
   id: int("id").autoincrement().primaryKey(),
-  sagaId: varchar("sagaId", { length: 64 }).notNull().unique(),
-  sagaType: varchar("sagaType", { length: 100 }).notNull(),
+  sagaId: varchar("saga_id", { length: 64 }).notNull().unique(),
+  sagaType: varchar("saga_type", { length: 100 }).notNull(),
   status: mysqlEnum("status", ["running", "completed", "failed", "compensating", "compensated", "partial"]).default("running").notNull(),
-  currentStep: int("currentStep").default(0).notNull(),
-  totalSteps: int("totalSteps").notNull(),
+  currentStep: int("current_step").default(0).notNull(),
+  totalSteps: int("total_steps").notNull(),
   input: json("input").$type<Record<string, unknown>>(),
   output: json("output").$type<Record<string, unknown>>(),
   checkpoint: json("checkpoint").$type<{
@@ -752,11 +752,11 @@ export const sagaInstances = mysqlTable("saga_instances", {
     lastCompletedStep: number;
   }>(),
   error: text("error"),
-  startedAt: timestamp("startedAt").defaultNow().notNull(),
-  completedAt: timestamp("completedAt"),
-  timeoutAt: timestamp("timeoutAt"),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  startedAt: timestamp("started_at").defaultNow().notNull(),
+  completedAt: timestamp("completed_at"),
+  timeoutAt: timestamp("timeout_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
 });
 
 export type SagaInstance = typeof sagaInstances.$inferSelect;
@@ -767,20 +767,20 @@ export type InsertSagaInstance = typeof sagaInstances.$inferInsert;
  */
 export const sagaSteps = mysqlTable("saga_steps", {
   id: int("id").autoincrement().primaryKey(),
-  stepId: varchar("stepId", { length: 64 }).notNull().unique(),
-  sagaId: varchar("sagaId", { length: 64 }).notNull(),
-  stepIndex: int("stepIndex").notNull(),
-  stepName: varchar("stepName", { length: 100 }).notNull(),
-  stepType: mysqlEnum("stepType", ["action", "compensation"]).default("action").notNull(),
+  stepId: varchar("step_id", { length: 64 }).notNull().unique(),
+  sagaId: varchar("saga_id", { length: 64 }).notNull(),
+  stepIndex: int("step_index").notNull(),
+  stepName: varchar("step_name", { length: 100 }).notNull(),
+  stepType: mysqlEnum("step_type", ["action", "compensation"]).default("action").notNull(),
   status: mysqlEnum("status", ["pending", "running", "completed", "failed", "skipped", "compensated"]).default("pending").notNull(),
   input: json("input").$type<Record<string, unknown>>(),
   output: json("output").$type<Record<string, unknown>>(),
   error: text("error"),
-  retryCount: int("retryCount").default(0).notNull(),
-  startedAt: timestamp("startedAt"),
-  completedAt: timestamp("completedAt"),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  retryCount: int("retry_count").default(0).notNull(),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
 });
 
 export type SagaStep = typeof sagaSteps.$inferSelect;
@@ -791,21 +791,21 @@ export type InsertSagaStep = typeof sagaSteps.$inferInsert;
  */
 export const sagaDeadLetters = mysqlTable("saga_dead_letters", {
   id: int("id").autoincrement().primaryKey(),
-  deadLetterId: varchar("deadLetterId", { length: 64 }).notNull().unique(),
-  sagaId: varchar("sagaId", { length: 64 }).notNull(),
-  sagaType: varchar("sagaType", { length: 100 }).notNull(),
-  failureReason: text("failureReason").notNull(),
-  failureType: mysqlEnum("failureType", ["timeout", "max_retries", "compensation_failed", "unknown"]).notNull(),
-  originalInput: json("originalInput").$type<Record<string, unknown>>(),
-  lastCheckpoint: json("lastCheckpoint").$type<Record<string, unknown>>(),
+  deadLetterId: varchar("dead_letter_id", { length: 64 }).notNull().unique(),
+  sagaId: varchar("saga_id", { length: 64 }).notNull(),
+  sagaType: varchar("saga_type", { length: 100 }).notNull(),
+  failureReason: text("failure_reason").notNull(),
+  failureType: mysqlEnum("failure_type", ["timeout", "max_retries", "compensation_failed", "unknown"]).notNull(),
+  originalInput: json("original_input").$type<Record<string, unknown>>(),
+  lastCheckpoint: json("last_checkpoint").$type<Record<string, unknown>>(),
   retryable: boolean("retryable").default(true).notNull(),
-  retryCount: int("retryCount").default(0).notNull(),
-  lastRetryAt: timestamp("lastRetryAt"),
-  resolvedAt: timestamp("resolvedAt"),
-  resolvedBy: varchar("resolvedBy", { length: 100 }),
+  retryCount: int("retry_count").default(0).notNull(),
+  lastRetryAt: timestamp("last_retry_at"),
+  resolvedAt: timestamp("resolved_at"),
+  resolvedBy: varchar("resolved_by", { length: 100 }),
   resolution: text("resolution"),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
 });
 
 export type SagaDeadLetter = typeof sagaDeadLetters.$inferSelect;
@@ -816,17 +816,17 @@ export type InsertSagaDeadLetter = typeof sagaDeadLetters.$inferInsert;
  */
 export const processedEvents = mysqlTable("processed_events", {
   id: int("id").autoincrement().primaryKey(),
-  eventId: varchar("eventId", { length: 64 }).notNull().unique(),
-  eventType: varchar("eventType", { length: 100 }).notNull(),
-  consumerGroup: varchar("consumerGroup", { length: 100 }).notNull(),
-  processedAt: timestamp("processedAt").defaultNow().notNull(),
-  expiresAt: timestamp("expiresAt").notNull(),
+  eventId: varchar("event_id", { length: 64 }).notNull().unique(),
+  eventType: varchar("event_type", { length: 100 }).notNull(),
+  consumerGroup: varchar("consumer_group", { length: 100 }).notNull(),
+  processedAt: timestamp("processed_at").defaultNow().notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
   metadata: json("metadata").$type<{
     partition?: number;
     offset?: string;
     processingTimeMs?: number;
   }>(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 export type ProcessedEvent = typeof processedEvents.$inferSelect;
@@ -838,17 +838,17 @@ export type InsertProcessedEvent = typeof processedEvents.$inferInsert;
 export const deviceSamplingConfig = mysqlTable("device_sampling_config", {
   id: int("id").autoincrement().primaryKey(),
   nodeId: varchar("node_id", { length: 64 }).notNull(), // 资产节点ID，引用 asset_nodes
-  sensorType: varchar("sensorType", { length: 50 }).notNull(),
-  baseSamplingRateMs: int("baseSamplingRateMs").default(1000).notNull(),
-  currentSamplingRateMs: int("currentSamplingRateMs").default(1000).notNull(),
-  minSamplingRateMs: int("minSamplingRateMs").default(100).notNull(),
-  maxSamplingRateMs: int("maxSamplingRateMs").default(60000).notNull(),
-  adaptiveEnabled: boolean("adaptiveEnabled").default(true).notNull(),
-  lastAdjustedAt: timestamp("lastAdjustedAt"),
-  adjustmentReason: varchar("adjustmentReason", { length: 200 }),
+  sensorType: varchar("sensor_type", { length: 50 }).notNull(),
+  baseSamplingRateMs: int("base_sampling_rate_ms").default(1000).notNull(),
+  currentSamplingRateMs: int("current_sampling_rate_ms").default(1000).notNull(),
+  minSamplingRateMs: int("min_sampling_rate_ms").default(100).notNull(),
+  maxSamplingRateMs: int("max_sampling_rate_ms").default(60000).notNull(),
+  adaptiveEnabled: boolean("adaptive_enabled").default(true).notNull(),
+  lastAdjustedAt: timestamp("last_adjusted_at"),
+  adjustmentReason: varchar("adjustment_reason", { length: 200 }),
   priority: mysqlEnum("priority", ["low", "normal", "high", "critical"]).default("normal").notNull(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
 });
 
 export type DeviceSamplingConfig = typeof deviceSamplingConfig.$inferSelect;
@@ -859,14 +859,14 @@ export type InsertDeviceSamplingConfig = typeof deviceSamplingConfig.$inferInser
  */
 export const idempotentRecords = mysqlTable("idempotent_records", {
   id: int("id").autoincrement().primaryKey(),
-  idempotencyKey: varchar("idempotencyKey", { length: 128 }).notNull().unique(),
-  operationType: varchar("operationType", { length: 100 }).notNull(),
+  idempotencyKey: varchar("idempotency_key", { length: 128 }).notNull().unique(),
+  operationType: varchar("operation_type", { length: 100 }).notNull(),
   status: mysqlEnum("status", ["processing", "completed", "failed"]).default("processing").notNull(),
-  requestHash: varchar("requestHash", { length: 64 }),
+  requestHash: varchar("request_hash", { length: 64 }),
   response: json("response").$type<Record<string, unknown>>(),
-  expiresAt: timestamp("expiresAt").notNull(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
 });
 
 export type IdempotentRecord = typeof idempotentRecords.$inferSelect;
@@ -877,18 +877,18 @@ export type InsertIdempotentRecord = typeof idempotentRecords.$inferInsert;
  */
 export const rollbackExecutions = mysqlTable("rollback_executions", {
   id: int("id").autoincrement().primaryKey(),
-  executionId: varchar("executionId", { length: 64 }).notNull().unique(),
-  sagaId: varchar("sagaId", { length: 64 }),
-  triggerId: varchar("triggerId", { length: 64 }).notNull(),
-  targetType: mysqlEnum("targetType", ["rule", "model", "config", "firmware"]).notNull(),
-  targetId: varchar("targetId", { length: 64 }).notNull(),
-  fromVersion: varchar("fromVersion", { length: 50 }).notNull(),
-  toVersion: varchar("toVersion", { length: 50 }).notNull(),
-  triggerReason: text("triggerReason"),
+  executionId: varchar("execution_id", { length: 64 }).notNull().unique(),
+  sagaId: varchar("saga_id", { length: 64 }),
+  triggerId: varchar("trigger_id", { length: 64 }).notNull(),
+  targetType: mysqlEnum("target_type", ["rule", "model", "config", "firmware"]).notNull(),
+  targetId: varchar("target_id", { length: 64 }).notNull(),
+  fromVersion: varchar("from_version", { length: 50 }).notNull(),
+  toVersion: varchar("to_version", { length: 50 }).notNull(),
+  triggerReason: text("trigger_reason"),
   status: mysqlEnum("status", ["pending", "executing", "completed", "failed", "partial", "cancelled"]).default("pending").notNull(),
-  totalDevices: int("totalDevices"),
-  completedDevices: int("completedDevices").default(0),
-  failedDevices: int("failedDevices").default(0),
+  totalDevices: int("total_devices"),
+  completedDevices: int("completed_devices").default(0),
+  failedDevices: int("failed_devices").default(0),
   checkpoint: json("checkpoint").$type<{
     processed: string[];
     failed: Array<{ device: string; error: string }>;
@@ -899,10 +899,10 @@ export const rollbackExecutions = mysqlTable("rollback_executions", {
     failed: number;
     details?: Array<{ deviceId: string; status: string; error?: string }>;
   }>(),
-  startedAt: timestamp("startedAt"),
-  completedAt: timestamp("completedAt"),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
 });
 
 export type RollbackExecution = typeof rollbackExecutions.$inferSelect;
@@ -913,14 +913,14 @@ export type InsertRollbackExecution = typeof rollbackExecutions.$inferInsert;
  */
 export const systemCapacityMetrics = mysqlTable("system_capacity_metrics", {
   id: int("id").autoincrement().primaryKey(),
-  metricId: varchar("metricId", { length: 64 }).notNull().unique(),
-  metricType: mysqlEnum("metricType", ["kafka_lag", "db_connections", "memory_usage", "cpu_usage", "queue_depth"]).notNull(),
-  componentName: varchar("componentName", { length: 100 }).notNull(),
-  currentValue: double("currentValue").notNull(),
+  metricId: varchar("metric_id", { length: 64 }).notNull().unique(),
+  metricType: mysqlEnum("metric_type", ["kafka_lag", "db_connections", "memory_usage", "cpu_usage", "queue_depth"]).notNull(),
+  componentName: varchar("component_name", { length: 100 }).notNull(),
+  currentValue: double("current_value").notNull(),
   threshold: double("threshold").notNull(),
   status: mysqlEnum("status", ["normal", "warning", "critical"]).default("normal").notNull(),
-  lastCheckedAt: timestamp("lastCheckedAt").defaultNow().notNull(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  lastCheckedAt: timestamp("last_checked_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 export type SystemCapacityMetric = typeof systemCapacityMetrics.$inferSelect;
