@@ -38,7 +38,6 @@ export const navigationConfig: NavItem[] = [
     label: '基础数据',
     icon: '📦',
     children: [
-      { id: 'base-rules', label: '基础规则配置', icon: '⚙️', path: '/base/rules' },
       { id: 'base-library', label: '基础库', icon: '🗃️', path: '/base/library' }
     ]
   },
