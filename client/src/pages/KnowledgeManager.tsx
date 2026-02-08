@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { PageCard } from '@/components/common/PageCard';
 import { Badge } from '@/components/common/Badge';
@@ -44,6 +44,7 @@ export default function KnowledgeManager() {
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [newCollectionName, setNewCollectionName] = useState('');
   const [newCollectionDesc, setNewCollectionDesc] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const toast = useToast();
 
   // ━━━ tRPC Queries ━━━
@@ -220,18 +221,23 @@ export default function KnowledgeManager() {
             <Button variant="outline" size="sm" onClick={() => setShowCreateDialog(true)}>
               ➕ 新建集合
             </Button>
-            <label className="cursor-pointer">
-              <input
-                type="file"
-                multiple
-                className="hidden"
-                accept=".txt,.md,.json,.csv,.pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.bmp,.tiff,.tif,.webp,.gif"
-                onChange={(e) => e.target.files && handleFileUpload(e.target.files)}
-              />
-              <Button disabled={uploading || selectedCollectionId === null}>
-                {uploading ? '上传中...' : '📤 上传文档'}
-              </Button>
-            </label>
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              className="hidden"
+              accept=".txt,.md,.json,.csv,.pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.bmp,.tiff,.tif,.webp,.gif"
+              onChange={(e) => {
+                if (e.target.files) handleFileUpload(e.target.files);
+                e.target.value = '';
+              }}
+            />
+            <Button
+              disabled={uploading || selectedCollectionId === null}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              {uploading ? '上传中...' : '📤 上传文档'}
+            </Button>
           </div>
         </div>
 
