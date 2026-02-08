@@ -1,7 +1,4 @@
-export { default as PluginsManager } from './PluginsManager';
 export { default as SystemTopology } from './SystemTopology';
-export { default as EnginesManager } from './EnginesManager';
-export { default as ModelsManager } from './ModelsManager';
 export { default as Observability } from './Observability';
 export { default as PerformanceOverview } from './PerformanceOverview';
 export { default as OutboxManager } from './OutboxManager';
@@ -9,4 +6,3 @@ export { default as SagaManager } from './SagaManager';
 export { default as AdaptiveSampling } from './AdaptiveSampling';
 export { default as DeduplicationManager } from './DeduplicationManager';
 export { default as ReadReplicaManager } from './ReadReplicaManager';
-export { default as ServicesOverview } from './microservices/ServicesOverview';

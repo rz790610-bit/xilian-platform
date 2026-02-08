@@ -143,7 +143,6 @@ export const navigationConfig: NavItem[] = [
     section: '平台管理',
     children: [
       { id: 'design-pipeline', label: 'Pipeline 编排', icon: '🔗', path: '/settings/design/pipeline' },
-      { id: 'design-db-workbench', label: '数据库工作台', icon: '🗄️', path: '/settings/design/db-workbench' },
       { id: 'design-datastream', label: '数据流监控', icon: '⚡', path: '/settings/design/datastream' },
       { id: 'design-graph-query', label: '图查询优化', icon: '🗂️', path: '/settings/design/graph-query' }
     ]
@@ -154,9 +153,7 @@ export const navigationConfig: NavItem[] = [
     icon: '⚙️',
     children: [
       { id: 'config-infrastructure', label: '基础设施', icon: '🏛️', path: '/settings/config/infrastructure' },
-      { id: 'config-kafka', label: 'Kafka 监控', icon: '📡', path: '/settings/config/kafka' },
-      { id: 'config-resources', label: '资源总览', icon: '📊', path: '/settings/config/resources' },
-      { id: 'config-db-management', label: '数据库管理', icon: '🗄️', path: '/settings/config/db-management' }
+      { id: 'config-kafka', label: 'Kafka 监控', icon: '📡', path: '/settings/config/kafka' }
     ]
   },
   {
@@ -164,13 +161,9 @@ export const navigationConfig: NavItem[] = [
     label: '状态监控',
     icon: '📡',
     children: [
-      { id: 'status-plugins', label: '插件管理', icon: '🧩', path: '/settings/status/plugins' },
       { id: 'status-topology', label: '系统拓扑', icon: '📊', path: '/settings/status/topology' },
-      { id: 'status-engines', label: '引擎模块', icon: '🔧', path: '/settings/status/engines' },
-      { id: 'status-models', label: '模型库', icon: '📦', path: '/settings/status/models' },
       { id: 'status-observability', label: '可观测性', icon: '👁️', path: '/settings/status/observability' },
-      { id: 'status-performance', label: '性能总览', icon: '🚀', path: '/settings/status/performance' },
-      { id: 'status-microservices', label: '微服务监控', icon: '🔗', path: '/settings/status/microservices' }
+      { id: 'status-performance', label: '性能总览', icon: '🚀', path: '/settings/status/performance' }
     ]
   },
   {
@@ -178,12 +171,8 @@ export const navigationConfig: NavItem[] = [
     label: '安全运维',
     icon: '🛡️',
     children: [
-      { id: 'security-ops-dashboard', label: '运维管理', icon: '🛠️', path: '/settings/security/ops' },
-      { id: 'security-monitoring', label: '智能监控', icon: '📱', path: '/settings/security/monitoring' },
-      { id: 'security-falco', label: 'Falco 监控', icon: '🔍', path: '/settings/security/falco' },
-      { id: 'security-scanner', label: '安全扫描', icon: '🔬', path: '/settings/security/scanner' },
-      { id: 'security-vault', label: '密钥管理', icon: '🔐', path: '/settings/security/vault' },
-      { id: 'security-pki', label: 'PKI 证书', icon: '📜', path: '/settings/security/pki' }
+      { id: 'security-ops-dashboard', label: '运维概览', icon: '🛠️', path: '/settings/security/ops' },
+      { id: 'security-falco', label: '安全中心', icon: '🔍', path: '/settings/security/falco' }
     ]
   }
 ];

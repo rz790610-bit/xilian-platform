@@ -59,38 +59,28 @@ import {
   GraphQueryManager
 } from "./pages/settings/design";
 
-// 平台管理 - 配置中心
+// 平台管理 - 配置中心（精简：移除 ResourcesOverview、DbManagement）
 import {
   Infrastructure,
-  KafkaMonitor,
-  ResourcesOverview,
-  DbManagement
+  KafkaMonitor
 } from "./pages/settings/config";
 
-// 平台管理 - 状态监控
+// 平台管理 - 状态监控（精简：移除 PluginsManager、EnginesManager、ModelsManager、ServicesOverview）
 import {
-  PluginsManager,
   SystemTopology,
-  EnginesManager,
-  ModelsManager,
   Observability,
   PerformanceOverview,
   OutboxManager,
   SagaManager,
   AdaptiveSampling,
   DeduplicationManager,
-  ReadReplicaManager,
-  ServicesOverview
+  ReadReplicaManager
 } from "./pages/settings/status";
 
-// 平台管理 - 安全运维
+// 平台管理 - 安全运维（精简：移除 SmartMonitoring、SecurityScanner、VaultManager、PkiManager）
 import {
   OpsDashboard,
-  SmartMonitoring,
-  FalcoMonitor,
-  SecurityScanner,
-  VaultManager,
-  PkiManager
+  FalcoSecurityCenter
 } from "./pages/settings/security";
 
 function Router() {
@@ -101,59 +91,36 @@ function Router() {
         <Redirect to="/dashboard" />
       </Route>
       
-      {/* Main pages */}
+      {/* ━━━ 核心业务 ━━━ */}
       <Route path="/dashboard" component={Dashboard} />
       <Route path="/agents" component={Agents} />
       <Route path="/chat" component={AIChat} />
       <Route path="/docs" component={Documents} />
       
-      {/* Device Management - 设备管理 */}
+      {/* ━━━ 资产与数据 ━━━ */}
+      {/* 设备管理 */}
       <Route path="/device/list" component={DeviceList} />
       <Route path="/device/maintenance" component={DeviceList} />
       <Route path="/device/alerts" component={DeviceList} />
       <Route path="/device/kpi" component={DeviceList} />
       
-      {/* Knowledge - 知识库 */}
+      {/* 知识库 */}
       <Route path="/knowledge/manager" component={KnowledgeManager} />
       <Route path="/knowledge/graph" component={KnowledgeGraph} />
       <Route path="/knowledge/vectors" component={VectorAdmin} />
       
-      {/* Base data - 基础数据 */}
+      {/* 基础数据 */}
       <Route path="/base/rules" component={BaseRules} />
       <Route path="/base/library" component={BaseLibrary} />
       
-      {/* Data center - 数据中心 */}
+      {/* 数据中心 */}
       <Route path="/data/manage" component={DataManage} />
       <Route path="/data/label" component={DataLabel} />
       <Route path="/data/insight" component={DataInsight} />
       <Route path="/data/access" component={DataAccess} />
       <Route path="/data/standard" component={DataStandard} />
       
-      {/* Model center - 模型中心 */}
-      <Route path="/model/center" component={ModelCenter} />
-      <Route path="/model/inference" component={ModelInference} />
-      <Route path="/model/finetune" component={ModelFinetune} />
-      <Route path="/model/eval" component={ModelEval} />
-      <Route path="/model/repo" component={ModelRepo} />
-      
-      {/* Diagnosis - 智能诊断 */}
-      <Route path="/diagnosis/analysis" component={DiagAnalysis} />
-      <Route path="/diagnosis/report" component={DiagReport} />
-      <Route path="/diagnosis/knowledge" component={KnowledgeBase} />
-      
-      {/* Evolution - 进化引擎 */}
-      <Route path="/evolution/feedback" component={FeedbackCenter} />
-      <Route path="/evolution/learning" component={ActiveLearning} />
-      <Route path="/evolution/train" component={AutoTrain} />
-      <Route path="/evolution/board" component={EvolutionBoard} />
-      
-      {/* Edge Computing - 边缘计算 */}
-      <Route path="/edge/nodes" component={EdgeNodes} />
-      <Route path="/edge/inference" component={EdgeNodes} />
-      <Route path="/edge/gateway" component={EdgeNodes} />
-      <Route path="/edge/tsn" component={EdgeNodes} />
-
-      {/* Database - 数据库模块 v1.5 */}
+      {/* 数据库模块 v1.5 */}
       <Route path="/database">
         <Redirect to="/database/overview" />
       </Route>
@@ -166,30 +133,44 @@ function Router() {
       <Route path="/database/storage" component={StorageStatus} />
       <Route path="/database/workbench" component={DatabaseWorkbench} />
 
-      {/* ============================================ */}
-      {/* 平台管理 - 设计工具 */}
-      {/* ============================================ */}
+      {/* ━━━ 智能引擎 ━━━ */}
+      {/* 模型中心 */}
+      <Route path="/model/center" component={ModelCenter} />
+      <Route path="/model/inference" component={ModelInference} />
+      <Route path="/model/finetune" component={ModelFinetune} />
+      <Route path="/model/eval" component={ModelEval} />
+      <Route path="/model/repo" component={ModelRepo} />
+      
+      {/* 智能诊断 */}
+      <Route path="/diagnosis/analysis" component={DiagAnalysis} />
+      <Route path="/diagnosis/report" component={DiagReport} />
+      <Route path="/diagnosis/knowledge" component={KnowledgeBase} />
+      
+      {/* 进化引擎 */}
+      <Route path="/evolution/feedback" component={FeedbackCenter} />
+      <Route path="/evolution/learning" component={ActiveLearning} />
+      <Route path="/evolution/train" component={AutoTrain} />
+      <Route path="/evolution/board" component={EvolutionBoard} />
+      
+      {/* 边缘计算 - 4路由，组件内根据路径切换Tab */}
+      <Route path="/edge/nodes" component={EdgeNodes} />
+      <Route path="/edge/inference" component={EdgeNodes} />
+      <Route path="/edge/gateway" component={EdgeNodes} />
+      <Route path="/edge/tsn" component={EdgeNodes} />
+
+      {/* ━━━ 平台管理 ━━━ */}
+      {/* 设计工具 */}
       <Route path="/settings/design/pipeline" component={PipelineManager} />
       <Route path="/settings/design/pipeline/editor" component={PipelineEditor} />
-      <Route path="/settings/design/db-workbench" component={DatabaseWorkbench} />
       <Route path="/settings/design/datastream" component={DataStream} />
       <Route path="/settings/design/graph-query" component={GraphQueryManager} />
 
-      {/* ============================================ */}
-      {/* 平台管理 - 配置中心 */}
-      {/* ============================================ */}
+      {/* 配置中心 */}
       <Route path="/settings/config/infrastructure" component={Infrastructure} />
       <Route path="/settings/config/kafka" component={KafkaMonitor} />
-      <Route path="/settings/config/resources" component={ResourcesOverview} />
-      <Route path="/settings/config/db-management" component={DbManagement} />
 
-      {/* ============================================ */}
-      {/* 平台管理 - 状态监控 */}
-      {/* ============================================ */}
-      <Route path="/settings/status/plugins" component={PluginsManager} />
+      {/* 状态监控 */}
       <Route path="/settings/status/topology" component={SystemTopology} />
-      <Route path="/settings/status/engines" component={EnginesManager} />
-      <Route path="/settings/status/models" component={ModelsManager} />
       <Route path="/settings/status/observability" component={Observability} />
       <Route path="/settings/status/performance" component={PerformanceOverview} />
       <Route path="/settings/status/performance/outbox" component={OutboxManager} />
@@ -197,21 +178,14 @@ function Router() {
       <Route path="/settings/status/performance/sampling" component={AdaptiveSampling} />
       <Route path="/settings/status/performance/dedup" component={DeduplicationManager} />
       <Route path="/settings/status/performance/replica" component={ReadReplicaManager} />
-      <Route path="/settings/status/microservices" component={ServicesOverview} />
 
-      {/* ============================================ */}
-      {/* 平台管理 - 安全运维 */}
-      {/* ============================================ */}
+      {/* 安全运维 */}
       <Route path="/settings/security/ops" component={OpsDashboard} />
-      <Route path="/settings/security/monitoring" component={SmartMonitoring} />
-      <Route path="/settings/security/falco" component={FalcoMonitor} />
-      <Route path="/settings/security/scanner" component={SecurityScanner} />
-      <Route path="/settings/security/vault" component={VaultManager} />
-      <Route path="/settings/security/pki" component={PkiManager} />
+      <Route path="/settings/security/falco" component={FalcoSecurityCenter} />
 
-      {/* Settings redirect (backward compatibility) */}
+      {/* Settings redirect */}
       <Route path="/settings">
-        <Redirect to="/settings/config/resources" />
+        <Redirect to="/settings/security/ops" />
       </Route>
 
       {/* Legacy route redirects for backward compatibility */}
@@ -221,26 +195,60 @@ function Router() {
       <Route path="/pipeline/editor">
         <Redirect to="/settings/design/pipeline/editor" />
       </Route>
+      {/* 已删除页面的旧路由 → 重定向到最近的保留页面 */}
+      <Route path="/settings/design/db-workbench">
+        <Redirect to="/database/workbench" />
+      </Route>
+      <Route path="/settings/config/resources">
+        <Redirect to="/settings/config/infrastructure" />
+      </Route>
+      <Route path="/settings/config/db-management">
+        <Redirect to="/settings/config/infrastructure" />
+      </Route>
+      <Route path="/settings/status/plugins">
+        <Redirect to="/settings/status/topology" />
+      </Route>
+      <Route path="/settings/status/engines">
+        <Redirect to="/settings/status/topology" />
+      </Route>
+      <Route path="/settings/status/models">
+        <Redirect to="/settings/status/topology" />
+      </Route>
+      <Route path="/settings/status/microservices">
+        <Redirect to="/settings/status/topology" />
+      </Route>
+      <Route path="/settings/security/monitoring">
+        <Redirect to="/settings/security/ops" />
+      </Route>
+      <Route path="/settings/security/scanner">
+        <Redirect to="/settings/security/falco" />
+      </Route>
+      <Route path="/settings/security/vault">
+        <Redirect to="/settings/security/ops" />
+      </Route>
+      <Route path="/settings/security/pki">
+        <Redirect to="/settings/security/ops" />
+      </Route>
       <Route path="/security/falco">
         <Redirect to="/settings/security/falco" />
       </Route>
       <Route path="/security/scanner">
-        <Redirect to="/settings/security/scanner" />
+        <Redirect to="/settings/security/falco" />
       </Route>
       <Route path="/security/vault">
-        <Redirect to="/settings/security/vault" />
+        <Redirect to="/settings/security/ops" />
       </Route>
       <Route path="/security/pki">
-        <Redirect to="/settings/security/pki" />
+        <Redirect to="/settings/security/ops" />
       </Route>
       <Route path="/services/ingestion">
-        <Redirect to="/settings/status/microservices" />
+        <Redirect to="/settings/status/topology" />
       </Route>
       <Route path="/services/aggregator">
-        <Redirect to="/settings/status/microservices" />
+        <Redirect to="/settings/status/topology" />
       </Route>
       <Route path="/services/dispatcher">
-        <Redirect to="/settings/status/microservices" />
+        <Redirect to="/settings/status/topology" />
       </Route>
       <Route path="/services/performance">
         <Redirect to="/settings/status/performance" />
