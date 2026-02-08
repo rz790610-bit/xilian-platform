@@ -20,12 +20,6 @@ export const navigationConfig: NavItem[] = [
     path: '/chat'
   },
   {
-    id: 'pipeline',
-    label: 'Pipeline',
-    icon: '🔗',
-    path: '/pipeline'
-  },
-  {
     id: 'database-module',
     label: '数据库',
     icon: '🗄️',
@@ -116,17 +110,6 @@ export const navigationConfig: NavItem[] = [
     ]
   },
   {
-    id: 'security-center',
-    label: '安全中心',
-    icon: '🛡️',
-    children: [
-      { id: 'security-falco', label: 'Falco 监控', icon: '🔍', path: '/security/falco' },
-      { id: 'security-scanner', label: '安全扫描', icon: '🔬', path: '/security/scanner' },
-      { id: 'security-vault', label: '密钥管理', icon: '🔐', path: '/security/vault' },
-      { id: 'security-pki', label: 'PKI 证书', icon: '📜', path: '/security/pki' }
-    ]
-  },
-  {
     id: 'edge-computing',
     label: '边缘计算',
     icon: '🌐',
@@ -138,47 +121,66 @@ export const navigationConfig: NavItem[] = [
     ]
   },
   {
-    id: 'microservices',
-    label: '微服务',
-    icon: '🔗',
-    children: [
-      { id: 'service-ingestion', label: '数据摄入', icon: '📥', path: '/services/ingestion' },
-      { id: 'service-aggregator', label: '实时聚合', icon: '📊', path: '/services/aggregator' },
-      { id: 'service-dispatcher', label: '事件分发', icon: '📤', path: '/services/dispatcher' },
-      { id: 'service-performance', label: '性能模块', icon: '⚡', path: '/services/performance' }
-    ]
-  },
-  {
     id: 'settings',
     label: '系统设置',
     icon: '⚙️',
     children: [
-      { id: 'settings-resources', label: '资源总览', icon: '📊', path: '/settings/resources' },
-      { id: 'settings-databases', label: '数据库管理', icon: '🗄️', path: '/settings/databases' },
-      { id: 'settings-plugins', label: '插件管理', icon: '🧩', path: '/settings/plugins' },
-      { id: 'settings-engines', label: '引擎模块', icon: '🔧', path: '/settings/engines' },
-      { id: 'settings-topology', label: '系统拓扑', icon: '📊', path: '/settings/topology' },
-      { id: 'settings-datastream', label: '数据流监控', icon: '⚡', path: '/settings/datastream' },
-      { id: 'settings-kafka', label: 'Kafka 监控', icon: '📡', path: '/settings/kafka' },
-      { id: 'settings-infrastructure', label: '基础设施', icon: '🏛️', path: '/settings/infrastructure' },
-      { id: 'settings-observability', label: '可观测性', icon: '📊', path: '/settings/observability' },
-      { id: 'settings-ops', label: '运维管理', icon: '🛠️', path: '/settings/ops' },
-      { id: 'settings-monitoring', label: '智能监控', icon: '📱', path: '/settings/monitoring' },
-      { id: 'settings-models', label: '模型库', icon: '📦', path: '/settings/models' },
-      { id: 'settings-perf-overview', label: '性能总览', icon: '🚀', path: '/performance/overview' },
-      { id: 'settings-perf-outbox', label: 'Outbox发布器', icon: '📤', path: '/performance/outbox' },
-      { id: 'settings-perf-saga', label: 'Saga补偿', icon: '🔄', path: '/performance/saga' },
-      { id: 'settings-perf-sampling', label: '自适应采样', icon: '📉', path: '/performance/sampling' },
-      { id: 'settings-perf-dedup', label: '事件去重', icon: '🔒', path: '/performance/dedup' },
-      { id: 'settings-perf-replica', label: '读写分离', icon: '📊', path: '/performance/replica' },
-      { id: 'settings-perf-graph', label: '图查询优化', icon: '🗂️', path: '/performance/graph' }
+      {
+        id: 'settings-design-tools',
+        label: '设计工具',
+        icon: '🛠️',
+        children: [
+          { id: 'settings-pipeline', label: 'Pipeline 编排', icon: '🔗', path: '/settings/design/pipeline' },
+          { id: 'settings-db-workbench', label: '数据库工作台', icon: '🗄️', path: '/settings/design/db-workbench' },
+          { id: 'settings-datastream', label: '数据流监控', icon: '⚡', path: '/settings/design/datastream' },
+          { id: 'settings-graph-query', label: '图查询优化', icon: '🗂️', path: '/settings/design/graph-query' }
+        ]
+      },
+      {
+        id: 'settings-config',
+        label: '配置中心',
+        icon: '🔧',
+        children: [
+          { id: 'settings-infrastructure', label: '基础设施', icon: '🏛️', path: '/settings/config/infrastructure' },
+          { id: 'settings-kafka', label: 'Kafka 监控', icon: '📡', path: '/settings/config/kafka' },
+          { id: 'settings-resources', label: '资源总览', icon: '📊', path: '/settings/config/resources' },
+          { id: 'settings-db-management', label: '数据库管理', icon: '🗄️', path: '/settings/config/db-management' }
+        ]
+      },
+      {
+        id: 'settings-status',
+        label: '状态监控',
+        icon: '📊',
+        children: [
+          { id: 'settings-plugins', label: '插件管理', icon: '🧩', path: '/settings/status/plugins' },
+          { id: 'settings-topology', label: '系统拓扑', icon: '📊', path: '/settings/status/topology' },
+          { id: 'settings-engines', label: '引擎模块', icon: '🔧', path: '/settings/status/engines' },
+          { id: 'settings-models', label: '模型库', icon: '📦', path: '/settings/status/models' },
+          { id: 'settings-observability', label: '可观测性', icon: '📊', path: '/settings/status/observability' },
+          { id: 'settings-performance', label: '性能总览', icon: '🚀', path: '/settings/status/performance' },
+          { id: 'settings-microservices', label: '微服务监控', icon: '🔗', path: '/settings/status/microservices' }
+        ]
+      },
+      {
+        id: 'settings-security-ops',
+        label: '安全运维',
+        icon: '🛡️',
+        children: [
+          { id: 'settings-ops', label: '运维管理', icon: '🛠️', path: '/settings/security/ops' },
+          { id: 'settings-monitoring', label: '智能监控', icon: '📱', path: '/settings/security/monitoring' },
+          { id: 'settings-falco', label: 'Falco 监控', icon: '🔍', path: '/settings/security/falco' },
+          { id: 'settings-scanner', label: '安全扫描', icon: '🔬', path: '/settings/security/scanner' },
+          { id: 'settings-vault', label: '密钥管理', icon: '🔐', path: '/settings/security/vault' },
+          { id: 'settings-pki', label: 'PKI 证书', icon: '📜', path: '/settings/security/pki' }
+        ]
+      }
     ]
   }
 ];
 
 export const quickLinks = [
   { id: 'agents', label: '智能体诊断', icon: '🤖', path: '/agents' },
-  { id: 'pipeline', label: 'Pipeline', icon: '🔗', path: '/pipeline' },
+  { id: 'pipeline', label: 'Pipeline', icon: '🔗', path: '/settings/design/pipeline' },
   { id: 'ai-chat', label: 'AI对话', icon: '💬', path: '/chat' },
   { id: 'docs', label: '文档管理', icon: '📄', path: '/docs' }
 ];

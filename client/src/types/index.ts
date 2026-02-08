@@ -21,7 +21,8 @@ export interface NavSubItem {
   id: string;
   label: string;
   icon: string;
-  path: string;
+  path?: string;
+  children?: NavSubItem[];
 }
 
 // 智能体类型

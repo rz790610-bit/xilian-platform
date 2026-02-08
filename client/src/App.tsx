@@ -8,12 +8,10 @@ import { ToastProvider } from "./components/common/Toast";
 // Pages
 import Dashboard from "./pages/Dashboard";
 import Agents from "./pages/Agents";
-import Pipeline from "./pages/Pipeline";
 import AIChat from "./pages/AIChat";
 import Documents from "./pages/Documents";
 import DataManage from "./pages/DataManage";
 import ModelInference from "./pages/ModelInference";
-import Settings from "./pages/Settings";
 import DataLabel from "./pages/DataLabel";
 import DataInsight from "./pages/DataInsight";
 import DataAccess from "./pages/DataAccess";
@@ -36,30 +34,10 @@ import KnowledgeBase from "./pages/KnowledgeBase";
 import KnowledgeManager from "./pages/KnowledgeManager";
 import KnowledgeGraph from "./pages/KnowledgeGraph";
 import VectorAdmin from "./pages/VectorAdmin";
-import SystemTopology from "./pages/SystemTopology";
-import DataStream from "./pages/DataStream";
-import KafkaMonitor from "./pages/KafkaMonitor";
-import PipelineEditor from "./pages/PipelineEditor";
-import Infrastructure from "./pages/Infrastructure";
-import Observability from "./pages/Observability";
-import OpsDashboard from "./pages/OpsDashboard";
 
 // 新增模块页面
 import DeviceList from "./pages/device/DeviceList";
-import FalcoMonitor from "./pages/security/FalcoMonitor";
-import SecurityScanner from "./pages/security/SecurityScanner";
 import EdgeNodes from "./pages/edge/EdgeNodes";
-import ServiceMonitor from "./pages/services/ServiceMonitor";
-import SmartMonitoring from "./pages/settings/SmartMonitoring";
-
-// v1.9 性能优化模块页面
-import PerformanceOverview from "./pages/PerformanceOverview";
-import OutboxManager from "./pages/OutboxManager";
-import SagaManager from "./pages/SagaManager";
-import AdaptiveSampling from "./pages/AdaptiveSampling";
-import DeduplicationManager from "./pages/DeduplicationManager";
-import ReadReplicaManager from "./pages/ReadReplicaManager";
-import GraphQueryManager from "./pages/GraphQueryManager";
 
 // v1.5 数据库模块页面
 import {
@@ -73,8 +51,49 @@ import {
   DatabaseWorkbench
 } from "./pages/database";
 
+// 系统设置 - 设计工具
+import {
+  PipelineManager,
+  PipelineEditor,
+  DataStream,
+  GraphQueryManager
+} from "./pages/settings/design";
+
+// 系统设置 - 配置中心
+import {
+  Infrastructure,
+  KafkaMonitor,
+  ResourcesOverview,
+  DbManagement
+} from "./pages/settings/config";
+
+// 系统设置 - 状态监控
+import {
+  PluginsManager,
+  SystemTopology,
+  EnginesManager,
+  ModelsManager,
+  Observability,
+  PerformanceOverview,
+  OutboxManager,
+  SagaManager,
+  AdaptiveSampling,
+  DeduplicationManager,
+  ReadReplicaManager,
+  ServicesOverview
+} from "./pages/settings/status";
+
+// 系统设置 - 安全运维
+import {
+  OpsDashboard,
+  SmartMonitoring,
+  FalcoMonitor,
+  SecurityScanner,
+  VaultManager,
+  PkiManager
+} from "./pages/settings/security";
+
 function Router() {
-  // make sure to consider if you need authentication for certain routes
   return (
     <Switch>
       {/* Redirect root to dashboard */}
@@ -85,8 +104,6 @@ function Router() {
       {/* Main pages */}
       <Route path="/dashboard" component={Dashboard} />
       <Route path="/agents" component={Agents} />
-      <Route path="/pipeline" component={Pipeline} />
-      <Route path="/pipeline/editor" component={PipelineEditor} />
       <Route path="/chat" component={AIChat} />
       <Route path="/docs" component={Documents} />
       
@@ -105,48 +122,36 @@ function Router() {
       <Route path="/base/rules" component={BaseRules} />
       <Route path="/base/library" component={BaseLibrary} />
       
-      {/* Data center */}
+      {/* Data center - 数据中心 */}
       <Route path="/data/manage" component={DataManage} />
       <Route path="/data/label" component={DataLabel} />
       <Route path="/data/insight" component={DataInsight} />
       <Route path="/data/access" component={DataAccess} />
       <Route path="/data/standard" component={DataStandard} />
       
-      {/* Model center */}
+      {/* Model center - 模型中心 */}
       <Route path="/model/center" component={ModelCenter} />
       <Route path="/model/inference" component={ModelInference} />
       <Route path="/model/finetune" component={ModelFinetune} />
       <Route path="/model/eval" component={ModelEval} />
       <Route path="/model/repo" component={ModelRepo} />
       
-      {/* Diagnosis */}
+      {/* Diagnosis - 智能诊断 */}
       <Route path="/diagnosis/analysis" component={DiagAnalysis} />
       <Route path="/diagnosis/report" component={DiagReport} />
       <Route path="/diagnosis/knowledge" component={KnowledgeBase} />
       
-      {/* Evolution */}
+      {/* Evolution - 进化引擎 */}
       <Route path="/evolution/feedback" component={FeedbackCenter} />
       <Route path="/evolution/learning" component={ActiveLearning} />
       <Route path="/evolution/train" component={AutoTrain} />
       <Route path="/evolution/board" component={EvolutionBoard} />
-      
-      {/* Security Center - 安全中心 */}
-      <Route path="/security/falco" component={FalcoMonitor} />
-      <Route path="/security/scanner" component={SecurityScanner} />
-      <Route path="/security/vault" component={SecurityScanner} />
-      <Route path="/security/pki" component={SecurityScanner} />
       
       {/* Edge Computing - 边缘计算 */}
       <Route path="/edge/nodes" component={EdgeNodes} />
       <Route path="/edge/inference" component={EdgeNodes} />
       <Route path="/edge/gateway" component={EdgeNodes} />
       <Route path="/edge/tsn" component={EdgeNodes} />
-      
-      {/* Microservices - 微服务 */}
-      <Route path="/services/ingestion" component={ServiceMonitor} />
-      <Route path="/services/aggregator" component={ServiceMonitor} />
-      <Route path="/services/dispatcher" component={ServiceMonitor} />
-      <Route path="/services/performance" component={ServiceMonitor} />
 
       {/* Database - 数据库模块 v1.5 */}
       <Route path="/database">
@@ -161,39 +166,106 @@ function Router() {
       <Route path="/database/storage" component={StorageStatus} />
       <Route path="/database/workbench" component={DatabaseWorkbench} />
 
-      {/* Performance - 性能优化 v1.9 (保留原路径兼容 + 系统设置入口) */}
-      <Route path="/performance">
-        <Redirect to="/performance/overview" />
+      {/* ============================================ */}
+      {/* 系统设置 - 设计工具 */}
+      {/* ============================================ */}
+      <Route path="/settings/design/pipeline" component={PipelineManager} />
+      <Route path="/settings/design/pipeline/editor" component={PipelineEditor} />
+      <Route path="/settings/design/db-workbench" component={DatabaseWorkbench} />
+      <Route path="/settings/design/datastream" component={DataStream} />
+      <Route path="/settings/design/graph-query" component={GraphQueryManager} />
+
+      {/* ============================================ */}
+      {/* 系统设置 - 配置中心 */}
+      {/* ============================================ */}
+      <Route path="/settings/config/infrastructure" component={Infrastructure} />
+      <Route path="/settings/config/kafka" component={KafkaMonitor} />
+      <Route path="/settings/config/resources" component={ResourcesOverview} />
+      <Route path="/settings/config/db-management" component={DbManagement} />
+
+      {/* ============================================ */}
+      {/* 系统设置 - 状态监控 */}
+      {/* ============================================ */}
+      <Route path="/settings/status/plugins" component={PluginsManager} />
+      <Route path="/settings/status/topology" component={SystemTopology} />
+      <Route path="/settings/status/engines" component={EnginesManager} />
+      <Route path="/settings/status/models" component={ModelsManager} />
+      <Route path="/settings/status/observability" component={Observability} />
+      <Route path="/settings/status/performance" component={PerformanceOverview} />
+      <Route path="/settings/status/performance/outbox" component={OutboxManager} />
+      <Route path="/settings/status/performance/saga" component={SagaManager} />
+      <Route path="/settings/status/performance/sampling" component={AdaptiveSampling} />
+      <Route path="/settings/status/performance/dedup" component={DeduplicationManager} />
+      <Route path="/settings/status/performance/replica" component={ReadReplicaManager} />
+      <Route path="/settings/status/microservices" component={ServicesOverview} />
+
+      {/* ============================================ */}
+      {/* 系统设置 - 安全运维 */}
+      {/* ============================================ */}
+      <Route path="/settings/security/ops" component={OpsDashboard} />
+      <Route path="/settings/security/monitoring" component={SmartMonitoring} />
+      <Route path="/settings/security/falco" component={FalcoMonitor} />
+      <Route path="/settings/security/scanner" component={SecurityScanner} />
+      <Route path="/settings/security/vault" component={VaultManager} />
+      <Route path="/settings/security/pki" component={PkiManager} />
+
+      {/* Settings redirect */}
+      <Route path="/settings">
+        <Redirect to="/settings/config/resources" />
       </Route>
-      <Route path="/performance/overview" component={PerformanceOverview} />
-      <Route path="/performance/outbox" component={OutboxManager} />
-      <Route path="/performance/saga" component={SagaManager} />
-      <Route path="/performance/sampling" component={AdaptiveSampling} />
-      <Route path="/performance/dedup" component={DeduplicationManager} />
-      <Route path="/performance/replica" component={ReadReplicaManager} />
-      <Route path="/performance/graph" component={GraphQueryManager} />
-      <Route path="/settings/performance" component={PerformanceOverview} />
-      <Route path="/settings/performance/outbox" component={OutboxManager} />
-      <Route path="/settings/performance/saga" component={SagaManager} />
-      <Route path="/settings/performance/sampling" component={AdaptiveSampling} />
-      <Route path="/settings/performance/dedup" component={DeduplicationManager} />
-      <Route path="/settings/performance/replica" component={ReadReplicaManager} />
-      <Route path="/settings/performance/graph" component={GraphQueryManager} />
-      
-      {/* Settings */}
-      <Route path="/settings/resources" component={Settings} />
-      <Route path="/settings/databases" component={Settings} />
-      <Route path="/settings/plugins" component={Settings} />
-      <Route path="/settings/engines" component={Settings} />
-      <Route path="/settings/topology" component={SystemTopology} />
-      <Route path="/settings/datastream" component={DataStream} />
-      <Route path="/settings/kafka" component={KafkaMonitor} />
-      <Route path="/settings/infrastructure" component={Infrastructure} />
-      <Route path="/settings/observability" component={Observability} />
-      <Route path="/settings/ops" component={OpsDashboard} />
-      <Route path="/settings/monitoring" component={SmartMonitoring} />
-      <Route path="/settings/models" component={Settings} />
-      <Route path="/settings" component={Settings} />
+
+      {/* Legacy route redirects for backward compatibility */}
+      <Route path="/pipeline">
+        <Redirect to="/settings/design/pipeline" />
+      </Route>
+      <Route path="/pipeline/editor">
+        <Redirect to="/settings/design/pipeline/editor" />
+      </Route>
+      <Route path="/security/falco">
+        <Redirect to="/settings/security/falco" />
+      </Route>
+      <Route path="/security/scanner">
+        <Redirect to="/settings/security/scanner" />
+      </Route>
+      <Route path="/security/vault">
+        <Redirect to="/settings/security/vault" />
+      </Route>
+      <Route path="/security/pki">
+        <Redirect to="/settings/security/pki" />
+      </Route>
+      <Route path="/services/ingestion">
+        <Redirect to="/settings/status/microservices" />
+      </Route>
+      <Route path="/services/aggregator">
+        <Redirect to="/settings/status/microservices" />
+      </Route>
+      <Route path="/services/dispatcher">
+        <Redirect to="/settings/status/microservices" />
+      </Route>
+      <Route path="/services/performance">
+        <Redirect to="/settings/status/performance" />
+      </Route>
+      <Route path="/performance/overview">
+        <Redirect to="/settings/status/performance" />
+      </Route>
+      <Route path="/performance/outbox">
+        <Redirect to="/settings/status/performance/outbox" />
+      </Route>
+      <Route path="/performance/saga">
+        <Redirect to="/settings/status/performance/saga" />
+      </Route>
+      <Route path="/performance/sampling">
+        <Redirect to="/settings/status/performance/sampling" />
+      </Route>
+      <Route path="/performance/dedup">
+        <Redirect to="/settings/status/performance/dedup" />
+      </Route>
+      <Route path="/performance/replica">
+        <Redirect to="/settings/status/performance/replica" />
+      </Route>
+      <Route path="/performance/graph">
+        <Redirect to="/settings/design/graph-query" />
+      </Route>
       
       {/* 404 */}
       <Route path="/404" component={NotFound} />

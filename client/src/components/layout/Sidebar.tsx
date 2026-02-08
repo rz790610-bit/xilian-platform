@@ -3,6 +3,7 @@ import { useAppStore } from '@/stores/appStore';
 import { navigationConfig } from '@/config/navigation';
 import { ChevronRight } from 'lucide-react';
 import { useLocation } from 'wouter';
+import type { NavSubItem } from '@/types';
 
 export function Sidebar() {
   const { 
@@ -24,17 +25,29 @@ export function Sidebar() {
     }
   };
 
-  const handleSubNavClick = (parentId: string, subItem: { id: string; path: string }) => {
-    setCurrentPage(parentId);
-    setCurrentSubPage(subItem.id);
-    setLocation(subItem.path);
+  const handleSubNavClick = (parentId: string, subItem: NavSubItem) => {
+    if (subItem.children) {
+      toggleMenu(subItem.id);
+    } else if (subItem.path) {
+      setCurrentPage(parentId);
+      setCurrentSubPage(subItem.id);
+      setLocation(subItem.path);
+    }
+  };
+
+  const handleLeafClick = (parentId: string, leafItem: NavSubItem) => {
+    if (leafItem.path) {
+      setCurrentPage(parentId);
+      setCurrentSubPage(leafItem.id);
+      setLocation(leafItem.path);
+    }
   };
 
   return (
     <aside 
       className={cn(
         "fixed left-0 top-0 h-screen bg-gradient-to-b from-sidebar to-background border-r border-sidebar-border z-50 transition-all duration-300 flex flex-col",
-        sidebarCollapsed ? "w-[50px]" : "w-[180px]"
+        sidebarCollapsed ? "w-[50px]" : "w-[200px]"
       )}
     >
       {/* Brand */}
@@ -64,7 +77,7 @@ export function Sidebar() {
 
         {navigationConfig.map((item) => (
           <div key={item.id}>
-            {/* Main nav item */}
+            {/* Main nav item (Level 1) */}
             <div
               onClick={() => handleNavClick(item)}
               className={cn(
@@ -99,26 +112,62 @@ export function Sidebar() {
               )}
             </div>
 
-            {/* Sub menu */}
+            {/* Sub menu (Level 2) */}
             {item.children && !sidebarCollapsed && (
               <div 
                 className={cn(
                   "overflow-hidden transition-all duration-300 bg-black/20",
-                  expandedMenus.includes(item.id) ? "max-h-[300px]" : "max-h-0"
+                  expandedMenus.includes(item.id) ? "max-h-[800px]" : "max-h-0"
                 )}
               >
                 {item.children.map((subItem) => (
-                  <div
-                    key={subItem.id}
-                    onClick={() => handleSubNavClick(item.id, subItem)}
-                    className={cn(
-                      "flex items-center gap-1.5 py-1.5 px-3 pl-7 cursor-pointer transition-all duration-200 text-muted-foreground text-[10px]",
-                      "hover:text-foreground hover:bg-sidebar-accent",
-                      currentPage === item.id && useAppStore.getState().currentSubPage === subItem.id && "text-sidebar-primary bg-sidebar-primary/10"
+                  <div key={subItem.id}>
+                    {/* Level 2 item */}
+                    <div
+                      onClick={() => handleSubNavClick(item.id, subItem)}
+                      className={cn(
+                        "flex items-center gap-1.5 py-1.5 px-3 pl-7 cursor-pointer transition-all duration-200 text-muted-foreground text-[10px]",
+                        "hover:text-foreground hover:bg-sidebar-accent",
+                        subItem.children && "font-medium",
+                        !subItem.children && currentPage === item.id && useAppStore.getState().currentSubPage === subItem.id && "text-sidebar-primary bg-sidebar-primary/10"
+                      )}
+                    >
+                      <span className="text-[10px]">{subItem.icon}</span>
+                      <span>{subItem.label}</span>
+                      {subItem.children && (
+                        <ChevronRight 
+                          className={cn(
+                            "ml-auto w-2.5 h-2.5 text-muted-foreground transition-transform duration-300",
+                            expandedMenus.includes(subItem.id) && "rotate-90"
+                          )}
+                        />
+                      )}
+                    </div>
+
+                    {/* Level 3 items */}
+                    {subItem.children && (
+                      <div
+                        className={cn(
+                          "overflow-hidden transition-all duration-300 bg-black/10",
+                          expandedMenus.includes(subItem.id) ? "max-h-[500px]" : "max-h-0"
+                        )}
+                      >
+                        {subItem.children.map((leafItem) => (
+                          <div
+                            key={leafItem.id}
+                            onClick={() => handleLeafClick(item.id, leafItem)}
+                            className={cn(
+                              "flex items-center gap-1.5 py-1 px-3 pl-10 cursor-pointer transition-all duration-200 text-muted-foreground text-[9px]",
+                              "hover:text-foreground hover:bg-sidebar-accent",
+                              currentPage === item.id && useAppStore.getState().currentSubPage === leafItem.id && "text-sidebar-primary bg-sidebar-primary/10"
+                            )}
+                          >
+                            <span className="text-[9px]">{leafItem.icon}</span>
+                            <span>{leafItem.label}</span>
+                          </div>
+                        ))}
+                      </div>
                     )}
-                  >
-                    <span className="text-[10px]">{subItem.icon}</span>
-                    <span>{subItem.label}</span>
                   </div>
                 ))}
               </div>
