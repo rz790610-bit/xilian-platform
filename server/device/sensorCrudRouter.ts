@@ -6,7 +6,7 @@
 import { z } from 'zod';
 import { publicProcedure, protectedProcedure, router } from '../_core/trpc';
 import { getDb } from '../db';
-import { assetSensors } from '../../drizzle/schema'; // sensorReadings, sensorAggregates DEPRECATED
+import { assetSensors } from '../../drizzle/schema';
 import { eq, desc, and, or, like, inArray, sql, count, gte, lte } from 'drizzle-orm';
 
 const sensorTypeSchema = z.enum([
@@ -37,11 +37,11 @@ export const sensorCrudRouter = router({
       const conditions: any[] = [];
 
       if (params.deviceId) {
-        conditions.push(eq(assetSensors.deviceId, params.deviceId));
+        conditions.push(eq(assetSensors.deviceCode, params.deviceId));
       }
       if (params.type) {
         const types = Array.isArray(params.type) ? params.type : [params.type];
-        conditions.push(inArray(assetSensors.type, types));
+        conditions.push(inArray(assetSensors.physicalQuantity, types));
       }
       if (params.status) {
         const statuses = Array.isArray(params.status) ? params.status : [params.status];
@@ -112,7 +112,23 @@ export const sensorCrudRouter = router({
       const db = await getDb();
       if (!db) throw new Error('Database not available');
 
-      await db.insert(sensors).values(input as any);
+      await db.insert(assetSensors).values({
+        sensorId: input.sensorId,
+        deviceCode: input.deviceId,
+        mpId: input.sensorId,
+        name: input.name,
+        physicalQuantity: input.type,
+        unit: input.unit,
+        warningThreshold: input.warningThreshold,
+        criticalThreshold: input.criticalThreshold,
+        sampleRate: input.samplingRate,
+        status: 'active',
+        metadata: (input.minValue !== undefined || input.maxValue !== undefined)
+          ? JSON.stringify({ minValue: input.minValue, maxValue: input.maxValue })
+          : null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
       const result = await db.select().from(assetSensors)
         .where(eq(assetSensors.sensorId, input.sensorId))
         .limit(1);
@@ -160,7 +176,7 @@ export const sensorCrudRouter = router({
       const db = await getDb();
       if (!db) throw new Error('Database not available');
 
-      await db.delete(sensors).where(eq(assetSensors.sensorId, input.sensorId));
+      await db.delete(assetSensors).where(eq(assetSensors.sensorId, input.sensorId));
       return { success: true };
     }),
 
@@ -173,7 +189,7 @@ export const sensorCrudRouter = router({
       const db = await getDb();
       if (!db) return { total: 0, byType: {}, byStatus: {} };
 
-      const where = input?.deviceId ? eq(assetSensors.deviceId, input.deviceId) : undefined;
+      const where = input?.deviceId ? eq(assetSensors.deviceCode, input.deviceId) : undefined;
 
       const [totalResult, byStatusResult, byTypeResult] = await Promise.all([
         db.select({ count: count() }).from(assetSensors).where(where),
@@ -182,9 +198,9 @@ export const sensorCrudRouter = router({
           count: count(),
         }).from(assetSensors).where(where).groupBy(assetSensors.status),
         db.select({
-          type: assetSensors.type,
+          type: assetSensors.physicalQuantity,
           count: count(),
-        }).from(assetSensors).where(where).groupBy(assetSensors.type),
+        }).from(assetSensors).where(where).groupBy(assetSensors.physicalQuantity),
       ]);
 
       const byStatus: Record<string, number> = {};

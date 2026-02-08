@@ -14,10 +14,9 @@
 import { getDb } from '../../db';
 import { 
   users, 
-  devices, 
-  sensors, 
-  telemetryData, 
-  // dataAggregations - DEPRECATED
+  assetNodes,
+  assetSensors,
+  eventStore,
   deviceMaintenanceRecords,
   deviceSpareParts,
   deviceAlerts,
@@ -171,17 +170,23 @@ export class PostgresStorage {
     if (!db) return null;
 
     try {
-      const result = await db.insert(devices).values({
-        deviceId: device.deviceId,
+      const result = await db.insert(assetNodes).values({
+        nodeId: device.deviceId,
+        code: device.deviceId,
         name: device.name,
-        type: device.type as any,
-        model: device.model,
-        manufacturer: device.manufacturer,
+        level: 1,
+        nodeType: device.type || 'other',
+        rootNodeId: device.deviceId,
+        status: (device.status as string) || 'unknown',
+        path: `/${device.deviceId}`,
         serialNumber: device.serialNumber,
         location: device.location,
         installDate: device.installDate,
-        status: device.status as any,
-        metadata: device.metadata,
+        attributes: device.model || device.manufacturer
+          ? JSON.stringify({ model: device.model, manufacturer: device.manufacturer, metadata: device.metadata })
+          : device.metadata ? JSON.stringify(device.metadata) : null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
       }).$returningId();
 
       if (result[0]) {
@@ -203,7 +208,7 @@ export class PostgresStorage {
     if (!db) return null;
 
     try {
-      const result = await db.select().from(assetNodes).where(eq(assetNodes.deviceId, deviceId)).limit(1);
+      const result = await db.select().from(assetNodes).where(eq(assetNodes.nodeId, deviceId)).limit(1);
       return result[0] ? this.mapDeviceRecord(result[0]) : null;
     } catch (error) {
       console.error('[PostgreSQL] Get device error:', error);
@@ -233,10 +238,10 @@ export class PostgresStorage {
 
       await db.update(assetNodes)
         .set(updateData)
-        .where(eq(assetNodes.deviceId, deviceId));
+        .where(eq(assetNodes.nodeId, deviceId));
 
       // 重新查询更新后的记录
-      const updated = await db.select().from(assetNodes).where(eq(assetNodes.deviceId, deviceId)).limit(1);
+      const updated = await db.select().from(assetNodes).where(eq(assetNodes.nodeId, deviceId)).limit(1);
       return updated[0] ? this.mapDeviceRecord(updated[0]) : null;
     } catch (error) {
       console.error('[PostgreSQL] Update device error:', error);
@@ -252,7 +257,7 @@ export class PostgresStorage {
     if (!db) return false;
 
     try {
-      await db.delete(devices).where(eq(assetNodes.deviceId, deviceId));
+      await db.delete(assetNodes).where(eq(assetNodes.nodeId, deviceId));
       return true;
     } catch (error) {
       console.error('[PostgreSQL] Delete device error:', error);
@@ -282,12 +287,12 @@ export class PostgresStorage {
         conditions.push(eq(assetNodes.status, options.status as any));
       }
       if (options.type) {
-        conditions.push(eq(assetNodes.type, options.type as any));
+        conditions.push(eq(assetNodes.nodeType, options.type as any));
       }
       if (options.search) {
         const searchCondition = or(
           like(assetNodes.name, `%${options.search}%`),
-          like(assetNodes.deviceId, `%${options.search}%`)
+          like(assetNodes.nodeId, `%${options.search}%`)
         );
         if (searchCondition) {
           conditions.push(searchCondition);

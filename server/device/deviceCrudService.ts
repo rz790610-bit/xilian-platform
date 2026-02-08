@@ -215,26 +215,32 @@ export class DeviceCrudService {
       const existing = await db
         .select({ id: assetNodes.id })
         .from(assetNodes)
-        .where(eq(assetNodes.deviceId, input.deviceId))
+        .where(eq(assetNodes.nodeId, input.deviceId))
         .limit(1);
 
       if (existing.length > 0) {
         throw new Error(`Device with ID ${input.deviceId} already exists`);
       }
 
-      await db.insert(devices).values({
-        deviceId: input.deviceId,
+      await db.insert(assetNodes).values({
+        nodeId: input.deviceId,
+        code: input.deviceId,
         name: input.name,
-        type: input.type as any,
-        model: input.model,
-        manufacturer: input.manufacturer,
+        level: 1,
+        nodeType: input.type || 'other',
+        rootNodeId: input.deviceId,
+        status: 'unknown',
+        path: `/${input.deviceId}`,
         serialNumber: input.serialNumber,
         location: input.location,
         department: input.department,
-        status: 'unknown',
         installDate: input.installDate,
         warrantyExpiry: input.warrantyExpiry,
-        metadata: input.metadata,
+        attributes: input.model || input.manufacturer || input.metadata
+          ? JSON.stringify({ model: input.model, manufacturer: input.manufacturer, ...(input.metadata || {}) })
+          : null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
       });
 
       // 发布设备创建事件
@@ -289,7 +295,7 @@ export class DeviceCrudService {
       const result = await db
         .select()
         .from(assetNodes)
-        .where(eq(assetNodes.deviceId, deviceId))
+        .where(eq(assetNodes.nodeId, deviceId))
         .limit(1);
 
       if (result.length === 0) return null;
@@ -300,7 +306,7 @@ export class DeviceCrudService {
       const sensorCountResult = await db
         .select({ count: count() })
         .from(assetSensors)
-        .where(eq(assetSensors.deviceId, deviceId));
+        .where(eq(assetSensors.deviceCode, deviceId));
 
       return {
         id: d.id,
@@ -389,12 +395,12 @@ export class DeviceCrudService {
       if (deviceIds.length > 0) {
         const sensorCountResults = await db
           .select({
-            deviceId: assetSensors.deviceId,
+            deviceId: assetSensors.deviceCode,
             count: count(),
           })
           .from(assetSensors)
-          .where(inArray(assetSensors.deviceId, deviceIds))
-          .groupBy(assetSensors.deviceId);
+          .where(inArray(assetSensors.deviceCode, deviceIds))
+          .groupBy(assetSensors.deviceCode);
 
         for (const sc of sensorCountResults) {
           sensorCounts.set(sc.deviceId, sc.count);
@@ -484,7 +490,7 @@ export class DeviceCrudService {
       conditions.push(
         or(
           like(assetNodes.name, `%${filter.search}%`),
-          like(assetNodes.deviceId, `%${filter.search}%`),
+          like(assetNodes.nodeId, `%${filter.search}%`),
           like(assetNodes.serialNumber, `%${filter.search}%`)
         )
       );
@@ -557,7 +563,7 @@ export class DeviceCrudService {
       await db
         .update(assetNodes)
         .set(updateData)
-        .where(eq(assetNodes.deviceId, deviceId));
+        .where(eq(assetNodes.nodeId, deviceId));
 
       // 发布设备更新事件
       await eventBus.publish(
@@ -618,10 +624,10 @@ export class DeviceCrudService {
       }
 
       // 删除关联的传感器
-      await db.delete(sensors).where(eq(assetSensors.deviceId, deviceId));
+      await db.delete(assetSensors).where(eq(assetSensors.deviceCode, deviceId));
 
       // 删除设备
-      await db.delete(devices).where(eq(assetNodes.deviceId, deviceId));
+      await db.delete(assetNodes).where(eq(assetNodes.nodeId, deviceId));
 
       // 发布设备删除事件
       await eventBus.publish(
@@ -684,7 +690,7 @@ export class DeviceCrudService {
       await db
         .update(assetNodes)
         .set(updateData)
-        .where(eq(assetNodes.deviceId, deviceId));
+        .where(eq(assetNodes.nodeId, deviceId));
 
       // 发布状态变更事件
       await eventBus.publish(
@@ -874,7 +880,7 @@ export class DeviceCrudService {
           count: count(),
         })
         .from(assetSensors)
-        .where(eq(assetSensors.deviceId, deviceId))
+        .where(eq(assetSensors.deviceCode, deviceId))
         .groupBy(assetSensors.status);
 
       const sensorStatus = {

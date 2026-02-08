@@ -6,11 +6,10 @@
 import { eventBus, TOPICS, Event } from './eventBus';
 import { getDb } from './db';
 import { 
-  sensors, 
-  sensorReadings, 
-  sensorAggregates, 
+  assetNodes,
+  assetSensors, 
+  eventStore,
   anomalyDetections,
-  devices 
 } from '../drizzle/schema';
 import { eq, desc, and, gte, sql } from 'drizzle-orm';
 
@@ -430,13 +429,21 @@ class StreamProcessor {
       const db = await getDb();
       if (!db) return;
       
-      await db.insert(sensorReadings).values({
-        sensorId,
-        deviceId,
-        value: String(value),
-        numericValue: Math.round(value * 100), // 存储为整数（乘100）
-        quality: 'good',
-        timestamp,
+      await db.insert(eventStore).values({
+        eventId: `evt_sr_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        eventType: 'sensor_reading',
+        eventVersion: 1,
+        aggregateType: 'sensor',
+        aggregateId: sensorId,
+        aggregateVersion: Date.now(),
+        payload: JSON.stringify({
+          sensorId,
+          deviceId,
+          value: Math.round(value * 100),
+          quality: 'good',
+        }),
+        occurredAt: timestamp,
+        recordedAt: new Date(),
       });
     } catch (error) {
       console.error('[StreamProcessor] Failed to persist reading:', error);
@@ -454,7 +461,7 @@ class StreamProcessor {
       await db.insert(anomalyDetections).values({
         detectionId: `anom_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
         sensorId: result.sensorId,
-        deviceId: result.deviceId,
+        nodeId: result.deviceId,
         algorithmType: result.algorithmType,
         windowSize: 60,
         threshold: 300, // 3.0 * 100
@@ -479,17 +486,27 @@ class StreamProcessor {
       const db = await getDb();
       if (!db) return;
       
-      await db.insert(sensorAggregates).values({
-        sensorId: result.sensorId,
-        deviceId: result.deviceId,
-        period: result.period,
-        periodStart: result.periodStart,
-        avgValue: Math.round(result.avg * 100),
-        minValue: Math.round(result.min * 100),
-        maxValue: Math.round(result.max * 100),
-        sumValue: Math.round(result.sum * 100),
-        count: result.count,
-        stdDev: Math.round(result.stdDev * 100),
+      await db.insert(eventStore).values({
+        eventId: `evt_agg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        eventType: 'aggregation_result',
+        eventVersion: 1,
+        aggregateType: 'sensor',
+        aggregateId: result.sensorId,
+        aggregateVersion: Date.now(),
+        payload: JSON.stringify({
+          sensorId: result.sensorId,
+          deviceId: result.deviceId,
+          period: result.period,
+          periodStart: result.periodStart.toISOString(),
+          avg: result.avg,
+          min: result.min,
+          max: result.max,
+          sum: result.sum,
+          count: result.count,
+          stdDev: result.stdDev,
+        }),
+        occurredAt: result.periodStart,
+        recordedAt: new Date(),
       });
     } catch (error) {
       console.error('[StreamProcessor] Failed to save aggregate:', error);
@@ -505,12 +522,12 @@ class StreamProcessor {
       if (!db) return null;
       
       const result = await db
-        .select({ deviceId: assetSensors.deviceId })
+        .select({ deviceCode: assetSensors.deviceCode })
         .from(assetSensors)
         .where(eq(assetSensors.sensorId, sensorId))
         .limit(1);
       
-      return result[0]?.deviceId || null;
+      return result[0]?.deviceCode || null;
     } catch (error) {
       return null;
     }

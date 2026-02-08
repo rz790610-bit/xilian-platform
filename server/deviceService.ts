@@ -1,14 +1,19 @@
 /**
  * 设备管理和传感器数据流服务
  * 包含设备台账管理、传感器配置、数据模拟等功能
+ * 
+ * [已迁移] 所有数据操作已统一到 v1.5 数据模型：
+ *   - devices → asset_nodes
+ *   - sensors → asset_sensors
+ *   - sensor_readings → event_store (event_type='sensor_reading')
+ *   - sensor_aggregates → event_store (event_type='aggregation_result')
  */
 
 import { getDb } from './db';
 import { 
-  devices, 
-  sensors, 
-  sensorReadings, 
-  sensorAggregates 
+  assetNodes, 
+  assetSensors, 
+  eventStore,
 } from '../drizzle/schema';
 import { eq, desc, and, gte, lte, sql, count } from 'drizzle-orm';
 import { eventBus, TOPICS } from './eventBus';
@@ -16,17 +21,18 @@ import { streamProcessor } from './streamProcessor';
 
 // ============ 类型定义 ============
 
-/** @deprecated Use AssetNode from drizzle/schema.ts instead */
 export type DeviceInfo = {
   deviceId: string;
   name: string;
   type: string;
   location?: string;
   model?: string;
+  manufacturer?: string;
   status: string;
+  sensorCount?: number;
+  lastHeartbeat?: Date;
 };
 
-/** @deprecated Use AssetSensor from drizzle/schema.ts instead */
 export type SensorInfo = {
   sensorId: string;
   deviceId: string;
@@ -34,6 +40,8 @@ export type SensorInfo = {
   type: string;
   unit?: string;
   status: string;
+  lastValue?: number | null;
+  lastReadingAt?: Date | null;
 };
 
 // ============ 数据模拟器 ============
@@ -90,7 +98,7 @@ class DataSimulator {
   }>): void {
     this.simulatedDevices.set(deviceId, {
       deviceId,
-      sensors: assetSensors.map(s => ({
+      sensors: sensors.map(s => ({
         ...s,
         trend: s.trend || 0,
       })),
@@ -181,11 +189,18 @@ class DataSimulator {
 
 export const dataSimulator = new DataSimulator();
 
+// ============ 辅助函数 ============
+
+/** 生成唯一事件 ID */
+function generateEventId(): string {
+  return `evt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+}
+
 // ============ 设备管理服务 ============
 
 class DeviceService {
   /**
-   * 创建设备
+   * 创建设备（写入 asset_nodes）
    */
   async createDevice(data: {
     deviceId: string;
@@ -201,16 +216,24 @@ class DeviceService {
       const db = await getDb();
       if (!db) return null;
 
-      await db.insert(devices).values({
-        deviceId: data.deviceId,
+      const now = new Date();
+      await db.insert(assetNodes).values({
+        nodeId: data.deviceId,
+        code: data.deviceId,
         name: data.name,
-        type: data.type as any,
-        model: data.model,
-        manufacturer: data.manufacturer,
+        level: 1,
+        nodeType: data.type,
+        rootNodeId: data.deviceId,
+        status: 'unknown',
+        path: `/${data.deviceId}`,
         serialNumber: data.serialNumber,
         location: data.location,
         department: data.department,
-        status: 'unknown',
+        attributes: data.model || data.manufacturer
+          ? JSON.stringify({ model: data.model, manufacturer: data.manufacturer })
+          : null,
+        createdAt: now,
+        updatedAt: now,
       });
 
       return {
@@ -229,7 +252,7 @@ class DeviceService {
   }
 
   /**
-   * 获取设备列表
+   * 获取设备列表（从 asset_nodes 查询）
    */
   async listDevices(options: {
     type?: string;
@@ -243,10 +266,10 @@ class DeviceService {
 
       const conditions = [];
       if (options.type) {
-        conditions.push(eq(assetNodes.type, options.type as any));
+        conditions.push(eq(assetNodes.nodeType, options.type));
       }
       if (options.status) {
-        conditions.push(eq(assetNodes.status, options.status as any));
+        conditions.push(eq(assetNodes.status, options.status));
       }
 
       const query = db
@@ -263,16 +286,19 @@ class DeviceService {
 
       const results = await query;
 
-      return results.map(d => ({
-        deviceId: d.deviceId,
-        name: d.name,
-        type: d.type,
-        model: d.model || undefined,
-        manufacturer: d.manufacturer || undefined,
-        location: d.location || undefined,
-        status: d.status,
-        lastHeartbeat: d.lastHeartbeat || undefined,
-      }));
+      return results.map(d => {
+        const attrs = d.attributes ? (typeof d.attributes === 'string' ? JSON.parse(d.attributes) : d.attributes) : {};
+        return {
+          deviceId: d.nodeId,
+          name: d.name,
+          type: d.nodeType,
+          model: attrs?.model || undefined,
+          manufacturer: attrs?.manufacturer || undefined,
+          location: d.location || undefined,
+          status: d.status,
+          lastHeartbeat: d.lastHeartbeat || undefined,
+        };
+      });
     } catch (error) {
       console.error('[DeviceService] List devices failed:', error);
       return [];
@@ -280,7 +306,7 @@ class DeviceService {
   }
 
   /**
-   * 获取设备详情
+   * 获取设备详情（从 asset_nodes 查询）
    */
   async getDevice(deviceId: string): Promise<DeviceInfo | null> {
     try {
@@ -290,7 +316,7 @@ class DeviceService {
       const result = await db
         .select()
         .from(assetNodes)
-        .where(eq(assetNodes.deviceId, deviceId))
+        .where(eq(assetNodes.nodeId, deviceId))
         .limit(1);
 
       if (result.length === 0) return null;
@@ -301,14 +327,16 @@ class DeviceService {
       const sensorCountResult = await db
         .select({ count: count() })
         .from(assetSensors)
-        .where(eq(assetSensors.deviceId, deviceId));
+        .where(eq(assetSensors.deviceCode, deviceId));
+
+      const attrs = d.attributes ? (typeof d.attributes === 'string' ? JSON.parse(d.attributes) : d.attributes) : {};
 
       return {
-        deviceId: d.deviceId,
+        deviceId: d.nodeId,
         name: d.name,
-        type: d.type,
-        model: d.model || undefined,
-        manufacturer: d.manufacturer || undefined,
+        type: d.nodeType,
+        model: attrs?.model || undefined,
+        manufacturer: attrs?.manufacturer || undefined,
         location: d.location || undefined,
         status: d.status,
         sensorCount: sensorCountResult[0]?.count || 0,
@@ -321,7 +349,7 @@ class DeviceService {
   }
 
   /**
-   * 更新设备状态
+   * 更新设备状态（更新 asset_nodes）
    */
   async updateDeviceStatus(
     deviceId: string,
@@ -338,7 +366,7 @@ class DeviceService {
           lastHeartbeat: status === 'online' ? new Date() : undefined,
           updatedAt: new Date(),
         })
-        .where(eq(assetNodes.deviceId, deviceId));
+        .where(eq(assetNodes.nodeId, deviceId));
 
       // 发布状态变更事件
       await eventBus.publish(
@@ -356,14 +384,14 @@ class DeviceService {
   }
 
   /**
-   * 删除设备
+   * 删除设备（从 asset_nodes 删除）
    */
   async deleteDevice(deviceId: string): Promise<boolean> {
     try {
       const db = await getDb();
       if (!db) return false;
 
-      await db.delete(devices).where(eq(assetNodes.deviceId, deviceId));
+      await db.delete(assetNodes).where(eq(assetNodes.nodeId, deviceId));
       return true;
     } catch (error) {
       console.error('[DeviceService] Delete device failed:', error);
@@ -376,7 +404,7 @@ class DeviceService {
 
 class SensorService {
   /**
-   * 创建传感器
+   * 创建传感器（写入 asset_sensors）
    */
   async createSensor(data: {
     sensorId: string;
@@ -394,18 +422,23 @@ class SensorService {
       const db = await getDb();
       if (!db) return null;
 
-      await db.insert(sensors).values({
+      const now = new Date();
+      await db.insert(assetSensors).values({
         sensorId: data.sensorId,
-        deviceId: data.deviceId,
+        deviceCode: data.deviceId,
+        mpId: data.sensorId, // 测点ID默认与传感器ID一致
         name: data.name,
-        type: data.type as any,
+        physicalQuantity: data.type,
         unit: data.unit,
-        minValue: data.minValue,
-        maxValue: data.maxValue,
         warningThreshold: data.warningThreshold,
         criticalThreshold: data.criticalThreshold,
-        samplingRate: data.samplingRate || 1000,
+        sampleRate: data.samplingRate || 1000,
         status: 'active',
+        metadata: (data.minValue !== undefined || data.maxValue !== undefined)
+          ? JSON.stringify({ minValue: data.minValue, maxValue: data.maxValue })
+          : null,
+        createdAt: now,
+        updatedAt: now,
       });
 
       return {
@@ -423,7 +456,7 @@ class SensorService {
   }
 
   /**
-   * 获取设备的传感器列表
+   * 获取设备的传感器列表（从 asset_sensors 查询）
    */
   async listSensors(deviceId?: string): Promise<SensorInfo[]> {
     try {
@@ -436,16 +469,16 @@ class SensorService {
         .orderBy(desc(assetSensors.updatedAt));
 
       if (deviceId) {
-        query.where(eq(assetSensors.deviceId, deviceId));
+        query.where(eq(assetSensors.deviceCode, deviceId));
       }
 
       const results = await query;
 
       return results.map(s => ({
         sensorId: s.sensorId,
-        deviceId: s.deviceId,
-        name: s.name,
-        type: s.type,
+        deviceId: s.deviceCode,
+        name: s.name || '',
+        type: s.physicalQuantity || '',
         unit: s.unit || undefined,
         status: s.status,
         lastValue: s.lastValue || undefined,
@@ -458,7 +491,7 @@ class SensorService {
   }
 
   /**
-   * 获取传感器最近读数
+   * 获取传感器最近读数（从 event_store 查询 sensor_reading 事件）
    */
   async getRecentReadings(
     sensorId: string,
@@ -470,18 +503,27 @@ class SensorService {
 
       const results = await db
         .select({
-          value: sensorReadings.numericValue,
-          timestamp: sensorReadings.timestamp,
+          payload: eventStore.payload,
+          occurredAt: eventStore.occurredAt,
         })
-        .from(assetSensors) // TODO: migrate from sensorReadings
-        .where(eq(sensorReadings.sensorId, sensorId))
-        .orderBy(desc(sensorReadings.timestamp))
+        .from(eventStore)
+        .where(
+          and(
+            eq(eventStore.aggregateType, 'sensor'),
+            eq(eventStore.aggregateId, sensorId),
+            eq(eventStore.eventType, 'sensor_reading'),
+          )
+        )
+        .orderBy(desc(eventStore.occurredAt))
         .limit(limit);
 
-      return results.map(r => ({
-        value: (r.value || 0) / 100,
-        timestamp: r.timestamp,
-      }));
+      return results.map(r => {
+        const payload = typeof r.payload === 'string' ? JSON.parse(r.payload) : r.payload;
+        return {
+          value: (payload?.numericValue || payload?.value || 0) / 100,
+          timestamp: r.occurredAt,
+        };
+      });
     } catch (error) {
       console.error('[SensorService] Get readings failed:', error);
       return [];
@@ -489,7 +531,7 @@ class SensorService {
   }
 
   /**
-   * 获取传感器聚合数据
+   * 获取传感器聚合数据（从 event_store 查询 aggregation_result 事件）
    */
   async getAggregates(
     sensorId: string,
@@ -508,31 +550,42 @@ class SensorService {
       if (!db) return [];
 
       const conditions = [
-        eq(sensorAggregates.sensorId, sensorId),
-        eq(sensorAggregates.period, period),
+        eq(eventStore.aggregateType, 'sensor'),
+        eq(eventStore.aggregateId, sensorId),
+        eq(eventStore.eventType, 'aggregation_result'),
       ];
 
       if (startTime) {
-        conditions.push(gte(sensorAggregates.periodStart, startTime));
+        conditions.push(gte(eventStore.occurredAt, startTime));
       }
       if (endTime) {
-        conditions.push(lte(sensorAggregates.periodStart, endTime));
+        conditions.push(lte(eventStore.occurredAt, endTime));
       }
 
       const results = await db
-        .select()
-        .from(assetSensors) // TODO: migrate from sensorAggregates
+        .select({
+          payload: eventStore.payload,
+          occurredAt: eventStore.occurredAt,
+        })
+        .from(eventStore)
         .where(and(...conditions))
-        .orderBy(desc(sensorAggregates.periodStart))
+        .orderBy(desc(eventStore.occurredAt))
         .limit(1000);
 
-      return results.map(r => ({
-        periodStart: r.periodStart,
-        avg: (r.avgValue || 0) / 100,
-        min: (r.minValue || 0) / 100,
-        max: (r.maxValue || 0) / 100,
-        count: r.count,
-      }));
+      return results
+        .map(r => {
+          const payload = typeof r.payload === 'string' ? JSON.parse(r.payload) : r.payload;
+          // 仅返回匹配 period 的聚合结果
+          if (payload?.period && payload.period !== period) return null;
+          return {
+            periodStart: r.occurredAt,
+            avg: payload?.avg || 0,
+            min: payload?.min || 0,
+            max: payload?.max || 0,
+            count: payload?.count || 0,
+          };
+        })
+        .filter((r): r is NonNullable<typeof r> => r !== null);
     } catch (error) {
       console.error('[SensorService] Get aggregates failed:', error);
       return [];
@@ -550,7 +603,7 @@ class SensorService {
       await db
         .update(assetSensors)
         .set({
-          lastValue: String(value),
+          lastValue: value,
           lastReadingAt: new Date(),
           updatedAt: new Date(),
         })
@@ -561,14 +614,14 @@ class SensorService {
   }
 
   /**
-   * 删除传感器
+   * 删除传感器（从 asset_sensors 删除）
    */
   async deleteSensor(sensorId: string): Promise<boolean> {
     try {
       const db = await getDb();
       if (!db) return false;
 
-      await db.delete(sensors).where(eq(assetSensors.sensorId, sensorId));
+      await db.delete(assetSensors).where(eq(assetSensors.sensorId, sensorId));
       return true;
     } catch (error) {
       console.error('[SensorService] Delete sensor failed:', error);

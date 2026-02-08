@@ -1,11 +1,15 @@
 /**
  * 基于 Kafka Streams 模式的实时流处理器
  * 实现滑动窗口异常检测、数据聚合等流处理功能
+ * 
+ * [已迁移] 聚合数据存储已统一到 event_store：
+ *   - dataAggregations → event_store (event_type='aggregation_result')
+ *   - telemetryData → event_store (event_type='sensor_reading')
  */
 
 import { kafkaClient, KAFKA_TOPICS, KafkaMessage, MessageHandler } from './kafkaClient';
 import { getDb } from '../db';
-import { anomalyDetections } from '../../drizzle/schema'; // dataAggregations, telemetryData DEPRECATED
+import { anomalyDetections, eventStore } from '../../drizzle/schema';
 import { eq, desc, and, gte, lte, sql } from 'drizzle-orm';
 
 // 流处理配置
@@ -69,6 +73,11 @@ interface AggregationResult {
   stdDev: number;
 }
 
+/** 生成唯一事件 ID */
+function generateEventId(): string {
+  return `evt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+}
+
 /**
  * Kafka Streams 风格的流处理器
  */
@@ -81,6 +90,7 @@ export class KafkaStreamProcessor {
   private aggregationTimer: NodeJS.Timeout | null = null;
   private anomalyHandlers: ((result: AnomalyResult) => void)[] = [];
   private aggregationHandlers: ((result: AggregationResult) => void)[] = [];
+  private aggregateVersionCounter: number = 0;
 
   constructor(config: Partial<StreamProcessorConfig> = {}) {
     this.config = { ...DEFAULT_CONFIG, ...config };
@@ -290,13 +300,13 @@ export class KafkaStreamProcessor {
   private async handleAnomaly(result: AnomalyResult): Promise<void> {
     console.log(`[KafkaStreamProcessor] 检测到异常: ${result.deviceId}/${result.sensorId} Z-Score=${result.zScore.toFixed(2)}`);
 
-    // 保存到数据库
+    // 保存到数据库（anomaly_detections 表，nodeId 字段对应 deviceId）
     try {
       const database = await getDb();
       if (database) {
         await database.insert(anomalyDetections).values({
           detectionId: `det_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-          deviceId: result.deviceId,
+          nodeId: result.deviceId,
           sensorId: result.sensorId,
           algorithmType: 'zscore',
           windowSize: 60,
@@ -338,7 +348,7 @@ export class KafkaStreamProcessor {
   }
 
   /**
-   * 刷新聚合数据
+   * 刷新聚合数据（写入 event_store）
    */
   private async flushAggregations(): Promise<void> {
     const now = Date.now();
@@ -374,23 +384,33 @@ export class KafkaStreamProcessor {
         stdDev,
       };
 
-      // 保存到数据库
+      // 保存到 event_store
       try {
         const database = await getDb();
         if (database) {
-          await database.insert(dataAggregations).values({
-            deviceId,
-            sensorId,
-            metricName,
-            windowStart: new Date(windowStart),
-            windowEnd: new Date(windowEnd),
-            count,
-            sum,
-            min,
-            max,
-            avg,
-            stdDev,
-            createdAt: new Date(),
+          this.aggregateVersionCounter++;
+          await database.insert(eventStore).values({
+            eventId: generateEventId(),
+            eventType: 'aggregation_result',
+            eventVersion: 1,
+            aggregateType: 'sensor',
+            aggregateId: sensorId,
+            aggregateVersion: this.aggregateVersionCounter,
+            payload: JSON.stringify({
+              deviceId,
+              sensorId,
+              metricName,
+              windowStart: new Date(windowStart).toISOString(),
+              windowEnd: new Date(windowEnd).toISOString(),
+              count,
+              sum,
+              min,
+              max,
+              avg,
+              stdDev,
+            }),
+            occurredAt: new Date(windowStart),
+            recordedAt: new Date(),
           });
         }
       } catch (error) {
@@ -485,7 +505,7 @@ export class KafkaStreamProcessor {
   }
 
   /**
-   * 查询历史异常
+   * 查询历史异常（从 anomaly_detections 查询）
    */
   async queryAnomalies(options: {
     deviceId?: string;
@@ -500,7 +520,7 @@ export class KafkaStreamProcessor {
 
     const conditions = [];
     if (options.deviceId) {
-      conditions.push(eq(anomalyDetections.deviceId, options.deviceId));
+      conditions.push(eq(anomalyDetections.nodeId, options.deviceId));
     }
     if (options.sensorId) {
       conditions.push(eq(anomalyDetections.sensorId, options.sensorId));
@@ -525,7 +545,7 @@ export class KafkaStreamProcessor {
   }
 
   /**
-   * 查询聚合数据
+   * 查询聚合数据（从 event_store 查询 aggregation_result 事件）
    */
   async queryAggregations(options: {
     deviceId?: string;
@@ -538,30 +558,45 @@ export class KafkaStreamProcessor {
     const database = await getDb();
     if (!database) return [];
 
-    const conditions = [];
-    if (options.deviceId) {
-      conditions.push(eq(dataAggregations.deviceId, options.deviceId));
-    }
+    const conditions = [
+      eq(eventStore.aggregateType, 'sensor'),
+      eq(eventStore.eventType, 'aggregation_result'),
+    ];
+
     if (options.sensorId) {
-      conditions.push(eq(dataAggregations.sensorId, options.sensorId));
-    }
-    if (options.metricName) {
-      conditions.push(eq(dataAggregations.metricName, options.metricName));
+      conditions.push(eq(eventStore.aggregateId, options.sensorId));
     }
     if (options.startTime) {
-      conditions.push(gte(dataAggregations.windowStart, new Date(options.startTime)));
+      conditions.push(gte(eventStore.occurredAt, new Date(options.startTime)));
     }
     if (options.endTime) {
-      conditions.push(lte(dataAggregations.windowEnd, new Date(options.endTime)));
+      conditions.push(lte(eventStore.occurredAt, new Date(options.endTime)));
     }
 
-    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+    const whereClause = and(...conditions);
 
-    return database.select()
-      .from(assetSensors) // TODO: migrate from dataAggregations
+    const results = await database.select()
+      .from(eventStore)
       .where(whereClause)
-      .orderBy(desc(dataAggregations.windowEnd))
+      .orderBy(desc(eventStore.occurredAt))
       .limit(options.limit || 100);
+
+    // 解析 payload 并过滤 deviceId / metricName
+    return results
+      .map(r => {
+        const payload = typeof r.payload === 'string' ? JSON.parse(r.payload as string) : r.payload;
+        return {
+          ...payload,
+          id: r.id,
+          eventId: r.eventId,
+          occurredAt: r.occurredAt,
+        };
+      })
+      .filter(r => {
+        if (options.deviceId && r.deviceId !== options.deviceId) return false;
+        if (options.metricName && r.metricName !== options.metricName) return false;
+        return true;
+      });
   }
 }
 
