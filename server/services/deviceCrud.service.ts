@@ -460,9 +460,9 @@ export class DeviceCrudService {
 
     if (filter.type) {
       if (Array.isArray(filter.type)) {
-        conditions.push(inArray(assetNodes.type, filter.type as any[]));
+        conditions.push(inArray(assetNodes.nodeType, filter.type as any[]));
       } else {
-        conditions.push(eq(assetNodes.type, filter.type as any));
+        conditions.push(eq(assetNodes.nodeType, filter.type as any));
       }
     }
 
@@ -483,7 +483,7 @@ export class DeviceCrudService {
     }
 
     if (filter.manufacturer) {
-      conditions.push(eq(assetNodes.manufacturer, filter.manufacturer));
+      conditions.push(sql`JSON_EXTRACT(attributes, '$.manufacturer') = ${filter.manufacturer}`);
     }
 
     if (filter.search) {
@@ -781,11 +781,11 @@ export class DeviceCrudService {
       // 按类型统计
       const typeResults = await db
         .select({
-          type: assetNodes.type,
+          type: assetNodes.nodeType,
           count: count(),
         })
         .from(assetNodes)
-        .groupBy(assetNodes.type);
+        .groupBy(assetNodes.nodeType);
 
       const byType: Record<string, number> = {};
       for (const r of typeResults) {
