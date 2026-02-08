@@ -1,11 +1,14 @@
 /**
  * PortAI Nexus - 运维中心
  * 
- * 合并原 OpsDashboard (7 Tab, ops.* Mock) + SmartMonitoring (5 Tab, monitoring.* 真实)
+ * 5-Tab 运维概览：集群 / 存储 / 数据流 / 网关 / 安全
  * 
- * 数据源:
- *   - trpc.ops.*: Mock 数据 (集群/存储/数据流/网关/安全/自动化/边缘)
- *   - trpc.monitoring.*: 真实数据 (系统/数据库/插件/引擎/服务)
+ * 数据源融合策略：
+ *   集群 Tab: ops.getClusterOverview (K8s Mock) + monitoring.getRealDashboard (真实 CPU/内存/磁盘)
+ *   存储 Tab: ops.getStorageOverview (6 数据库 Mock) + monitoring.getDashboard.databases (真实状态) + monitoring.executeDatabaseAction
+ *   数据流 Tab: ops.getDataFlowOverview (Kafka/Flink Mock) + monitoring.getDashboard.plugins/engines (真实状态) + monitoring.togglePlugin/controlEngine
+ *   网关 Tab: ops.getApiGatewayOverview (Kong/Istio Mock) + monitoring.getDashboard.services (真实健康检查)
+ *   安全 Tab: ops.getSecurityPosture (Falco/Trivy/Vault Mock) + monitoring.getDashboard.alerts (真实告警) + monitoring.acknowledgeAlert
  * 
  * 后端依赖: ops.router.ts + monitoring.router.ts (均保留不动)
  * 数据库依赖: monitoring 连接真实 MySQL/Redis/ClickHouse/Qdrant
@@ -19,7 +22,6 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Progress } from '@/components/ui/progress';
-import { Switch } from '@/components/ui/switch';
 import {
   Dialog,
   DialogContent,
@@ -42,7 +44,6 @@ import {
   Cloud,
   Cpu,
   Database,
-  Download,
   Globe,
   HardDrive,
   Layers,
@@ -50,23 +51,18 @@ import {
   Network,
   Play,
   Plug,
-  Power,
-  PowerOff,
   RefreshCw,
-  RotateCcw,
   Router,
   Server,
   Settings,
   Shield,
   Square,
-  Trash2,
-  Wifi,
-  XCircle,
   Zap,
+  XCircle,
 } from 'lucide-react';
 
 export default function OpsDashboard() {
-  const [activeTab, setActiveTab] = useState('monitor-overview');
+  const [activeTab, setActiveTab] = useState('cluster');
   const [refreshing, setRefreshing] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState<{
     open: boolean;
@@ -75,44 +71,19 @@ export default function OpsDashboard() {
     action: () => void;
   }>({ open: false, title: '', description: '', action: () => {} });
 
-  // ━━━ ops.* Mock 数据查询 ━━━
+  // ━━━ ops.* 查询 (5 个基础设施 Tab 的 Mock 数据) ━━━
   const { data: clusterData, refetch: refetchCluster } = trpc.ops.getClusterOverview.useQuery();
   const { data: storageData, refetch: refetchStorage } = trpc.ops.getStorageOverview.useQuery();
   const { data: dataflowData, refetch: refetchDataflow } = trpc.ops.getDataFlowOverview.useQuery();
   const { data: gatewayData, refetch: refetchGateway } = trpc.ops.getApiGatewayOverview.useQuery();
   const { data: securityData, refetch: refetchSecurity } = trpc.ops.getSecurityPosture.useQuery();
-  const { data: scalingPolicies } = trpc.ops.listScalingPolicies.useQuery();
-  const { data: healingRules } = trpc.ops.listHealingRules.useQuery();
-  const { data: backupPolicies } = trpc.ops.listBackupPolicies.useQuery();
-  const { data: rollbackPolicies } = trpc.ops.listRollbackPolicies.useQuery();
-  const { data: edgeNodes } = trpc.ops.listEdgeNodes.useQuery();
-  const { data: edgeModels } = trpc.ops.listEdgeModels.useQuery();
-  const { data: edgeGateways } = trpc.ops.listEdgeGateways.useQuery();
 
-  // ━━━ monitoring.* 真实数据查询 ━━━
+  // ━━━ monitoring.* 查询 (真实数据，嵌入各 Tab) ━━━
   const { data: dashboard, refetch: refetchDashboard } = trpc.monitoring.getDashboard.useQuery(undefined, {
     refetchInterval: 30000
   });
   const { data: realData, refetch: refetchReal } = trpc.monitoring.getRealDashboard.useQuery(undefined, {
     refetchInterval: 15000
-  });
-
-  // ━━━ ops.* Mutations ━━━
-  const triggerScalingMutation = trpc.ops.triggerScaling.useMutation({
-    onSuccess: () => { toast.success('扩缩容操作已触发'); },
-    onError: (error) => { toast.error(`操作失败: ${error.message}`); }
-  });
-  const triggerHealingMutation = trpc.ops.triggerHealing.useMutation({
-    onSuccess: () => { toast.success('自愈操作已触发'); },
-    onError: (error) => { toast.error(`操作失败: ${error.message}`); }
-  });
-  const triggerBackupMutation = trpc.ops.triggerBackup.useMutation({
-    onSuccess: () => { toast.success('备份操作已触发'); },
-    onError: (error) => { toast.error(`操作失败: ${error.message}`); }
-  });
-  const triggerRollbackMutation = trpc.ops.triggerRollback.useMutation({
-    onSuccess: () => { toast.success('回滚操作已触发'); },
-    onError: (error) => { toast.error(`操作失败: ${error.message}`); }
   });
 
   // ━━━ monitoring.* Mutations (真实操作) ━━━
@@ -200,24 +171,11 @@ export default function OpsDashboard() {
   };
 
   // ━━━ 工具函数 ━━━
-  const formatBytes = (bytes: number) => {
-    if (bytes >= 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
-    if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-    if (bytes >= 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${bytes} B`;
-  };
-
   const formatNumber = (num: number) => {
     if (num >= 1000000000) return `${(num / 1000000000).toFixed(1)}B`;
     if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
     if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
     return num.toString();
-  };
-
-  const formatUptime = (seconds: number) => {
-    const days = Math.floor(seconds / 86400);
-    const hours = Math.floor((seconds % 86400) / 3600);
-    return `${days}天 ${hours}小时`;
   };
 
   const getStatusColor = (status: string) => {
@@ -279,26 +237,7 @@ export default function OpsDashboard() {
           </div>
         </div>
 
-        {/* 真实系统状态提示 */}
-        {realData && (
-          <Card className="bg-gradient-to-r from-green-500/10 to-blue-500/10 border-green-500/30">
-            <CardContent className="pt-4">
-              <div className="flex items-center gap-4">
-                <CheckCircle className="w-6 h-6 text-green-400" />
-                <div>
-                  <p className="font-medium">真实系统监控已连接</p>
-                  <p className="text-sm text-muted-foreground">
-                    MySQL: {realData.databases.find(d => d.name === 'MySQL')?.status || '未知'} | 
-                    CPU: {realData.system.cpu.usage.toFixed(1)}% | 
-                    内存: {realData.system.memory.usagePercent.toFixed(1)}%
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* 概览卡片 - 合并 ops + monitoring */}
+        {/* 概览卡片 - 合并 ops + monitoring 关键指标 */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -324,33 +263,22 @@ export default function OpsDashboard() {
               <div className="text-2xl font-bold">
                 {dashboard?.summary.onlineDatabases || 0}/{dashboard?.summary.totalDatabases || 0}
               </div>
-              <p className="text-xs text-green-400">在线</p>
+              <p className="text-xs text-green-400">在线（真实）</p>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">插件</CardTitle>
-              <Plug className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {dashboard?.summary.activePlugins || 0}/{dashboard?.summary.totalPlugins || 0}
-              </div>
-              <p className="text-xs text-green-400">活跃</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">引擎</CardTitle>
+              <CardTitle className="text-sm font-medium">CPU / 内存</CardTitle>
               <Cpu className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {dashboard?.summary.runningEngines || 0}/{dashboard?.summary.totalEngines || 0}
+                {realData?.system.cpu.usage.toFixed(0) || dashboard?.summary.cpuUsage?.toFixed(0) || 0}%
               </div>
-              <p className="text-xs text-green-400">运行中</p>
+              <p className="text-xs text-muted-foreground">
+                内存 {realData?.system.memory.usagePercent.toFixed(0) || dashboard?.summary.memoryUsage?.toFixed(0) || 0}%
+              </p>
             </CardContent>
           </Card>
 
@@ -369,6 +297,19 @@ export default function OpsDashboard() {
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">插件/引擎</CardTitle>
+              <Plug className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {dashboard?.summary.activePlugins || 0}/{dashboard?.summary.runningEngines || 0}
+              </div>
+              <p className="text-xs text-green-400">活跃/运行</p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">告警</CardTitle>
               <Bell className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
@@ -376,463 +317,98 @@ export default function OpsDashboard() {
               <div className="text-2xl font-bold text-yellow-500">
                 {dashboard?.summary.activeAlerts || 0}
               </div>
-              <p className="text-xs text-muted-foreground">待处理</p>
+              <p className="text-xs text-red-400">
+                {dashboard?.summary.criticalAlerts || 0} 严重
+              </p>
             </CardContent>
           </Card>
         </div>
 
-        {/* ━━━ 主内容 Tabs ━━━ */}
+        {/* ━━━ 5-Tab 主内容 ━━━ */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          {/* 分组 Tab 导航 */}
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <span className="font-medium">实时监控</span>
-              <span>|</span>
-              <span className="font-medium">基础设施</span>
-              <span>|</span>
-              <span className="font-medium">运维自动化</span>
-            </div>
-            <TabsList className="grid w-full grid-cols-6 lg:grid-cols-12">
-              {/* 实时监控组 (来自 SmartMonitoring 真实数据) */}
-              <TabsTrigger value="monitor-overview" className="text-xs">
-                <Activity className="w-3 h-3 mr-1" />系统
-              </TabsTrigger>
-              <TabsTrigger value="monitor-databases" className="text-xs">
-                <Database className="w-3 h-3 mr-1" />数据库
-              </TabsTrigger>
-              <TabsTrigger value="monitor-plugins" className="text-xs">
-                <Plug className="w-3 h-3 mr-1" />插件
-              </TabsTrigger>
-              <TabsTrigger value="monitor-engines" className="text-xs">
-                <Cpu className="w-3 h-3 mr-1" />引擎
-              </TabsTrigger>
-              <TabsTrigger value="monitor-services" className="text-xs">
-                <Server className="w-3 h-3 mr-1" />服务
-              </TabsTrigger>
-              {/* 基础设施组 (来自 ops Mock 数据) */}
-              <TabsTrigger value="cluster" className="text-xs">
-                <Layers className="w-3 h-3 mr-1" />集群
-              </TabsTrigger>
-              <TabsTrigger value="storage" className="text-xs">
-                <HardDrive className="w-3 h-3 mr-1" />存储
-              </TabsTrigger>
-              <TabsTrigger value="dataflow" className="text-xs">
-                <Activity className="w-3 h-3 mr-1" />数据流
-              </TabsTrigger>
-              <TabsTrigger value="gateway" className="text-xs">
-                <Globe className="w-3 h-3 mr-1" />网关
-              </TabsTrigger>
-              <TabsTrigger value="security" className="text-xs">
-                <Shield className="w-3 h-3 mr-1" />安全
-              </TabsTrigger>
-              {/* 运维自动化组 */}
-              <TabsTrigger value="automation" className="text-xs">
-                <Settings className="w-3 h-3 mr-1" />自动化
-              </TabsTrigger>
-              <TabsTrigger value="edge" className="text-xs">
-                <Router className="w-3 h-3 mr-1" />边缘
-              </TabsTrigger>
-            </TabsList>
-          </div>
+          <TabsList className="grid w-full grid-cols-5">
+            <TabsTrigger value="cluster" className="flex items-center gap-1">
+              <Layers className="w-4 h-4" />集群
+            </TabsTrigger>
+            <TabsTrigger value="storage" className="flex items-center gap-1">
+              <HardDrive className="w-4 h-4" />存储
+            </TabsTrigger>
+            <TabsTrigger value="dataflow" className="flex items-center gap-1">
+              <Activity className="w-4 h-4" />数据流
+            </TabsTrigger>
+            <TabsTrigger value="gateway" className="flex items-center gap-1">
+              <Globe className="w-4 h-4" />网关
+            </TabsTrigger>
+            <TabsTrigger value="security" className="flex items-center gap-1">
+              <Shield className="w-4 h-4" />安全
+            </TabsTrigger>
+          </TabsList>
 
           {/* ════════════════════════════════════════════════════════════ */}
-          {/* 实时监控组 - 来自 SmartMonitoring (monitoring.* 真实数据)    */}
+          {/* 集群 Tab: ops.getClusterOverview + monitoring 真实系统资源   */}
           {/* ════════════════════════════════════════════════════════════ */}
-
-          {/* 系统概览 Tab */}
-          <TabsContent value="monitor-overview" className="space-y-4">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {/* CPU - 使用真实数据 */}
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Cpu className="w-5 h-5 text-blue-400" />
-                    CPU 使用率
-                    {realData && <Badge variant="outline" className="ml-2 text-xs">真实数据</Badge>}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span>使用率</span>
-                      <span>{(realData?.system.cpu.usage || dashboard?.system.cpu.usage || 0).toFixed(1)}%</span>
-                    </div>
-                    <Progress value={realData?.system.cpu.usage || dashboard?.system.cpu.usage || 0} className="h-2" />
-                    <div className="grid grid-cols-3 gap-2 text-xs text-muted-foreground mt-2">
-                      <div>核心数: {realData?.system.cpu.cores || dashboard?.system.cpu.cores}</div>
-                      <div>1分钟负载: {(realData?.system.cpu.loadAvg[0] || dashboard?.system.cpu.loadAvg[0] || 0).toFixed(2)}</div>
-                      <div>5分钟负载: {(realData?.system.cpu.loadAvg[1] || dashboard?.system.cpu.loadAvg[1] || 0).toFixed(2)}</div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* 内存 - 使用真实数据 */}
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <MemoryStick className="w-5 h-5 text-purple-400" />
-                    内存使用率
-                    {realData && <Badge variant="outline" className="ml-2 text-xs">真实数据</Badge>}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span>使用率</span>
-                      <span>{(realData?.system.memory.usagePercent || dashboard?.system.memory.usagePercent || 0).toFixed(1)}%</span>
-                    </div>
-                    <Progress value={realData?.system.memory.usagePercent || dashboard?.system.memory.usagePercent || 0} className="h-2" />
-                    <div className="grid grid-cols-3 gap-2 text-xs text-muted-foreground mt-2">
-                      <div>已用: {((realData?.system.memory.usedMB || dashboard?.system.memory.usedMB || 0) / 1024).toFixed(1)} GB</div>
-                      <div>总量: {((realData?.system.memory.totalMB || dashboard?.system.memory.totalMB || 0) / 1024).toFixed(1)} GB</div>
-                      <div>空闲: {(((realData?.system.memory.totalMB || 0) - (realData?.system.memory.usedMB || 0)) / 1024).toFixed(1)} GB</div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* 磁盘 */}
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <HardDrive className="w-5 h-5 text-green-400" />
-                    磁盘使用率
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span>使用率</span>
-                      <span>{(dashboard?.system.disk.usagePercent || 0).toFixed(1)}%</span>
-                    </div>
-                    <Progress value={dashboard?.system.disk.usagePercent || 0} className="h-2" />
-                    <div className="grid grid-cols-3 gap-2 text-xs text-muted-foreground mt-2">
-                      <div>已用: {dashboard?.system.disk.usedGB} GB</div>
-                      <div>读取: {(dashboard?.system.disk.readMBps || 0).toFixed(1)} MB/s</div>
-                      <div>写入: {(dashboard?.system.disk.writeMBps || 0).toFixed(1)} MB/s</div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* 网络 */}
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Wifi className="w-5 h-5 text-orange-400" />
-                    网络信息
-                    {realData && <Badge variant="outline" className="ml-2 text-xs">真实数据</Badge>}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2">
-                    <div className="text-sm">
-                      <span className="text-muted-foreground">主机名: </span>
-                      <span className="font-medium">{typeof window !== 'undefined' ? window.location.hostname : 'localhost'}</span>
-                    </div>
-                    <div className="text-sm">
-                      <span className="text-muted-foreground">Node.js: </span>
-                      <span className="font-medium">{process.env.NODE_ENV || 'production'}</span>
-                    </div>
-                    <div className="text-sm">
-                      <span className="text-muted-foreground">进程运行时间: </span>
-                      <span className="font-medium">{formatUptime(realData?.system.process.uptime || 0)}</span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-
-          {/* 数据库监控 Tab - 真实操作 */}
-          <TabsContent value="monitor-databases" className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {dashboard?.databases.map((db) => (
-                <Card key={db.name} className="relative overflow-hidden">
-                  <div className={`absolute top-0 left-0 w-1 h-full ${getStatusColor(db.status)}`} />
-                  <CardHeader className="pb-2">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-base flex items-center gap-2">
-                        <Database className="w-5 h-5" />
-                        {db.name}
-                      </CardTitle>
-                      {getStatusBadge(db.status)}
-                    </div>
-                    <CardDescription>v{db.version} | {db.host}:{db.port}</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <div>
-                      <div className="flex justify-between text-sm mb-1">
-                        <span>连接数</span>
-                        <span>{db.connections.active}/{db.connections.max}</span>
-                      </div>
-                      <Progress value={(db.connections.active / db.connections.max) * 100} className="h-1.5" />
-                    </div>
-                    <div>
-                      <div className="flex justify-between text-sm mb-1">
-                        <span>存储</span>
-                        <span>{formatBytes(db.storage.usedBytes)} / {formatBytes(db.storage.totalBytes)}</span>
-                      </div>
-                      <Progress value={db.storage.usagePercent} className="h-1.5" />
-                    </div>
-                    <div className="grid grid-cols-3 gap-2 text-xs text-muted-foreground pt-2 border-t">
-                      <div className="text-center">
-                        <div className="font-medium text-foreground">{db.performance.queryLatencyMs.toFixed(1)}ms</div>
-                        <div>延迟</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="font-medium text-foreground">{db.performance.throughputQps}</div>
-                        <div>QPS</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="font-medium text-foreground">{formatUptime(db.uptime)}</div>
-                        <div>运行时间</div>
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap gap-2 pt-2 border-t">
-                      <Button variant="outline" size="sm" onClick={() => handleDatabaseAction(db.name, 'backup')} disabled={databaseActionMutation.isPending}>
-                        <Download className="w-3 h-3 mr-1" />备份
-                      </Button>
-                      <Button variant="outline" size="sm" onClick={() => handleDatabaseAction(db.name, 'optimize')} disabled={databaseActionMutation.isPending}>
-                        <Zap className="w-3 h-3 mr-1" />优化
-                      </Button>
-                      <Button variant="outline" size="sm" onClick={() => handleDatabaseAction(db.name, 'flush')} disabled={databaseActionMutation.isPending}>
-                        <RefreshCw className="w-3 h-3 mr-1" />刷新
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </TabsContent>
-
-          {/* 插件管理 Tab - 真实操作 */}
-          <TabsContent value="monitor-plugins" className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {dashboard?.plugins.map((plugin) => (
-                <Card key={plugin.id} className="relative overflow-hidden">
-                  <div className={`absolute top-0 left-0 w-1 h-full ${getStatusColor(plugin.status)}`} />
-                  <CardHeader className="pb-2">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-base flex items-center gap-2">
-                        <Plug className="w-5 h-5" />
-                        {plugin.name}
-                      </CardTitle>
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline">{plugin.type}</Badge>
-                        {getStatusBadge(plugin.status)}
-                      </div>
-                    </div>
-                    <CardDescription>{plugin.description}</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <div className="grid grid-cols-3 gap-2">
-                      <div className="text-center p-2 bg-muted/50 rounded">
-                        <div className="text-sm font-medium">{plugin.resources.cpuPercent.toFixed(1)}%</div>
-                        <div className="text-xs text-muted-foreground">CPU</div>
-                      </div>
-                      <div className="text-center p-2 bg-muted/50 rounded">
-                        <div className="text-sm font-medium">{plugin.resources.memoryMB} MB</div>
-                        <div className="text-xs text-muted-foreground">内存</div>
-                      </div>
-                      <div className="text-center p-2 bg-muted/50 rounded">
-                        <div className="text-sm font-medium">{plugin.resources.diskMB} MB</div>
-                        <div className="text-xs text-muted-foreground">磁盘</div>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-3 gap-2 text-xs text-muted-foreground pt-2 border-t">
-                      <div className="text-center">
-                        <div className="font-medium text-foreground">{plugin.metrics.invocations.toLocaleString()}</div>
-                        <div>调用次数</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="font-medium text-foreground">{plugin.metrics.successRate.toFixed(1)}%</div>
-                        <div>成功率</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="font-medium text-foreground">{plugin.metrics.avgLatencyMs.toFixed(1)}ms</div>
-                        <div>平均延迟</div>
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap gap-2 pt-2 border-t">
-                      {plugin.status === 'active' ? (
-                        <Button variant="outline" size="sm" onClick={() => handlePluginAction(plugin.id, plugin.name, 'disable')} disabled={togglePluginMutation.isPending}>
-                          <PowerOff className="w-3 h-3 mr-1" />禁用
-                        </Button>
-                      ) : (
-                        <Button variant="outline" size="sm" onClick={() => handlePluginAction(plugin.id, plugin.name, 'enable')} disabled={togglePluginMutation.isPending}>
-                          <Power className="w-3 h-3 mr-1" />启用
-                        </Button>
-                      )}
-                      <Button variant="outline" size="sm" onClick={() => handlePluginAction(plugin.id, plugin.name, 'restart')} disabled={togglePluginMutation.isPending}>
-                        <RotateCcw className="w-3 h-3 mr-1" />重启
-                      </Button>
-                      {plugin.type !== 'builtin' && (
-                        <Button variant="outline" size="sm" className="text-red-400 hover:text-red-300" onClick={() => handlePluginUninstall(plugin.id, plugin.name)} disabled={uninstallPluginMutation.isPending}>
-                          <Trash2 className="w-3 h-3 mr-1" />卸载
-                        </Button>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </TabsContent>
-
-          {/* 引擎管理 Tab - 真实操作 */}
-          <TabsContent value="monitor-engines" className="space-y-4">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {dashboard?.engines.map((engine) => (
-                <Card key={engine.id} className="relative overflow-hidden">
-                  <div className={`absolute top-0 left-0 w-1 h-full ${getStatusColor(engine.status)}`} />
-                  <CardHeader className="pb-2">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-base flex items-center gap-2">
-                        <Cpu className="w-5 h-5" />
-                        {engine.name}
-                      </CardTitle>
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline">{engine.instances} 实例</Badge>
-                        {getStatusBadge(engine.status)}
-                      </div>
-                    </div>
-                    <CardDescription>v{engine.version} | 类型: {engine.type}</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
-                      <div className="text-center p-2 bg-muted/50 rounded">
-                        <div className="text-sm font-medium">{engine.resources.cpuPercent.toFixed(1)}%</div>
-                        <div className="text-xs text-muted-foreground">CPU</div>
-                      </div>
-                      <div className="text-center p-2 bg-muted/50 rounded">
-                        <div className="text-sm font-medium">{(engine.resources.memoryMB / 1024).toFixed(1)} GB</div>
-                        <div className="text-xs text-muted-foreground">内存</div>
-                      </div>
-                      {engine.resources.gpuPercent !== undefined && (
-                        <>
-                          <div className="text-center p-2 bg-muted/50 rounded">
-                            <div className="text-sm font-medium">{engine.resources.gpuPercent.toFixed(1)}%</div>
-                            <div className="text-xs text-muted-foreground">GPU</div>
-                          </div>
-                          <div className="text-center p-2 bg-muted/50 rounded">
-                            <div className="text-sm font-medium">{((engine.resources.gpuMemoryMB || 0) / 1024).toFixed(1)} GB</div>
-                            <div className="text-xs text-muted-foreground">GPU内存</div>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                    <div className="grid grid-cols-4 gap-2 text-xs text-muted-foreground pt-2 border-t">
-                      <div className="text-center">
-                        <div className="font-medium text-foreground">{engine.performance.requestsPerSecond}</div>
-                        <div>RPS</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="font-medium text-foreground">{engine.performance.avgLatencyMs.toFixed(0)}ms</div>
-                        <div>平均延迟</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="font-medium text-foreground">{engine.performance.p99LatencyMs.toFixed(0)}ms</div>
-                        <div>P99延迟</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="font-medium text-foreground">{(engine.performance.errorRate * 100).toFixed(2)}%</div>
-                        <div>错误率</div>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-3 gap-2 text-xs pt-2 border-t">
-                      <div className="text-center p-2 bg-yellow-500/10 rounded">
-                        <div className="font-medium text-yellow-400">{engine.queue.pending}</div>
-                        <div className="text-muted-foreground">等待中</div>
-                      </div>
-                      <div className="text-center p-2 bg-blue-500/10 rounded">
-                        <div className="font-medium text-blue-400">{engine.queue.processing}</div>
-                        <div className="text-muted-foreground">处理中</div>
-                      </div>
-                      <div className="text-center p-2 bg-green-500/10 rounded">
-                        <div className="font-medium text-green-400">{engine.queue.completed.toLocaleString()}</div>
-                        <div className="text-muted-foreground">已完成</div>
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap gap-2 pt-2 border-t">
-                      {engine.status === 'running' ? (
-                        <Button variant="outline" size="sm" onClick={() => handleEngineAction(engine.id, engine.name, 'stop')} disabled={controlEngineMutation.isPending}>
-                          <Square className="w-3 h-3 mr-1" />停止
-                        </Button>
-                      ) : (
-                        <Button variant="outline" size="sm" onClick={() => handleEngineAction(engine.id, engine.name, 'start')} disabled={controlEngineMutation.isPending}>
-                          <Play className="w-3 h-3 mr-1" />启动
-                        </Button>
-                      )}
-                      <Button variant="outline" size="sm" onClick={() => handleEngineAction(engine.id, engine.name, 'restart')} disabled={controlEngineMutation.isPending}>
-                        <RotateCcw className="w-3 h-3 mr-1" />重启
-                      </Button>
-                      <Button variant="outline" size="sm">
-                        <Settings className="w-3 h-3 mr-1" />配置
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </TabsContent>
-
-          {/* 服务健康 Tab */}
-          <TabsContent value="monitor-services" className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {dashboard?.services.map((service) => (
-                <Card key={service.name} className="relative overflow-hidden">
-                  <div className={`absolute top-0 left-0 w-1 h-full ${getStatusColor(service.status)}`} />
-                  <CardHeader className="pb-2">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-base flex items-center gap-2">
-                        <Server className="w-5 h-5" />
-                        {service.name}
-                      </CardTitle>
-                      {getStatusBadge(service.status)}
-                    </div>
-                    <CardDescription>{service.endpoint}</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-muted-foreground">响应时间</span>
-                      <span className="font-medium">{service.responseTimeMs.toFixed(1)}ms</span>
-                    </div>
-                    <div className="space-y-1">
-                      {(service.checks || []).map((check, idx) => (
-                        <div key={idx} className="flex items-center justify-between text-xs">
-                          <span className="flex items-center gap-1">
-                            {check.status === 'pass' ? (
-                              <CheckCircle className="w-3 h-3 text-green-400" />
-                            ) : check.status === 'warn' ? (
-                              <AlertTriangle className="w-3 h-3 text-yellow-400" />
-                            ) : (
-                              <XCircle className="w-3 h-3 text-red-400" />
-                            )}
-                            {check.name}
-                          </span>
-                          <span className="text-muted-foreground">{check.message}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </TabsContent>
-
-          {/* ════════════════════════════════════════════════════════════ */}
-          {/* 基础设施组 - 来自原 OpsDashboard (ops.* Mock 数据)          */}
-          {/* ════════════════════════════════════════════════════════════ */}
-
-          {/* 集群概览 Tab */}
           <TabsContent value="cluster" className="space-y-4">
+            {/* 真实系统资源 (来自 monitoring) */}
+            {realData && (
+              <Card className="border-blue-500/30">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Activity className="w-5 h-5 text-blue-400" />
+                    真实系统资源
+                    <Badge variant="outline" className="text-blue-400 text-xs">实时</Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span className="flex items-center gap-1"><Cpu className="h-3 w-3" /> CPU</span>
+                        <span className="font-medium">{realData.system.cpu.usage.toFixed(1)}%</span>
+                      </div>
+                      <Progress value={realData.system.cpu.usage} />
+                      <p className="text-xs text-muted-foreground">{realData.system.cpu.cores} 核</p>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span className="flex items-center gap-1"><MemoryStick className="h-3 w-3" /> 内存</span>
+                        <span className="font-medium">{realData.system.memory.usagePercent.toFixed(1)}%</span>
+                      </div>
+                      <Progress value={realData.system.memory.usagePercent} />
+                      <p className="text-xs text-muted-foreground">
+                        {(realData.system.memory.used / 1024 / 1024 / 1024).toFixed(1)} / {(realData.system.memory.total / 1024 / 1024 / 1024).toFixed(1)} GB
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span className="flex items-center gap-1"><HardDrive className="h-3 w-3" /> 磁盘</span>
+                        <span className="font-medium">{realData.system.disk.usagePercent.toFixed(1)}%</span>
+                      </div>
+                      <Progress value={realData.system.disk.usagePercent} />
+                      <p className="text-xs text-muted-foreground">
+                        {(realData.system.disk.used / 1024 / 1024 / 1024).toFixed(1)} / {(realData.system.disk.total / 1024 / 1024 / 1024).toFixed(1)} GB
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span className="flex items-center gap-1"><Server className="h-3 w-3" /> 运行时间</span>
+                      </div>
+                      <div className="text-lg font-bold">{Math.floor(realData.system.uptime / 86400)}天</div>
+                      <p className="text-xs text-muted-foreground">
+                        负载: {realData.system.cpu.loadAverage?.[0]?.toFixed(2) || '-'}
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* K8s 集群资源 (来自 ops) */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <BarChart3 className="h-5 w-5" />
-                    资源使用
+                    K8s 集群资源
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -970,8 +546,67 @@ export default function OpsDashboard() {
             </div>
           </TabsContent>
 
-          {/* 存储监控 Tab */}
+          {/* ════════════════════════════════════════════════════════════ */}
+          {/* 存储 Tab: ops.getStorageOverview + monitoring 真实数据库状态 */}
+          {/* ════════════════════════════════════════════════════════════ */}
           <TabsContent value="storage" className="space-y-4">
+            {/* 真实数据库状态 (来自 monitoring) */}
+            {dashboard?.databases && dashboard.databases.length > 0 && (
+              <Card className="border-blue-500/30">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Database className="w-5 h-5 text-blue-400" />
+                    真实数据库状态
+                    <Badge variant="outline" className="text-blue-400 text-xs">实时</Badge>
+                  </CardTitle>
+                  <CardDescription>来自 monitoring 服务的真实连接状态</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>数据库</TableHead>
+                        <TableHead>状态</TableHead>
+                        <TableHead>连接数</TableHead>
+                        <TableHead>延迟</TableHead>
+                        <TableHead>版本</TableHead>
+                        <TableHead className="text-right">操作</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {(dashboard.databases || []).map((db) => (
+                        <TableRow key={db.name}>
+                          <TableCell className="font-medium">{db.name}</TableCell>
+                          <TableCell>{getStatusBadge(db.status)}</TableCell>
+                          <TableCell>{db.connections || '-'}</TableCell>
+                          <TableCell>
+                            <span className={(db.latency || 0) > 100 ? 'text-yellow-500' : 'text-green-500'}>
+                              {db.latency?.toFixed(1) || '-'}ms
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground">{db.version || '-'}</TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex justify-end gap-1">
+                              <Button variant="ghost" size="sm" onClick={() => handleDatabaseAction(db.name, 'backup')}>
+                                备份
+                              </Button>
+                              <Button variant="ghost" size="sm" onClick={() => handleDatabaseAction(db.name, 'optimize')}>
+                                优化
+                              </Button>
+                              <Button variant="ghost" size="sm" onClick={() => handleDatabaseAction(db.name, 'restart')}>
+                                重启
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* 存储引擎详情 (来自 ops) */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <Card>
                 <CardHeader>
@@ -1065,8 +700,122 @@ export default function OpsDashboard() {
             </div>
           </TabsContent>
 
-          {/* 数据流监控 Tab */}
+          {/* ════════════════════════════════════════════════════════════ */}
+          {/* 数据流 Tab: ops.getDataFlowOverview + monitoring 插件/引擎  */}
+          {/* ════════════════════════════════════════════════════════════ */}
           <TabsContent value="dataflow" className="space-y-4">
+            {/* 真实插件状态 (来自 monitoring) */}
+            {dashboard?.plugins && dashboard.plugins.length > 0 && (
+              <Card className="border-blue-500/30">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Plug className="w-5 h-5 text-blue-400" />
+                    平台插件
+                    <Badge variant="outline" className="text-blue-400 text-xs">实时</Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>插件名称</TableHead>
+                        <TableHead>版本</TableHead>
+                        <TableHead>状态</TableHead>
+                        <TableHead>类型</TableHead>
+                        <TableHead className="text-right">操作</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {(dashboard.plugins || []).map((plugin) => (
+                        <TableRow key={plugin.id}>
+                          <TableCell className="font-medium">{plugin.name}</TableCell>
+                          <TableCell className="text-xs">{plugin.version}</TableCell>
+                          <TableCell>{getStatusBadge(plugin.status)}</TableCell>
+                          <TableCell><Badge variant="outline">{plugin.type}</Badge></TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex justify-end gap-1">
+                              {plugin.status === 'active' ? (
+                                <Button variant="ghost" size="sm" onClick={() => handlePluginAction(plugin.id, plugin.name, 'disable')}>
+                                  <Square className="h-3 w-3 mr-1" />禁用
+                                </Button>
+                              ) : (
+                                <Button variant="ghost" size="sm" onClick={() => handlePluginAction(plugin.id, plugin.name, 'enable')}>
+                                  <Play className="h-3 w-3 mr-1" />启用
+                                </Button>
+                              )}
+                              <Button variant="ghost" size="sm" onClick={() => handlePluginAction(plugin.id, plugin.name, 'restart')}>
+                                <RefreshCw className="h-3 w-3 mr-1" />重启
+                              </Button>
+                              <Button variant="ghost" size="sm" className="text-red-500" onClick={() => handlePluginUninstall(plugin.id, plugin.name)}>
+                                <XCircle className="h-3 w-3 mr-1" />卸载
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* 真实引擎状态 (来自 monitoring) */}
+            {dashboard?.engines && dashboard.engines.length > 0 && (
+              <Card className="border-blue-500/30">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Cpu className="w-5 h-5 text-purple-400" />
+                    计算引擎
+                    <Badge variant="outline" className="text-purple-400 text-xs">实时</Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>引擎名称</TableHead>
+                        <TableHead>版本</TableHead>
+                        <TableHead>状态</TableHead>
+                        <TableHead>类型</TableHead>
+                        <TableHead>CPU</TableHead>
+                        <TableHead>内存</TableHead>
+                        <TableHead className="text-right">操作</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {(dashboard.engines || []).map((engine) => (
+                        <TableRow key={engine.id}>
+                          <TableCell className="font-medium">{engine.name}</TableCell>
+                          <TableCell className="text-xs">{engine.version}</TableCell>
+                          <TableCell>{getStatusBadge(engine.status)}</TableCell>
+                          <TableCell><Badge variant="outline">{engine.type}</Badge></TableCell>
+                          <TableCell>{engine.metrics?.cpu?.toFixed(1) || '-'}%</TableCell>
+                          <TableCell>{engine.metrics?.memory?.toFixed(1) || '-'}%</TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex justify-end gap-1">
+                              {engine.status === 'running' ? (
+                                <Button variant="ghost" size="sm" onClick={() => handleEngineAction(engine.id, engine.name, 'stop')}>
+                                  <Square className="h-3 w-3 mr-1" />停止
+                                </Button>
+                              ) : (
+                                <Button variant="ghost" size="sm" onClick={() => handleEngineAction(engine.id, engine.name, 'start')}>
+                                  <Play className="h-3 w-3 mr-1" />启动
+                                </Button>
+                              )}
+                              <Button variant="ghost" size="sm" onClick={() => handleEngineAction(engine.id, engine.name, 'restart')}>
+                                <RefreshCw className="h-3 w-3 mr-1" />重启
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Kafka / Flink / Airflow / Connectors (来自 ops) */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <Card>
                 <CardHeader><CardTitle className="flex items-center gap-2"><Activity className="h-5 w-5" />Kafka 集群</CardTitle></CardHeader>
@@ -1168,8 +917,44 @@ export default function OpsDashboard() {
             </div>
           </TabsContent>
 
-          {/* API 网关 Tab */}
+          {/* ════════════════════════════════════════════════════════════ */}
+          {/* 网关 Tab: ops.getApiGatewayOverview + monitoring 服务健康   */}
+          {/* ════════════════════════════════════════════════════════════ */}
           <TabsContent value="gateway" className="space-y-4">
+            {/* 真实服务健康 (来自 monitoring) */}
+            {dashboard?.services && dashboard.services.length > 0 && (
+              <Card className="border-blue-500/30">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <CheckCircle className="w-5 h-5 text-green-400" />
+                    服务健康检查
+                    <Badge variant="outline" className="text-blue-400 text-xs">实时</Badge>
+                  </CardTitle>
+                  <CardDescription>来自 monitoring 服务的真实健康检查结果</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                    {(dashboard.services || []).map((service) => (
+                      <div key={service.name} className={`p-3 rounded-lg border ${
+                        service.status === 'healthy' || service.status === 'online' ? 'bg-green-500/10 border-green-500/30' :
+                        service.status === 'degraded' ? 'bg-yellow-500/10 border-yellow-500/30' :
+                        'bg-red-500/10 border-red-500/30'
+                      }`}>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="font-medium text-sm">{service.name}</span>
+                          {getStatusBadge(service.status)}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {service.responseTime ? `${service.responseTime.toFixed(0)}ms` : '-'}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Kong / Istio (来自 ops) */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <Card>
                 <CardHeader><CardTitle className="flex items-center gap-2"><Globe className="h-5 w-5" />Kong 网关</CardTitle></CardHeader>
@@ -1239,8 +1024,58 @@ export default function OpsDashboard() {
             </div>
           </TabsContent>
 
-          {/* 安全态势 Tab */}
+          {/* ════════════════════════════════════════════════════════════ */}
+          {/* 安全 Tab: ops.getSecurityPosture + monitoring 真实告警      */}
+          {/* ════════════════════════════════════════════════════════════ */}
           <TabsContent value="security" className="space-y-4">
+            {/* 真实告警列表 (来自 monitoring) */}
+            {dashboard?.alerts && dashboard.alerts.length > 0 && (
+              <Card className="border-yellow-500/30">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <AlertTriangle className="w-5 h-5 text-yellow-400" />
+                    实时告警
+                    <Badge variant="outline" className="text-yellow-400 text-xs">
+                      {dashboard.alerts.length} 条
+                    </Badge>
+                  </CardTitle>
+                  <CardDescription>来自 monitoring 服务的真实告警</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    {(dashboard.alerts || []).map((alert) => (
+                      <div 
+                        key={alert.id} 
+                        className={`p-3 rounded-lg border flex items-start justify-between ${
+                          alert.severity === 'critical' ? 'bg-red-500/10 border-red-500/30' :
+                          alert.severity === 'high' ? 'bg-orange-500/10 border-orange-500/30' :
+                          alert.severity === 'medium' ? 'bg-yellow-500/10 border-yellow-500/30' :
+                          'bg-blue-500/10 border-blue-500/30'
+                        }`}
+                      >
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="text-xs">{alert.sourceType}</Badge>
+                            <span className="font-medium">{alert.title}</span>
+                          </div>
+                          <p className="text-sm text-muted-foreground mt-1">{alert.message}</p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            来源: {alert.source} | 时间: {new Date(alert.createdAt).toLocaleString()}
+                          </p>
+                        </div>
+                        {!alert.acknowledgedAt && (
+                          <Button variant="ghost" size="sm" onClick={() => acknowledgeAlertMutation.mutate({ alertId: alert.id })} disabled={acknowledgeAlertMutation.isPending}>
+                            确认
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* 安全态势 (来自 ops) */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
               <Card>
                 <CardHeader><CardTitle className="flex items-center gap-2"><Shield className="h-5 w-5" />安全评分</CardTitle></CardHeader>
@@ -1305,228 +1140,7 @@ export default function OpsDashboard() {
               </Card>
             </div>
           </TabsContent>
-
-          {/* 自动化运维 Tab */}
-          <TabsContent value="automation" className="space-y-4">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <Card>
-                <CardHeader><CardTitle className="flex items-center gap-2"><BarChart3 className="h-5 w-5" />自动扩缩容策略</CardTitle></CardHeader>
-                <CardContent>
-                  <Table>
-                    <TableHeader><TableRow><TableHead>名称</TableHead><TableHead>目标</TableHead><TableHead>副本范围</TableHead><TableHead>状态</TableHead></TableRow></TableHeader>
-                    <TableBody>
-                      {scalingPolicies?.map((policy) => (
-                        <TableRow key={policy.id}>
-                          <TableCell className="font-medium">{policy.name}</TableCell>
-                          <TableCell>{policy.target.name}</TableCell>
-                          <TableCell>{policy.minReplicas}-{policy.maxReplicas}</TableCell>
-                          <TableCell><Switch checked={policy.enabled} disabled /></TableCell>
-                        </TableRow>
-                      ))}
-                      {(!scalingPolicies || scalingPolicies.length === 0) && (
-                        <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground">暂无扩缩容策略</TableCell></TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader><CardTitle className="flex items-center gap-2"><RefreshCw className="h-5 w-5" />故障自愈规则</CardTitle></CardHeader>
-                <CardContent>
-                  <Table>
-                    <TableHeader><TableRow><TableHead>名称</TableHead><TableHead>条件</TableHead><TableHead>动作</TableHead><TableHead>状态</TableHead></TableRow></TableHeader>
-                    <TableBody>
-                      {healingRules?.map((rule) => (
-                        <TableRow key={rule.id}>
-                          <TableCell className="font-medium">{rule.name}</TableCell>
-                          <TableCell>{rule.condition.type}</TableCell>
-                          <TableCell>{rule.action.type}</TableCell>
-                          <TableCell><Switch checked={rule.enabled} disabled /></TableCell>
-                        </TableRow>
-                      ))}
-                      {(!healingRules || healingRules.length === 0) && (
-                        <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground">暂无自愈规则</TableCell></TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader><CardTitle className="flex items-center gap-2"><HardDrive className="h-5 w-5" />备份策略</CardTitle></CardHeader>
-                <CardContent>
-                  <Table>
-                    <TableHeader><TableRow><TableHead>名称</TableHead><TableHead>源</TableHead><TableHead>调度</TableHead><TableHead>状态</TableHead></TableRow></TableHeader>
-                    <TableBody>
-                      {backupPolicies?.map((policy) => (
-                        <TableRow key={policy.id}>
-                          <TableCell className="font-medium">{policy.name}</TableCell>
-                          <TableCell>{policy.source.name}</TableCell>
-                          <TableCell className="text-xs">{policy.schedule}</TableCell>
-                          <TableCell><Switch checked={policy.enabled} disabled /></TableCell>
-                        </TableRow>
-                      ))}
-                      {(!backupPolicies || backupPolicies.length === 0) && (
-                        <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground">暂无备份策略</TableCell></TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader><CardTitle className="flex items-center gap-2"><Play className="h-5 w-5 rotate-180" />版本回滚策略</CardTitle></CardHeader>
-                <CardContent>
-                  <Table>
-                    <TableHeader><TableRow><TableHead>名称</TableHead><TableHead>目标</TableHead><TableHead>自动回滚</TableHead><TableHead>状态</TableHead></TableRow></TableHeader>
-                    <TableBody>
-                      {rollbackPolicies?.map((policy) => (
-                        <TableRow key={policy.id}>
-                          <TableCell className="font-medium">{policy.name}</TableCell>
-                          <TableCell>{policy.target.name}</TableCell>
-                          <TableCell><Badge variant={policy.strategy.autoRollback ? 'default' : 'outline'}>{policy.strategy.autoRollback ? '启用' : '禁用'}</Badge></TableCell>
-                          <TableCell><Switch checked={policy.enabled} disabled /></TableCell>
-                        </TableRow>
-                      ))}
-                      {(!rollbackPolicies || rollbackPolicies.length === 0) && (
-                        <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground">暂无回滚策略</TableCell></TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-
-          {/* 边缘计算 Tab */}
-          <TabsContent value="edge" className="space-y-4">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-              <Card className="lg:col-span-2">
-                <CardHeader><CardTitle className="flex items-center gap-2"><Server className="h-5 w-5" />边缘节点</CardTitle></CardHeader>
-                <CardContent>
-                  <Table>
-                    <TableHeader><TableRow><TableHead>名称</TableHead><TableHead>区域</TableHead><TableHead>状态</TableHead><TableHead>CPU</TableHead><TableHead>内存</TableHead><TableHead>GPU</TableHead></TableRow></TableHeader>
-                    <TableBody>
-                      {edgeNodes?.map((node) => (
-                        <TableRow key={node.id}>
-                          <TableCell className="font-medium">{node.name}</TableCell>
-                          <TableCell>{node.location.zone}</TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              <div className={`w-2 h-2 rounded-full ${getStatusColor(node.status)}`} />
-                              {node.status}
-                            </div>
-                          </TableCell>
-                          <TableCell>{node.metrics.cpu.toFixed(0)}%</TableCell>
-                          <TableCell>{node.metrics.memory.toFixed(0)}%</TableCell>
-                          <TableCell>{node.metrics.gpu?.toFixed(0) || '-'}%</TableCell>
-                        </TableRow>
-                      ))}
-                      {(!edgeNodes || edgeNodes.length === 0) && (
-                        <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground">暂无边缘节点</TableCell></TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader><CardTitle className="flex items-center gap-2"><Zap className="h-5 w-5" />部署模型</CardTitle></CardHeader>
-                <CardContent className="space-y-3">
-                  {edgeModels?.map((model) => (
-                    <div key={model.id} className="p-3 bg-muted rounded-lg">
-                      <div className="flex justify-between items-center mb-2">
-                        <span className="font-medium">{model.name}</span>
-                        <Badge variant={model.status === 'ready' ? 'default' : 'secondary'}>{model.status}</Badge>
-                      </div>
-                      <div className="text-xs text-muted-foreground space-y-1">
-                        <div>版本: {model.version}</div>
-                        <div>类型: {model.type}</div>
-                        <div>延迟: {model.performance.latency}ms</div>
-                      </div>
-                    </div>
-                  ))}
-                  {(!edgeModels || edgeModels.length === 0) && (
-                    <div className="text-center text-muted-foreground py-4">暂无部署模型</div>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
-
-            <Card>
-              <CardHeader><CardTitle className="flex items-center gap-2"><Router className="h-5 w-5" />边缘网关</CardTitle></CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader><TableRow><TableHead>名称</TableHead><TableHead>类型</TableHead><TableHead>端点</TableHead><TableHead>状态</TableHead><TableHead>设备数</TableHead><TableHead>消息收/发</TableHead></TableRow></TableHeader>
-                  <TableBody>
-                    {edgeGateways?.map((gw) => (
-                      <TableRow key={gw.id}>
-                        <TableCell className="font-medium">{gw.name}</TableCell>
-                        <TableCell><Badge variant="outline">{gw.type.toUpperCase()}</Badge></TableCell>
-                        <TableCell className="text-xs">{gw.endpoint}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <div className={`w-2 h-2 rounded-full ${getStatusColor(gw.status)}`} />
-                            {gw.status}
-                          </div>
-                        </TableCell>
-                        <TableCell>{gw.connectedDevices}</TableCell>
-                        <TableCell>{formatNumber(gw.metrics.messagesReceived)}/{formatNumber(gw.metrics.messagesSent)}</TableCell>
-                      </TableRow>
-                    ))}
-                    {(!edgeGateways || edgeGateways.length === 0) && (
-                      <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground">暂无边缘网关</TableCell></TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          </TabsContent>
         </Tabs>
-
-        {/* 告警列表 (来自 monitoring 真实数据) */}
-        {dashboard?.alerts && dashboard.alerts.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <AlertTriangle className="w-5 h-5 text-yellow-400" />
-                最近告警
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {(dashboard.alerts || []).map((alert) => (
-                  <div 
-                    key={alert.id} 
-                    className={`p-3 rounded-lg border flex items-start justify-between ${
-                      alert.severity === 'critical' ? 'bg-red-500/10 border-red-500/30' :
-                      alert.severity === 'high' ? 'bg-orange-500/10 border-orange-500/30' :
-                      alert.severity === 'medium' ? 'bg-yellow-500/10 border-yellow-500/30' :
-                      'bg-blue-500/10 border-blue-500/30'
-                    }`}
-                  >
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="text-xs">{alert.sourceType}</Badge>
-                        <span className="font-medium">{alert.title}</span>
-                      </div>
-                      <p className="text-sm text-muted-foreground mt-1">{alert.message}</p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        来源: {alert.source} | 时间: {new Date(alert.createdAt).toLocaleString()}
-                      </p>
-                    </div>
-                    {!alert.acknowledgedAt && (
-                      <Button variant="ghost" size="sm" onClick={() => acknowledgeAlertMutation.mutate({ alertId: alert.id })} disabled={acknowledgeAlertMutation.isPending}>
-                        确认
-                      </Button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
       </div>
 
       {/* 确认对话框 */}
