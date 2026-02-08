@@ -16,28 +16,25 @@ import { streamProcessor } from './streamProcessor';
 
 // ============ 类型定义 ============
 
-export interface DeviceInfo {
+/** @deprecated Use AssetNode from drizzle/schema.ts instead */
+export type DeviceInfo = {
   deviceId: string;
   name: string;
   type: string;
-  model?: string;
-  manufacturer?: string;
   location?: string;
+  model?: string;
   status: string;
-  sensorCount?: number;
-  lastHeartbeat?: Date;
-}
+};
 
-export interface SensorInfo {
+/** @deprecated Use AssetSensor from drizzle/schema.ts instead */
+export type SensorInfo = {
   sensorId: string;
   deviceId: string;
   name: string;
   type: string;
   unit?: string;
   status: string;
-  lastValue?: string;
-  lastReadingAt?: Date;
-}
+};
 
 // ============ 数据模拟器 ============
 

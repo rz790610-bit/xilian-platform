@@ -1,3 +1,13 @@
+/**
+ * UI View Types (前端视图类型)
+ * 
+ * 这些类型专用于前端 UI 状态管理和组件 props。
+ * 与后端 API 交互时，请使用 tRPC 的类型推断（inferRouterOutputs）。
+ * 数据库模型类型请参考 drizzle/schema.ts。
+ * 
+ * 注意：部分类型名称与后端模型相似（如 Model, TopologyNode），
+ * 但字段经过简化，仅包含 UI 展示所需的属性。
+ */
 // 导航菜单类型
 export interface NavItem {
   id: string;

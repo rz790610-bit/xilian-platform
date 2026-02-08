@@ -9,6 +9,7 @@
  */
 
 import { EventEmitter } from 'events';
+import type { LayoutConfig } from "../../_core/types/domain";
 
 // ============ 类型定义 ============
 
@@ -68,16 +69,7 @@ export interface RelationshipStyleConfig {
   animated?: boolean;
 }
 
-export interface LayoutConfig {
-  algorithm: 'force-directed' | 'hierarchical' | 'circular' | 'grid' | 'radial' | 'tree';
-  forceDirected: {
-    strength: number;
-    distance: number;
-    iterations: number;
-    gravity: number;
-    charge: number;
-    friction: number;
-  };
+;
   hierarchical: {
     direction: 'TB' | 'BT' | 'LR' | 'RL';
     levelSeparation: number;

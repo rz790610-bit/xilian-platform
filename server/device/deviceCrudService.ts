@@ -15,6 +15,7 @@ import { getDb } from '../db';
 import { assetNodes, assetSensors } from '../../drizzle/schema';
 import { eq, desc, and, or, like, inArray, sql, count, gte, lte } from 'drizzle-orm';
 import { eventBus, TOPICS } from '../eventBus';
+import type { PaginatedResult } from "../_core/types/domain";
 
 // ============================================
 // 类型定义
@@ -157,16 +158,6 @@ export interface PaginationParams {
 /**
  * 分页结果
  */
-export interface PaginatedResult<T> {
-  items: T[];
-  total: number;
-  page: number;
-  pageSize: number;
-  totalPages: number;
-  hasNext: boolean;
-  hasPrev: boolean;
-}
-
 /**
  * 批量操作结果
  */

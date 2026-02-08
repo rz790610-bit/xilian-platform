@@ -5,6 +5,7 @@
 
 import http from 'http';
 import https from 'https';
+import type { LogEntry } from "../../_core/types/domain";
 
 // 配置
 const ES_CONFIG = {
@@ -103,17 +104,6 @@ export interface ESIndexStats {
   docs_deleted: number;
   store_size: string;
   pri_store_size: string;
-}
-
-export interface LogEntry {
-  timestamp: Date;
-  level: 'debug' | 'info' | 'warn' | 'error' | 'fatal';
-  message: string;
-  service?: string;
-  host?: string;
-  traceId?: string;
-  spanId?: string;
-  metadata?: Record<string, unknown>;
 }
 
 // ============================================================

@@ -26,6 +26,7 @@ import {
   diagnosisTasks
 } from '../../../drizzle/schema';
 import { eq, and, or, desc, asc, sql, gte, lte, like, inArray, isNull, isNotNull } from 'drizzle-orm';
+import type { PaginatedResult, QueryOptions } from "../../_core/types/domain";
 
 // ============ 类型定义 ============
 
@@ -148,21 +149,6 @@ export interface KpiRecord {
   // 能耗指标
   energyConsumption?: number;
   energyEfficiency?: number;
-}
-
-export interface QueryOptions {
-  limit?: number;
-  offset?: number;
-  orderBy?: string;
-  orderDirection?: 'asc' | 'desc';
-}
-
-export interface PaginatedResult<T> {
-  data: T[];
-  total: number;
-  page: number;
-  pageSize: number;
-  totalPages: number;
 }
 
 // ============ PostgreSQL 存储服务类 ============

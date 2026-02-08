@@ -22,10 +22,6 @@ export interface Event {
   timestamp: Date;
 }
 
-export interface EventHandler {
-  (event: Event): void | Promise<void>;
-}
-
 export interface TopicSubscription {
   topic: string;
   handler: EventHandler;
@@ -432,6 +428,7 @@ export const queryEvents = eventBus.queryEvents.bind(eventBus);
 
 import { z } from 'zod';
 import { publicProcedure, protectedProcedure, router } from './_core/trpc';
+import type { EventHandler } from "./_core/types/domain";
 
 export const eventBusRouter = router({
   // 获取最近事件

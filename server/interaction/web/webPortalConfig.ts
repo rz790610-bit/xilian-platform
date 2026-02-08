@@ -1,3 +1,5 @@
+import type { LayoutConfig } from "../../_core/types/domain";
+
 /**
  * React 19 Web Portal 配置服务
  * 
@@ -61,13 +63,7 @@ export interface ThemeConfig {
   customColors: Record<string, string>;
 }
 
-export interface LayoutConfig {
-  sidebar: {
-    width: number;
-    collapsedWidth: number;
-    position: 'left' | 'right';
-    defaultCollapsed: boolean;
-  };
+;
   header: {
     height: number;
     sticky: boolean;

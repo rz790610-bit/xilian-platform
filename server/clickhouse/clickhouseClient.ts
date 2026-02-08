@@ -4,6 +4,7 @@
  */
 
 import { createClient, ClickHouseClient } from '@clickhouse/client';
+import type { SensorReading, QueryOptions } from "../_core/types/domain";
 
 // ClickHouse 配置
 const CLICKHOUSE_CONFIG = {
@@ -73,17 +74,6 @@ export async function closeConnection(): Promise<void> {
 
 // ============ 数据类型定义 ============
 
-export interface SensorReading {
-  device_id: string;
-  sensor_id: string;
-  metric_name: string;
-  value: number;
-  unit?: string;
-  quality?: 'good' | 'uncertain' | 'bad';
-  timestamp: Date;
-  metadata?: Record<string, unknown>;
-}
-
 export interface TelemetryData {
   device_id: string;
   sensor_id: string;
@@ -122,17 +112,6 @@ export interface AnomalyDetection {
   severity: 'low' | 'medium' | 'high' | 'critical';
   is_acknowledged?: boolean;
   timestamp: Date;
-}
-
-export interface QueryOptions {
-  startTime?: Date;
-  endTime?: Date;
-  deviceIds?: string[];
-  sensorIds?: string[];
-  metricNames?: string[];
-  limit?: number;
-  offset?: number;
-  orderBy?: 'asc' | 'desc';
 }
 
 export interface AggregationOptions extends QueryOptions {

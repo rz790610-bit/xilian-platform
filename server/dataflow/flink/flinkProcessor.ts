@@ -8,14 +8,9 @@
  */
 
 import { kafkaCluster, XILIAN_TOPICS } from '../kafka/kafkaCluster';
+import type { SensorReading, AnomalyResult, WindowConfig } from "../../_core/types/domain";
 
 // ============ 类型定义 ============
-
-export interface WindowConfig {
-  sizeMs: number;
-  slideMs: number;
-  allowedLatenessMs: number;
-}
 
 export interface AnomalyDetectorConfig {
   window: WindowConfig;
@@ -40,33 +35,6 @@ export interface CDCConfig {
 }
 
 // ============ 数据结构 ============
-
-export interface SensorReading {
-  deviceId: string;
-  sensorId: string;
-  metricName: string;
-  value: number;
-  timestamp: number;
-  quality?: number;
-  unit?: string;
-}
-
-export interface AnomalyResult {
-  deviceId: string;
-  sensorId: string;
-  metricName: string;
-  value: number;
-  timestamp: number;
-  isAnomaly: boolean;
-  algorithm: string;
-  score: number;
-  threshold: number;
-  mean: number;
-  stdDev: number;
-  severity: 'low' | 'medium' | 'high' | 'critical';
-  windowStart: number;
-  windowEnd: number;
-}
 
 export interface AggregationResult {
   deviceId: string;

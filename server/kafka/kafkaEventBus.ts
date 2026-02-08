@@ -9,6 +9,7 @@ import { eventLogs } from '../../drizzle/schema';
 const eventLog = eventLogs;
 const db = getDb;
 import { eq, desc, and, gte, lte, sql } from 'drizzle-orm';
+import type { EventHandler, EventPayload } from "../_core/types/domain";
 
 // 事件类型定义
 export interface EventPayload {
@@ -28,8 +29,6 @@ export interface EventPayload {
 }
 
 // 事件处理器类型
-export type EventHandler = (event: EventPayload) => Promise<void>;
-
 // 订阅信息
 interface Subscription {
   id: string;

@@ -11,6 +11,7 @@
  */
 
 import Redis from 'ioredis';
+import type { GatewayStats } from "../../_core/types/domain";
 
 // ============ 类型定义 ============
 
@@ -153,15 +154,6 @@ export interface RateLimitResult {
   remaining: number;
   resetAt: number;
   limit: number;
-}
-
-export interface GatewayStats {
-  totalRequests: number;
-  blockedRequests: number;
-  rateLimitedRequests: number;
-  authFailures: number;
-  upstreamErrors: number;
-  avgLatencyMs: number;
 }
 
 // ============ 默认配置 ============

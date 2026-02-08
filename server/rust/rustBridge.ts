@@ -1,3 +1,5 @@
+import type { AnomalyResult, AggregateResult, WindowConfig } from "../_core/types/domain";
+
 /**
  * Rust 模块桥接层
  * PortAI Nexus - TypeScript 与 Rust 高性能模块的桥接
@@ -73,14 +75,6 @@ export interface FftResult {
 /**
  * 异常检测结果
  */
-export interface AnomalyResult {
-  isAnomaly: boolean;
-  score: number;
-  threshold: number;
-  method: string;
-  details?: string;
-}
-
 /**
  * 时域特征
  */
@@ -121,32 +115,9 @@ export interface FeatureSet {
 /**
  * 聚合结果
  */
-export interface AggregateResult {
-  windowStart: number;
-  windowEnd: number;
-  count: number;
-  sum: number;
-  mean: number;
-  min: number;
-  max: number;
-  variance: number;
-  stdDev: number;
-  first?: number;
-  last?: number;
-  percentiles: Record<number, number>;
-}
-
 /**
  * 窗口配置
  */
-export interface WindowConfig {
-  windowType: 'tumbling' | 'sliding' | 'session';
-  windowSizeMs: number;
-  slideSizeMs?: number;
-  sessionGapMs?: number;
-  maxWindowCount?: number;
-}
-
 // ============================================
 // 信号处理器（TypeScript 模拟实现）
 // ============================================

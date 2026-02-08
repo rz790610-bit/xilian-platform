@@ -9,6 +9,7 @@
  */
 
 import { EventEmitter } from 'events';
+import type { GatewayStats } from "../../_core/types/domain";
 
 // ============ 类型定义 ============
 
@@ -83,17 +84,6 @@ export interface DataLoaderConfig {
   batchFn: (keys: readonly string[]) => Promise<unknown[]>;
   cacheEnabled: boolean;
   maxBatchSize: number;
-}
-
-export interface GatewayStats {
-  totalQueries: number;
-  totalMutations: number;
-  totalSubscriptions: number;
-  batchedQueries: number;
-  cacheHits: number;
-  cacheMisses: number;
-  errors: number;
-  avgLatencyMs: number;
 }
 
 // ============ 默认配置 ============

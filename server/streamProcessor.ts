@@ -16,45 +16,12 @@ import { eq, desc, and, gte, sql } from 'drizzle-orm';
 
 // ============ 类型定义 ============
 
-export interface SensorReading {
-  sensorId: string;
-  deviceId: string;
-  value: number;
-  timestamp: Date;
-  quality?: 'good' | 'uncertain' | 'bad';
-}
-
 export interface WindowState {
   sensorId: string;
   values: Array<{ value: number; timestamp: Date }>;
   windowSize: number; // 秒
   slideInterval: number; // 秒
   lastProcessed: Date;
-}
-
-export interface AnomalyResult {
-  sensorId: string;
-  deviceId: string;
-  algorithmType: 'zscore' | 'iqr' | 'mad' | 'isolation_forest' | 'custom';
-  currentValue: number;
-  expectedValue: number;
-  deviation: number;
-  score: number;
-  severity: 'low' | 'medium' | 'high' | 'critical';
-  timestamp: Date;
-}
-
-export interface AggregateResult {
-  sensorId: string;
-  deviceId: string;
-  period: '1m' | '5m' | '1h' | '1d';
-  periodStart: Date;
-  avg: number;
-  min: number;
-  max: number;
-  sum: number;
-  count: number;
-  stdDev: number;
 }
 
 // ============ 滑动窗口管理器 ============
@@ -629,6 +596,7 @@ export const streamProcessor = new StreamProcessor();
 
 import { z } from 'zod';
 import { publicProcedure, protectedProcedure, router } from './_core/trpc';
+import type { SensorReading, AnomalyResult, AggregateResult } from "./_core/types/domain";
 
 export const streamProcessorRouter = router({
   // 获取处理指标

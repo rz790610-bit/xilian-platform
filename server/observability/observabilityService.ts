@@ -6,6 +6,7 @@
 import { prometheusClient } from './clients/prometheusClient';
 import { elasticsearchClient } from './clients/elasticsearchClient';
 import { jaegerClient } from './clients/jaegerClient';
+import type { LogEntry } from "../_core/types/domain";
 
 // ============================================================
 // 类型定义
@@ -16,17 +17,6 @@ export interface MetricData {
   value: number;
   labels: Record<string, string>;
   timestamp: Date;
-}
-
-export interface LogEntry {
-  id: string;
-  timestamp: Date;
-  level: 'debug' | 'info' | 'warn' | 'error' | 'fatal';
-  message: string;
-  service: string;
-  host?: string;
-  traceId?: string;
-  metadata?: Record<string, unknown>;
 }
 
 export interface TraceData {
