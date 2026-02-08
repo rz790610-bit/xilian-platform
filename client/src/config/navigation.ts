@@ -1,11 +1,13 @@
 import type { NavItem } from '@/types';
 
 export const navigationConfig: NavItem[] = [
+  // ━━━ 核心业务 ━━━
   {
     id: 'dashboard',
     label: '首页概览',
     icon: '🏠',
-    path: '/dashboard'
+    path: '/dashboard',
+    section: '核心业务'
   },
   {
     id: 'agents',
@@ -20,24 +22,18 @@ export const navigationConfig: NavItem[] = [
     path: '/chat'
   },
   {
-    id: 'database-module',
-    label: '数据库',
-    icon: '🗄️',
-    children: [
-      { id: 'db-overview', label: '数据库总览', icon: '📊', path: '/database/overview' },
-      { id: 'db-assets', label: '设备档案', icon: '🏭', path: '/database/assets' },
-      { id: 'db-config', label: '基础配置', icon: '⚙️', path: '/database/config' },
-      { id: 'db-slices', label: '数据切片', icon: '✂️', path: '/database/slices' },
-      { id: 'db-clean', label: '数据清洗', icon: '🧹', path: '/database/clean' },
-      { id: 'db-events', label: '事件溯源', icon: '📜', path: '/database/events' },
-      { id: 'db-storage', label: '存储状态', icon: '💾', path: '/database/storage' },
-      { id: 'db-workbench', label: '数据库工作台', icon: '🛠️', path: '/database/workbench' }
-    ]
+    id: 'docs',
+    label: '文档中心',
+    icon: '📄',
+    path: '/docs'
   },
+
+  // ━━━ 资产与数据 ━━━
   {
     id: 'device-management',
     label: '设备管理',
     icon: '🔧',
+    section: '资产与数据',
     children: [
       { id: 'device-list', label: '设备列表', icon: '📋', path: '/device/list' },
       { id: 'device-maintenance', label: '维护记录', icon: '🔨', path: '/device/maintenance' },
@@ -67,7 +63,7 @@ export const navigationConfig: NavItem[] = [
   {
     id: 'data-center',
     label: '数据中心',
-    icon: '📊',
+    icon: '💾',
     children: [
       { id: 'data-access', label: '数据接入', icon: '🔌', path: '/data/access' },
       { id: 'data-standard', label: '数据标准化', icon: '📏', path: '/data/standard' },
@@ -77,9 +73,27 @@ export const navigationConfig: NavItem[] = [
     ]
   },
   {
+    id: 'database-module',
+    label: '数据库',
+    icon: '🗄️',
+    children: [
+      { id: 'db-overview', label: '数据库总览', icon: '📊', path: '/database/overview' },
+      { id: 'db-assets', label: '设备档案', icon: '🏭', path: '/database/assets' },
+      { id: 'db-config', label: '基础配置', icon: '⚙️', path: '/database/config' },
+      { id: 'db-slices', label: '数据切片', icon: '✂️', path: '/database/slices' },
+      { id: 'db-clean', label: '数据清洗', icon: '🧹', path: '/database/clean' },
+      { id: 'db-events', label: '事件溯源', icon: '📜', path: '/database/events' },
+      { id: 'db-storage', label: '存储状态', icon: '💾', path: '/database/storage' },
+      { id: 'db-workbench', label: '数据库工作台', icon: '🛠️', path: '/database/workbench' }
+    ]
+  },
+
+  // ━━━ 智能引擎 ━━━
+  {
     id: 'model-center',
     label: '模型中心',
     icon: '🧠',
+    section: '智能引擎',
     children: [
       { id: 'model-main', label: '模型管理', icon: '🤖', path: '/model/center' },
       { id: 'model-inference', label: '模型推理', icon: '💬', path: '/model/inference' },
@@ -120,60 +134,56 @@ export const navigationConfig: NavItem[] = [
       { id: 'edge-tsn', label: '5G TSN', icon: '📶', path: '/edge/tsn' }
     ]
   },
+
+  // ━━━ 平台管理 ━━━
   {
-    id: 'settings',
-    label: '系统设置',
+    id: 'design-tools',
+    label: '设计工具',
+    icon: '🛠️',
+    section: '平台管理',
+    children: [
+      { id: 'design-pipeline', label: 'Pipeline 编排', icon: '🔗', path: '/settings/design/pipeline' },
+      { id: 'design-db-workbench', label: '数据库工作台', icon: '🗄️', path: '/settings/design/db-workbench' },
+      { id: 'design-datastream', label: '数据流监控', icon: '⚡', path: '/settings/design/datastream' },
+      { id: 'design-graph-query', label: '图查询优化', icon: '🗂️', path: '/settings/design/graph-query' }
+    ]
+  },
+  {
+    id: 'config-center',
+    label: '配置中心',
     icon: '⚙️',
     children: [
-      {
-        id: 'settings-design-tools',
-        label: '设计工具',
-        icon: '🛠️',
-        children: [
-          { id: 'settings-pipeline', label: 'Pipeline 编排', icon: '🔗', path: '/settings/design/pipeline' },
-          { id: 'settings-db-workbench', label: '数据库工作台', icon: '🗄️', path: '/settings/design/db-workbench' },
-          { id: 'settings-datastream', label: '数据流监控', icon: '⚡', path: '/settings/design/datastream' },
-          { id: 'settings-graph-query', label: '图查询优化', icon: '🗂️', path: '/settings/design/graph-query' }
-        ]
-      },
-      {
-        id: 'settings-config',
-        label: '配置中心',
-        icon: '🔧',
-        children: [
-          { id: 'settings-infrastructure', label: '基础设施', icon: '🏛️', path: '/settings/config/infrastructure' },
-          { id: 'settings-kafka', label: 'Kafka 监控', icon: '📡', path: '/settings/config/kafka' },
-          { id: 'settings-resources', label: '资源总览', icon: '📊', path: '/settings/config/resources' },
-          { id: 'settings-db-management', label: '数据库管理', icon: '🗄️', path: '/settings/config/db-management' }
-        ]
-      },
-      {
-        id: 'settings-status',
-        label: '状态监控',
-        icon: '📊',
-        children: [
-          { id: 'settings-plugins', label: '插件管理', icon: '🧩', path: '/settings/status/plugins' },
-          { id: 'settings-topology', label: '系统拓扑', icon: '📊', path: '/settings/status/topology' },
-          { id: 'settings-engines', label: '引擎模块', icon: '🔧', path: '/settings/status/engines' },
-          { id: 'settings-models', label: '模型库', icon: '📦', path: '/settings/status/models' },
-          { id: 'settings-observability', label: '可观测性', icon: '📊', path: '/settings/status/observability' },
-          { id: 'settings-performance', label: '性能总览', icon: '🚀', path: '/settings/status/performance' },
-          { id: 'settings-microservices', label: '微服务监控', icon: '🔗', path: '/settings/status/microservices' }
-        ]
-      },
-      {
-        id: 'settings-security-ops',
-        label: '安全运维',
-        icon: '🛡️',
-        children: [
-          { id: 'settings-ops', label: '运维管理', icon: '🛠️', path: '/settings/security/ops' },
-          { id: 'settings-monitoring', label: '智能监控', icon: '📱', path: '/settings/security/monitoring' },
-          { id: 'settings-falco', label: 'Falco 监控', icon: '🔍', path: '/settings/security/falco' },
-          { id: 'settings-scanner', label: '安全扫描', icon: '🔬', path: '/settings/security/scanner' },
-          { id: 'settings-vault', label: '密钥管理', icon: '🔐', path: '/settings/security/vault' },
-          { id: 'settings-pki', label: 'PKI 证书', icon: '📜', path: '/settings/security/pki' }
-        ]
-      }
+      { id: 'config-infrastructure', label: '基础设施', icon: '🏛️', path: '/settings/config/infrastructure' },
+      { id: 'config-kafka', label: 'Kafka 监控', icon: '📡', path: '/settings/config/kafka' },
+      { id: 'config-resources', label: '资源总览', icon: '📊', path: '/settings/config/resources' },
+      { id: 'config-db-management', label: '数据库管理', icon: '🗄️', path: '/settings/config/db-management' }
+    ]
+  },
+  {
+    id: 'status-monitor',
+    label: '状态监控',
+    icon: '📡',
+    children: [
+      { id: 'status-plugins', label: '插件管理', icon: '🧩', path: '/settings/status/plugins' },
+      { id: 'status-topology', label: '系统拓扑', icon: '📊', path: '/settings/status/topology' },
+      { id: 'status-engines', label: '引擎模块', icon: '🔧', path: '/settings/status/engines' },
+      { id: 'status-models', label: '模型库', icon: '📦', path: '/settings/status/models' },
+      { id: 'status-observability', label: '可观测性', icon: '👁️', path: '/settings/status/observability' },
+      { id: 'status-performance', label: '性能总览', icon: '🚀', path: '/settings/status/performance' },
+      { id: 'status-microservices', label: '微服务监控', icon: '🔗', path: '/settings/status/microservices' }
+    ]
+  },
+  {
+    id: 'security-ops',
+    label: '安全运维',
+    icon: '🛡️',
+    children: [
+      { id: 'security-ops-dashboard', label: '运维管理', icon: '🛠️', path: '/settings/security/ops' },
+      { id: 'security-monitoring', label: '智能监控', icon: '📱', path: '/settings/security/monitoring' },
+      { id: 'security-falco', label: 'Falco 监控', icon: '🔍', path: '/settings/security/falco' },
+      { id: 'security-scanner', label: '安全扫描', icon: '🔬', path: '/settings/security/scanner' },
+      { id: 'security-vault', label: '密钥管理', icon: '🔐', path: '/settings/security/vault' },
+      { id: 'security-pki', label: 'PKI 证书', icon: '📜', path: '/settings/security/pki' }
     ]
   }
 ];

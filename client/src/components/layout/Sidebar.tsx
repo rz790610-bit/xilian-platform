@@ -67,16 +67,27 @@ export function Sidebar() {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 py-1.5 overflow-y-auto">
-        <div className={cn(
-          "px-3 py-1.5 text-[9px] text-muted-foreground uppercase tracking-widest font-semibold",
-          sidebarCollapsed && "hidden"
-        )}>
-          主要功能
-        </div>
-
+      <nav className="flex-1 py-1.5 overflow-y-auto scrollbar-thin">
         {navigationConfig.map((item) => (
           <div key={item.id}>
+            {/* Section separator */}
+            {item.section && !sidebarCollapsed && (
+              <div className="px-3 pt-3 pb-1">
+                <div className="flex items-center gap-2">
+                  <div className="h-px flex-1 bg-sidebar-border" />
+                  <span className="text-[8px] text-muted-foreground uppercase tracking-widest font-semibold whitespace-nowrap">
+                    {item.section}
+                  </span>
+                  <div className="h-px flex-1 bg-sidebar-border" />
+                </div>
+              </div>
+            )}
+            {item.section && sidebarCollapsed && (
+              <div className="mx-2 my-2">
+                <div className="h-px bg-sidebar-border" />
+              </div>
+            )}
+
             {/* Main nav item (Level 1) */}
             <div
               onClick={() => handleNavClick(item)}

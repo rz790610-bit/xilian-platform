@@ -51,7 +51,7 @@ import {
   DatabaseWorkbench
 } from "./pages/database";
 
-// 系统设置 - 设计工具
+// 平台管理 - 设计工具
 import {
   PipelineManager,
   PipelineEditor,
@@ -59,7 +59,7 @@ import {
   GraphQueryManager
 } from "./pages/settings/design";
 
-// 系统设置 - 配置中心
+// 平台管理 - 配置中心
 import {
   Infrastructure,
   KafkaMonitor,
@@ -67,7 +67,7 @@ import {
   DbManagement
 } from "./pages/settings/config";
 
-// 系统设置 - 状态监控
+// 平台管理 - 状态监控
 import {
   PluginsManager,
   SystemTopology,
@@ -83,7 +83,7 @@ import {
   ServicesOverview
 } from "./pages/settings/status";
 
-// 系统设置 - 安全运维
+// 平台管理 - 安全运维
 import {
   OpsDashboard,
   SmartMonitoring,
@@ -167,7 +167,7 @@ function Router() {
       <Route path="/database/workbench" component={DatabaseWorkbench} />
 
       {/* ============================================ */}
-      {/* 系统设置 - 设计工具 */}
+      {/* 平台管理 - 设计工具 */}
       {/* ============================================ */}
       <Route path="/settings/design/pipeline" component={PipelineManager} />
       <Route path="/settings/design/pipeline/editor" component={PipelineEditor} />
@@ -176,7 +176,7 @@ function Router() {
       <Route path="/settings/design/graph-query" component={GraphQueryManager} />
 
       {/* ============================================ */}
-      {/* 系统设置 - 配置中心 */}
+      {/* 平台管理 - 配置中心 */}
       {/* ============================================ */}
       <Route path="/settings/config/infrastructure" component={Infrastructure} />
       <Route path="/settings/config/kafka" component={KafkaMonitor} />
@@ -184,7 +184,7 @@ function Router() {
       <Route path="/settings/config/db-management" component={DbManagement} />
 
       {/* ============================================ */}
-      {/* 系统设置 - 状态监控 */}
+      {/* 平台管理 - 状态监控 */}
       {/* ============================================ */}
       <Route path="/settings/status/plugins" component={PluginsManager} />
       <Route path="/settings/status/topology" component={SystemTopology} />
@@ -200,7 +200,7 @@ function Router() {
       <Route path="/settings/status/microservices" component={ServicesOverview} />
 
       {/* ============================================ */}
-      {/* 系统设置 - 安全运维 */}
+      {/* 平台管理 - 安全运维 */}
       {/* ============================================ */}
       <Route path="/settings/security/ops" component={OpsDashboard} />
       <Route path="/settings/security/monitoring" component={SmartMonitoring} />
@@ -209,7 +209,7 @@ function Router() {
       <Route path="/settings/security/vault" component={VaultManager} />
       <Route path="/settings/security/pki" component={PkiManager} />
 
-      {/* Settings redirect */}
+      {/* Settings redirect (backward compatibility) */}
       <Route path="/settings">
         <Redirect to="/settings/config/resources" />
       </Route>

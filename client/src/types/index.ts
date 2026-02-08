@@ -15,6 +15,7 @@ export interface NavItem {
   icon: string;
   path?: string;
   children?: NavSubItem[];
+  section?: string;  // 分区标题，用于在此项之前渲染分隔线
 }
 
 export interface NavSubItem {
