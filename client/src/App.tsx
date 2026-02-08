@@ -27,7 +27,6 @@ import {
   AutoTrain,
   EvolutionBoard
 } from "./pages/PlaceholderPage";
-import KnowledgeBase from "./pages/KnowledgeBase";
 import KnowledgeManager from "./pages/KnowledgeManager";
 import KnowledgeGraph from "./pages/KnowledgeGraph";
 import VectorAdmin from "./pages/VectorAdmin";
@@ -139,7 +138,7 @@ function Router() {
       {/* 智能诊断 */}
       <Route path="/diagnosis/analysis" component={DiagAnalysis} />
       <Route path="/diagnosis/report" component={DiagReport} />
-      <Route path="/diagnosis/knowledge" component={KnowledgeBase} />
+      <Redirect from="/diagnosis/knowledge" to="/knowledge/manager" />
       
       {/* 进化引擎 */}
       <Route path="/evolution/feedback" component={FeedbackCenter} />

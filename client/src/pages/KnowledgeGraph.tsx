@@ -4,17 +4,23 @@ import { PageCard } from '@/components/common/PageCard';
 import { Badge } from '@/components/common/Badge';
 import { StatCard } from '@/components/common/StatCard';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { useToast } from '@/components/common/Toast';
+import { trpc } from '@/lib/trpc';
 
 // 节点类型
 interface GraphNode {
   id: string;
   label: string;
-  type: 'entity' | 'concept' | 'document' | 'equipment' | 'fault';
+  type: string;
   x: number;
   y: number;
   vx: number;
   vy: number;
-  properties?: Record<string, string>;
+  properties?: Record<string, unknown>;
+  dbId?: number;
 }
 
 // 边类型
@@ -23,7 +29,8 @@ interface GraphEdge {
   source: string;
   target: string;
   label: string;
-  type: 'belongs_to' | 'related_to' | 'causes' | 'contains' | 'instance_of';
+  type: string;
+  dbId?: number;
 }
 
 // 图谱数据
@@ -34,11 +41,11 @@ interface GraphData {
 
 // 节点颜色映射
 const NODE_COLORS: Record<string, string> = {
-  entity: '#3B82F6',      // 蓝色
-  concept: '#8B5CF6',     // 紫色
-  document: '#10B981',    // 绿色
-  equipment: '#F59E0B',   // 橙色
-  fault: '#EF4444'        // 红色
+  entity: '#3B82F6',
+  concept: '#8B5CF6',
+  document: '#10B981',
+  equipment: '#F59E0B',
+  fault: '#EF4444'
 };
 
 // 边颜色映射
@@ -64,63 +71,98 @@ export default function KnowledgeGraph() {
   const [showLabels, setShowLabels] = useState(true);
   const [animationEnabled, setAnimationEnabled] = useState(true);
   const animationRef = useRef<number | undefined>(undefined);
+  const [selectedCollectionId, setSelectedCollectionId] = useState<number | null>(null);
+  const [showAddNodeDialog, setShowAddNodeDialog] = useState(false);
+  const [showAddEdgeDialog, setShowAddEdgeDialog] = useState(false);
+  const [newNodeLabel, setNewNodeLabel] = useState('');
+  const [newNodeType, setNewNodeType] = useState('entity');
+  const [newEdgeSource, setNewEdgeSource] = useState('');
+  const [newEdgeTarget, setNewEdgeTarget] = useState('');
+  const [newEdgeLabel, setNewEdgeLabel] = useState('');
+  const [newEdgeType, setNewEdgeType] = useState('related_to');
+  const toast = useToast();
 
-  // 初始化示例数据
+  // ━━━ tRPC Queries ━━━
+  const collectionsQuery = trpc.knowledge.listCollections.useQuery();
+  const graphQuery = trpc.knowledge.getGraph.useQuery(
+    { collectionId: selectedCollectionId! },
+    { enabled: selectedCollectionId !== null }
+  );
+
+  // ━━━ tRPC Mutations ━━━
+  const addNodeMutation = trpc.knowledge.addNode.useMutation({
+    onSuccess: () => {
+      toast.success('节点添加成功');
+      graphQuery.refetch();
+      setShowAddNodeDialog(false);
+      setNewNodeLabel('');
+    },
+    onError: (err) => toast.error(`添加节点失败: ${err.message}`)
+  });
+
+  const addEdgeMutation = trpc.knowledge.addEdge.useMutation({
+    onSuccess: () => {
+      toast.success('关系添加成功');
+      graphQuery.refetch();
+      setShowAddEdgeDialog(false);
+      setNewEdgeLabel('');
+    },
+    onError: (err) => toast.error(`添加关系失败: ${err.message}`)
+  });
+
+  const deleteNodeMutation = trpc.knowledge.deleteNode.useMutation({
+    onSuccess: () => {
+      toast.success('节点已删除');
+      graphQuery.refetch();
+      setSelectedNode(null);
+    },
+    onError: (err) => toast.error(`删除节点失败: ${err.message}`)
+  });
+
+  const deleteEdgeMutation = trpc.knowledge.deleteEdge.useMutation({
+    onSuccess: () => {
+      toast.success('关系已删除');
+      graphQuery.refetch();
+    },
+    onError: (err) => toast.error(`删除关系失败: ${err.message}`)
+  });
+
+  const savePositionMutation = trpc.knowledge.saveNodePosition.useMutation();
+
+  // ━━━ 自动选择第一个集合 ━━━
   useEffect(() => {
-    const sampleData: GraphData = {
-      nodes: [
-        // 设备节点
-        { id: 'eq-1', label: '离心泵', type: 'equipment', x: 400, y: 300, vx: 0, vy: 0, properties: { model: 'CP-100', location: '车间A' } },
-        { id: 'eq-2', label: '电机', type: 'equipment', x: 200, y: 200, vx: 0, vy: 0, properties: { model: 'M-75kW', location: '车间A' } },
-        { id: 'eq-3', label: '减速机', type: 'equipment', x: 600, y: 200, vx: 0, vy: 0, properties: { model: 'GR-50', location: '车间A' } },
-        { id: 'eq-4', label: '轴承', type: 'equipment', x: 300, y: 400, vx: 0, vy: 0, properties: { model: 'SKF-6208', location: '离心泵' } },
-        { id: 'eq-5', label: '齿轮', type: 'equipment', x: 500, y: 400, vx: 0, vy: 0, properties: { model: 'G-32T', location: '减速机' } },
-        
-        // 故障节点
-        { id: 'fault-1', label: '轴承外圈故障', type: 'fault', x: 150, y: 450, vx: 0, vy: 0, properties: { severity: '严重', frequency: 'BPFO' } },
-        { id: 'fault-2', label: '转子不平衡', type: 'fault', x: 100, y: 300, vx: 0, vy: 0, properties: { severity: '中等', frequency: '1X' } },
-        { id: 'fault-3', label: '齿面点蚀', type: 'fault', x: 650, y: 350, vx: 0, vy: 0, properties: { severity: '轻微', frequency: 'GMF' } },
-        { id: 'fault-4', label: '气蚀', type: 'fault', x: 450, y: 150, vx: 0, vy: 0, properties: { severity: '中等', cause: 'NPSH不足' } },
-        
-        // 概念节点
-        { id: 'concept-1', label: '振动分析', type: 'concept', x: 250, y: 100, vx: 0, vy: 0 },
-        { id: 'concept-2', label: '频谱分析', type: 'concept', x: 550, y: 100, vx: 0, vy: 0 },
-        { id: 'concept-3', label: '预测性维护', type: 'concept', x: 400, y: 50, vx: 0, vy: 0 },
-        
-        // 文档节点
-        { id: 'doc-1', label: '轴承诊断手册', type: 'document', x: 100, y: 500, vx: 0, vy: 0 },
-        { id: 'doc-2', label: '电机维护指南', type: 'document', x: 50, y: 200, vx: 0, vy: 0 },
-      ],
-      edges: [
-        // 设备关系
-        { id: 'e-1', source: 'eq-2', target: 'eq-1', label: '驱动', type: 'related_to' },
-        { id: 'e-2', source: 'eq-3', target: 'eq-1', label: '连接', type: 'related_to' },
-        { id: 'e-3', source: 'eq-4', target: 'eq-1', label: '属于', type: 'belongs_to' },
-        { id: 'e-4', source: 'eq-5', target: 'eq-3', label: '属于', type: 'belongs_to' },
-        
-        // 故障关系
-        { id: 'e-5', source: 'fault-1', target: 'eq-4', label: '发生于', type: 'causes' },
-        { id: 'e-6', source: 'fault-2', target: 'eq-2', label: '发生于', type: 'causes' },
-        { id: 'e-7', source: 'fault-3', target: 'eq-5', label: '发生于', type: 'causes' },
-        { id: 'e-8', source: 'fault-4', target: 'eq-1', label: '发生于', type: 'causes' },
-        
-        // 概念关系
-        { id: 'e-9', source: 'concept-1', target: 'fault-1', label: '诊断', type: 'related_to' },
-        { id: 'e-10', source: 'concept-1', target: 'fault-2', label: '诊断', type: 'related_to' },
-        { id: 'e-11', source: 'concept-2', target: 'fault-3', label: '诊断', type: 'related_to' },
-        { id: 'e-12', source: 'concept-3', target: 'concept-1', label: '包含', type: 'contains' },
-        { id: 'e-13', source: 'concept-3', target: 'concept-2', label: '包含', type: 'contains' },
-        
-        // 文档关系
-        { id: 'e-14', source: 'doc-1', target: 'fault-1', label: '描述', type: 'related_to' },
-        { id: 'e-15', source: 'doc-2', target: 'eq-2', label: '描述', type: 'related_to' },
-      ]
-    };
-    
-    setGraphData(sampleData);
-  }, []);
+    if (collectionsQuery.data && collectionsQuery.data.length > 0 && selectedCollectionId === null) {
+      setSelectedCollectionId(collectionsQuery.data[0].id);
+    }
+  }, [collectionsQuery.data, selectedCollectionId]);
 
-  // 力导向布局动画
+  // ━━━ 加载图谱数据 ━━━
+  useEffect(() => {
+    if (graphQuery.data) {
+      const nodes: GraphNode[] = graphQuery.data.nodes.map((n: any) => ({
+        id: n.id,
+        label: n.label,
+        type: n.type || 'entity',
+        x: n.x ?? 400 + Math.random() * 200 - 100,
+        y: n.y ?? 300 + Math.random() * 200 - 100,
+        vx: 0,
+        vy: 0,
+        properties: n.properties,
+        dbId: n.dbId
+      }));
+      const edges: GraphEdge[] = graphQuery.data.edges.map((e: any) => ({
+        id: e.id,
+        source: e.source,
+        target: e.target,
+        label: e.label,
+        type: e.type || 'related_to',
+        dbId: e.dbId
+      }));
+      setGraphData({ nodes, edges });
+    }
+  }, [graphQuery.data]);
+
+  // ━━━ 力导向布局动画 ━━━
   useEffect(() => {
     if (!animationEnabled || graphData.nodes.length === 0) return;
 
@@ -128,45 +170,35 @@ export default function KnowledgeGraph() {
       setGraphData(prev => {
         const nodes = [...prev.nodes];
         const edges = prev.edges;
-        
-        // 力导向算法
         const repulsion = 5000;
         const attraction = 0.01;
         const damping = 0.9;
         const centerX = 400;
         const centerY = 300;
-        
-        // 计算斥力
+
         for (let i = 0; i < nodes.length; i++) {
           for (let j = i + 1; j < nodes.length; j++) {
             const dx = nodes[j].x - nodes[i].x;
             const dy = nodes[j].y - nodes[i].y;
             const dist = Math.sqrt(dx * dx + dy * dy) || 1;
             const force = repulsion / (dist * dist);
-            
             const fx = (dx / dist) * force;
             const fy = (dy / dist) * force;
-            
             nodes[i].vx -= fx;
             nodes[i].vy -= fy;
             nodes[j].vx += fx;
             nodes[j].vy += fy;
           }
         }
-        
-        // 计算引力（边）
+
         for (const edge of edges) {
-          const source = (nodes || []).find(n => n.id === edge.source);
-          const target = (nodes || []).find(n => n.id === edge.target);
+          const source = nodes.find(n => n.id === edge.source);
+          const target = nodes.find(n => n.id === edge.target);
           if (!source || !target) continue;
-          
           const dx = target.x - source.x;
           const dy = target.y - source.y;
-          const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-          
           const fx = dx * attraction;
           const fy = dy * attraction;
-          
           const si = nodes.indexOf(source);
           const ti = nodes.indexOf(target);
           nodes[si].vx += fx;
@@ -174,90 +206,70 @@ export default function KnowledgeGraph() {
           nodes[ti].vx -= fx;
           nodes[ti].vy -= fy;
         }
-        
-        // 中心引力
+
         for (const node of nodes) {
           node.vx += (centerX - node.x) * 0.001;
           node.vy += (centerY - node.y) * 0.001;
         }
-        
-        // 更新位置
+
         for (const node of nodes) {
           node.vx *= damping;
           node.vy *= damping;
           node.x += node.vx;
           node.y += node.vy;
-          
-          // 边界限制
           node.x = Math.max(50, Math.min(750, node.x));
           node.y = Math.max(50, Math.min(550, node.y));
         }
-        
+
         return { nodes, edges };
       });
-      
       animationRef.current = requestAnimationFrame(animate);
     };
-    
+
     animationRef.current = requestAnimationFrame(animate);
-    
     return () => {
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
-      }
+      if (animationRef.current) cancelAnimationFrame(animationRef.current);
     };
   }, [animationEnabled, graphData.nodes.length]);
 
-  // 绘制图谱
+  // ━━━ 绘制图谱 ━━━
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-    
-    // 清空画布
+
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    
-    // 应用变换
     ctx.save();
     ctx.translate(offset.x, offset.y);
     ctx.scale(zoom, zoom);
-    
+
     // 绘制边
     for (const edge of graphData.edges) {
-      const source = (graphData.nodes || []).find(n => n.id === edge.source);
-      const target = (graphData.nodes || []).find(n => n.id === edge.target);
+      const source = graphData.nodes.find(n => n.id === edge.source);
+      const target = graphData.nodes.find(n => n.id === edge.target);
       if (!source || !target) continue;
-      
+
       ctx.beginPath();
       ctx.moveTo(source.x, source.y);
       ctx.lineTo(target.x, target.y);
       ctx.strokeStyle = EDGE_COLORS[edge.type] || '#6B7280';
       ctx.lineWidth = 1.5;
       ctx.stroke();
-      
-      // 绘制箭头
+
+      // 箭头
       const angle = Math.atan2(target.y - source.y, target.x - source.x);
       const arrowLen = 10;
       const arrowX = target.x - Math.cos(angle) * 25;
       const arrowY = target.y - Math.sin(angle) * 25;
-      
       ctx.beginPath();
       ctx.moveTo(arrowX, arrowY);
-      ctx.lineTo(
-        arrowX - arrowLen * Math.cos(angle - Math.PI / 6),
-        arrowY - arrowLen * Math.sin(angle - Math.PI / 6)
-      );
-      ctx.lineTo(
-        arrowX - arrowLen * Math.cos(angle + Math.PI / 6),
-        arrowY - arrowLen * Math.sin(angle + Math.PI / 6)
-      );
+      ctx.lineTo(arrowX - arrowLen * Math.cos(angle - Math.PI / 6), arrowY - arrowLen * Math.sin(angle - Math.PI / 6));
+      ctx.lineTo(arrowX - arrowLen * Math.cos(angle + Math.PI / 6), arrowY - arrowLen * Math.sin(angle + Math.PI / 6));
       ctx.closePath();
       ctx.fillStyle = EDGE_COLORS[edge.type] || '#6B7280';
       ctx.fill();
-      
-      // 绘制边标签
+
       if (showLabels) {
         const midX = (source.x + target.x) / 2;
         const midY = (source.y + target.y) / 2;
@@ -267,66 +279,58 @@ export default function KnowledgeGraph() {
         ctx.fillText(edge.label, midX, midY - 5);
       }
     }
-    
+
     // 绘制节点
     for (const node of graphData.nodes) {
       const isSelected = selectedNode?.id === node.id;
       const isHovered = hoveredNode?.id === node.id;
       const radius = isSelected ? 25 : isHovered ? 22 : 20;
-      
-      // 节点阴影
+
       if (isSelected || isHovered) {
         ctx.beginPath();
         ctx.arc(node.x, node.y, radius + 5, 0, Math.PI * 2);
-        ctx.fillStyle = `${NODE_COLORS[node.type]}40`;
+        ctx.fillStyle = `${NODE_COLORS[node.type] || '#6B7280'}40`;
         ctx.fill();
       }
-      
-      // 节点圆
+
       ctx.beginPath();
       ctx.arc(node.x, node.y, radius, 0, Math.PI * 2);
       ctx.fillStyle = NODE_COLORS[node.type] || '#6B7280';
       ctx.fill();
-      
-      // 节点边框
       ctx.strokeStyle = isSelected ? '#FFFFFF' : '#1F2937';
       ctx.lineWidth = isSelected ? 3 : 2;
       ctx.stroke();
-      
-      // 节点标签
+
       ctx.font = 'bold 11px sans-serif';
       ctx.fillStyle = '#FFFFFF';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(node.label.slice(0, 4), node.x, node.y);
-      
-      // 完整标签
+
       if (showLabels) {
         ctx.font = '11px sans-serif';
         ctx.fillStyle = '#E5E7EB';
         ctx.fillText(node.label, node.x, node.y + radius + 12);
       }
     }
-    
+
     ctx.restore();
   }, [graphData, selectedNode, hoveredNode, zoom, offset, showLabels]);
 
-  // 鼠标事件处理
+  // ━━━ 鼠标事件 ━━━
   const handleMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    
     const rect = canvas.getBoundingClientRect();
     const x = (e.clientX - rect.left - offset.x) / zoom;
     const y = (e.clientY - rect.top - offset.y) / zoom;
-    
-    // 检查是否点击了节点
-    const clickedNode = (graphData.nodes || []).find(node => {
+
+    const clickedNode = graphData.nodes.find(node => {
       const dx = node.x - x;
       const dy = node.y - y;
       return Math.sqrt(dx * dx + dy * dy) < 25;
     });
-    
+
     if (clickedNode) {
       setSelectedNode(clickedNode);
     } else {
@@ -339,25 +343,21 @@ export default function KnowledgeGraph() {
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    
+
     if (isDragging) {
-      setOffset({
-        x: e.clientX - dragStart.x,
-        y: e.clientY - dragStart.y
-      });
+      setOffset({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y });
       return;
     }
-    
+
     const rect = canvas.getBoundingClientRect();
     const x = (e.clientX - rect.left - offset.x) / zoom;
     const y = (e.clientY - rect.top - offset.y) / zoom;
-    
-    const hovered = (graphData.nodes || []).find(node => {
+
+    const hovered = graphData.nodes.find(node => {
       const dx = node.x - x;
       const dy = node.y - y;
       return Math.sqrt(dx * dx + dy * dy) < 25;
     });
-    
     setHoveredNode(hovered || null);
     canvas.style.cursor = hovered ? 'pointer' : isDragging ? 'grabbing' : 'grab';
   }, [graphData.nodes, isDragging, dragStart, offset, zoom]);
@@ -372,66 +372,66 @@ export default function KnowledgeGraph() {
     setZoom(prev => Math.max(0.3, Math.min(3, prev * delta)));
   }, []);
 
-  // 过滤节点
-  const filteredNodes = (graphData.nodes || []).filter(node => {
-    const matchesSearch = node.label.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesType = filterType === 'all' || node.type === filterType;
-    return matchesSearch && matchesType;
-  });
-
-  // 统计数据
-  const stats = {
-    totalNodes: graphData.nodes.length,
-    totalEdges: graphData.edges.length,
-    entityCount: (graphData.nodes || []).filter(n => n.type === 'entity').length,
-    equipmentCount: (graphData.nodes || []).filter(n => n.type === 'equipment').length,
-    faultCount: (graphData.nodes || []).filter(n => n.type === 'fault').length,
-    conceptCount: (graphData.nodes || []).filter(n => n.type === 'concept').length
+  // ━━━ 操作函数 ━━━
+  const handleAddNode = () => {
+    if (!newNodeLabel.trim() || selectedCollectionId === null) return;
+    addNodeMutation.mutate({
+      collectionId: selectedCollectionId,
+      label: newNodeLabel.trim(),
+      type: newNodeType
+    });
   };
 
-  // 添加节点
-  const addNode = () => {
-    const newNode: GraphNode = {
-      id: `node-${Date.now()}`,
-      label: '新节点',
-      type: 'entity',
-      x: 400 + Math.random() * 100 - 50,
-      y: 300 + Math.random() * 100 - 50,
-      vx: 0,
-      vy: 0
-    };
-    setGraphData(prev => ({
-      ...prev,
-      nodes: [...prev.nodes, newNode]
-    }));
+  const handleAddEdge = () => {
+    if (!newEdgeSource || !newEdgeTarget || !newEdgeLabel.trim() || selectedCollectionId === null) return;
+    addEdgeMutation.mutate({
+      collectionId: selectedCollectionId,
+      source: newEdgeSource,
+      target: newEdgeTarget,
+      label: newEdgeLabel.trim(),
+      type: newEdgeType
+    });
   };
 
-  // 删除选中节点
-  const deleteSelectedNode = () => {
-    if (!selectedNode) return;
-    setGraphData(prev => ({
-      nodes: (prev.nodes || []).filter(n => n.id !== selectedNode.id),
-      edges: (prev.edges || []).filter(e => e.source !== selectedNode.id && e.target !== selectedNode.id)
-    }));
-    setSelectedNode(null);
+  const handleDeleteNode = () => {
+    if (!selectedNode?.dbId) {
+      toast.warning('该节点无法删除（无数据库ID）');
+      return;
+    }
+    deleteNodeMutation.mutate({ id: selectedNode.dbId });
   };
 
-  // 导出图谱
   const exportGraph = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    
     const link = document.createElement('a');
     link.download = `knowledge-graph-${Date.now()}.png`;
     link.href = canvas.toDataURL('image/png');
     link.click();
   };
 
-  // 重置视图
   const resetView = () => {
     setZoom(1);
     setOffset({ x: 0, y: 0 });
   };
+
+  // ━━━ 过滤和统计 ━━━
+  const filteredNodes = graphData.nodes.filter(node => {
+    const matchesSearch = node.label.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesType = filterType === 'all' || node.type === filterType;
+    return matchesSearch && matchesType;
+  });
+
+  const stats = {
+    totalNodes: graphData.nodes.length,
+    totalEdges: graphData.edges.length,
+    entityCount: graphData.nodes.filter(n => n.type === 'entity').length,
+    equipmentCount: graphData.nodes.filter(n => n.type === 'equipment').length,
+    faultCount: graphData.nodes.filter(n => n.type === 'fault').length,
+    conceptCount: graphData.nodes.filter(n => n.type === 'concept').length
+  };
+
+  const collections = collectionsQuery.data || [];
 
   return (
     <MainLayout title="知识图谱">
@@ -440,17 +440,45 @@ export default function KnowledgeGraph() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-white">知识图谱</h1>
-            <p className="text-gray-400 text-sm mt-1">可视化实体关系网络，支持交互式探索和编辑</p>
+            <p className="text-gray-400 text-sm mt-1">
+              可视化实体关系网络，支持交互式探索和编辑
+              {graphQuery.isLoading && ' — 加载中...'}
+              {graphQuery.isError && ' — 加载失败'}
+            </p>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={addNode}>
+            {/* 集合选择器 */}
+            <Select
+              value={selectedCollectionId?.toString() || ''}
+              onValueChange={(v) => setSelectedCollectionId(Number(v))}
+            >
+              <SelectTrigger className="w-[180px] bg-gray-800 border-gray-600 text-white">
+                <SelectValue placeholder="选择知识集合" />
+              </SelectTrigger>
+              <SelectContent>
+                {collections.map((c: any) => (
+                  <SelectItem key={c.id} value={c.id.toString()}>
+                    {c.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button variant="outline" size="sm" onClick={() => setShowAddNodeDialog(true)}
+              disabled={selectedCollectionId === null}>
               ➕ 添加节点
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setShowAddEdgeDialog(true)}
+              disabled={selectedCollectionId === null || graphData.nodes.length < 2}>
+              🔗 添加关系
             </Button>
             <Button variant="outline" size="sm" onClick={exportGraph}>
               📥 导出图片
             </Button>
             <Button variant="outline" size="sm" onClick={resetView}>
               🔄 重置视图
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => graphQuery.refetch()}>
+              🔃 刷新
             </Button>
           </div>
         </div>
@@ -464,6 +492,13 @@ export default function KnowledgeGraph() {
           <StatCard label="概念" value={stats.conceptCount} icon="💡" />
           <StatCard label="实体" value={stats.entityCount} icon="📦" />
         </div>
+
+        {/* 无集合提示 */}
+        {collections.length === 0 && !collectionsQuery.isLoading && (
+          <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4 text-center">
+            <p className="text-yellow-400">暂无知识集合。请先在「知识管理」中创建集合并上传文档，系统会自动生成知识图谱。</p>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
           {/* 图谱画布 */}
@@ -495,32 +530,16 @@ export default function KnowledgeGraph() {
 
                 {/* 控制按钮 */}
                 <div className="absolute top-2 right-2 z-10 flex flex-col gap-1 bg-gray-800/80 rounded-lg p-2">
-                  <button
-                    onClick={() => setZoom(z => Math.min(3, z * 1.2))}
-                    className="w-8 h-8 bg-gray-700 hover:bg-gray-600 rounded text-white"
-                  >
-                    +
-                  </button>
-                  <button
-                    onClick={() => setZoom(z => Math.max(0.3, z / 1.2))}
-                    className="w-8 h-8 bg-gray-700 hover:bg-gray-600 rounded text-white"
-                  >
-                    -
-                  </button>
-                  <button
-                    onClick={() => setShowLabels(!showLabels)}
+                  <button onClick={() => setZoom(z => Math.min(3, z * 1.2))}
+                    className="w-8 h-8 bg-gray-700 hover:bg-gray-600 rounded text-white">+</button>
+                  <button onClick={() => setZoom(z => Math.max(0.3, z / 1.2))}
+                    className="w-8 h-8 bg-gray-700 hover:bg-gray-600 rounded text-white">-</button>
+                  <button onClick={() => setShowLabels(!showLabels)}
                     className={`w-8 h-8 rounded text-white ${showLabels ? 'bg-blue-600' : 'bg-gray-700 hover:bg-gray-600'}`}
-                    title="显示标签"
-                  >
-                    T
-                  </button>
-                  <button
-                    onClick={() => setAnimationEnabled(!animationEnabled)}
+                    title="显示标签">T</button>
+                  <button onClick={() => setAnimationEnabled(!animationEnabled)}
                     className={`w-8 h-8 rounded text-white ${animationEnabled ? 'bg-blue-600' : 'bg-gray-700 hover:bg-gray-600'}`}
-                    title="力导向布局"
-                  >
-                    ⚡
-                  </button>
+                    title="力导向布局">⚡</button>
                 </div>
 
                 {/* 画布 */}
@@ -544,10 +563,8 @@ export default function KnowledgeGraph() {
                       <div key={type} className="flex items-center gap-1">
                         <div className="w-3 h-3 rounded-full" style={{ backgroundColor: color }} />
                         <span className="text-xs text-gray-300">
-                          {type === 'entity' ? '实体' :
-                           type === 'concept' ? '概念' :
-                           type === 'document' ? '文档' :
-                           type === 'equipment' ? '设备' : '故障'}
+                          {type === 'entity' ? '实体' : type === 'concept' ? '概念' :
+                           type === 'document' ? '文档' : type === 'equipment' ? '设备' : '故障'}
                         </span>
                       </div>
                     ))}
@@ -564,10 +581,7 @@ export default function KnowledgeGraph() {
               {selectedNode ? (
                 <div className="space-y-3">
                   <div className="flex items-center gap-2">
-                    <div 
-                      className="w-4 h-4 rounded-full" 
-                      style={{ backgroundColor: NODE_COLORS[selectedNode.type] }}
-                    />
+                    <div className="w-4 h-4 rounded-full" style={{ backgroundColor: NODE_COLORS[selectedNode.type] || '#6B7280' }} />
                     <span className="text-white font-medium">{selectedNode.label}</span>
                   </div>
                   <div className="text-sm">
@@ -577,19 +591,17 @@ export default function KnowledgeGraph() {
                       selectedNode.type === 'equipment' ? 'warning' :
                       selectedNode.type === 'concept' ? 'info' : 'default'
                     }>
-                      {selectedNode.type === 'entity' ? '实体' :
-                       selectedNode.type === 'concept' ? '概念' :
-                       selectedNode.type === 'document' ? '文档' :
-                       selectedNode.type === 'equipment' ? '设备' : '故障'}
+                      {selectedNode.type === 'entity' ? '实体' : selectedNode.type === 'concept' ? '概念' :
+                       selectedNode.type === 'document' ? '文档' : selectedNode.type === 'equipment' ? '设备' : '故障'}
                     </Badge>
                   </div>
-                  {selectedNode.properties && (
+                  {selectedNode.properties && Object.keys(selectedNode.properties).length > 0 && (
                     <div className="text-sm">
                       <div className="text-gray-400 mb-1">属性</div>
                       {Object.entries(selectedNode.properties).map(([key, value]) => (
                         <div key={key} className="flex justify-between py-1 border-b border-gray-700">
                           <span className="text-gray-400">{key}</span>
-                          <span className="text-white">{value}</span>
+                          <span className="text-white">{String(value)}</span>
                         </div>
                       ))}
                     </div>
@@ -597,16 +609,12 @@ export default function KnowledgeGraph() {
                   <div className="text-sm">
                     <div className="text-gray-400 mb-1">关联关系</div>
                     <div className="text-gray-300">
-                      {(graphData.edges || []).filter(e => e.source === selectedNode.id || e.target === selectedNode.id).length} 条
+                      {graphData.edges.filter(e => e.source === selectedNode.id || e.target === selectedNode.id).length} 条
                     </div>
                   </div>
-                  <Button 
-                    variant="destructive" 
-                    size="sm" 
-                    className="w-full"
-                    onClick={deleteSelectedNode}
-                  >
-                    删除节点
+                  <Button variant="destructive" size="sm" className="w-full" onClick={handleDeleteNode}
+                    disabled={deleteNodeMutation.isPending}>
+                    {deleteNodeMutation.isPending ? '删除中...' : '删除节点'}
                   </Button>
                 </div>
               ) : (
@@ -620,28 +628,139 @@ export default function KnowledgeGraph() {
             {/* 节点列表 */}
             <PageCard title={`节点列表 (${filteredNodes.length})`}>
               <div className="max-h-[300px] overflow-y-auto space-y-1">
-                {(filteredNodes || []).map(node => (
+                {filteredNodes.map(node => (
                   <div
                     key={node.id}
                     onClick={() => setSelectedNode(node)}
                     className={`flex items-center gap-2 p-2 rounded cursor-pointer transition-colors ${
-                      selectedNode?.id === node.id 
-                        ? 'bg-blue-600/30 border border-blue-500' 
+                      selectedNode?.id === node.id
+                        ? 'bg-blue-600/30 border border-blue-500'
                         : 'hover:bg-gray-700'
                     }`}
                   >
-                    <div 
-                      className="w-3 h-3 rounded-full flex-shrink-0" 
-                      style={{ backgroundColor: NODE_COLORS[node.type] }}
-                    />
+                    <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: NODE_COLORS[node.type] || '#6B7280' }} />
                     <span className="text-white text-sm truncate">{node.label}</span>
                   </div>
                 ))}
+                {filteredNodes.length === 0 && (
+                  <div className="text-center py-4 text-gray-500 text-sm">
+                    {graphData.nodes.length === 0 ? '暂无图谱数据' : '无匹配节点'}
+                  </div>
+                )}
               </div>
             </PageCard>
           </div>
         </div>
       </div>
+
+      {/* 添加节点对话框 */}
+      <Dialog open={showAddNodeDialog} onOpenChange={setShowAddNodeDialog}>
+        <DialogContent className="bg-gray-800 border-gray-700">
+          <DialogHeader>
+            <DialogTitle className="text-white">添加节点</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm text-gray-400">节点名称</label>
+              <Input
+                value={newNodeLabel}
+                onChange={(e) => setNewNodeLabel(e.target.value)}
+                placeholder="输入节点名称"
+                className="bg-gray-700 border-gray-600 text-white"
+              />
+            </div>
+            <div>
+              <label className="text-sm text-gray-400">节点类型</label>
+              <Select value={newNodeType} onValueChange={setNewNodeType}>
+                <SelectTrigger className="bg-gray-700 border-gray-600 text-white">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="entity">实体</SelectItem>
+                  <SelectItem value="equipment">设备</SelectItem>
+                  <SelectItem value="fault">故障</SelectItem>
+                  <SelectItem value="concept">概念</SelectItem>
+                  <SelectItem value="document">文档</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAddNodeDialog(false)}>取消</Button>
+            <Button onClick={handleAddNode} disabled={!newNodeLabel.trim() || addNodeMutation.isPending}>
+              {addNodeMutation.isPending ? '添加中...' : '确认添加'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 添加关系对话框 */}
+      <Dialog open={showAddEdgeDialog} onOpenChange={setShowAddEdgeDialog}>
+        <DialogContent className="bg-gray-800 border-gray-700">
+          <DialogHeader>
+            <DialogTitle className="text-white">添加关系</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm text-gray-400">源节点</label>
+              <Select value={newEdgeSource} onValueChange={setNewEdgeSource}>
+                <SelectTrigger className="bg-gray-700 border-gray-600 text-white">
+                  <SelectValue placeholder="选择源节点" />
+                </SelectTrigger>
+                <SelectContent>
+                  {graphData.nodes.map(n => (
+                    <SelectItem key={n.id} value={n.id}>{n.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="text-sm text-gray-400">目标节点</label>
+              <Select value={newEdgeTarget} onValueChange={setNewEdgeTarget}>
+                <SelectTrigger className="bg-gray-700 border-gray-600 text-white">
+                  <SelectValue placeholder="选择目标节点" />
+                </SelectTrigger>
+                <SelectContent>
+                  {graphData.nodes.filter(n => n.id !== newEdgeSource).map(n => (
+                    <SelectItem key={n.id} value={n.id}>{n.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="text-sm text-gray-400">关系名称</label>
+              <Input
+                value={newEdgeLabel}
+                onChange={(e) => setNewEdgeLabel(e.target.value)}
+                placeholder="例如：属于、驱动、诊断"
+                className="bg-gray-700 border-gray-600 text-white"
+              />
+            </div>
+            <div>
+              <label className="text-sm text-gray-400">关系类型</label>
+              <Select value={newEdgeType} onValueChange={setNewEdgeType}>
+                <SelectTrigger className="bg-gray-700 border-gray-600 text-white">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="related_to">相关</SelectItem>
+                  <SelectItem value="belongs_to">属于</SelectItem>
+                  <SelectItem value="causes">导致</SelectItem>
+                  <SelectItem value="contains">包含</SelectItem>
+                  <SelectItem value="instance_of">实例</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAddEdgeDialog(false)}>取消</Button>
+            <Button onClick={handleAddEdge}
+              disabled={!newEdgeSource || !newEdgeTarget || !newEdgeLabel.trim() || addEdgeMutation.isPending}>
+              {addEdgeMutation.isPending ? '添加中...' : '确认添加'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </MainLayout>
   );
 }

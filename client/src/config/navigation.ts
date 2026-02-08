@@ -85,7 +85,6 @@ export const navigationConfig: NavItem[] = [
       { id: 'agents', label: '智能体诊断', icon: '🤖', path: '/agents' },
       { id: 'diag-analysis', label: '诊断分析', icon: '🔍', path: '/diagnosis/analysis' },
       { id: 'diag-report', label: '诊断报告', icon: '📝', path: '/diagnosis/report' },
-      { id: 'knowledge-base', label: '知识库', icon: '📚', path: '/diagnosis/knowledge' }
     ]
   },
   {
