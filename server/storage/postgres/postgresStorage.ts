@@ -17,7 +17,7 @@ import {
   devices, 
   sensors, 
   telemetryData, 
-  dataAggregations,
+  // dataAggregations - DEPRECATED
   deviceMaintenanceRecords,
   deviceSpareParts,
   deviceAlerts,
@@ -199,7 +199,7 @@ export class PostgresStorage {
       }).$returningId();
 
       if (result[0]) {
-        const inserted = await db.select().from(devices).where(eq(devices.id, result[0].id)).limit(1);
+        const inserted = await db.select().from(assetNodes).where(eq(assetNodes.id, result[0].id)).limit(1);
         return inserted[0] ? this.mapDeviceRecord(inserted[0]) : null;
       }
       return null;
@@ -217,7 +217,7 @@ export class PostgresStorage {
     if (!db) return null;
 
     try {
-      const result = await db.select().from(devices).where(eq(devices.deviceId, deviceId)).limit(1);
+      const result = await db.select().from(assetNodes).where(eq(assetNodes.deviceId, deviceId)).limit(1);
       return result[0] ? this.mapDeviceRecord(result[0]) : null;
     } catch (error) {
       console.error('[PostgreSQL] Get device error:', error);
@@ -245,12 +245,12 @@ export class PostgresStorage {
       if (updates.metadata) updateData.metadata = JSON.stringify(updates.metadata);
       updateData.updatedAt = new Date();
 
-      await db.update(devices)
+      await db.update(assetNodes)
         .set(updateData)
-        .where(eq(devices.deviceId, deviceId));
+        .where(eq(assetNodes.deviceId, deviceId));
 
       // 重新查询更新后的记录
-      const updated = await db.select().from(devices).where(eq(devices.deviceId, deviceId)).limit(1);
+      const updated = await db.select().from(assetNodes).where(eq(assetNodes.deviceId, deviceId)).limit(1);
       return updated[0] ? this.mapDeviceRecord(updated[0]) : null;
     } catch (error) {
       console.error('[PostgreSQL] Update device error:', error);
@@ -266,7 +266,7 @@ export class PostgresStorage {
     if (!db) return false;
 
     try {
-      await db.delete(devices).where(eq(devices.deviceId, deviceId));
+      await db.delete(devices).where(eq(assetNodes.deviceId, deviceId));
       return true;
     } catch (error) {
       console.error('[PostgreSQL] Delete device error:', error);
@@ -293,15 +293,15 @@ export class PostgresStorage {
       // 构建查询条件
       const conditions: ReturnType<typeof eq>[] = [];
       if (options.status) {
-        conditions.push(eq(devices.status, options.status as any));
+        conditions.push(eq(assetNodes.status, options.status as any));
       }
       if (options.type) {
-        conditions.push(eq(devices.type, options.type as any));
+        conditions.push(eq(assetNodes.type, options.type as any));
       }
       if (options.search) {
         const searchCondition = or(
-          like(devices.name, `%${options.search}%`),
-          like(devices.deviceId, `%${options.search}%`)
+          like(assetNodes.name, `%${options.search}%`),
+          like(assetNodes.deviceId, `%${options.search}%`)
         );
         if (searchCondition) {
           conditions.push(searchCondition);
@@ -310,18 +310,18 @@ export class PostgresStorage {
 
       // 获取总数
       const countResult = await db.select({ count: sql<number>`count(*)` })
-        .from(devices)
+        .from(assetNodes)
         .where(conditions.length > 0 ? and(...conditions) : undefined);
       const total = Number(countResult[0]?.count || 0);
 
       // 获取数据
-      let query = db.select().from(devices);
+      let query = db.select().from(assetNodes);
       if (conditions.length > 0) {
         query = query.where(and(...conditions)) as typeof query;
       }
 
       const orderFn = options.orderDirection === 'asc' ? asc : desc;
-      const orderColumn = options.orderBy === 'name' ? devices.name : devices.createdAt;
+      const orderColumn = options.orderBy === 'name' ? assetNodes.name : assetNodes.createdAt;
       
       const result = await query
         .orderBy(orderFn(orderColumn))
@@ -829,8 +829,8 @@ export class PostgresStorage {
       // 设备统计
       const deviceStats = await db.select({
         total: sql<number>`count(*)`,
-        online: sql<number>`count(*) filter (where ${devices.status} = 'online')`,
-      }).from(devices);
+        online: sql<number>`count(*) filter (where ${assetNodes.status} = 'online')`,
+      }).from(assetNodes);
 
       // 用户统计
       const userStats = await db.select({

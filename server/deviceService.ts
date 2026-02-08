@@ -93,7 +93,7 @@ class DataSimulator {
   }>): void {
     this.simulatedDevices.set(deviceId, {
       deviceId,
-      sensors: sensors.map(s => ({
+      sensors: assetSensors.map(s => ({
         ...s,
         trend: s.trend || 0,
       })),
@@ -246,16 +246,16 @@ class DeviceService {
 
       const conditions = [];
       if (options.type) {
-        conditions.push(eq(devices.type, options.type as any));
+        conditions.push(eq(assetNodes.type, options.type as any));
       }
       if (options.status) {
-        conditions.push(eq(devices.status, options.status as any));
+        conditions.push(eq(assetNodes.status, options.status as any));
       }
 
       const query = db
         .select()
-        .from(devices)
-        .orderBy(desc(devices.updatedAt))
+        .from(assetNodes)
+        .orderBy(desc(assetNodes.updatedAt))
         .limit(options.limit || 100)
         .offset(options.offset || 0);
 
@@ -292,8 +292,8 @@ class DeviceService {
 
       const result = await db
         .select()
-        .from(devices)
-        .where(eq(devices.deviceId, deviceId))
+        .from(assetNodes)
+        .where(eq(assetNodes.deviceId, deviceId))
         .limit(1);
 
       if (result.length === 0) return null;
@@ -303,8 +303,8 @@ class DeviceService {
       // 获取传感器数量
       const sensorCountResult = await db
         .select({ count: count() })
-        .from(sensors)
-        .where(eq(sensors.deviceId, deviceId));
+        .from(assetSensors)
+        .where(eq(assetSensors.deviceId, deviceId));
 
       return {
         deviceId: d.deviceId,
@@ -335,13 +335,13 @@ class DeviceService {
       if (!db) return false;
 
       await db
-        .update(devices)
+        .update(assetNodes)
         .set({
           status,
           lastHeartbeat: status === 'online' ? new Date() : undefined,
           updatedAt: new Date(),
         })
-        .where(eq(devices.deviceId, deviceId));
+        .where(eq(assetNodes.deviceId, deviceId));
 
       // 发布状态变更事件
       await eventBus.publish(
@@ -366,7 +366,7 @@ class DeviceService {
       const db = await getDb();
       if (!db) return false;
 
-      await db.delete(devices).where(eq(devices.deviceId, deviceId));
+      await db.delete(devices).where(eq(assetNodes.deviceId, deviceId));
       return true;
     } catch (error) {
       console.error('[DeviceService] Delete device failed:', error);
@@ -435,11 +435,11 @@ class SensorService {
 
       const query = db
         .select()
-        .from(sensors)
-        .orderBy(desc(sensors.updatedAt));
+        .from(assetSensors)
+        .orderBy(desc(assetSensors.updatedAt));
 
       if (deviceId) {
-        query.where(eq(sensors.deviceId, deviceId));
+        query.where(eq(assetSensors.deviceId, deviceId));
       }
 
       const results = await query;
@@ -476,7 +476,7 @@ class SensorService {
           value: sensorReadings.numericValue,
           timestamp: sensorReadings.timestamp,
         })
-        .from(sensorReadings)
+        .from(assetSensors) // TODO: migrate from sensorReadings
         .where(eq(sensorReadings.sensorId, sensorId))
         .orderBy(desc(sensorReadings.timestamp))
         .limit(limit);
@@ -524,7 +524,7 @@ class SensorService {
 
       const results = await db
         .select()
-        .from(sensorAggregates)
+        .from(assetSensors) // TODO: migrate from sensorAggregates
         .where(and(...conditions))
         .orderBy(desc(sensorAggregates.periodStart))
         .limit(1000);
@@ -551,13 +551,13 @@ class SensorService {
       if (!db) return;
 
       await db
-        .update(sensors)
+        .update(assetSensors)
         .set({
           lastValue: String(value),
           lastReadingAt: new Date(),
           updatedAt: new Date(),
         })
-        .where(eq(sensors.sensorId, sensorId));
+        .where(eq(assetSensors.sensorId, sensorId));
     } catch (error) {
       console.error('[SensorService] Update last value failed:', error);
     }
@@ -571,7 +571,7 @@ class SensorService {
       const db = await getDb();
       if (!db) return false;
 
-      await db.delete(sensors).where(eq(sensors.sensorId, sensorId));
+      await db.delete(sensors).where(eq(assetSensors.sensorId, sensorId));
       return true;
     } catch (error) {
       console.error('[SensorService] Delete sensor failed:', error);

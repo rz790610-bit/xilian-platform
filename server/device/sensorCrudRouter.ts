@@ -6,7 +6,7 @@
 import { z } from 'zod';
 import { publicProcedure, protectedProcedure, router } from '../_core/trpc';
 import { getDb } from '../db';
-import { sensors, sensorReadings, sensorAggregates } from '../../drizzle/schema';
+import { assetSensors } from '../../drizzle/schema'; // sensorReadings, sensorAggregates DEPRECATED
 import { eq, desc, and, or, like, inArray, sql, count, gte, lte } from 'drizzle-orm';
 
 const sensorTypeSchema = z.enum([
@@ -37,21 +37,21 @@ export const sensorCrudRouter = router({
       const conditions: any[] = [];
 
       if (params.deviceId) {
-        conditions.push(eq(sensors.deviceId, params.deviceId));
+        conditions.push(eq(assetSensors.deviceId, params.deviceId));
       }
       if (params.type) {
         const types = Array.isArray(params.type) ? params.type : [params.type];
-        conditions.push(inArray(sensors.type, types));
+        conditions.push(inArray(assetSensors.type, types));
       }
       if (params.status) {
         const statuses = Array.isArray(params.status) ? params.status : [params.status];
-        conditions.push(inArray(sensors.status, statuses));
+        conditions.push(inArray(assetSensors.status, statuses));
       }
       if (params.search) {
         conditions.push(
           or(
-            like(sensors.name, `%${params.search}%`),
-            like(sensors.sensorId, `%${params.search}%`)
+            like(assetSensors.name, `%${params.search}%`),
+            like(assetSensors.sensorId, `%${params.search}%`)
           )
         );
       }
@@ -61,12 +61,12 @@ export const sensorCrudRouter = router({
       const pageSize = params.pageSize || 20;
 
       const [items, totalResult] = await Promise.all([
-        db.select().from(sensors)
+        db.select().from(assetSensors)
           .where(where)
-          .orderBy(desc(sensors.updatedAt))
+          .orderBy(desc(assetSensors.updatedAt))
           .limit(pageSize)
           .offset((page - 1) * pageSize),
-        db.select({ count: count() }).from(sensors).where(where),
+        db.select({ count: count() }).from(assetSensors).where(where),
       ]);
 
       return {
@@ -86,8 +86,8 @@ export const sensorCrudRouter = router({
       const db = await getDb();
       if (!db) return null;
 
-      const result = await db.select().from(sensors)
-        .where(eq(sensors.sensorId, input.sensorId))
+      const result = await db.select().from(assetSensors)
+        .where(eq(assetSensors.sensorId, input.sensorId))
         .limit(1);
       return result[0] || null;
     }),
@@ -113,8 +113,8 @@ export const sensorCrudRouter = router({
       if (!db) throw new Error('Database not available');
 
       await db.insert(sensors).values(input as any);
-      const result = await db.select().from(sensors)
-        .where(eq(sensors.sensorId, input.sensorId))
+      const result = await db.select().from(assetSensors)
+        .where(eq(assetSensors.sensorId, input.sensorId))
         .limit(1);
       return result[0];
     }),
@@ -141,12 +141,12 @@ export const sensorCrudRouter = router({
       const db = await getDb();
       if (!db) throw new Error('Database not available');
 
-      await db.update(sensors)
+      await db.update(assetSensors)
         .set(input.data as any)
-        .where(eq(sensors.sensorId, input.sensorId));
+        .where(eq(assetSensors.sensorId, input.sensorId));
 
-      const result = await db.select().from(sensors)
-        .where(eq(sensors.sensorId, input.sensorId))
+      const result = await db.select().from(assetSensors)
+        .where(eq(assetSensors.sensorId, input.sensorId))
         .limit(1);
       return result[0];
     }),
@@ -160,7 +160,7 @@ export const sensorCrudRouter = router({
       const db = await getDb();
       if (!db) throw new Error('Database not available');
 
-      await db.delete(sensors).where(eq(sensors.sensorId, input.sensorId));
+      await db.delete(sensors).where(eq(assetSensors.sensorId, input.sensorId));
       return { success: true };
     }),
 
@@ -173,18 +173,18 @@ export const sensorCrudRouter = router({
       const db = await getDb();
       if (!db) return { total: 0, byType: {}, byStatus: {} };
 
-      const where = input?.deviceId ? eq(sensors.deviceId, input.deviceId) : undefined;
+      const where = input?.deviceId ? eq(assetSensors.deviceId, input.deviceId) : undefined;
 
       const [totalResult, byStatusResult, byTypeResult] = await Promise.all([
-        db.select({ count: count() }).from(sensors).where(where),
+        db.select({ count: count() }).from(assetSensors).where(where),
         db.select({
-          status: sensors.status,
+          status: assetSensors.status,
           count: count(),
-        }).from(sensors).where(where).groupBy(sensors.status),
+        }).from(assetSensors).where(where).groupBy(assetSensors.status),
         db.select({
-          type: sensors.type,
+          type: assetSensors.type,
           count: count(),
-        }).from(sensors).where(where).groupBy(sensors.type),
+        }).from(assetSensors).where(where).groupBy(assetSensors.type),
       ]);
 
       const byStatus: Record<string, number> = {};

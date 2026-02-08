@@ -12,7 +12,7 @@
  */
 
 import { getDb } from '../db';
-import { devices, sensors } from '../../drizzle/schema';
+import { assetNodes, assetSensors } from '../../drizzle/schema';
 import { eq, desc, and, or, like, inArray, sql, count, gte, lte } from 'drizzle-orm';
 import { eventBus, TOPICS } from '../eventBus';
 
@@ -222,9 +222,9 @@ export class DeviceCrudService {
 
       // 检查设备ID是否已存在
       const existing = await db
-        .select({ id: devices.id })
-        .from(devices)
-        .where(eq(devices.deviceId, input.deviceId))
+        .select({ id: assetNodes.id })
+        .from(assetNodes)
+        .where(eq(assetNodes.deviceId, input.deviceId))
         .limit(1);
 
       if (existing.length > 0) {
@@ -297,8 +297,8 @@ export class DeviceCrudService {
 
       const result = await db
         .select()
-        .from(devices)
-        .where(eq(devices.deviceId, deviceId))
+        .from(assetNodes)
+        .where(eq(assetNodes.deviceId, deviceId))
         .limit(1);
 
       if (result.length === 0) return null;
@@ -308,8 +308,8 @@ export class DeviceCrudService {
       // 获取传感器数量
       const sensorCountResult = await db
         .select({ count: count() })
-        .from(sensors)
-        .where(eq(sensors.deviceId, deviceId));
+        .from(assetSensors)
+        .where(eq(assetSensors.deviceId, deviceId));
 
       return {
         id: d.id,
@@ -365,7 +365,7 @@ export class DeviceCrudService {
       const conditions = this.buildFilterConditions(filter);
 
       // 获取总数
-      const countQuery = db.select({ count: count() }).from(devices);
+      const countQuery = db.select({ count: count() }).from(assetNodes);
       if (conditions.length > 0) {
         countQuery.where(and(...conditions));
       }
@@ -373,7 +373,7 @@ export class DeviceCrudService {
       const total = countResult[0]?.count || 0;
 
       // 获取数据
-      const query = db.select().from(devices);
+      const query = db.select().from(assetNodes);
       if (conditions.length > 0) {
         query.where(and(...conditions));
       }
@@ -398,12 +398,12 @@ export class DeviceCrudService {
       if (deviceIds.length > 0) {
         const sensorCountResults = await db
           .select({
-            deviceId: sensors.deviceId,
+            deviceId: assetSensors.deviceId,
             count: count(),
           })
-          .from(sensors)
-          .where(inArray(sensors.deviceId, deviceIds))
-          .groupBy(sensors.deviceId);
+          .from(assetSensors)
+          .where(inArray(assetSensors.deviceId, deviceIds))
+          .groupBy(assetSensors.deviceId);
 
         for (const sc of sensorCountResults) {
           sensorCounts.set(sc.deviceId, sc.count);
@@ -463,61 +463,61 @@ export class DeviceCrudService {
 
     if (filter.type) {
       if (Array.isArray(filter.type)) {
-        conditions.push(inArray(devices.type, filter.type as any[]));
+        conditions.push(inArray(assetNodes.type, filter.type as any[]));
       } else {
-        conditions.push(eq(devices.type, filter.type as any));
+        conditions.push(eq(assetNodes.type, filter.type as any));
       }
     }
 
     if (filter.status) {
       if (Array.isArray(filter.status)) {
-        conditions.push(inArray(devices.status, filter.status as any[]));
+        conditions.push(inArray(assetNodes.status, filter.status as any[]));
       } else {
-        conditions.push(eq(devices.status, filter.status as any));
+        conditions.push(eq(assetNodes.status, filter.status as any));
       }
     }
 
     if (filter.location) {
-      conditions.push(like(devices.location, `%${filter.location}%`));
+      conditions.push(like(assetNodes.location, `%${filter.location}%`));
     }
 
     if (filter.department) {
-      conditions.push(eq(devices.department, filter.department));
+      conditions.push(eq(assetNodes.department, filter.department));
     }
 
     if (filter.manufacturer) {
-      conditions.push(eq(devices.manufacturer, filter.manufacturer));
+      conditions.push(eq(assetNodes.manufacturer, filter.manufacturer));
     }
 
     if (filter.search) {
       conditions.push(
         or(
-          like(devices.name, `%${filter.search}%`),
-          like(devices.deviceId, `%${filter.search}%`),
-          like(devices.serialNumber, `%${filter.search}%`)
+          like(assetNodes.name, `%${filter.search}%`),
+          like(assetNodes.deviceId, `%${filter.search}%`),
+          like(assetNodes.serialNumber, `%${filter.search}%`)
         )
       );
     }
 
     if (filter.hasWarranty !== undefined) {
       if (filter.hasWarranty) {
-        conditions.push(gte(devices.warrantyExpiry, new Date()));
+        conditions.push(gte(assetNodes.warrantyExpiry, new Date()));
       } else {
         conditions.push(
           or(
-            lte(devices.warrantyExpiry, new Date()),
-            sql`${devices.warrantyExpiry} IS NULL`
+            lte(assetNodes.warrantyExpiry, new Date()),
+            sql`${assetNodes.warrantyExpiry} IS NULL`
           )
         );
       }
     }
 
     if (filter.onlineSince) {
-      conditions.push(gte(devices.lastHeartbeat, filter.onlineSince));
+      conditions.push(gte(assetNodes.lastHeartbeat, filter.onlineSince));
     }
 
     if (filter.offlineSince) {
-      conditions.push(lte(devices.lastHeartbeat, filter.offlineSince));
+      conditions.push(lte(assetNodes.lastHeartbeat, filter.offlineSince));
     }
 
     return conditions;
@@ -564,9 +564,9 @@ export class DeviceCrudService {
       }
 
       await db
-        .update(devices)
+        .update(assetNodes)
         .set(updateData)
-        .where(eq(devices.deviceId, deviceId));
+        .where(eq(assetNodes.deviceId, deviceId));
 
       // 发布设备更新事件
       await eventBus.publish(
@@ -627,10 +627,10 @@ export class DeviceCrudService {
       }
 
       // 删除关联的传感器
-      await db.delete(sensors).where(eq(sensors.deviceId, deviceId));
+      await db.delete(sensors).where(eq(assetSensors.deviceId, deviceId));
 
       // 删除设备
-      await db.delete(devices).where(eq(devices.deviceId, deviceId));
+      await db.delete(devices).where(eq(assetNodes.deviceId, deviceId));
 
       // 发布设备删除事件
       await eventBus.publish(
@@ -691,9 +691,9 @@ export class DeviceCrudService {
       }
 
       await db
-        .update(devices)
+        .update(assetNodes)
         .set(updateData)
-        .where(eq(devices.deviceId, deviceId));
+        .where(eq(assetNodes.deviceId, deviceId));
 
       // 发布状态变更事件
       await eventBus.publish(
@@ -758,17 +758,17 @@ export class DeviceCrudService {
       }
 
       // 总数
-      const totalResult = await db.select({ count: count() }).from(devices);
+      const totalResult = await db.select({ count: count() }).from(assetNodes);
       const total = totalResult[0]?.count || 0;
 
       // 按状态统计
       const statusResults = await db
         .select({
-          status: devices.status,
+          status: assetNodes.status,
           count: count(),
         })
-        .from(devices)
-        .groupBy(devices.status);
+        .from(assetNodes)
+        .groupBy(assetNodes.status);
 
       const byStatus: Record<DeviceStatus, number> = {
         online: 0,
@@ -784,11 +784,11 @@ export class DeviceCrudService {
       // 按类型统计
       const typeResults = await db
         .select({
-          type: devices.type,
+          type: assetNodes.type,
           count: count(),
         })
-        .from(devices)
-        .groupBy(devices.type);
+        .from(assetNodes)
+        .groupBy(assetNodes.type);
 
       const byType: Record<string, number> = {};
       for (const r of typeResults) {
@@ -798,11 +798,11 @@ export class DeviceCrudService {
       // 按部门统计
       const deptResults = await db
         .select({
-          department: devices.department,
+          department: assetNodes.department,
           count: count(),
         })
-        .from(devices)
-        .groupBy(devices.department);
+        .from(assetNodes)
+        .groupBy(assetNodes.department);
 
       const byDepartment: Record<string, number> = {};
       for (const r of deptResults) {
@@ -819,11 +819,11 @@ export class DeviceCrudService {
       thirtyDaysLater.setDate(thirtyDaysLater.getDate() + 30);
       const warrantyResult = await db
         .select({ count: count() })
-        .from(devices)
+        .from(assetNodes)
         .where(
           and(
-            gte(devices.warrantyExpiry, new Date()),
-            lte(devices.warrantyExpiry, thirtyDaysLater)
+            gte(assetNodes.warrantyExpiry, new Date()),
+            lte(assetNodes.warrantyExpiry, thirtyDaysLater)
           )
         );
       const warrantyExpiringSoon = warrantyResult[0]?.count || 0;
@@ -833,11 +833,11 @@ export class DeviceCrudService {
       oneDayAgo.setHours(oneDayAgo.getHours() - 24);
       const offlineResult = await db
         .select({ count: count() })
-        .from(devices)
+        .from(assetNodes)
         .where(
           and(
-            eq(devices.status, 'offline'),
-            gte(devices.lastHeartbeat, oneDayAgo)
+            eq(assetNodes.status, 'offline'),
+            gte(assetNodes.lastHeartbeat, oneDayAgo)
           )
         );
       const recentlyOffline = offlineResult[0]?.count || 0;
@@ -879,12 +879,12 @@ export class DeviceCrudService {
       // 获取传感器状态
       const sensorResults = await db
         .select({
-          status: sensors.status,
+          status: assetSensors.status,
           count: count(),
         })
-        .from(sensors)
-        .where(eq(sensors.deviceId, deviceId))
-        .groupBy(sensors.status);
+        .from(assetSensors)
+        .where(eq(assetSensors.deviceId, deviceId))
+        .groupBy(assetSensors.status);
 
       const sensorStatus = {
         total: 0,

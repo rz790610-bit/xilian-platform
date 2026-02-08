@@ -21,7 +21,7 @@ export interface CapacityStatus {
 }
 
 export interface SamplingAdjustment {
-  deviceId: string;
+  nodeId: string; // was: deviceId
   sensorType: string;
   previousRateMs: number;
   newRateMs: number;
@@ -133,11 +133,11 @@ class AdaptiveSamplingService {
 
       // 创建默认配置
       const defaultConfigs = [
-        { deviceId: '*', sensorType: 'temperature', baseSamplingRateMs: 1000, minSamplingRateMs: 200, maxSamplingRateMs: 30000 },
-        { deviceId: '*', sensorType: 'vibration', baseSamplingRateMs: 500, minSamplingRateMs: 100, maxSamplingRateMs: 10000 },
-        { deviceId: '*', sensorType: 'pressure', baseSamplingRateMs: 2000, minSamplingRateMs: 500, maxSamplingRateMs: 60000 },
-        { deviceId: '*', sensorType: 'humidity', baseSamplingRateMs: 5000, minSamplingRateMs: 1000, maxSamplingRateMs: 60000 },
-        { deviceId: '*', sensorType: 'current', baseSamplingRateMs: 1000, minSamplingRateMs: 200, maxSamplingRateMs: 30000 },
+        { nodeId: '*', sensorType: 'temperature', baseSamplingRateMs: 1000, minSamplingRateMs: 200, maxSamplingRateMs: 30000 },
+        { nodeId: '*', sensorType: 'vibration', baseSamplingRateMs: 500, minSamplingRateMs: 100, maxSamplingRateMs: 10000 },
+        { nodeId: '*', sensorType: 'pressure', baseSamplingRateMs: 2000, minSamplingRateMs: 500, maxSamplingRateMs: 60000 },
+        { nodeId: '*', sensorType: 'humidity', baseSamplingRateMs: 5000, minSamplingRateMs: 1000, maxSamplingRateMs: 60000 },
+        { nodeId: '*', sensorType: 'current', baseSamplingRateMs: 1000, minSamplingRateMs: 200, maxSamplingRateMs: 30000 },
       ];
 
       for (const config of defaultConfigs) {
@@ -317,7 +317,7 @@ class AdaptiveSamplingService {
             .where(eq(deviceSamplingConfig.id, config.id));
 
           adjustments.push({
-            deviceId: config.deviceId,
+            nodeId: config.nodeId,
             sensorType: config.sensorType,
             previousRateMs: config.currentSamplingRateMs,
             newRateMs: newRate,
@@ -326,7 +326,7 @@ class AdaptiveSamplingService {
 
           // 更新 Redis 缓存
           await redisClient.set(
-            `sampling:${config.deviceId}:${config.sensorType}`,
+            `sampling:${config.nodeId}:${config.sensorType}`,
             newRate,
             300
           );
@@ -376,7 +376,7 @@ class AdaptiveSamplingService {
               .where(eq(deviceSamplingConfig.id, config.id));
 
             adjustments.push({
-              deviceId: config.deviceId,
+              nodeId: config.nodeId,
               sensorType: config.sensorType,
               previousRateMs: config.currentSamplingRateMs,
               newRateMs: newRate,
@@ -384,7 +384,7 @@ class AdaptiveSamplingService {
             });
 
             await redisClient.set(
-              `sampling:${config.deviceId}:${config.sensorType}`,
+              `sampling:${config.nodeId}:${config.sensorType}`,
               newRate,
               300
             );

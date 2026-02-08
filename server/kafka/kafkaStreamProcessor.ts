@@ -5,7 +5,7 @@
 
 import { kafkaClient, KAFKA_TOPICS, KafkaMessage, MessageHandler } from './kafkaClient';
 import { getDb } from '../db';
-import { anomalyDetections, dataAggregations, telemetryData } from '../../drizzle/schema';
+import { anomalyDetections } from '../../drizzle/schema'; // dataAggregations, telemetryData DEPRECATED
 import { eq, desc, and, gte, lte, sql } from 'drizzle-orm';
 
 // 流处理配置
@@ -558,7 +558,7 @@ export class KafkaStreamProcessor {
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
     return database.select()
-      .from(dataAggregations)
+      .from(assetSensors) // TODO: migrate from dataAggregations
       .where(whereClause)
       .orderBy(desc(dataAggregations.windowEnd))
       .limit(options.limit || 100);

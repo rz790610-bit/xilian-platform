@@ -538,9 +538,9 @@ class StreamProcessor {
       if (!db) return null;
       
       const result = await db
-        .select({ deviceId: sensors.deviceId })
-        .from(sensors)
-        .where(eq(sensors.sensorId, sensorId))
+        .select({ deviceId: assetSensors.deviceId })
+        .from(assetSensors)
+        .where(eq(assetSensors.sensorId, sensorId))
         .limit(1);
       
       return result[0]?.deviceId || null;
