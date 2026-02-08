@@ -129,7 +129,7 @@ class EventBus {
       topic,
       eventType,
       source: options.source || 'system',
-      deviceId: options.deviceId,
+      nodeId: options.deviceId,
       sensorId: options.sensorId,
       severity: options.severity || 'info',
       payload,
@@ -241,7 +241,7 @@ class EventBus {
         topic: event.topic,
         eventType: event.eventType,
         source: event.source,
-        deviceId: event.deviceId,
+        deviceId: event.nodeId,
         sensorId: event.sensorId,
         severity: event.severity,
         payload: event.payload,
@@ -305,7 +305,7 @@ class EventBus {
         conditions.push(eq(eventLogs.topic, options.topic));
       }
       if (options.deviceId) {
-        conditions.push(eq(eventLogs.deviceId, options.deviceId));
+        conditions.push(eq(eventLogs.nodeId, options.deviceId));
       }
       if (options.sensorId) {
         conditions.push(eq(eventLogs.sensorId, options.sensorId));
@@ -338,7 +338,7 @@ class EventBus {
         topic: r.topic,
         eventType: r.eventType,
         source: r.source || undefined,
-        deviceId: r.deviceId || undefined,
+        deviceId: r.nodeId || undefined,
         sensorId: r.sensorId || undefined,
         severity: r.severity,
         payload: (r.payload as Record<string, unknown>) || {},

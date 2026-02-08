@@ -464,7 +464,7 @@ export class PostgresStorage {
 
       const conditions = [];
       if (options.deviceId) {
-        conditions.push(eq(deviceMaintenanceRecords.deviceId, options.deviceId));
+        conditions.push(eq(deviceMaintenanceRecords.nodeId, options.deviceId));
       }
       if (options.maintenanceType) {
         conditions.push(eq(deviceMaintenanceRecords.maintenanceType, options.maintenanceType as any));
@@ -678,7 +678,7 @@ export class PostgresStorage {
 
       const conditions = [eq(deviceAlerts.status, 'active')];
       if (options.deviceId) {
-        conditions.push(eq(deviceAlerts.deviceId, options.deviceId));
+        conditions.push(eq(deviceAlerts.nodeId, options.deviceId));
       }
       if (options.severity) {
         conditions.push(eq(deviceAlerts.severity, options.severity as AlertRecord['severity']));
@@ -764,7 +764,7 @@ export class PostgresStorage {
     if (!db) return [];
 
     try {
-      const conditions = [eq(deviceKpis.deviceId, deviceId)];
+      const conditions = [eq(deviceKpis.nodeId, deviceId)];
       
       if (options.periodType) {
         conditions.push(eq(deviceKpis.periodType, options.periodType as KpiRecord['periodType']));

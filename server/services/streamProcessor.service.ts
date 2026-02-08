@@ -461,7 +461,7 @@ class StreamProcessor {
       await db.insert(anomalyDetections).values({
         detectionId: `anom_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
         sensorId: result.sensorId,
-        nodeId: result.deviceId,
+        nodeId: result.nodeId || result.deviceId,
         algorithmType: result.algorithmType,
         windowSize: 60,
         threshold: 300, // 3.0 * 100

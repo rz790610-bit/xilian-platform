@@ -310,11 +310,11 @@ export class DeviceCrudService {
 
       return {
         id: d.id,
-        deviceId: d.deviceId,
+        deviceId: d.nodeId,
         name: d.name,
-        type: d.type as DeviceType,
-        model: d.model || undefined,
-        manufacturer: d.manufacturer || undefined,
+        type: d.nodeType as DeviceType,
+        model: (d.attributes as any)?.model || undefined,
+        manufacturer: (d.attributes as any)?.manufacturer || undefined,
         serialNumber: d.serialNumber || undefined,
         location: d.location || undefined,
         department: d.department || undefined,
@@ -322,7 +322,7 @@ export class DeviceCrudService {
         lastHeartbeat: d.lastHeartbeat || undefined,
         installDate: d.installDate || undefined,
         warrantyExpiry: d.warrantyExpiry || undefined,
-        metadata: d.metadata as any,
+        metadata: d.attributes as any,
         sensorCount: sensorCountResult[0]?.count || 0,
         createdAt: d.createdAt,
         updatedAt: d.updatedAt,
@@ -379,9 +379,9 @@ export class DeviceCrudService {
       const sortBy = pagination.sortBy || 'updatedAt';
       const sortOrder = pagination.sortOrder || 'desc';
       if (sortOrder === 'desc') {
-        query.orderBy(desc(devices[sortBy as keyof typeof devices] as any));
+        query.orderBy(desc(assetNodes[sortBy as keyof typeof assetNodes] as any));
       } else {
-        query.orderBy(devices[sortBy as keyof typeof devices] as any);
+        query.orderBy(assetNodes[sortBy as keyof typeof assetNodes] as any);
       }
 
       query.limit(pageSize).offset(offset);
@@ -389,13 +389,13 @@ export class DeviceCrudService {
       const results = await query;
 
       // 获取传感器数量
-      const deviceIds = results.map(d => d.deviceId);
+      const deviceIds = results.map(d => d.nodeId);
       const sensorCounts = new Map<string, number>();
       
       if (deviceIds.length > 0) {
         const sensorCountResults = await db
           .select({
-            deviceId: assetSensors.deviceCode,
+            deviceCode: assetSensors.deviceCode,
             count: count(),
           })
           .from(assetSensors)
@@ -403,17 +403,17 @@ export class DeviceCrudService {
           .groupBy(assetSensors.deviceCode);
 
         for (const sc of sensorCountResults) {
-          sensorCounts.set(sc.deviceId, sc.count);
+          sensorCounts.set(sc.deviceCode, sc.count);
         }
       }
 
       const items: DeviceFullInfo[] = results.map(d => ({
         id: d.id,
-        deviceId: d.deviceId,
+        deviceId: d.nodeId,
         name: d.name,
-        type: d.type as DeviceType,
-        model: d.model || undefined,
-        manufacturer: d.manufacturer || undefined,
+        type: d.nodeType as DeviceType,
+        model: (d.attributes as any)?.model || undefined,
+        manufacturer: (d.attributes as any)?.manufacturer || undefined,
         serialNumber: d.serialNumber || undefined,
         location: d.location || undefined,
         department: d.department || undefined,
@@ -421,8 +421,8 @@ export class DeviceCrudService {
         lastHeartbeat: d.lastHeartbeat || undefined,
         installDate: d.installDate || undefined,
         warrantyExpiry: d.warrantyExpiry || undefined,
-        metadata: d.metadata as any,
-        sensorCount: sensorCounts.get(d.deviceId) || 0,
+        metadata: d.attributes as any,
+        sensorCount: sensorCounts.get(d.nodeId) || 0,
         createdAt: d.createdAt,
         updatedAt: d.updatedAt,
       }));

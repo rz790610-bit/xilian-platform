@@ -593,7 +593,7 @@ export class KafkaStreamProcessor {
         };
       })
       .filter(r => {
-        if (options.deviceId && r.deviceId !== options.deviceId) return false;
+        if (options.deviceId && r.nodeId !== options.deviceId) return false;
         if (options.metricName && r.metricName !== options.metricName) return false;
         return true;
       });
