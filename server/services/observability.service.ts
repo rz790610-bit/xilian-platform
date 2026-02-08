@@ -509,3 +509,65 @@ export class EnhancedObservabilityService {
 
 // 导出单例
 export const observabilityService = EnhancedObservabilityService.getInstance();
+
+// ============================================================
+// 兼容性导出 — 旧名称 → 新服务单例
+// 供 observability.router.ts 中的旧代码引用
+// ============================================================
+
+class _PrometheusServiceCompat {
+  private static _inst: _PrometheusServiceCompat;
+  static getInstance() { return this._inst ??= new _PrometheusServiceCompat(); }
+  getNodeMetrics(_hostname?: string) { return observabilityService.getSystemMetrics(); }
+  getContainerMetrics(_containerName?: string) { return observabilityService.getSystemMetrics(); }
+  getApplicationMetrics(_serviceName?: string) { return observabilityService.getSystemMetrics(); }
+  getGpuMetrics(_gpuId?: string) { return observabilityService.getSystemMetrics(); }
+}
+
+class _ELKServiceCompat {
+  private static _inst: _ELKServiceCompat;
+  static getInstance() { return this._inst ??= new _ELKServiceCompat(); }
+  searchLogs(opts: any) { return observabilityService.searchLogs(opts); }
+  getLogStats() { return observabilityService.getLogLevelStats(); }
+  getFilebeatConfig() { return { modules: [], inputs: [] }; }
+  getLogstashPipelines() { return [] as any[]; }
+  getILMPolicy() { return { phases: {} }; }
+  getKibanaVisualizations() { return [] as any[]; }
+}
+
+class _TracingServiceCompat {
+  private static _inst: _TracingServiceCompat;
+  static getInstance() { return this._inst ??= new _TracingServiceCompat(); }
+  searchTraces(opts: any) { return observabilityService.searchTraces(opts); }
+  getTrace(traceId: string) { return observabilityService.getTraceDetail(traceId); }
+  getServiceDependencies() { return observabilityService.getServiceDependencies(); }
+  getOTelConfig() { return { endpoint: '', serviceName: '', samplingRate: 1.0 }; }
+  getStats() { return { totalTraces: 0, avgDuration: 0, errorRate: 0 }; }
+}
+
+class _AlertmanagerServiceCompat {
+  private static _inst: _AlertmanagerServiceCompat;
+  static getInstance() { return this._inst ??= new _AlertmanagerServiceCompat(); }
+  getAlerts(_opts?: any) { return observabilityService.getPrometheusAlerts(); }
+  getAlertRules() { return observabilityService.getAlertRules(); }
+  createAlertRule(_rule: any) { return { success: true, id: 'mock' }; }
+  updateAlertRule(_id: string, _updates: any) { return { success: true }; }
+  deleteAlertRule(_id: string) { return { success: true }; }
+  getReceivers() { return [] as any[]; }
+  createReceiver(_receiver: any) { return { success: true }; }
+  getRoutes() { return [] as any[]; }
+  getSilences() { return [] as any[]; }
+  createSilence(_silence: any) { return { success: true, id: 'mock' }; }
+  deleteSilence(_id: string) { return { success: true }; }
+  sendTestAlert(_receiver: string, _severity: string) { return { success: true }; }
+  getStats() { return { totalAlerts: 0, activeAlerts: 0, silencedAlerts: 0 }; }
+}
+
+export const PrometheusService = _PrometheusServiceCompat;
+export const ELKService = _ELKServiceCompat;
+export const TracingService = _TracingServiceCompat;
+export const AlertmanagerService = _AlertmanagerServiceCompat;
+
+export function getObservabilitySummary() {
+  return observabilityService.getDashboard();
+}

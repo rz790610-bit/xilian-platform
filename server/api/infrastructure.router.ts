@@ -6,7 +6,8 @@
 import { z } from 'zod';
 import { router, publicProcedure, protectedProcedure } from '../core/trpc';
 import { infrastructureService } from '../services/infrastructure.service';
-import { InfrastructureService } from '../services/infrastructure.service';
+// InfrastructureService 已合并为 infrastructureService 单例
+const InfrastructureService = infrastructureService;
 
 export const infrastructureRouter = router({
   // ============ 集群概览 ============

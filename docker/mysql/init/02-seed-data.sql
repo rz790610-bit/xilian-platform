@@ -4,7 +4,7 @@
 -- Date: 2026-02-08
 -- Description: All seed/demo data in one file.
 -- ============================================================
-USE portai_nexus;
+-- USE portai_nexus; -- 由 mysql 命令行指定数据库
 SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
 
@@ -126,7 +126,7 @@ INSERT INTO models (model_id, name, display_name, type, provider, size, paramete
 
 ('diagnostic-v1', '设备诊断模型 V1', '工业设备故障诊断专用模型', 'diagnostic', 'local', '800MB', '350M', '基于工业设备数据训练的故障诊断模型', 'available', TRUE,
   JSON_OBJECT('chat', FALSE, 'completion', FALSE, 'embedding', FALSE, 'vision', FALSE, 'functionCalling', FALSE))
-ON DUPLICATE KEY UPDATE displayName = VALUES(displayName), description = VALUES(description);
+ON DUPLICATE KEY UPDATE display_name = VALUES(display_name), description = VALUES(description);
 
 -- ============================================================
 -- 示例设备数据
@@ -186,8 +186,8 @@ ON DUPLICATE KEY UPDATE name = VALUES(name), quantity = VALUES(quantity);
 
 SELECT 'MySQL seed data initialization completed successfully!' AS status;
 SELECT CONCAT('Total users: ', COUNT(*)) AS info FROM users;
-SELECT CONCAT('Total devices: ', COUNT(*)) AS info FROM devices;
-SELECT CONCAT('Total sensors: ', COUNT(*)) AS info FROM sensors;
+SELECT CONCAT('Total asset nodes: ', COUNT(*)) AS info FROM asset_nodes;
+SELECT CONCAT('Total asset sensors: ', COUNT(*)) AS info FROM asset_sensors;
 SELECT CONCAT('Total models: ', COUNT(*)) AS info FROM models;
 
 
@@ -460,7 +460,7 @@ INSERT INTO data_quality_reports (report_type, report_date, device_code, sensor_
 -- ============================================================
 -- 3. 设备告警数据 (device_alerts)
 -- ============================================================
-INSERT INTO device_alerts (alert_id, node_id, sensor_id, alert_type, title, message, severity, `status`, trigger_value, threshold_value, acknowledged_by, acknowledged_at, resolved_by, resolved_at, resolution, created_at) VALUES
+INSERT INTO device_alerts (alert_id, device_id, sensor_id, alert_type, title, message, severity, `status`, trigger_value, threshold_value, acknowledged_by, acknowledged_at, resolved_by, resolved_at, notes, created_at) VALUES
 ('ALT-001', 'DEV-QC-002', 'SEN-QC002-VIB', 'threshold', '岸桥Q02大梁振动超限', '振动值265.8mm/s超过临界阈值240mm/s，设备已自动停机', 'critical', 'active', 265.8, 240, NULL, NULL, NULL, NULL, NULL, DATE_SUB(NOW(), INTERVAL 30 MINUTE)),
 ('ALT-002', 'DEV-QC-002', 'SEN-QC002-TEMP', 'threshold', '岸桥Q02电机温度过高', '电机温度142.5°C超过预警阈值100°C，存在过热风险', 'error', 'active', 142.5, 100, NULL, NULL, NULL, NULL, NULL, DATE_SUB(NOW(), INTERVAL 28 MINUTE)),
 ('ALT-003', 'DEV-RTG-002', NULL, 'maintenance_due', 'RTG-R02定期维护到期', '设备已到计划维护时间，请安排维护作业', 'warning', 'acknowledged', NULL, NULL, '张工', DATE_SUB(NOW(), INTERVAL 1 HOUR), NULL, NULL, NULL, DATE_SUB(NOW(), INTERVAL 3 HOUR)),
@@ -474,7 +474,7 @@ ON DUPLICATE KEY UPDATE title=VALUES(title);
 -- ============================================================
 -- 4. 维护记录数据 (device_maintenance_records)
 -- ============================================================
-INSERT INTO device_maintenance_records (record_id, node_id, maintenance_type, title, description, scheduled_date, started_at, completed_at, `status`, priority, assigned_to, performed_by, cost, findings, recommendations, next_maintenance_date, created_at) VALUES
+INSERT INTO device_maintenance_records (record_id, device_id, maintenance_type, title, description, scheduled_date, started_at, completed_at, `status`, priority, assigned_to, performed_by, cost, findings, recommendations, next_maintenance_date, created_at) VALUES
 ('MNT-001', 'DEV-RTG-002', 'preventive', 'RTG-R02季度预防性维护', '按照维护计划进行季度全面检查，包括液压系统、电气系统、机械结构检查', NOW(), DATE_SUB(NOW(), INTERVAL 2 HOUR), NULL, 'in_progress', 'high', '张工', '张工', 15000, NULL, NULL, DATE_ADD(NOW(), INTERVAL 90 DAY), DATE_SUB(NOW(), INTERVAL 7 DAY)),
 ('MNT-002', 'DEV-QC-001', 'preventive', '岸桥Q01月度检查', '月度例行检查：钢丝绳磨损、制动器间隙、润滑系统', DATE_ADD(NOW(), INTERVAL 5 DAY), NULL, NULL, 'scheduled', 'medium', '李工', NULL, NULL, NULL, NULL, DATE_ADD(NOW(), INTERVAL 30 DAY), NOW()),
 ('MNT-003', 'DEV-QC-002', 'corrective', '岸桥Q02振动异常修复', '针对大梁振动超限告警进行紧急检修，排查振动原因', NOW(), NULL, NULL, 'scheduled', 'critical', '王工', NULL, NULL, NULL, NULL, NULL, DATE_SUB(NOW(), INTERVAL 30 MINUTE)),
@@ -508,7 +508,7 @@ INSERT INTO device_kpis (node_id, period_type, period_start, period_end, availab
 -- ============================================================
 -- 6. 设备运行日志 (device_operation_logs)
 -- ============================================================
-INSERT INTO device_operation_logs (log_id, node_id, operation_type, previous_state, new_state, operated_by, reason, success, duration, `timestamp`) VALUES
+INSERT INTO device_operation_logs (log_id, device_id, operation_type, previous_state, new_state, operated_by, reason, success, duration, `timestamp`) VALUES
 ('LOG-001', 'DEV-QC-002', 'stop', 'online', 'error', '系统', '振动超限自动停机保护', 1, 500, DATE_SUB(NOW(), INTERVAL 30 MINUTE)),
 ('LOG-002', 'DEV-RTG-002', 'stop', 'online', 'maintenance', '张工', '计划维护停机', 1, 1200, DATE_SUB(NOW(), INTERVAL 2 HOUR)),
 ('LOG-003', 'DEV-CONV-001', 'restart', 'offline', 'online', '赵工', '皮带更换完成，恢复运行', 1, 3000, DATE_SUB(NOW(), INTERVAL 10 HOUR)),
@@ -518,7 +518,7 @@ INSERT INTO device_operation_logs (log_id, node_id, operation_type, previous_sta
 ('LOG-007', 'DEV-PUMP-001', 'calibration', 'online', 'online', '王工', '压力传感器校准', 1, 600000, DATE_SUB(NOW(), INTERVAL 1 DAY))
 ON DUPLICATE KEY UPDATE reason=VALUES(reason);
 
-SELECT CONCAT('种子数据插入完成！设备: ', (SELECT COUNT(*) FROM devices), ' 台, 传感器: ', (SELECT COUNT(*) FROM sensors), ' 个, 告警: ', (SELECT COUNT(*) FROM device_alerts), ' 条, 维护记录: ', (SELECT COUNT(*) FROM device_maintenance_records), ' 条') AS result;
+SELECT CONCAT('种子数据插入完成！告警: ', (SELECT COUNT(*) FROM device_alerts), ' 条, 维护记录: ', (SELECT COUNT(*) FROM device_maintenance_records), ' 条, 运行日志: ', (SELECT COUNT(*) FROM device_operation_logs), ' 条') AS result;
 
 
 SET FOREIGN_KEY_CHECKS = 1;

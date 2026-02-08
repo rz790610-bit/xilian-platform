@@ -6,10 +6,10 @@
 --   54 tables total, zero duplicates.
 --   Replaces: 01~07 init scripts + drizzle migrations
 -- ============================================================
-CREATE DATABASE IF NOT EXISTS portai_nexus 
-  CHARACTER SET utf8mb4 
-  COLLATE utf8mb4_unicode_ci;
-USE portai_nexus;
+
+-- 使用当前数据库（由 mysql 命令行指定）
+-- CREATE DATABASE IF NOT EXISTS xilian;
+-- USE xilian;
 SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
 
@@ -321,7 +321,7 @@ CREATE TABLE IF NOT EXISTS anomaly_detections (
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX idx_anomaly_detections_sensor_id (sensor_id),
-  INDEX idx_anomaly_detections_node_id (device_id),
+  INDEX idx_anomaly_detections_node_id (node_id),
   INDEX idx_anomaly_detections_severity (severity),
   INDEX idx_anomaly_detections_status (status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -366,7 +366,7 @@ CREATE TABLE IF NOT EXISTS diagnosis_tasks (
   completed_at TIMESTAMP NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  INDEX idx_diagnosis_tasks_node_id (device_id),
+  INDEX idx_diagnosis_tasks_node_id (node_id),
   INDEX idx_diagnosis_tasks_status (status),
   INDEX idx_diagnosis_tasks_task_type (task_type)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

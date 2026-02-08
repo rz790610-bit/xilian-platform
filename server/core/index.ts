@@ -31,13 +31,14 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 /**
  * 初始化 v1.9 性能优化服务
  * 统一管理所有新增服务的启动和生命周期
+ * 路径已更新为三层架构迁移后的新位置
  */
 async function initPerformanceServices(): Promise<void> {
   console.log('[v1.9] Initializing performance optimization services...');
 
   try {
     // 1. Outbox 混合发布器
-    const { outboxPublisher } = await import('../outbox');
+    const { outboxPublisher } = await import('../services/outbox.publisher');
     await outboxPublisher.start();
     console.log('[v1.9] ✓ Outbox Publisher started');
   } catch (err) {
@@ -46,7 +47,8 @@ async function initPerformanceServices(): Promise<void> {
 
   try {
     // 2. Saga 编排器
-    const { sagaOrchestrator, registerRollbackSaga } = await import('../saga');
+    const { sagaOrchestrator } = await import('../services/saga.orchestrator');
+    const { registerRollbackSaga } = await import('../services/saga.rollback');
     await sagaOrchestrator.start();
     registerRollbackSaga(); // 注册内置 Saga 定义
     console.log('[v1.9] ✓ Saga Orchestrator started');
@@ -56,7 +58,7 @@ async function initPerformanceServices(): Promise<void> {
 
   try {
     // 3. 自适应采样服务
-    const { adaptiveSamplingService } = await import('../monitoring');
+    const { adaptiveSamplingService } = await import('../services/adaptiveSampling.service');
     await adaptiveSamplingService.start();
     console.log('[v1.9] ✓ Adaptive Sampling Service started');
   } catch (err) {
@@ -65,7 +67,7 @@ async function initPerformanceServices(): Promise<void> {
 
   try {
     // 4. 读写分离服务
-    const { readReplicaService } = await import('../db/readReplicaService');
+    const { readReplicaService } = await import('../services/readReplica.service');
     await readReplicaService.start();
     console.log('[v1.9] ✓ Read Replica Service started');
   } catch (err) {
@@ -74,7 +76,7 @@ async function initPerformanceServices(): Promise<void> {
 
   try {
     // 5. 图查询优化器
-    const { graphQueryOptimizer } = await import('../knowledge/graphQueryOptimizer');
+    const { graphQueryOptimizer } = await import('../services/graphQuery.optimizer');
     await graphQueryOptimizer.start();
     console.log('[v1.9] ✓ Graph Query Optimizer started');
   } catch (err) {
@@ -90,8 +92,8 @@ async function initPerformanceServices(): Promise<void> {
  */
 async function registerEventBusIntegration(): Promise<void> {
   try {
-    const { eventBus, TOPICS } = await import('../eventBus');
-    const { deduplicationService } = await import('../redis/deduplicationService');
+    const { eventBus, TOPICS } = await import('../services/eventBus.service');
+    const { deduplicationService } = await import('../services/deduplication.service');
 
     // 所有事件经过去重服务
     eventBus.subscribeAll(async (event) => {
@@ -111,7 +113,7 @@ async function registerEventBusIntegration(): Promise<void> {
     // Outbox 发布器监听关键事件
     eventBus.subscribe(TOPICS.DEVICE_STATUS, async (event) => {
       try {
-        const { outboxPublisher } = await import('../outbox');
+        const { outboxPublisher } = await import('../services/outbox.publisher');
         await outboxPublisher.addEvent({
           eventType: 'DeviceUpdated',
           aggregateType: 'Device',
@@ -127,7 +129,7 @@ async function registerEventBusIntegration(): Promise<void> {
     // 异常事件触发自适应采样调整
     eventBus.subscribe(TOPICS.ANOMALY_DETECTED, async (event) => {
       try {
-        const { adaptiveSamplingService } = await import('../monitoring');
+        const { adaptiveSamplingService } = await import('../services/adaptiveSampling.service');
         // 异常检测到时，可能需要提高采样率
         console.log(`[v1.9] Anomaly detected, adaptive sampling may adjust: ${event.eventId}`);
       } catch (err) {
@@ -151,7 +153,7 @@ async function startServer() {
   registerOAuthRoutes(app);
   // REST API 桥接层 — 数据库工作台自动生成的 RESTful 端点
   try {
-    const { restRouter } = await import('../database/restBridge');
+    const { restRouter } = await import('../services/database/restBridge');
     app.use('/api/rest', restRouter);
     console.log('[REST Bridge] ✓ Auto-generated REST API registered at /api/rest');
   } catch (err) {
@@ -188,7 +190,7 @@ async function startServer() {
     console.log(`Server running on http://localhost:${port}/`);
     
     // 启动定时健康检查（每30秒检查一次）
-    import('../healthCheck').then(({ startPeriodicHealthCheck }) => {
+    import('../jobs/healthCheck.job').then(({ startPeriodicHealthCheck }) => {
       startPeriodicHealthCheck(30000);
     }).catch(err => {
       console.error('[Server] Failed to start health check:', err);
