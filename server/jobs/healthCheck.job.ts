@@ -132,7 +132,7 @@ const SYSTEM_SERVICES: ServiceConfig[] = [
     customCheck: async () => {
       const startTime = Date.now();
       try {
-        const { outboxPublisher } = await import('./outbox');
+        const { outboxPublisher } = await import('../services/outbox.publisher');
         const metrics = outboxPublisher.getMetrics();
         return {
           online: metrics.isRunning,
@@ -158,7 +158,7 @@ const SYSTEM_SERVICES: ServiceConfig[] = [
     customCheck: async () => {
       const startTime = Date.now();
       try {
-        const { sagaOrchestrator } = await import('./saga');
+        const { sagaOrchestrator } = await import('../services/saga.orchestrator');
         const metrics = sagaOrchestrator.getMetrics();
         return {
           online: metrics.isRunning,
@@ -185,7 +185,7 @@ const SYSTEM_SERVICES: ServiceConfig[] = [
     customCheck: async () => {
       const startTime = Date.now();
       try {
-        const { adaptiveSamplingService } = await import('./monitoring');
+        const { adaptiveSamplingService } = await import('../services/adaptiveSampling.service');
         const metrics = adaptiveSamplingService.getMetrics();
         return {
           online: metrics.isRunning,
@@ -210,7 +210,7 @@ const SYSTEM_SERVICES: ServiceConfig[] = [
     customCheck: async () => {
       const startTime = Date.now();
       try {
-        const { deduplicationService } = await import('./redis/deduplicationService');
+        const { deduplicationService } = await import('../services/deduplication.service');
         const metrics = deduplicationService.getMetrics();
         return {
           online: true,
@@ -236,7 +236,7 @@ const SYSTEM_SERVICES: ServiceConfig[] = [
     customCheck: async () => {
       const startTime = Date.now();
       try {
-        const { readReplicaService } = await import('./db/readReplicaService');
+        const { readReplicaService } = await import('../services/readReplica.service');
         const stats = readReplicaService.getStats();
         return {
           online: stats.isRunning,
@@ -262,7 +262,7 @@ const SYSTEM_SERVICES: ServiceConfig[] = [
     customCheck: async () => {
       const startTime = Date.now();
       try {
-        const { graphQueryOptimizer } = await import('./knowledge/graphQueryOptimizer');
+        const { graphQueryOptimizer } = await import('../services/graphQuery.optimizer');
         const stats = graphQueryOptimizer.getStats();
         return {
           online: stats.isRunning,

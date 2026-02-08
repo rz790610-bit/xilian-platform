@@ -488,7 +488,7 @@ export async function autoLayoutNodes(): Promise<boolean> {
     output: 800,
   };
   
-  const { updateTopoNodePosition } = await import('./topology');
+  const { updateTopoNodePosition } = await import('./topology.service');
   
   for (const [type, typeNodes] of Object.entries(nodesByType)) {
     const x = typeX[type] || 400;

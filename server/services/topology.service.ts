@@ -576,13 +576,13 @@ export const topologyRouter = router({
 
   // 检查所有服务状态并更新拓扑
   checkServicesHealth: publicProcedure.mutation(async () => {
-    const { checkAllServicesAndUpdateTopology } = await import('./healthCheck');
+    const { checkAllServicesAndUpdateTopology } = await import('../jobs/healthCheck.job');
     return await checkAllServicesAndUpdateTopology();
   }),
 
   // 获取系统服务状态摘要
   getServicesSummary: publicProcedure.query(async () => {
-    const { getSystemServicesSummary } = await import('./healthCheck');
+    const { getSystemServicesSummary } = await import('../jobs/healthCheck.job');
     return await getSystemServicesSummary();
   }),
 
@@ -605,25 +605,25 @@ export const topologyRouter = router({
 
   // 自动发现并生成拓扑
   autoDiscover: publicProcedure.mutation(async () => {
-    const { autoDiscoverAndGenerateTopology } = await import('./topologyDiscovery');
+    const { autoDiscoverAndGenerateTopology } = await import('./topologyDiscovery.service');
     return await autoDiscoverAndGenerateTopology();
   }),
 
   // 重新生成拓扑（清空后重建）
   regenerate: publicProcedure.mutation(async () => {
-    const { regenerateTopology } = await import('./topologyDiscovery');
+    const { regenerateTopology } = await import('./topologyDiscovery.service');
     return await regenerateTopology();
   }),
 
   // 智能重新布局
   autoLayout: publicProcedure.mutation(async () => {
-    const { autoLayoutNodes } = await import('./topologyDiscovery');
+    const { autoLayoutNodes } = await import('./topologyDiscovery.service');
     return await autoLayoutNodes();
   }),
 
   // 获取可发现的服务列表
   getDiscoverableServices: publicProcedure.query(async () => {
-    const { getDiscoverableServices } = await import('./topologyDiscovery');
+    const { getDiscoverableServices } = await import('./topologyDiscovery.service');
     return getDiscoverableServices();
   }),
 });
