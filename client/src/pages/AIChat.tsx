@@ -722,12 +722,12 @@ export default function AIChat() {
                   </div>
                   
                   {/* 文档输入 */}
-                  <div className="relative">
+                  <div className="relative border rounded-lg overflow-hidden">
                     <Textarea
                       value={docContent}
                       onChange={(e) => setDocContent(e.target.value)}
                       placeholder="粘贴或输入文档内容..."
-                      className="min-h-[150px] text-xs resize-none pr-24"
+                      className="min-h-[150px] max-h-[300px] text-xs resize-none pr-24 overflow-y-auto border-0 focus-visible:ring-0"
                     />
                     <div className="absolute top-2 right-2 flex flex-col gap-1">
                       <input
