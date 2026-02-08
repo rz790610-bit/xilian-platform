@@ -245,58 +245,58 @@ describe('数据管道服务客户端', () => {
 describe('增强版服务', () => {
   describe('EnhancedMonitoringService', () => {
     it('应该导出增强版监控服务', async () => {
-      const { enhancedMonitoringService } = await import('./monitoring/enhancedMonitoringService');
-      expect(enhancedMonitoringService).toBeDefined();
+      const { monitoringService } = await import('./monitoring/monitoringService');
+      expect(monitoringService).toBeDefined();
     });
 
     it('应该有获取概览的方法', async () => {
-      const { enhancedMonitoringService } = await import('./monitoring/enhancedMonitoringService');
-      expect(typeof enhancedMonitoringService.getMonitoringOverview).toBe('function');
-      expect(typeof enhancedMonitoringService.getDatabaseStatuses).toBe('function');
-      expect(typeof enhancedMonitoringService.getServiceHealthStatuses).toBe('function');
+      const { monitoringService } = await import('./monitoring/monitoringService');
+      expect(typeof monitoringService.getMonitoringOverview).toBe('function');
+      expect(typeof monitoringService.getDatabaseStatuses).toBe('function');
+      expect(typeof monitoringService.getServiceHealthStatuses).toBe('function');
     });
   });
 
   describe('EnhancedObservabilityService', () => {
     it('应该导出增强版可观测性服务', async () => {
-      const { enhancedObservabilityService } = await import('./observability/enhancedObservabilityService');
-      expect(enhancedObservabilityService).toBeDefined();
+      const { observabilityService } = await import('./observability/observabilityService');
+      expect(observabilityService).toBeDefined();
     });
 
     it('应该有获取概览的方法', async () => {
-      const { enhancedObservabilityService } = await import('./observability/enhancedObservabilityService');
-      expect(typeof enhancedObservabilityService.getSystemMetrics).toBe('function');
-      expect(typeof enhancedObservabilityService.searchLogs).toBe('function');
-      expect(typeof enhancedObservabilityService.searchTraces).toBe('function');
-      expect(typeof enhancedObservabilityService.checkConnections).toBe('function');
+      const { observabilityService } = await import('./observability/observabilityService');
+      expect(typeof observabilityService.getSystemMetrics).toBe('function');
+      expect(typeof observabilityService.searchLogs).toBe('function');
+      expect(typeof observabilityService.searchTraces).toBe('function');
+      expect(typeof observabilityService.checkConnections).toBe('function');
     });
   });
 
   describe('EnhancedInfrastructureService', () => {
     it('应该导出增强版基础设施服务', async () => {
-      const { enhancedInfrastructureService } = await import('./infrastructure/enhancedInfrastructureService');
-      expect(enhancedInfrastructureService).toBeDefined();
+      const { infrastructureService } = await import('./infrastructure/infrastructureService');
+      expect(infrastructureService).toBeDefined();
     });
 
     it('应该有获取资源的方法', async () => {
-      const { enhancedInfrastructureService } = await import('./infrastructure/enhancedInfrastructureService');
-      expect(typeof enhancedInfrastructureService.getKubernetesOverview).toBe('function');
-      expect(typeof enhancedInfrastructureService.getNodes).toBe('function');
-      expect(typeof enhancedInfrastructureService.checkConnections).toBe('function');
+      const { infrastructureService } = await import('./infrastructure/infrastructureService');
+      expect(typeof infrastructureService.getKubernetesOverview).toBe('function');
+      expect(typeof infrastructureService.getNodes).toBe('function');
+      expect(typeof infrastructureService.checkConnections).toBe('function');
     });
   });
 
   describe('EnhancedDataPipelineService', () => {
     it('应该导出增强版数据管道服务', async () => {
-      const { enhancedDataPipelineService } = await import('./dataPipeline/enhancedDataPipelineService');
-      expect(enhancedDataPipelineService).toBeDefined();
+      const { dataPipelineService } = await import('./dataPipeline/dataPipelineService');
+      expect(dataPipelineService).toBeDefined();
     });
 
     it('应该有获取概览的方法', async () => {
-      const { enhancedDataPipelineService } = await import('./dataPipeline/enhancedDataPipelineService');
-      expect(typeof enhancedDataPipelineService.getOverview).toBe('function');
-      expect(typeof enhancedDataPipelineService.listDAGs).toBe('function');
-      expect(typeof enhancedDataPipelineService.listConnectors).toBe('function');
+      const { dataPipelineService } = await import('./dataPipeline/dataPipelineService');
+      expect(typeof dataPipelineService.getOverview).toBe('function');
+      expect(typeof dataPipelineService.listDAGs).toBe('function');
+      expect(typeof dataPipelineService.listConnectors).toBe('function');
     });
   });
 });

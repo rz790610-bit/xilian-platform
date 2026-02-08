@@ -5,7 +5,7 @@
 
 import { z } from 'zod';
 import { router, publicProcedure, protectedProcedure } from '../_core/trpc';
-import { enhancedDataPipelineService } from './enhancedDataPipelineService';
+import { dataPipelineService } from './dataPipelineService';
 import { airflowClient } from './clients/airflowClient';
 import { kafkaConnectClient } from './clients/kafkaConnectClient';
 
@@ -16,14 +16,14 @@ export const dataPipelineRouter = router({
    * 获取数据管道概览
    */
   getSummary: publicProcedure.query(async () => {
-    return await enhancedDataPipelineService.getOverview();
+    return await dataPipelineService.getOverview();
   }),
 
   /**
    * 检查服务连接状态
    */
   checkConnections: publicProcedure.query(async () => {
-    return await enhancedDataPipelineService.checkConnections();
+    return await dataPipelineService.checkConnections();
   }),
 
   // ==================== Airflow DAGs ====================
@@ -32,7 +32,7 @@ export const dataPipelineRouter = router({
    * 获取所有 DAGs
    */
   getDags: publicProcedure.query(async () => {
-    return await enhancedDataPipelineService.listDAGs();
+    return await dataPipelineService.listDAGs();
   }),
 
   /**
@@ -41,7 +41,7 @@ export const dataPipelineRouter = router({
   getDag: publicProcedure
     .input(z.object({ dagId: z.string() }))
     .query(async ({ input }) => {
-      return await enhancedDataPipelineService.getDAG(input.dagId);
+      return await dataPipelineService.getDAG(input.dagId);
     }),
 
   /**
@@ -53,7 +53,7 @@ export const dataPipelineRouter = router({
       limit: z.number().optional().default(20),
     }))
     .query(async ({ input }) => {
-      return await enhancedDataPipelineService.getDAGRuns(input.dagId, input.limit);
+      return await dataPipelineService.getDAGRuns(input.dagId, input.limit);
     }),
 
   /**
@@ -62,7 +62,7 @@ export const dataPipelineRouter = router({
   getDagTasks: publicProcedure
     .input(z.object({ dagId: z.string() }))
     .query(async ({ input }) => {
-      return await enhancedDataPipelineService.getDAGTasks(input.dagId);
+      return await dataPipelineService.getDAGTasks(input.dagId);
     }),
 
   /**
@@ -74,7 +74,7 @@ export const dataPipelineRouter = router({
       dagRunId: z.string(),
     }))
     .query(async ({ input }) => {
-      return await enhancedDataPipelineService.getTaskInstances(input.dagId, input.dagRunId);
+      return await dataPipelineService.getTaskInstances(input.dagId, input.dagRunId);
     }),
 
   /**
@@ -86,7 +86,7 @@ export const dataPipelineRouter = router({
       conf: z.record(z.string(), z.unknown()).optional(),
     }))
     .mutation(async ({ input }) => {
-      const run = await enhancedDataPipelineService.triggerDAG(input.dagId, input.conf as Record<string, unknown> | undefined);
+      const run = await dataPipelineService.triggerDAG(input.dagId, input.conf as Record<string, unknown> | undefined);
       return { success: run !== null, run };
     }),
 
@@ -99,7 +99,7 @@ export const dataPipelineRouter = router({
       isPaused: z.boolean(),
     }))
     .mutation(async ({ input }) => {
-      const success = await enhancedDataPipelineService.toggleDAG(input.dagId, input.isPaused);
+      const success = await dataPipelineService.toggleDAG(input.dagId, input.isPaused);
       return { success };
     }),
 
@@ -113,7 +113,7 @@ export const dataPipelineRouter = router({
       taskId: z.string(),
     }))
     .mutation(async ({ input }) => {
-      const success = await enhancedDataPipelineService.clearTaskInstance(
+      const success = await dataPipelineService.clearTaskInstance(
         input.dagId,
         input.dagRunId,
         input.taskId
@@ -197,7 +197,7 @@ export const dataPipelineRouter = router({
    * 获取所有连接器
    */
   getConnectors: publicProcedure.query(async () => {
-    return await enhancedDataPipelineService.listConnectors();
+    return await dataPipelineService.listConnectors();
   }),
 
   /**
@@ -206,7 +206,7 @@ export const dataPipelineRouter = router({
   getConnector: publicProcedure
     .input(z.object({ name: z.string() }))
     .query(async ({ input }) => {
-      return await enhancedDataPipelineService.getConnector(input.name);
+      return await dataPipelineService.getConnector(input.name);
     }),
 
   /**
@@ -218,7 +218,7 @@ export const dataPipelineRouter = router({
       config: z.record(z.string(), z.string()),
     }))
     .mutation(async ({ input }) => {
-      const connector = await enhancedDataPipelineService.createConnector(input.name, input.config as Record<string, string>);
+      const connector = await dataPipelineService.createConnector(input.name, input.config as Record<string, string>);
       return { success: connector !== null, connector };
     }),
 
@@ -231,7 +231,7 @@ export const dataPipelineRouter = router({
       config: z.record(z.string(), z.string()),
     }))
     .mutation(async ({ input }) => {
-      const success = await enhancedDataPipelineService.updateConnector(input.name, input.config as Record<string, string>);
+      const success = await dataPipelineService.updateConnector(input.name, input.config as Record<string, string>);
       return { success };
     }),
 
@@ -241,7 +241,7 @@ export const dataPipelineRouter = router({
   deleteConnector: protectedProcedure
     .input(z.object({ name: z.string() }))
     .mutation(async ({ input }) => {
-      const success = await enhancedDataPipelineService.deleteConnector(input.name);
+      const success = await dataPipelineService.deleteConnector(input.name);
       return { success };
     }),
 
@@ -251,7 +251,7 @@ export const dataPipelineRouter = router({
   pauseConnector: protectedProcedure
     .input(z.object({ name: z.string() }))
     .mutation(async ({ input }) => {
-      const success = await enhancedDataPipelineService.pauseConnector(input.name);
+      const success = await dataPipelineService.pauseConnector(input.name);
       return { success };
     }),
 
@@ -261,7 +261,7 @@ export const dataPipelineRouter = router({
   resumeConnector: protectedProcedure
     .input(z.object({ name: z.string() }))
     .mutation(async ({ input }) => {
-      const success = await enhancedDataPipelineService.resumeConnector(input.name);
+      const success = await dataPipelineService.resumeConnector(input.name);
       return { success };
     }),
 
@@ -271,7 +271,7 @@ export const dataPipelineRouter = router({
   restartConnector: protectedProcedure
     .input(z.object({ name: z.string() }))
     .mutation(async ({ input }) => {
-      const success = await enhancedDataPipelineService.restartConnector(input.name);
+      const success = await dataPipelineService.restartConnector(input.name);
       return { success };
     }),
 
@@ -284,7 +284,7 @@ export const dataPipelineRouter = router({
       taskId: z.number(),
     }))
     .mutation(async ({ input }) => {
-      const success = await enhancedDataPipelineService.restartConnectorTask(input.name, input.taskId);
+      const success = await dataPipelineService.restartConnectorTask(input.name, input.taskId);
       return { success };
     }),
 
@@ -322,7 +322,7 @@ export const dataPipelineRouter = router({
    * 获取所有管道（Airflow + Kafka Connect）
    */
   getAllPipelines: publicProcedure.query(async () => {
-    return await enhancedDataPipelineService.listAllPipelines();
+    return await dataPipelineService.listAllPipelines();
   }),
 
   /**
@@ -331,6 +331,6 @@ export const dataPipelineRouter = router({
   getRecentRuns: publicProcedure
     .input(z.object({ limit: z.number().optional().default(10) }))
     .query(async ({ input }) => {
-      return await enhancedDataPipelineService.getRecentRuns(input.limit);
+      return await dataPipelineService.getRecentRuns(input.limit);
     }),
 });

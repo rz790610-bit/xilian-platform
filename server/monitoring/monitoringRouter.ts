@@ -7,7 +7,7 @@
 
 import { z } from 'zod';
 import { router, publicProcedure, protectedProcedure } from '../_core/trpc';
-import { enhancedMonitoringService } from './enhancedMonitoringService';
+import { monitoringService } from './monitoringService';
 
 export const monitoringRouter = router({
   // ============================================================
@@ -16,9 +16,9 @@ export const monitoringRouter = router({
   
   getDashboard: protectedProcedure
     .query(async () => {
-      const overview = await enhancedMonitoringService.getMonitoringOverview();
-      const plugins = await enhancedMonitoringService.getPluginStatuses();
-      const engines = await enhancedMonitoringService.getEngineStatuses();
+      const overview = await monitoringService.getMonitoringOverview();
+      const plugins = await monitoringService.getPluginStatuses();
+      const engines = await monitoringService.getEngineStatuses();
       
       return {
         databases: overview.databases,
@@ -49,7 +49,7 @@ export const monitoringRouter = router({
 
   getRealDashboard: protectedProcedure
     .query(async () => {
-      return await enhancedMonitoringService.getMonitoringOverview();
+      return await monitoringService.getMonitoringOverview();
     }),
 
   // ============================================================
@@ -58,12 +58,12 @@ export const monitoringRouter = router({
   
   getDatabaseStatus: protectedProcedure
     .query(async () => {
-      return await enhancedMonitoringService.getDatabaseStatuses();
+      return await monitoringService.getDatabaseStatuses();
     }),
 
   getRealDatabaseStatus: protectedProcedure
     .query(async () => {
-      return await enhancedMonitoringService.getDatabaseStatuses();
+      return await monitoringService.getDatabaseStatuses();
     }),
 
   getDatabaseByType: protectedProcedure
@@ -71,7 +71,7 @@ export const monitoringRouter = router({
       type: z.string()
     }))
     .query(async ({ input }) => {
-      return await enhancedMonitoringService.getDatabaseStatus(input.type);
+      return await monitoringService.getDatabaseStatus(input.type);
     }),
 
   // ============================================================
@@ -80,7 +80,7 @@ export const monitoringRouter = router({
   
   getPluginStatus: protectedProcedure
     .query(async () => {
-      return await enhancedMonitoringService.getPluginStatuses();
+      return await monitoringService.getPluginStatuses();
     }),
 
   getPluginById: protectedProcedure
@@ -88,7 +88,7 @@ export const monitoringRouter = router({
       pluginId: z.string()
     }))
     .query(async ({ input }) => {
-      return await enhancedMonitoringService.getPluginStatus(input.pluginId);
+      return await monitoringService.getPluginStatus(input.pluginId);
     }),
 
   // ============================================================
@@ -97,7 +97,7 @@ export const monitoringRouter = router({
   
   getEngineStatus: protectedProcedure
     .query(async () => {
-      return await enhancedMonitoringService.getEngineStatuses();
+      return await monitoringService.getEngineStatuses();
     }),
 
   getEngineById: protectedProcedure
@@ -105,7 +105,7 @@ export const monitoringRouter = router({
       engineId: z.string()
     }))
     .query(async ({ input }) => {
-      return await enhancedMonitoringService.getEngineStatus(input.engineId);
+      return await monitoringService.getEngineStatus(input.engineId);
     }),
 
   // ============================================================
@@ -114,17 +114,17 @@ export const monitoringRouter = router({
   
   getSystemResources: protectedProcedure
     .query(async () => {
-      return await enhancedMonitoringService.getSystemResourceStatus();
+      return await monitoringService.getSystemResourceStatus();
     }),
 
   getRealSystemResources: protectedProcedure
     .query(async () => {
-      return await enhancedMonitoringService.getSystemResourceStatus();
+      return await monitoringService.getSystemResourceStatus();
     }),
 
   getDetailedSystemInfo: protectedProcedure
     .query(async () => {
-      return await enhancedMonitoringService.getDetailedSystemInfo();
+      return await monitoringService.getDetailedSystemInfo();
     }),
 
   // ============================================================
@@ -133,12 +133,12 @@ export const monitoringRouter = router({
   
   getServiceHealth: protectedProcedure
     .query(async () => {
-      return await enhancedMonitoringService.getServiceHealthStatuses();
+      return await monitoringService.getServiceHealthStatuses();
     }),
 
   getRealServiceHealth: protectedProcedure
     .query(async () => {
-      return await enhancedMonitoringService.getServiceHealthStatuses();
+      return await monitoringService.getServiceHealthStatuses();
     }),
 
   getServiceHealthByName: protectedProcedure
@@ -146,7 +146,7 @@ export const monitoringRouter = router({
       serviceName: z.string()
     }))
     .query(async ({ input }) => {
-      return await enhancedMonitoringService.getServiceHealthStatus(input.serviceName);
+      return await monitoringService.getServiceHealthStatus(input.serviceName);
     }),
 
   // ============================================================
@@ -162,7 +162,7 @@ export const monitoringRouter = router({
       limit: z.number().optional()
     }).optional())
     .query(async ({ input }) => {
-      return await enhancedMonitoringService.getAlerts({
+      return await monitoringService.getAlerts({
         severity: input?.severity,
         sourceType: input?.sourceType,
         acknowledged: input?.acknowledged,
@@ -175,7 +175,7 @@ export const monitoringRouter = router({
       alertId: z.string()
     }))
     .mutation(async ({ input }) => {
-      return await enhancedMonitoringService.acknowledgeAlert(input.alertId);
+      return await monitoringService.acknowledgeAlert(input.alertId);
     }),
 
   deleteAlert: protectedProcedure
@@ -183,7 +183,7 @@ export const monitoringRouter = router({
       alertId: z.string()
     }))
     .mutation(async ({ input }) => {
-      return await enhancedMonitoringService.deleteAlert(input.alertId);
+      return await monitoringService.deleteAlert(input.alertId);
     }),
 
   resolveAlert: protectedProcedure
@@ -192,7 +192,7 @@ export const monitoringRouter = router({
     }))
     .mutation(async ({ input }) => {
       // 解决告警 = 确认 + 标记已解决
-      const result = await enhancedMonitoringService.acknowledgeAlert(input.alertId);
+      const result = await monitoringService.acknowledgeAlert(input.alertId);
       if (result.success) {
         return { success: true, message: '告警已解决' };
       }
@@ -208,13 +208,13 @@ export const monitoringRouter = router({
       intervalMs: z.number().min(5000).max(300000).optional()
     }).optional())
     .mutation(async ({ input }) => {
-      enhancedMonitoringService.startHealthMonitoring(input?.intervalMs || 30000);
+      monitoringService.startHealthMonitoring(input?.intervalMs || 30000);
       return { success: true, message: '监控已启动' };
     }),
 
   stopMonitoring: protectedProcedure
     .mutation(async () => {
-      enhancedMonitoringService.stopHealthMonitoring();
+      monitoringService.stopHealthMonitoring();
       return { success: true, message: '监控已停止' };
     }),
 
@@ -230,9 +230,9 @@ export const monitoringRouter = router({
     .mutation(async ({ input }) => {
       if (input.action === 'restart') {
         // 重启 = 禁用 + 启用
-        await enhancedMonitoringService.updatePluginStatus(input.pluginId, 'inactive');
+        await monitoringService.updatePluginStatus(input.pluginId, 'inactive');
         await new Promise(resolve => setTimeout(resolve, 1000));
-        const result = await enhancedMonitoringService.updatePluginStatus(input.pluginId, 'active');
+        const result = await monitoringService.updatePluginStatus(input.pluginId, 'active');
         return { 
           ...result, 
           message: `插件 ${input.pluginId} 已重启`,
@@ -242,7 +242,7 @@ export const monitoringRouter = router({
       }
       
       const status = input.action === 'enable' ? 'active' : 'inactive';
-      const result = await enhancedMonitoringService.updatePluginStatus(input.pluginId, status);
+      const result = await monitoringService.updatePluginStatus(input.pluginId, status);
       return { 
         ...result, 
         pluginId: input.pluginId,
@@ -284,7 +284,7 @@ export const monitoringRouter = router({
         };
       }
       
-      const result = await enhancedMonitoringService.updateEngineStatus(
+      const result = await monitoringService.updateEngineStatus(
         input.engineId, 
         input.action as 'start' | 'stop' | 'restart'
       );
@@ -305,7 +305,7 @@ export const monitoringRouter = router({
       action: z.enum(['backup', 'optimize', 'restart', 'flush'])
     }))
     .mutation(async ({ input }) => {
-      const result = await enhancedMonitoringService.executeDatabaseAction(
+      const result = await monitoringService.executeDatabaseAction(
         input.databaseName, 
         input.action
       );

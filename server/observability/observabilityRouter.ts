@@ -5,7 +5,7 @@
 
 import { z } from 'zod';
 import { router, publicProcedure, protectedProcedure } from '../_core/trpc';
-import { enhancedObservabilityService } from './enhancedObservabilityService';
+import { observabilityService } from './observabilityService';
 import { prometheusClient } from './clients/prometheusClient';
 import { elasticsearchClient } from './clients/elasticsearchClient';
 import { jaegerClient } from './clients/jaegerClient';
@@ -25,7 +25,7 @@ export const observabilityRouter = router({
   getSummary: publicProcedure.query(async () => {
     // 尝试使用真实服务，失败则回退到模拟数据
     try {
-      const dashboard = await enhancedObservabilityService.getDashboard();
+      const dashboard = await observabilityService.getDashboard();
       return {
         prometheus: {
           status: 'connected',
@@ -50,21 +50,21 @@ export const observabilityRouter = router({
   }),
 
   getDashboard: protectedProcedure.query(async () => {
-    return enhancedObservabilityService.getDashboard();
+    return observabilityService.getDashboard();
   }),
 
   getHealth: publicProcedure.query(async () => {
-    return enhancedObservabilityService.getHealth();
+    return observabilityService.getHealth();
   }),
 
   getConnectionStatus: publicProcedure.query(async () => {
-    return enhancedObservabilityService.checkConnections();
+    return observabilityService.checkConnections();
   }),
 
   // ==================== Prometheus 指标 ====================
   
   getSystemMetrics: protectedProcedure.query(async () => {
-    return enhancedObservabilityService.getSystemMetrics();
+    return observabilityService.getSystemMetrics();
   }),
 
   getNodeMetrics: publicProcedure
@@ -169,7 +169,7 @@ export const observabilityRouter = router({
     }).optional())
     .query(async ({ input }) => {
       try {
-        return await enhancedObservabilityService.searchLogs({
+        return await observabilityService.searchLogs({
           level: input?.level?.toLowerCase(),
           service: input?.service,
           query: input?.message,
@@ -184,7 +184,7 @@ export const observabilityRouter = router({
 
   getLogStats: publicProcedure.query(async () => {
     try {
-      const stats = await enhancedObservabilityService.getLogLevelStats();
+      const stats = await observabilityService.getLogLevelStats();
       return {
         levels: stats,
         total: Object.values(stats).reduce((a, b) => a + b, 0),
@@ -201,7 +201,7 @@ export const observabilityRouter = router({
       interval: z.string().optional(),
     }).optional())
     .query(async ({ input }) => {
-      return enhancedObservabilityService.getLogTrend({
+      return observabilityService.getLogTrend({
         from: input?.from ? new Date(input.from) : undefined,
         to: input?.to ? new Date(input.to) : undefined,
         interval: input?.interval,
@@ -214,7 +214,7 @@ export const observabilityRouter = router({
       to: z.string().optional(),
     }).optional())
     .query(async ({ input }) => {
-      return enhancedObservabilityService.getServiceLogStats({
+      return observabilityService.getServiceLogStats({
         from: input?.from ? new Date(input.from) : undefined,
         to: input?.to ? new Date(input.to) : undefined,
       });
@@ -272,7 +272,7 @@ export const observabilityRouter = router({
     .query(async ({ input }) => {
       if (input?.service) {
         try {
-          return await enhancedObservabilityService.searchTraces({
+          return await observabilityService.searchTraces({
             service: input.service,
             operation: input.operation,
             minDuration: input.minDuration ? `${input.minDuration}ms` : undefined,
@@ -305,7 +305,7 @@ export const observabilityRouter = router({
   }),
 
   getServiceTopology: protectedProcedure.query(async () => {
-    return enhancedObservabilityService.getServiceTopology();
+    return observabilityService.getServiceTopology();
   }),
 
   getServiceLatencyStats: protectedProcedure
@@ -316,7 +316,7 @@ export const observabilityRouter = router({
       endTime: z.string().optional(),
     }))
     .query(async ({ input }) => {
-      return enhancedObservabilityService.getServiceLatencyStats(
+      return observabilityService.getServiceLatencyStats(
         input.service,
         input.operation,
         input.startTime && input.endTime
@@ -332,7 +332,7 @@ export const observabilityRouter = router({
       endTime: z.string().optional(),
     }))
     .query(async ({ input }) => {
-      return enhancedObservabilityService.analyzeServiceErrors(
+      return observabilityService.analyzeServiceErrors(
         input.service,
         input.startTime && input.endTime
           ? { start: new Date(input.startTime), end: new Date(input.endTime) }
@@ -357,7 +357,7 @@ export const observabilityRouter = router({
     }).optional())
     .query(async ({ input }) => {
       try {
-        const alerts = await enhancedObservabilityService.getPrometheusAlerts();
+        const alerts = await observabilityService.getPrometheusAlerts();
         return alerts.filter(a => {
           if (input?.status && a.state !== input.status) return false;
           return true;

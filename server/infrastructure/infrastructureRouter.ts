@@ -5,7 +5,7 @@
 
 import { z } from 'zod';
 import { router, publicProcedure, protectedProcedure } from '../_core/trpc';
-import { enhancedInfrastructureService } from './enhancedInfrastructureService';
+import { infrastructureService } from './infrastructureService';
 import { InfrastructureService } from './infrastructureService';
 
 export const infrastructureRouter = router({
@@ -14,7 +14,7 @@ export const infrastructureRouter = router({
   getClusterOverview: publicProcedure.query(async () => {
     try {
       // 尝试使用真实服务
-      const overview = await enhancedInfrastructureService.getKubernetesOverview();
+      const overview = await infrastructureService.getKubernetesOverview();
       return overview;
     } catch {
       // 回退到模拟服务
@@ -24,7 +24,7 @@ export const infrastructureRouter = router({
 
   getOverview: publicProcedure.query(async () => {
     try {
-      return await enhancedInfrastructureService.getOverview();
+      return await infrastructureService.getOverview();
     } catch {
       // 回退到模拟数据
       return {
@@ -56,7 +56,7 @@ export const infrastructureRouter = router({
 
   getHealth: publicProcedure.query(async () => {
     try {
-      return await enhancedInfrastructureService.getHealth();
+      return await infrastructureService.getHealth();
     } catch {
       return {
         status: 'unhealthy' as const,
@@ -70,14 +70,14 @@ export const infrastructureRouter = router({
   }),
 
   checkConnections: publicProcedure.query(async () => {
-    return await enhancedInfrastructureService.checkConnections();
+    return await infrastructureService.checkConnections();
   }),
 
   // ============ Kubernetes 节点管理 ============
 
   getNodes: publicProcedure.query(async () => {
     try {
-      const nodes = await enhancedInfrastructureService.getNodes();
+      const nodes = await infrastructureService.getNodes();
       if (nodes.length > 0) {
         return nodes.map((node: any) => ({
           id: node.metadata?.uid || node.metadata?.name || '',
@@ -164,7 +164,7 @@ export const infrastructureRouter = router({
 
   getNamespaces: publicProcedure.query(async () => {
     try {
-      const namespaces = await enhancedInfrastructureService.getNamespaces();
+      const namespaces = await infrastructureService.getNamespaces();
       if (namespaces.length > 0) {
         return namespaces.map((ns: any) => ({
           name: ns.metadata?.name || '',
@@ -186,7 +186,7 @@ export const infrastructureRouter = router({
     }))
     .mutation(async ({ input }) => {
       try {
-        const result = await enhancedInfrastructureService.createNamespace(
+        const result = await infrastructureService.createNamespace(
           input.name,
           input.labels
         );
@@ -200,7 +200,7 @@ export const infrastructureRouter = router({
     .input(z.object({ name: z.string() }))
     .mutation(async ({ input }) => {
       try {
-        const result = await enhancedInfrastructureService.deleteNamespace(input.name);
+        const result = await infrastructureService.deleteNamespace(input.name);
         return { success: result };
       } catch (error) {
         return { success: false, error: String(error) };
@@ -213,7 +213,7 @@ export const infrastructureRouter = router({
     .input(z.object({ namespace: z.string().optional() }).optional())
     .query(async ({ input }) => {
       try {
-        const pods = await enhancedInfrastructureService.getPods(input?.namespace);
+        const pods = await infrastructureService.getPods(input?.namespace);
         return pods.map((pod: any) => ({
           name: pod.metadata?.name || '',
           namespace: pod.metadata?.namespace || '',
@@ -239,7 +239,7 @@ export const infrastructureRouter = router({
     }))
     .mutation(async ({ input }) => {
       try {
-        const result = await enhancedInfrastructureService.deletePod(
+        const result = await infrastructureService.deletePod(
           input.name,
           input.namespace
         );
@@ -258,7 +258,7 @@ export const infrastructureRouter = router({
     }))
     .query(async ({ input }) => {
       try {
-        return await enhancedInfrastructureService.getPodLogs(
+        return await infrastructureService.getPodLogs(
           input.name,
           input.namespace,
           input.container,
@@ -275,7 +275,7 @@ export const infrastructureRouter = router({
     .input(z.object({ namespace: z.string().optional() }).optional())
     .query(async ({ input }) => {
       try {
-        const deployments = await enhancedInfrastructureService.getDeployments(input?.namespace);
+        const deployments = await infrastructureService.getDeployments(input?.namespace);
         return deployments.map((dep: any) => ({
           name: dep.metadata?.name || '',
           namespace: dep.metadata?.namespace || '',
@@ -299,7 +299,7 @@ export const infrastructureRouter = router({
     }))
     .mutation(async ({ input }) => {
       try {
-        const result = await enhancedInfrastructureService.scaleDeployment(
+        const result = await infrastructureService.scaleDeployment(
           input.name,
           input.namespace,
           input.replicas
@@ -317,7 +317,7 @@ export const infrastructureRouter = router({
     }))
     .mutation(async ({ input }) => {
       try {
-        const result = await enhancedInfrastructureService.restartDeployment(
+        const result = await infrastructureService.restartDeployment(
           input.name,
           input.namespace
         );
@@ -333,7 +333,7 @@ export const infrastructureRouter = router({
     .input(z.object({ namespace: z.string().optional() }).optional())
     .query(async ({ input }) => {
       try {
-        const services = await enhancedInfrastructureService.getServices(input?.namespace);
+        const services = await infrastructureService.getServices(input?.namespace);
         return services.map((svc: any) => ({
           name: svc.metadata?.name || '',
           namespace: svc.metadata?.namespace || '',
@@ -360,7 +360,7 @@ export const infrastructureRouter = router({
     .input(z.object({ namespace: z.string().optional() }).optional())
     .query(async ({ input }) => {
       try {
-        const configMaps = await enhancedInfrastructureService.getConfigMaps(input?.namespace);
+        const configMaps = await infrastructureService.getConfigMaps(input?.namespace);
         return configMaps.map((cm: any) => ({
           name: cm.metadata?.name || '',
           namespace: cm.metadata?.namespace || '',
@@ -376,7 +376,7 @@ export const infrastructureRouter = router({
     .input(z.object({ namespace: z.string().optional() }).optional())
     .query(async ({ input }) => {
       try {
-        const secrets = await enhancedInfrastructureService.getSecrets(input?.namespace);
+        const secrets = await infrastructureService.getSecrets(input?.namespace);
         return secrets.map((secret: any) => ({
           name: secret.metadata?.name || '',
           namespace: secret.metadata?.namespace || '',
@@ -398,7 +398,7 @@ export const infrastructureRouter = router({
     }).optional())
     .query(async ({ input }) => {
       try {
-        const events = await enhancedInfrastructureService.getEvents(
+        const events = await infrastructureService.getEvents(
           input?.namespace,
           input?.limit
         );
@@ -421,7 +421,7 @@ export const infrastructureRouter = router({
 
   getVaultHealth: publicProcedure.query(async () => {
     try {
-      return await enhancedInfrastructureService.getVaultHealth();
+      return await infrastructureService.getVaultHealth();
     } catch {
       return null;
     }
@@ -429,7 +429,7 @@ export const infrastructureRouter = router({
 
   getVaultOverview: publicProcedure.query(async () => {
     try {
-      return await enhancedInfrastructureService.getVaultOverview();
+      return await infrastructureService.getVaultOverview();
     } catch {
       return {
         health: null,
@@ -447,7 +447,7 @@ export const infrastructureRouter = router({
     }))
     .query(async ({ input }) => {
       try {
-        return await enhancedInfrastructureService.listSecrets(input.mount, input.path);
+        return await infrastructureService.listSecrets(input.mount, input.path);
       } catch {
         return [];
       }
@@ -460,7 +460,7 @@ export const infrastructureRouter = router({
     }))
     .query(async ({ input }) => {
       try {
-        return await enhancedInfrastructureService.readSecret(input.mount, input.path);
+        return await infrastructureService.readSecret(input.mount, input.path);
       } catch {
         return null;
       }
@@ -474,7 +474,7 @@ export const infrastructureRouter = router({
     }))
     .mutation(async ({ input }) => {
       try {
-        const result = await enhancedInfrastructureService.writeSecret(
+        const result = await infrastructureService.writeSecret(
           input.mount,
           input.path,
           input.data
@@ -492,7 +492,7 @@ export const infrastructureRouter = router({
     }))
     .mutation(async ({ input }) => {
       try {
-        const result = await enhancedInfrastructureService.deleteSecret(input.mount, input.path);
+        const result = await infrastructureService.deleteSecret(input.mount, input.path);
         return { success: result };
       } catch (error) {
         return { success: false, error: String(error) };
@@ -501,7 +501,7 @@ export const infrastructureRouter = router({
 
   listVaultPolicies: publicProcedure.query(async () => {
     try {
-      return await enhancedInfrastructureService.listVaultPolicies();
+      return await infrastructureService.listVaultPolicies();
     } catch {
       return [];
     }
@@ -509,7 +509,7 @@ export const infrastructureRouter = router({
 
   listVaultMounts: publicProcedure.query(async () => {
     try {
-      return await enhancedInfrastructureService.listVaultMounts();
+      return await infrastructureService.listVaultMounts();
     } catch {
       return {};
     }
@@ -519,7 +519,7 @@ export const infrastructureRouter = router({
 
   getArgoCDOverview: publicProcedure.query(async () => {
     try {
-      return await enhancedInfrastructureService.getArgoCDOverview();
+      return await infrastructureService.getArgoCDOverview();
     } catch {
       return {
         version: null,
@@ -535,7 +535,7 @@ export const infrastructureRouter = router({
     .input(z.object({ project: z.string().optional() }).optional())
     .query(async ({ input }) => {
       try {
-        return await enhancedInfrastructureService.listApplications(input?.project);
+        return await infrastructureService.listApplications(input?.project);
       } catch {
         return [];
       }
@@ -545,7 +545,7 @@ export const infrastructureRouter = router({
     .input(z.object({ name: z.string() }))
     .query(async ({ input }) => {
       try {
-        return await enhancedInfrastructureService.getApplication(input.name);
+        return await infrastructureService.getApplication(input.name);
       } catch {
         return null;
       }
@@ -564,7 +564,7 @@ export const infrastructureRouter = router({
     }))
     .mutation(async ({ input }) => {
       try {
-        const result = await enhancedInfrastructureService.createApplication(input);
+        const result = await infrastructureService.createApplication(input);
         return { success: !!result, application: result };
       } catch (error) {
         return { success: false, error: String(error) };
@@ -578,7 +578,7 @@ export const infrastructureRouter = router({
     }))
     .mutation(async ({ input }) => {
       try {
-        const result = await enhancedInfrastructureService.deleteApplication(
+        const result = await infrastructureService.deleteApplication(
           input.name,
           input.cascade
         );
@@ -596,7 +596,7 @@ export const infrastructureRouter = router({
     }))
     .mutation(async ({ input }) => {
       try {
-        const result = await enhancedInfrastructureService.syncApplication(input.name, {
+        const result = await infrastructureService.syncApplication(input.name, {
           revision: input.revision,
           prune: input.prune,
         });
@@ -613,7 +613,7 @@ export const infrastructureRouter = router({
     }))
     .mutation(async ({ input }) => {
       try {
-        const result = await enhancedInfrastructureService.rollbackApplication(
+        const result = await infrastructureService.rollbackApplication(
           input.name,
           input.id
         );
@@ -630,7 +630,7 @@ export const infrastructureRouter = router({
     }))
     .mutation(async ({ input }) => {
       try {
-        const result = await enhancedInfrastructureService.refreshApplication(
+        const result = await infrastructureService.refreshApplication(
           input.name,
           input.hard
         );
@@ -642,7 +642,7 @@ export const infrastructureRouter = router({
 
   listProjects: publicProcedure.query(async () => {
     try {
-      return await enhancedInfrastructureService.listProjects();
+      return await infrastructureService.listProjects();
     } catch {
       return [];
     }
@@ -650,7 +650,7 @@ export const infrastructureRouter = router({
 
   listRepositories: publicProcedure.query(async () => {
     try {
-      return await enhancedInfrastructureService.listRepositories();
+      return await infrastructureService.listRepositories();
     } catch {
       return [];
     }
@@ -658,7 +658,7 @@ export const infrastructureRouter = router({
 
   listClusters: publicProcedure.query(async () => {
     try {
-      return await enhancedInfrastructureService.listClusters();
+      return await infrastructureService.listClusters();
     } catch {
       return [];
     }
@@ -761,8 +761,8 @@ export const infrastructureRouter = router({
   getSummary: publicProcedure.query(async () => {
     try {
       const [k8sOverview, argoOverview] = await Promise.all([
-        enhancedInfrastructureService.getKubernetesOverview(),
-        enhancedInfrastructureService.getArgoCDOverview(),
+        infrastructureService.getKubernetesOverview(),
+        infrastructureService.getArgoCDOverview(),
       ]);
 
       return {
