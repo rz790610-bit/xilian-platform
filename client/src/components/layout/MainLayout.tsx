@@ -24,7 +24,7 @@ export function MainLayout({ children, title }: MainLayoutProps) {
       <main 
         className={cn(
           "min-h-screen flex flex-col transition-all duration-300 relative z-10",
-          sidebarCollapsed ? "ml-[50px]" : "ml-[180px]"
+          sidebarCollapsed ? "ml-[50px]" : "ml-[200px]"
         )}
       >
         <Topbar title={title} />
