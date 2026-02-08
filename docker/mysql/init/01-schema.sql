@@ -374,7 +374,7 @@ CREATE TABLE IF NOT EXISTS diagnosis_tasks (
 CREATE TABLE IF NOT EXISTS device_maintenance_records (
   id INT AUTO_INCREMENT PRIMARY KEY,
   record_id VARCHAR(64) NOT NULL UNIQUE,
-  device_id VARCHAR(64) NOT NULL,
+  node_id VARCHAR(64) NOT NULL,
   maintenance_type ENUM('preventive', 'corrective', 'predictive', 'emergency', 'calibration', 'inspection') NOT NULL DEFAULT 'preventive',
   title VARCHAR(200) NOT NULL,
   description TEXT,
@@ -394,7 +394,7 @@ CREATE TABLE IF NOT EXISTS device_maintenance_records (
   next_maintenance_date TIMESTAMP NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  INDEX idx_device_maintenance_records_device_id (device_id),
+  INDEX idx_device_maintenance_records_node_id (node_id),
   INDEX idx_device_maintenance_records_status (status),
   INDEX idx_device_maintenance_records_scheduled_date (scheduled_date)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -427,7 +427,7 @@ CREATE TABLE IF NOT EXISTS device_spare_parts (
 CREATE TABLE IF NOT EXISTS device_operation_logs (
   id INT AUTO_INCREMENT PRIMARY KEY,
   log_id VARCHAR(64) NOT NULL UNIQUE,
-  device_id VARCHAR(64) NOT NULL,
+  node_id VARCHAR(64) NOT NULL,
   operation_type ENUM('start', 'stop', 'restart', 'config_change', 'firmware_update', 'calibration', 'mode_change', 'error', 'recovery') NOT NULL,
   previous_state VARCHAR(50),
   new_state VARCHAR(50),
@@ -439,7 +439,7 @@ CREATE TABLE IF NOT EXISTS device_operation_logs (
   duration INT,
   timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  INDEX idx_device_operation_logs_device_id (device_id),
+  INDEX idx_device_operation_logs_node_id (node_id),
   INDEX idx_device_operation_logs_operation_type (operation_type),
   INDEX idx_device_operation_logs_timestamp (timestamp)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -447,7 +447,7 @@ CREATE TABLE IF NOT EXISTS device_operation_logs (
 CREATE TABLE IF NOT EXISTS device_alerts (
   id INT AUTO_INCREMENT PRIMARY KEY,
   alert_id VARCHAR(64) NOT NULL UNIQUE,
-  device_id VARCHAR(64) NOT NULL,
+  node_id VARCHAR(64) NOT NULL,
   sensor_id VARCHAR(64),
   alert_type ENUM('threshold', 'anomaly', 'offline', 'error', 'maintenance_due', 'warranty_expiry', 'custom') NOT NULL,
   title VARCHAR(200) NOT NULL,
@@ -460,12 +460,13 @@ CREATE TABLE IF NOT EXISTS device_alerts (
   acknowledged_at TIMESTAMP NULL,
   resolved_by VARCHAR(100),
   resolved_at TIMESTAMP NULL,
-  notes TEXT,
+  resolution TEXT,
   escalation_level INT DEFAULT 0,
   notifications_sent JSON,
+  metadata JSON,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  INDEX idx_device_alerts_device_id (device_id),
+  INDEX idx_device_alerts_node_id (node_id),
   INDEX idx_device_alerts_alert_type (alert_type),
   INDEX idx_device_alerts_severity (severity),
   INDEX idx_device_alerts_status (status)
@@ -569,6 +570,7 @@ CREATE TABLE IF NOT EXISTS saga_dead_letters (
 CREATE TABLE IF NOT EXISTS processed_events (
   id INT AUTO_INCREMENT PRIMARY KEY,
   event_id VARCHAR(64) NOT NULL,
+  event_type VARCHAR(100) NOT NULL,
   consumer_group VARCHAR(100) NOT NULL,
   processed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   expires_at TIMESTAMP NOT NULL,
