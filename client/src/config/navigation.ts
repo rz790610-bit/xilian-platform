@@ -9,19 +9,6 @@ export const navigationConfig: NavItem[] = [
     path: '/dashboard',
     section: '核心业务'
   },
-  {
-    id: 'agents',
-    label: '智能体诊断',
-    icon: '🤖',
-    path: '/agents'
-  },
-  {
-    id: 'ai-chat',
-    label: 'AI对话',
-    icon: '💬',
-    path: '/chat'
-  },
-
 
   // ━━━ 资产与数据 ━━━
   {
@@ -90,6 +77,7 @@ export const navigationConfig: NavItem[] = [
     icon: '🧠',
     section: '智能引擎',
     children: [
+      { id: 'ai-chat', label: 'AI对话', icon: '💬', path: '/chat' },
       { id: 'model-main', label: '模型管理', icon: '🤖', path: '/model/center' },
       { id: 'model-inference', label: '模型推理', icon: '💬', path: '/model/inference' },
       { id: 'model-finetune', label: '模型微调', icon: '🔧', path: '/model/finetune' },
@@ -102,6 +90,7 @@ export const navigationConfig: NavItem[] = [
     label: '智能诊断',
     icon: '🔬',
     children: [
+      { id: 'agents', label: '智能体诊断', icon: '🤖', path: '/agents' },
       { id: 'diag-analysis', label: '诊断分析', icon: '🔍', path: '/diagnosis/analysis' },
       { id: 'diag-report', label: '诊断报告', icon: '📝', path: '/diagnosis/report' },
       { id: 'knowledge-base', label: '知识库', icon: '📚', path: '/diagnosis/knowledge' }
