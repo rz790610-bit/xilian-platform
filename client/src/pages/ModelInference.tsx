@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAppStore, API_BASE } from '@/stores/appStore';
+import { trpc } from '@/lib/trpc';
 import { Upload, Play, FileUp } from 'lucide-react';
 import { useToast } from '@/components/common/Toast';
 import axios from 'axios';
@@ -35,7 +36,8 @@ ChartJS.register(
 );
 
 export default function ModelInference() {
-  const { selectedModel, setSelectedModel, models } = useAppStore();
+  const { selectedModel, setSelectedModel } = useAppStore();
+  const { data: models } = trpc.model.listModels.useQuery();
   const toast = useToast();
   const [file, setFile] = useState<File | null>(null);
   const [sampleRate, setSampleRate] = useState('10000');
@@ -155,8 +157,8 @@ export default function ModelInference() {
                     </SelectTrigger>
                     <SelectContent>
                       {(models || []).filter(m => m.type === 'llm').map((model) => (
-                        <SelectItem key={model.id} value={model.name}>
-                          {model.name}
+                        <SelectItem key={model.modelId} value={model.name}>
+                          {model.displayName || model.name}
                         </SelectItem>
                       ))}
                     </SelectContent>

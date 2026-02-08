@@ -271,8 +271,13 @@ export default function ModelCenter() {
               )} />
               <span>Ollama {ollamaStatus?.online ? '在线' : '离线'}</span>
             </div>
-            <Button variant="secondary" size="sm" onClick={() => {
+            <Button variant="secondary" size="sm" onClick={async () => {
               refetchStatus();
+              try {
+                await syncModelsMutation.mutateAsync();
+              } catch (e) {
+                // sync may fail if ollama is offline, still refetch db models
+              }
               refetchModels();
             }}>
               <RefreshCw className="w-4 h-4 mr-2" />

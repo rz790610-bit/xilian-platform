@@ -132,7 +132,13 @@ export default function AIChat() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [models, setModels] = useState<OllamaModelInfo[]>([]);
+  const [localModels, setLocalModels] = useState<OllamaModelInfo[]>([]);
+  // 从 tRPC 获取统一模型列表
+  const { data: trpcModels } = trpc.model.listModels.useQuery();
+  // 合并：优先使用 tRPC 模型列表，回退到本地 Ollama 直连
+  const models: OllamaModelInfo[] = (trpcModels && trpcModels.length > 0)
+    ? trpcModels.map(m => ({ name: m.name, size: parseInt(m.size || '0') || 0, parameterSize: m.parameters || '' }))
+    : localModels;
   const [selectedModel, setSelectedModel] = useState('qwen2.5:7b');
   const [ollamaStatus, setOllamaStatus] = useState<'checking' | 'online' | 'offline'>('checking');
   
@@ -207,7 +213,7 @@ export default function AIChat() {
           size: m.size,
           parameterSize: m.details.parameter_size
         }));
-        setModels(formattedModels);
+        setLocalModels(formattedModels);
         
         if (formattedModels.length > 0 && !(formattedModels || []).find(m => m.name === selectedModel)) {
           setSelectedModel(formattedModels[0].name);
