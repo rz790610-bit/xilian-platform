@@ -17,7 +17,6 @@ import DataAccess from "./pages/DataAccess";
 import DataStandard from "./pages/DataStandard";
 import ModelRepo from "./pages/ModelRepo";
 import ModelCenter from "./pages/ModelCenter";
-import BaseLibrary from "./pages/BaseLibrary";
 import {
   ModelFinetune,
   ModelEval,
@@ -108,9 +107,6 @@ function Router() {
       <Route path="/knowledge/manager" component={KnowledgeManager} />
       <Route path="/knowledge/graph" component={KnowledgeGraph} />
       <Route path="/knowledge/vectors" component={VectorAdmin} />
-      
-      {/* 基础数据 */}
-      <Route path="/base/library" component={BaseLibrary} />
       
       {/* 数据中心 */}
       <Route path="/data/manage" component={DataManage} />

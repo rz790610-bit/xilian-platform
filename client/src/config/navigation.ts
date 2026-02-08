@@ -33,14 +33,7 @@ export const navigationConfig: NavItem[] = [
       { id: 'knowledge-vectors', label: '向量管理', icon: '📊', path: '/knowledge/vectors' }
     ]
   },
-  {
-    id: 'base-data',
-    label: '基础数据',
-    icon: '📦',
-    children: [
-      { id: 'base-library', label: '基础库', icon: '🗃️', path: '/base/library' }
-    ]
-  },
+
   {
     id: 'data-center',
     label: '数据中心',
