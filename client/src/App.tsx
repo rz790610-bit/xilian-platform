@@ -138,7 +138,9 @@ function Router() {
       {/* 智能诊断 */}
       <Route path="/diagnosis/analysis" component={DiagAnalysis} />
       <Route path="/diagnosis/report" component={DiagReport} />
-      <Redirect from="/diagnosis/knowledge" to="/knowledge/manager" />
+      <Route path="/diagnosis/knowledge">
+        <Redirect to="/knowledge/manager" />
+      </Route>
       
       {/* 进化引擎 */}
       <Route path="/evolution/feedback" component={FeedbackCenter} />

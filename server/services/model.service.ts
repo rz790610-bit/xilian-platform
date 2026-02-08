@@ -65,6 +65,36 @@ async function getOllamaModels(): Promise<Array<{
 }
 
 /**
+ * 获取 Ollama 当前运行中的模型
+ */
+async function getOllamaRunningModels(): Promise<Array<{
+  name: string;
+  model: string;
+  size: number;
+  digest: string;
+  details: {
+    format: string;
+    family: string;
+    parameter_size: string;
+    quantization_level: string;
+  };
+  expires_at: string;
+  size_vram: number;
+}>> {
+  try {
+    const response = await fetch(`${OLLAMA_BASE_URL}/api/ps`);
+    if (!response.ok) {
+      throw new Error(`Ollama API error: ${response.status}`);
+    }
+    const data = await response.json();
+    return data.models || [];
+  } catch (error) {
+    console.error("[ModelService] Failed to get Ollama running models:", error);
+    return [];
+  }
+}
+
+/**
  * 检查 Ollama 服务状态
  */
 async function checkOllamaStatus(): Promise<{ online: boolean; version?: string }> {
@@ -264,14 +294,18 @@ async function ollamaEmbed(params: {
  */
 async function syncOllamaModelsToDb(): Promise<number> {
   const ollamaModels = await getOllamaModels();
+  const runningModels = await getOllamaRunningModels();
   let syncCount = 0;
 
+  // 同步已下载的模型
   for (const model of ollamaModels) {
     const modelId = model.name.replace(/[^a-zA-Z0-9._-]/g, "_");
     const existing = await (await getDbInstance()).select().from(models).where(eq(models.modelId, modelId)).limit(1);
 
     const modelType = model.name.includes("embed") ? "embedding" : "llm";
     const sizeGB = (model.size / (1024 * 1024 * 1024)).toFixed(2) + " GB";
+    // 检查此模型是否正在运行
+    const isRunning = runningModels.some(rm => rm.name === model.name || rm.model === model.name);
 
     if (existing.length === 0) {
       await (await getDbInstance()).insert(models).values({
@@ -284,7 +318,7 @@ async function syncOllamaModelsToDb(): Promise<number> {
         parameters: model.details?.parameter_size || null,
         quantization: model.details?.quantization_level || null,
         description: `${model.details?.family || "Unknown"} family model`,
-        status: "loaded",
+        status: isRunning ? "loaded" : "available",
         capabilities: {
           chat: modelType === "llm",
           completion: modelType === "llm",
@@ -295,12 +329,54 @@ async function syncOllamaModelsToDb(): Promise<number> {
     } else {
       await (await getDbInstance()).update(models)
         .set({
-          status: "loaded",
+          status: isRunning ? "loaded" : "available",
           size: sizeGB,
           parameters: model.details?.parameter_size || existing[0].parameters,
           quantization: model.details?.quantization_level || existing[0].quantization,
         })
         .where(eq(models.modelId, modelId));
+    }
+  }
+
+  // 同步运行中但不在已下载列表中的模型（如通过 ollama run 临时加载的大模型）
+  const downloadedNames = new Set(ollamaModels.map(m => m.name));
+  for (const rm of runningModels) {
+    if (!downloadedNames.has(rm.name)) {
+      const modelId = rm.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+      const existing = await (await getDbInstance()).select().from(models).where(eq(models.modelId, modelId)).limit(1);
+
+      const modelType = rm.name.includes("embed") ? "embedding" : "llm";
+      const sizeGB = (rm.size / (1024 * 1024 * 1024)).toFixed(2) + " GB";
+
+      if (existing.length === 0) {
+        await (await getDbInstance()).insert(models).values({
+          modelId,
+          name: rm.name,
+          displayName: rm.name,
+          type: modelType,
+          provider: "ollama",
+          size: sizeGB,
+          parameters: rm.details?.parameter_size || null,
+          quantization: rm.details?.quantization_level || null,
+          description: `${rm.details?.family || "Unknown"} family model (running)`,
+          status: "loaded",
+          capabilities: {
+            chat: modelType === "llm",
+            completion: modelType === "llm",
+            embedding: modelType === "embedding",
+          },
+        });
+        syncCount++;
+      } else {
+        await (await getDbInstance()).update(models)
+          .set({
+            status: "loaded",
+            size: sizeGB,
+            parameters: rm.details?.parameter_size || existing[0].parameters,
+            quantization: rm.details?.quantization_level || existing[0].quantization,
+          })
+          .where(eq(models.modelId, modelId));
+      }
     }
   }
 
@@ -318,10 +394,20 @@ export const modelRouter = router({
   getOllamaStatus: publicProcedure.query(async () => {
     const status = await checkOllamaStatus();
     const ollamaModels = status.online ? await getOllamaModels() : [];
+    const runningModels = status.online ? await getOllamaRunningModels() : [];
     return {
       ...status,
       modelCount: ollamaModels.length,
       models: ollamaModels.map(m => m.name),
+      runningModels: runningModels.map(m => ({
+        name: m.name,
+        model: m.model,
+        parameterSize: m.details?.parameter_size,
+        quantization: m.details?.quantization_level,
+        sizeVram: m.size_vram,
+        expiresAt: m.expires_at,
+      })),
+      currentModel: runningModels.length > 0 ? runningModels[0].name : (ollamaModels.length > 0 ? ollamaModels[0].name : null),
     };
   }),
 

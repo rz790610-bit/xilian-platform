@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { StatCard } from '@/components/common/StatCard';
 import { PageCard } from '@/components/common/PageCard';
@@ -5,10 +6,26 @@ import { Badge } from '@/components/common/Badge';
 import { Button } from '@/components/ui/button';
 import { useAppStore } from '@/stores/appStore';
 import { useLocation } from 'wouter';
+import { trpc } from '@/lib/trpc';
 
 export default function Dashboard() {
-  const { dashboardStats, systemStatus } = useAppStore();
+  const { dashboardStats, systemStatus, setSystemStatus } = useAppStore();
   const [, setLocation] = useLocation();
+
+  // 从 tRPC 获取实时 Ollama 状态
+  const { data: ollamaStatus } = trpc.model.getOllamaStatus.useQuery(undefined, {
+    refetchInterval: 15000, // 每15秒刷新
+  });
+
+  // 当 Ollama 状态更新时同步到 appStore
+  useEffect(() => {
+    if (ollamaStatus) {
+      setSystemStatus({
+        ollama: ollamaStatus.online ? 'connected' : 'disconnected',
+        currentModel: ollamaStatus.currentModel || systemStatus.currentModel,
+      });
+    }
+  }, [ollamaStatus]);
 
   const quickActions = [
     { id: 'agents', label: '智能体诊断', icon: '🤖', path: '/agents', variant: 'default' as const },
@@ -16,6 +33,11 @@ export default function Dashboard() {
     { id: 'chat', label: 'AI对话', icon: '💬', path: '/chat', variant: 'secondary' as const },
     { id: 'docs', label: '文档管理', icon: '📄', path: '/docs', variant: 'secondary' as const }
   ];
+
+  // 使用实时数据优先
+  const ollamaConnected = ollamaStatus ? ollamaStatus.online : systemStatus.ollama === 'connected';
+  const currentModel = ollamaStatus?.currentModel || systemStatus.currentModel;
+  const modelCount = ollamaStatus?.modelCount ?? dashboardStats.models;
 
   return (
     <MainLayout title="系统总览">
@@ -44,7 +66,7 @@ export default function Dashboard() {
             icon="📄"
           />
           <StatCard
-            value={dashboardStats.models}
+            value={modelCount}
             label="模型数量"
             icon="🧠"
           />
@@ -78,14 +100,38 @@ export default function Dashboard() {
               </div>
               <div className="flex justify-between items-center py-2 border-b border-border">
                 <span className="text-muted-foreground">Ollama</span>
-                <Badge variant={systemStatus.ollama === 'connected' ? 'success' : 'danger'} dot>
-                  {systemStatus.ollama === 'connected' ? '已连接' : '未连接'}
+                <Badge variant={ollamaConnected ? 'success' : 'danger'} dot>
+                  {ollamaConnected ? '已连接' : '未连接'}
                 </Badge>
               </div>
-              <div className="flex justify-between items-center py-2">
+              <div className="flex justify-between items-center py-2 border-b border-border">
                 <span className="text-muted-foreground">当前模型</span>
-                <span className="text-foreground font-medium">{systemStatus.currentModel}</span>
+                <span className="text-foreground font-medium">{currentModel || '无'}</span>
               </div>
+              {ollamaStatus?.runningModels && ollamaStatus.runningModels.length > 0 && (
+                <div className="flex justify-between items-center py-2">
+                  <span className="text-muted-foreground">运行中模型</span>
+                  <div className="flex flex-col items-end gap-0.5">
+                    {ollamaStatus.runningModels.map((rm, i) => (
+                      <Badge key={i} variant="success" className="text-[10px]">
+                        {rm.name} ({rm.parameterSize})
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {ollamaStatus && !ollamaStatus.online && (
+                <div className="flex justify-between items-center py-2">
+                  <span className="text-muted-foreground">Ollama 版本</span>
+                  <span className="text-muted-foreground">-</span>
+                </div>
+              )}
+              {ollamaStatus?.version && (
+                <div className="flex justify-between items-center py-2">
+                  <span className="text-muted-foreground">Ollama 版本</span>
+                  <span className="text-foreground">{ollamaStatus.version}</span>
+                </div>
+              )}
             </div>
           </PageCard>
         </div>
@@ -108,13 +154,24 @@ export default function Dashboard() {
                 </div>
                 <div className="text-[10px] text-muted-foreground mt-0.5">刚刚</div>
               </div>
-              <div className="p-2 bg-secondary rounded-md">
-                <div className="flex items-center gap-1.5 text-[11px]">
-                  <span className="text-primary">●</span>
-                  <span>模型已加载</span>
+              {ollamaStatus?.runningModels && ollamaStatus.runningModels.length > 0 && (
+                <div className="p-2 bg-secondary rounded-md">
+                  <div className="flex items-center gap-1.5 text-[11px]">
+                    <span className="text-primary">●</span>
+                    <span>{ollamaStatus.runningModels[0].name} 运行中</span>
+                  </div>
+                  <div className="text-[10px] text-muted-foreground mt-0.5">实时</div>
                 </div>
-                <div className="text-[10px] text-muted-foreground mt-0.5">2分钟前</div>
-              </div>
+              )}
+              {(!ollamaStatus?.runningModels || ollamaStatus.runningModels.length === 0) && (
+                <div className="p-2 bg-secondary rounded-md">
+                  <div className="flex items-center gap-1.5 text-[11px]">
+                    <span className="text-primary">●</span>
+                    <span>模型已加载</span>
+                  </div>
+                  <div className="text-[10px] text-muted-foreground mt-0.5">2分钟前</div>
+                </div>
+              )}
             </div>
           </PageCard>
         </div>
