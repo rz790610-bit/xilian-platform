@@ -9,7 +9,6 @@ import { ToastProvider } from "./components/common/Toast";
 import Dashboard from "./pages/Dashboard";
 import Agents from "./pages/Agents";
 import AIChat from "./pages/AIChat";
-import Documents from "./pages/Documents";
 import DataManage from "./pages/DataManage";
 import ModelInference from "./pages/ModelInference";
 import DataLabel from "./pages/DataLabel";
@@ -95,7 +94,9 @@ function Router() {
       <Route path="/dashboard" component={Dashboard} />
       <Route path="/agents" component={Agents} />
       <Route path="/chat" component={AIChat} />
-      <Route path="/docs" component={Documents} />
+      <Route path="/docs">
+        <Redirect to="/knowledge/manager" />
+      </Route>
       
       {/* ━━━ 资产与数据 ━━━ */}
       {/* 设备管理 */}

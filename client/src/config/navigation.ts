@@ -21,12 +21,7 @@ export const navigationConfig: NavItem[] = [
     icon: '💬',
     path: '/chat'
   },
-  {
-    id: 'docs',
-    label: '文档中心',
-    icon: '📄',
-    path: '/docs'
-  },
+
 
   // ━━━ 资产与数据 ━━━
   {
@@ -181,5 +176,5 @@ export const quickLinks = [
   { id: 'agents', label: '智能体诊断', icon: '🤖', path: '/agents' },
   { id: 'pipeline', label: 'Pipeline', icon: '🔗', path: '/settings/design/pipeline' },
   { id: 'ai-chat', label: 'AI对话', icon: '💬', path: '/chat' },
-  { id: 'docs', label: '文档管理', icon: '📄', path: '/docs' }
+  { id: 'knowledge', label: '知识管理', icon: '📁', path: '/knowledge/manager' }
 ];
