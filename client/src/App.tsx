@@ -125,7 +125,6 @@ function Router() {
       <Route path="/database/clean" component={CleanManager} />
       <Route path="/database/events" component={EventManager} />
       <Route path="/database/storage" component={StorageStatus} />
-      <Route path="/database/workbench" component={DatabaseWorkbench} />
 
       {/* ━━━ 智能引擎 ━━━ */}
       {/* 模型中心 */}
@@ -160,6 +159,7 @@ function Router() {
       <Route path="/settings/design/pipeline/editor" component={PipelineEditor} />
       <Route path="/settings/design/datastream" component={DataStream} />
       <Route path="/settings/design/graph-query" component={GraphQueryManager} />
+      <Route path="/settings/design/workbench" component={DatabaseWorkbench} />
 
       {/* 配置中心 */}
       <Route path="/settings/config/infrastructure" component={Infrastructure} />
@@ -193,7 +193,10 @@ function Router() {
       </Route>
       {/* 已删除页面的旧路由 → 重定向到最近的保留页面 */}
       <Route path="/settings/design/db-workbench">
-        <Redirect to="/database/workbench" />
+        <Redirect to="/settings/design/workbench" />
+      </Route>
+      <Route path="/database/workbench">
+        <Redirect to="/settings/design/workbench" />
       </Route>
       <Route path="/settings/config/resources">
         <Redirect to="/settings/config/infrastructure" />
