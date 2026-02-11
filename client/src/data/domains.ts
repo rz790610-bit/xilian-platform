@@ -16,3 +16,8 @@ export const DOMAINS: DomainMeta[] = [
   { id: "plugin-engine",      label: "插件引擎",   icon: "Plug",          color: "oklch(0.7 0.14 130)",  tableCount: 3 },
   { id: "audit-log",          label: "审计日志",   icon: "FileText",      color: "oklch(0.6 0.1 350)",   tableCount: 2 },
 ];
+
+/** 按 id 快速查找域元数据 */
+export const DOMAIN_MAP: Record<string, DomainMeta> = Object.fromEntries(
+  DOMAINS.map((d) => [d.id, d])
+);
