@@ -28,6 +28,16 @@ import { graphQueryRouter } from "./api/graphQuery.router";
 
 // ============ v1.5 数据库模块路由 ============
 import { databaseRouter } from "./api/database.router";
+// ============ V4.0 三层架构路由 ============
+import { systemRoutes } from "./platform/routes/system.routes";
+import { authRoutes } from "./platform/routes/auth.routes";
+import { deviceRoutes } from "./operations/routes/device.routes";
+import { governanceRoutes } from "./operations/routes/governance.routes";
+import { pluginRoutes } from "./operations/routes/plugin.routes";
+import { assetsRoutes } from "./business/routes/assets.routes";
+import { diagnosisRoutes } from "./business/routes/diagnosis.routes";
+import { knowledgeRoutes } from "./business/routes/knowledge.routes";
+import { monitoringRoutes } from "./business/routes/monitoring.routes";
 
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/core/index.ts, all api should start with '/api/' so that the gateway can route correctly
@@ -115,6 +125,25 @@ export const appRouter = router({
   // ============ v1.5 数据库模块 ============
   // 数据库管理（资产/配置/切片/清洗/事件）
   database: databaseRouter,
+  // ============ V4.0 三层架构 ============
+  // 平台基础层（系统健康/告警规则/审计日志/定时任务/数据权限/审批流程）
+  platformSystem: systemRoutes,
+  // 平台认证层
+  platformAuth: authRoutes,
+  // 运维中心 - 设备运维（采样配置/协议配置/规则版本/回滚触发器）
+  opsDevice: deviceRoutes,
+  // 运维中心 - 数据治理（导出任务/血缘/合成数据集/生命周期策略）
+  opsGovernance: governanceRoutes,
+  // 运维中心 - 插件管理（注册表/实例/事件）
+  opsPlugin: pluginRoutes,
+  // 业务应用 - 资产树
+  bizAssets: assetsRoutes,
+  // 业务应用 - 诊断
+  bizDiagnosis: diagnosisRoutes,
+  // 业务应用 - 知识图谱
+  bizKnowledge: knowledgeRoutes,
+  // 业务应用 - 监控（遥测/ClickHouse仪表盘）
+  bizMonitoring: monitoringRoutes,
 });
 
 export type AppRouter = typeof appRouter;

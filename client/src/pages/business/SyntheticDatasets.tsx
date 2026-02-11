@@ -1,71 +1,56 @@
 import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
-import { toast } from "sonner";
-
-interface Dataset { id: string; name: string; sourceSlice: string; method: string; status: "completed" | "generating" | "failed"; sampleCount: number; progress: number; createdAt: string; labelStats: { labeled: number; total: number }; }
-
-const MOCK_DATASETS: Dataset[] = [
-  { id: "SD-001", name: "轴承故障合成数据集-v1", sourceSlice: "bearing_vibration_2025", method: "GAN + 时间扭曲", status: "completed", sampleCount: 50000, progress: 100, createdAt: "2026-02-05", labelStats: { labeled: 48000, total: 50000 } },
-  { id: "SD-002", name: "电机电流异常数据集", sourceSlice: "motor_current_2025Q4", method: "SMOTE + 噪声注入", status: "completed", sampleCount: 30000, progress: 100, createdAt: "2026-02-08", labelStats: { labeled: 30000, total: 30000 } },
-  { id: "SD-003", name: "多工况振动数据集", sourceSlice: "multi_condition_2026", method: "条件 GAN", status: "generating", sampleCount: 0, progress: 45, createdAt: "2026-02-11", labelStats: { labeled: 0, total: 100000 } },
-  { id: "SD-004", name: "稀有故障模式数据集", sourceSlice: "rare_faults_collection", method: "变分自编码器", status: "failed", sampleCount: 0, progress: 12, createdAt: "2026-02-10", labelStats: { labeled: 0, total: 20000 } },
-];
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { trpc } from "@/lib/trpc";
+import { useToast } from "@/components/common/Toast";
+import { RefreshCw, Plus, Trash2, Database } from "lucide-react";
 
 export default function SyntheticDatasets() {
-  const [datasets] = useState(MOCK_DATASETS);
-  
+  const toast = useToast();
+  const [showCreate, setShowCreate] = useState(false);
+  const [newDs, setNewDs] = useState({ taskCode: "", name: "", format: "csv", createdBy: "admin" });
+
+  const { data: listData, refetch, isLoading } = trpc.opsGovernance.syntheticDatasets.list.useQuery({ page: 1, pageSize: 20 });
+  const { data: stats } = trpc.opsGovernance.syntheticDatasets.stats.useQuery();
+  const createMut = trpc.opsGovernance.syntheticDatasets.create.useMutation({ onSuccess: () => { toast.success("合成数据集任务已创建"); setShowCreate(false); refetch(); }, onError: (e) => toast.error("创建失败: " + e.message) });
+  const deleteMut = trpc.opsGovernance.syntheticDatasets.delete.useMutation({ onSuccess: () => { toast.success("已删除"); refetch(); }, onError: (e) => toast.error("删除失败: " + e.message) });
+
+  const datasets = listData?.rows || [];
+  const statusColor = (s: string): "default" | "secondary" | "destructive" | "outline" => s === "completed" ? "default" : s === "running" ? "secondary" : s === "failed" ? "destructive" : "outline";
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">合成数据集</h1>
-        <p className="text-muted-foreground mt-1">生成和管理合成训练数据集，支持 GAN/SMOTE/VAE 等方法</p>
+      <div><h2 className="text-2xl font-bold">合成数据集</h2><p className="text-muted-foreground">管理 AI 训练用合成数据集的生成和管理</p></div>
+      <div className="grid grid-cols-2 gap-4">
+        <Card><CardContent className="pt-6"><div className="flex items-center gap-2"><Database className="w-5 h-5" /><div><div className="text-2xl font-bold">{stats?.total ?? "-"}</div><p className="text-xs text-muted-foreground">总数据集</p></div></div></CardContent></Card>
+        <Card><CardContent className="pt-6"><div className="text-2xl font-bold text-green-500">{stats?.completed ?? "-"}</div><p className="text-xs text-muted-foreground">已完成</p></CardContent></Card>
       </div>
-
-      <div className="grid grid-cols-4 gap-4">
-        <Card><CardContent className="pt-6"><div className="text-2xl font-bold">{datasets.length}</div><p className="text-xs text-muted-foreground">数据集总数</p></CardContent></Card>
-        <Card><CardContent className="pt-6"><div className="text-2xl font-bold text-green-500">{datasets.filter(d => d.status === "completed").length}</div><p className="text-xs text-muted-foreground">已完成</p></CardContent></Card>
-        <Card><CardContent className="pt-6"><div className="text-2xl font-bold">{datasets.reduce((s, d) => s + d.sampleCount, 0).toLocaleString()}</div><p className="text-xs text-muted-foreground">总样本数</p></CardContent></Card>
-        <Card><CardContent className="pt-6"><div className="text-2xl font-bold">{Math.round(datasets.filter(d => d.status === "completed").reduce((s, d) => s + d.labelStats.labeled / d.labelStats.total, 0) / datasets.filter(d => d.status === "completed").length * 100)}%</div><p className="text-xs text-muted-foreground">平均标注率</p></CardContent></Card>
-      </div>
-
       <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div><CardTitle>数据集列表</CardTitle><CardDescription>管理所有合成数据集的生成和标注</CardDescription></div>
-            <Button onClick={() => toast.success("功能开发中")}>+ 新建数据集</Button>
+        <CardHeader><div className="flex items-center justify-between">
+          <CardTitle>数据集列表</CardTitle>
+          <div className="flex gap-2"><Button variant="outline" size="icon" onClick={() => refetch()}><RefreshCw className="w-4 h-4" /></Button>
+            <Dialog open={showCreate} onOpenChange={setShowCreate}><DialogTrigger asChild><Button><Plus className="w-4 h-4 mr-1" />新建数据集</Button></DialogTrigger>
+              <DialogContent><DialogHeader><DialogTitle>新建合成数据集</DialogTitle><DialogDescription>配置合成数据集参数</DialogDescription></DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div className="grid grid-cols-2 gap-4"><div className="space-y-2"><Label>编码</Label><Input value={newDs.taskCode} onChange={e => setNewDs(p => ({ ...p, taskCode: e.target.value }))} placeholder="SD-XXX" /></div><div className="space-y-2"><Label>名称</Label><Input value={newDs.name} onChange={e => setNewDs(p => ({ ...p, name: e.target.value }))} placeholder="轴承故障合成数据集" /></div></div>
+                </div>
+                <DialogFooter><Button onClick={() => createMut.mutate({ ...newDs, queryParams: { method: "GAN" } })} disabled={createMut.isPending}>{createMut.isPending ? "创建中..." : "创建"}</Button></DialogFooter>
+              </DialogContent></Dialog>
           </div>
-        </CardHeader>
+        </div></CardHeader>
         <CardContent>
-          <div className="space-y-3">
-            {datasets.map(d => (
-              <div key={d.id} className="p-4 rounded-lg border bg-card hover:bg-accent/50 transition-colors">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium">{d.name}</span>
-                    <Badge variant={d.status === "completed" ? "default" : d.status === "generating" ? "secondary" : "destructive"}>
-                      {d.status === "completed" ? "已完成" : d.status === "generating" ? "生成中" : "失败"}
-                    </Badge>
-                    <Badge variant="outline">{d.method}</Badge>
-                  </div>
-                  <div className="flex gap-2">
-                    {d.status === "completed" && <Button variant="ghost" size="sm" onClick={() => toast.success("功能开发中")}>标注</Button>}
-                    {d.status === "failed" && <Button variant="ghost" size="sm" onClick={() => toast.success("功能开发中")}>重试</Button>}
-                  </div>
-                </div>
-                {d.status === "generating" && <Progress value={d.progress} className="h-2 mb-2" />}
-                <div className="text-xs text-muted-foreground flex gap-4">
-                  <span>数据源: <code>{d.sourceSlice}</code></span>
-                  <span>样本数: {d.sampleCount.toLocaleString()}</span>
-                  <span>标注: {d.labelStats.labeled.toLocaleString()}/{d.labelStats.total.toLocaleString()}</span>
-                  <span>创建: {d.createdAt}</span>
-                </div>
-              </div>
-            ))}
-          </div>
+          {isLoading ? <div className="text-center py-8 text-muted-foreground">加载中...</div> : datasets.length === 0 ? <div className="text-center py-8 text-muted-foreground">暂无合成数据集</div> :
+          <div className="space-y-3">{datasets.map((ds: any) => (
+            <div key={ds.id} className="flex items-center justify-between p-4 rounded-lg border bg-card hover:bg-accent/50 transition-colors">
+              <div><div className="flex items-center gap-2"><span className="font-medium">{ds.name}</span><Badge variant={statusColor(ds.status)}>{ds.status}</Badge><code className="text-xs bg-muted px-1.5 py-0.5 rounded">{ds.taskCode}</code></div>
+              <div className="text-xs text-muted-foreground mt-1">格式: {ds.format} · 创建者: {ds.createdBy}{ds.totalRows ? ` · ${ds.totalRows} 行` : ""}</div></div>
+              <Button variant="ghost" size="icon" className="text-destructive" onClick={() => { if(confirm("确定删除？")) deleteMut.mutate({ id: ds.id }); }}><Trash2 className="w-4 h-4" /></Button>
+            </div>
+          ))}</div>}
         </CardContent>
       </Card>
     </div>

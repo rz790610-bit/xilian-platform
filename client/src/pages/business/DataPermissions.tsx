@@ -1,84 +1,55 @@
-import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { toast } from "sonner";
-
-interface Role { id: string; name: string; description: string; userCount: number; }
-interface Permission { resource: string; read: boolean; write: boolean; delete: boolean; export: boolean; }
-
-const MOCK_ROLES: Role[] = [
-  { id: "R-001", name: "系统管理员", description: "拥有所有权限", userCount: 2 },
-  { id: "R-002", name: "运维工程师", description: "设备管理和诊断权限", userCount: 5 },
-  { id: "R-003", name: "数据分析师", description: "数据查询和导出权限", userCount: 3 },
-  { id: "R-004", name: "只读用户", description: "仅查看权限", userCount: 10 },
-];
-
-const RESOURCES = ["设备数据", "诊断结果", "知识库", "模型管理", "审计日志", "系统配置", "数据导出", "插件管理"];
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { trpc } from "@/lib/trpc";
+import { RefreshCw, Users, Shield, FileText } from "lucide-react";
 
 export default function DataPermissions() {
-  const [selectedRole, setSelectedRole] = useState("R-001");
-  
+  const { data: usersData, refetch: refetchUsers } = trpc.platformSystem.dataPermissions.listUsers.useQuery({ page: 1, pageSize: 50 });
+  const { data: auditData } = trpc.platformSystem.dataPermissions.recentAuditLogs.useQuery();
+  const { data: configLogs } = trpc.platformSystem.dataPermissions.configChangeLogs.useQuery({ page: 1, pageSize: 20 });
 
-  const getPerms = (roleId: string): Record<string, Permission> => {
-    const base: Record<string, Permission> = {};
-    RESOURCES.forEach(r => {
-      if (roleId === "R-001") base[r] = { resource: r, read: true, write: true, delete: true, export: true };
-      else if (roleId === "R-002") base[r] = { resource: r, read: true, write: ["设备数据", "诊断结果"].includes(r), delete: false, export: ["设备数据", "诊断结果"].includes(r) };
-      else if (roleId === "R-003") base[r] = { resource: r, read: true, write: false, delete: false, export: true };
-      else base[r] = { resource: r, read: true, write: false, delete: false, export: false };
-    });
-    return base;
-  };
-
-  const perms = getPerms(selectedRole);
+  const users = usersData?.rows || [];
+  const audits = auditData || [];
+  const changes = configLogs?.rows || [];
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">数据权限管理</h1>
-        <p className="text-muted-foreground mt-1">配置角色的数据访问权限矩阵</p>
+      <div><h2 className="text-2xl font-bold">数据权限管理</h2><p className="text-muted-foreground">管理用户数据访问权限和配置变更审计</p></div>
+      <div className="grid grid-cols-3 gap-4">
+        <Card><CardContent className="pt-6"><div className="flex items-center gap-2"><Users className="w-5 h-5" /><div><div className="text-2xl font-bold">{usersData?.total ?? "-"}</div><p className="text-xs text-muted-foreground">系统用户</p></div></div></CardContent></Card>
+        <Card><CardContent className="pt-6"><div className="flex items-center gap-2"><Shield className="w-5 h-5 text-blue-500" /><div><div className="text-2xl font-bold">{audits.length}</div><p className="text-xs text-muted-foreground">近期操作</p></div></div></CardContent></Card>
+        <Card><CardContent className="pt-6"><div className="flex items-center gap-2"><FileText className="w-5 h-5 text-green-500" /><div><div className="text-2xl font-bold">{configLogs?.total ?? "-"}</div><p className="text-xs text-muted-foreground">配置变更</p></div></div></CardContent></Card>
       </div>
-
-      <div className="grid grid-cols-4 gap-4">
-        {MOCK_ROLES.map(role => (
-          <Card key={role.id} className={`cursor-pointer transition-colors ${selectedRole === role.id ? "border-primary" : ""}`} onClick={() => setSelectedRole(role.id)}>
-            <CardContent className="pt-6">
-              <div className="font-medium">{role.name}</div>
-              <div className="text-xs text-muted-foreground mt-1">{role.description}</div>
-              <div className="text-sm mt-2">{role.userCount} 用户</div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div><CardTitle>权限矩阵 - {MOCK_ROLES.find(r => r.id === selectedRole)?.name}</CardTitle><CardDescription>配置该角色对各资源的访问权限</CardDescription></div>
-            <Button onClick={() => toast.success("功能开发中")}>保存更改</Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="rounded-md border">
-            <table className="w-full text-sm">
-              <thead><tr className="border-b bg-muted/50"><th className="p-3 text-left">资源</th><th className="p-3 text-center">读取</th><th className="p-3 text-center">写入</th><th className="p-3 text-center">删除</th><th className="p-3 text-center">导出</th></tr></thead>
-              <tbody>
-                {Object.values(perms).map(p => (
-                  <tr key={p.resource} className="border-b hover:bg-muted/30">
-                    <td className="p-3 font-medium">{p.resource}</td>
-                    <td className="p-3 text-center"><Checkbox checked={p.read} /></td>
-                    <td className="p-3 text-center"><Checkbox checked={p.write} /></td>
-                    <td className="p-3 text-center"><Checkbox checked={p.delete} /></td>
-                    <td className="p-3 text-center"><Checkbox checked={p.export} /></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
+      <Tabs defaultValue="users">
+        <TabsList><TabsTrigger value="users">用户列表</TabsTrigger><TabsTrigger value="audit">操作审计</TabsTrigger><TabsTrigger value="changes">配置变更</TabsTrigger></TabsList>
+        <TabsContent value="users"><Card>
+          <CardHeader><div className="flex items-center justify-between"><CardTitle>系统用户</CardTitle><Button variant="outline" size="icon" onClick={() => refetchUsers()}><RefreshCw className="w-4 h-4" /></Button></div></CardHeader>
+          <CardContent>{users.length === 0 ? <div className="text-center py-8 text-muted-foreground">暂无用户数据</div> :
+          <div className="space-y-2">{users.map((u: any) => (
+            <div key={u.id} className="flex items-center justify-between p-3 rounded-lg border"><div className="flex items-center gap-2"><Users className="w-4 h-4" /><span className="font-medium">{u.username || u.name || u.email || `User#${u.id}`}</span></div><span className="text-xs text-muted-foreground">{u.role || "user"}</span></div>
+          ))}</div>}</CardContent>
+        </Card></TabsContent>
+        <TabsContent value="audit"><Card>
+          <CardHeader><CardTitle>近期操作审计</CardTitle></CardHeader>
+          <CardContent>{audits.length === 0 ? <div className="text-center py-8 text-muted-foreground">暂无审计记录</div> :
+          <div className="space-y-2">{audits.slice(0, 20).map((a: any) => (
+            <div key={a.id} className="flex items-center justify-between p-3 rounded-lg border">
+              <div className="flex items-center gap-2"><Badge variant={a.status === "success" ? "default" : "destructive"}>{a.action}</Badge><span className="text-sm">{a.resource}</span><span className="text-xs text-muted-foreground">{a.userId}</span></div>
+              <span className="text-xs text-muted-foreground">{new Date(a.createdAt).toLocaleString("zh-CN")}</span>
+            </div>
+          ))}</div>}</CardContent>
+        </Card></TabsContent>
+        <TabsContent value="changes"><Card>
+          <CardHeader><CardTitle>配置变更日志</CardTitle></CardHeader>
+          <CardContent>{changes.length === 0 ? <div className="text-center py-8 text-muted-foreground">暂无变更记录</div> :
+          <div className="space-y-2">{changes.map((c: any) => (
+            <div key={c.id} className="p-3 rounded-lg border"><div className="flex items-center gap-2"><code className="text-xs bg-muted px-1.5 py-0.5 rounded">{c.configKey}</code><span className="text-xs text-muted-foreground">v{c.oldVersion} → v{c.newVersion}</span><span className="text-xs text-muted-foreground">by {c.changedBy}</span></div>
+            {c.changeReason && <div className="text-xs text-muted-foreground mt-1">{c.changeReason}</div>}</div>
+          ))}</div>}</CardContent>
+        </Card></TabsContent>
+      </Tabs>
     </div>
   );
 }

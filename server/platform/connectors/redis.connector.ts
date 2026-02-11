@@ -1,20 +1,50 @@
+/**
+ * Redis Connector - 代理到真实的 ioredis 客户端
+ * 替换原有的内存 Map 模拟实现
+ */
+import { redisClient, CACHE_KEYS } from "../../lib/clients/redis.client";
+
 export class RedisConnector {
   private static instance: RedisConnector;
-  private cache = new Map<string, { value: string; expiry: number }>();
+
   static getInstance(): RedisConnector {
     if (!this.instance) this.instance = new RedisConnector();
     return this.instance;
   }
+
   async get(key: string): Promise<string | null> {
-    const e = this.cache.get(key);
-    if (!e) return null;
-    if (e.expiry && Date.now() > e.expiry) { this.cache.delete(key); return null; }
-    return e.value;
+    try {
+      return await redisClient.get<string>(key);
+    } catch {
+      return null;
+    }
   }
+
   async set(key: string, value: string, ttl?: number): Promise<void> {
-    this.cache.set(key, { value, expiry: ttl ? Date.now() + ttl * 1000 : 0 });
+    try {
+      await redisClient.set(key, value, ttl);
+    } catch {
+      // Redis 不可用时静默失败，不影响主流程
+    }
   }
-  async del(key: string): Promise<void> { this.cache.delete(key); }
-  async healthCheck() { return { status: "healthy" }; }
+
+  async del(key: string): Promise<void> {
+    try {
+      await redisClient.del(key);
+    } catch {
+      // 静默失败
+    }
+  }
+
+  async healthCheck() {
+    try {
+      const result = await redisClient.healthCheck();
+      return { status: result.connected ? "healthy" : "unhealthy", engine: "ioredis", latencyMs: result.latencyMs };
+    } catch (e: any) {
+      return { status: "unhealthy", error: e.message, engine: "ioredis" };
+    }
+  }
 }
+
 export const redisConnector = RedisConnector.getInstance();
+export { CACHE_KEYS };
