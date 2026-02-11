@@ -1,3 +1,4 @@
+import { MainLayout } from "@/components/layout/MainLayout";
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -23,6 +24,7 @@ export default function SyntheticDatasets() {
   const statusColor = (s: string): "default" | "secondary" | "destructive" | "outline" => s === "completed" ? "default" : s === "running" ? "secondary" : s === "failed" ? "destructive" : "outline";
 
   return (
+    <MainLayout title="合成数据集">
     <div className="space-y-6">
       <div><h2 className="text-2xl font-bold">合成数据集</h2><p className="text-muted-foreground">管理 AI 训练用合成数据集的生成和管理</p></div>
       <div className="grid grid-cols-2 gap-4">
@@ -54,5 +56,6 @@ export default function SyntheticDatasets() {
         </CardContent>
       </Card>
     </div>
+    </MainLayout>
   );
 }

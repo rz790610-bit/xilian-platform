@@ -1,3 +1,4 @@
+import { MainLayout } from "@/components/layout/MainLayout";
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -30,6 +31,7 @@ export default function AlertRules() {
   const sevColor = (s: string): "destructive" | "secondary" | "outline" => s === "critical" ? "destructive" : s === "warning" ? "secondary" : "outline";
 
   return (
+    <MainLayout title="告警规则管理">
     <div className="space-y-6">
       <div><h2 className="text-2xl font-bold">告警规则管理</h2><p className="text-muted-foreground">配置和管理设备告警规则，实时监控异常状态</p></div>
       <div className="grid grid-cols-4 gap-4">
@@ -73,5 +75,6 @@ export default function AlertRules() {
         </CardContent>
       </Card>
     </div>
+    </MainLayout>
   );
 }

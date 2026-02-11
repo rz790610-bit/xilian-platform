@@ -1,3 +1,4 @@
+import { MainLayout } from "@/components/layout/MainLayout";
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -29,6 +30,7 @@ export default function KnowledgeGraphPage() {
   const typeColors: Record<string, "default" | "destructive" | "secondary" | "outline"> = { component: "default", fault: "destructive", method: "secondary", device: "outline", entity: "default" };
 
   return (
+    <MainLayout title="知识图谱">
     <div className="space-y-6">
       <div><h2 className="text-2xl font-bold">知识图谱</h2><p className="text-muted-foreground">可视化设备知识关系网络，管理节点和边</p></div>
       <div className="grid grid-cols-3 gap-4">
@@ -76,5 +78,6 @@ export default function KnowledgeGraphPage() {
         </Card></TabsContent>
       </Tabs>
     </div>
+    </MainLayout>
   );
 }

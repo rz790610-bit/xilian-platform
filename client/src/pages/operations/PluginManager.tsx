@@ -1,3 +1,4 @@
+import { MainLayout } from "@/components/layout/MainLayout";
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -33,6 +34,7 @@ export default function PluginManager() {
   const statusColor = (s: string): "default" | "secondary" | "destructive" | "outline" => s === "active" || s === "running" ? "default" : s === "stopped" || s === "draft" ? "secondary" : s === "error" ? "destructive" : "outline";
 
   return (
+    <MainLayout title="插件管理">
     <div className="space-y-6">
       <div><h2 className="text-2xl font-bold">插件管理</h2><p className="text-muted-foreground">管理平台插件注册、实例运行和事件监控</p></div>
       <div className="grid grid-cols-4 gap-4">
@@ -89,5 +91,6 @@ export default function PluginManager() {
         </Card></TabsContent>
       </Tabs>
     </div>
+    </MainLayout>
   );
 }

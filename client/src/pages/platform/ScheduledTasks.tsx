@@ -1,3 +1,4 @@
+import { MainLayout } from "@/components/layout/MainLayout";
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -27,6 +28,7 @@ export default function ScheduledTasks() {
   const statusColor = (s: string): "default" | "secondary" | "destructive" => s === "active" ? "default" : s === "paused" ? "secondary" : "destructive";
 
   return (
+    <MainLayout title="定时任务">
     <div className="space-y-6">
       <div><h2 className="text-2xl font-bold">定时任务管理</h2><p className="text-muted-foreground">管理系统定时任务，包括数据清洗、归档、健康检查等</p></div>
       <div className="grid grid-cols-3 gap-4">
@@ -64,5 +66,6 @@ export default function ScheduledTasks() {
         </CardContent>
       </Card>
     </div>
+    </MainLayout>
   );
 }

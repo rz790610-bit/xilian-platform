@@ -1,3 +1,4 @@
+import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -15,6 +16,7 @@ export default function DataPermissions() {
   const changes = configLogs?.rows || [];
 
   return (
+    <MainLayout title="数据权限">
     <div className="space-y-6">
       <div><h2 className="text-2xl font-bold">数据权限管理</h2><p className="text-muted-foreground">管理用户数据访问权限和配置变更审计</p></div>
       <div className="grid grid-cols-3 gap-4">
@@ -51,5 +53,6 @@ export default function DataPermissions() {
         </Card></TabsContent>
       </Tabs>
     </div>
+    </MainLayout>
   );
 }

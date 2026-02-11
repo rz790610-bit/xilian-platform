@@ -1,3 +1,4 @@
+import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +14,7 @@ export default function ClickHouseDashboard() {
   const quality = qualityData || [];
 
   return (
+    <MainLayout title="ClickHouse 监控">
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div><h2 className="text-2xl font-bold">ClickHouse 监控仪表盘</h2><p className="text-muted-foreground">监控 ClickHouse 时序数据库的运行状态和性能指标</p></div>
@@ -47,5 +49,6 @@ export default function ClickHouseDashboard() {
         </Card>
       </div>
     </div>
+    </MainLayout>
   );
 }

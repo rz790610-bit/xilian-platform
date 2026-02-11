@@ -1,3 +1,4 @@
+import { MainLayout } from "@/components/layout/MainLayout";
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -21,6 +22,7 @@ export default function AuditLogs() {
   const total = listData?.total || 0;
 
   return (
+    <MainLayout title="审计日志">
     <div className="space-y-6">
       <div><h2 className="text-2xl font-bold">审计日志</h2><p className="text-muted-foreground">查看系统操作审计记录，追踪所有关键操作</p></div>
       <div className="grid grid-cols-3 gap-4">
@@ -52,5 +54,6 @@ export default function AuditLogs() {
         </CardContent>
       </Card>
     </div>
+    </MainLayout>
   );
 }

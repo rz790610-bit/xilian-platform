@@ -1,3 +1,4 @@
+import { MainLayout } from "@/components/layout/MainLayout";
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -19,6 +20,7 @@ export default function RuleVersions() {
   const statusColor = (s: string): "default" | "secondary" | "outline" | "destructive" => s === "published" ? "default" : s === "draft" ? "secondary" : s === "gray" ? "outline" : "destructive";
 
   return (
+    <MainLayout title="规则版本管理">
     <div className="space-y-6">
       <div><h2 className="text-2xl font-bold">规则版本管理</h2><p className="text-muted-foreground">管理诊断规则和告警规则的版本发布与灰度控制</p></div>
       <div className="grid grid-cols-4 gap-4">
@@ -46,5 +48,6 @@ export default function RuleVersions() {
         </CardContent>
       </Card>
     </div>
+    </MainLayout>
   );
 }

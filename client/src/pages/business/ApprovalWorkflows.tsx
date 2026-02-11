@@ -1,3 +1,4 @@
+import { MainLayout } from "@/components/layout/MainLayout";
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -22,6 +23,7 @@ export default function ApprovalWorkflows() {
   const statusColor = (s: string): "default" | "secondary" | "destructive" | "outline" => s === "completed" ? "default" : s === "running" ? "secondary" : s === "pending" ? "outline" : "destructive";
 
   return (
+    <MainLayout title="审批工作流">
     <div className="space-y-6">
       <div><h2 className="text-2xl font-bold">审批流程</h2><p className="text-muted-foreground">管理数据治理任务的审批和执行流程</p></div>
       <div className="grid grid-cols-5 gap-4">
@@ -67,5 +69,6 @@ export default function ApprovalWorkflows() {
         </Card></TabsContent>
       </Tabs>
     </div>
+    </MainLayout>
   );
 }

@@ -1,3 +1,4 @@
+import { MainLayout } from "@/components/layout/MainLayout";
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -27,6 +28,7 @@ export default function DataExport() {
   const statusColor = (s: string): "default" | "secondary" | "outline" | "destructive" => s === "completed" ? "default" : s === "running" ? "secondary" : s === "pending" ? "outline" : "destructive";
 
   return (
+    <MainLayout title="数据导出">
     <div className="space-y-6">
       <div><h2 className="text-2xl font-bold">数据导出</h2><p className="text-muted-foreground">管理数据导出任务，支持多种格式和增量导出</p></div>
       <div className="grid grid-cols-4 gap-4">
@@ -65,5 +67,6 @@ export default function DataExport() {
         </CardContent>
       </Card>
     </div>
+    </MainLayout>
   );
 }

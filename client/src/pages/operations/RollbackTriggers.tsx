@@ -1,3 +1,4 @@
+import { MainLayout } from "@/components/layout/MainLayout";
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -26,6 +27,7 @@ export default function RollbackTriggers() {
   const executions = execData?.rows || [];
 
   return (
+    <MainLayout title="回滚触发器">
     <div className="space-y-6">
       <div><h2 className="text-2xl font-bold">回滚触发器</h2><p className="text-muted-foreground">配置自动回滚条件，当规则表现异常时自动触发回滚</p></div>
       <div className="grid grid-cols-3 gap-4">
@@ -71,5 +73,6 @@ export default function RollbackTriggers() {
         ))}</div></CardContent>
       </Card>}
     </div>
+    </MainLayout>
   );
 }
