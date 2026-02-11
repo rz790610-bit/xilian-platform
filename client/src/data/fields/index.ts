@@ -1,0 +1,15 @@
+export { AI_KNOWLEDGE_TABLES } from "./ai-knowledge";
+export { ASSET_MANAGEMENT_TABLES } from "./asset-management";
+export { BASE_CONFIG_TABLES } from "./base-config";
+export { DATA_GOVERNANCE_TABLES } from "./data-governance";
+export { DEVICE_OPS_TABLES } from "./device-ops";
+export { DIAGNOSIS_TABLES } from "./diagnosis";
+export { EDGE_COLLECTION_TABLES } from "./edge-collection";
+export { MESSAGE_TASK_TABLES } from "./message-task";
+export { PLUGIN_ENGINE_TABLES } from "./plugin-engine";
+export { REALTIME_TELEMETRY_TABLES } from "./realtime-telemetry";
+export { SYSTEM_TOPOLOGY_TABLES } from "./system-topology";
+export { DEVICE_MANAGEMENT_TABLES } from "./device-management";
+export { INTELLIGENT_ANALYSIS_TABLES } from "./intelligent-analysis";
+export { KNOWLEDGE_BASE_TABLES } from "./knowledge-base";
+export { MODEL_CENTER_TABLES } from "./model-center";

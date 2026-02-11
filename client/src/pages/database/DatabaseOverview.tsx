@@ -6,9 +6,11 @@ import { Badge } from '@/components/common/Badge';
 import { Button } from '@/components/ui/button';
 import { trpc } from '@/lib/trpc';
 import { useToast } from '@/components/common/Toast';
+import { useTableSchema } from '@/hooks/useTableSchema';
+import { DOMAINS } from '@/data/domains';
 import {
   RefreshCw, Database, Server, HardDrive, Activity,
-  Layers, GitBranch, Shield, BarChart3, Clock
+  Layers, GitBranch, Shield, BarChart3, Clock, BookOpen
 } from 'lucide-react';
 
 export default function DatabaseOverview() {
@@ -193,6 +195,9 @@ export default function DatabaseOverview() {
           </PageCard>
         </div>
 
+        {/* Schema Registry 统计 */}
+        <SchemaRegistryCard />
+
         {/* 模块入口 */}
         <PageCard title="快速入口" icon={<Database className="w-3.5 h-3.5" />}>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
@@ -203,6 +208,8 @@ export default function DatabaseOverview() {
               { label: '数据清洗', icon: '🧹', path: '/database/clean', desc: '清洗规则与任务' },
               { label: '事件溯源', icon: '📜', path: '/database/events', desc: '事件存储与快照' },
               { label: '存储状态', icon: '💾', path: '/database/storage', desc: '存储引擎状态' },
+              { label: 'Schema 设计', icon: '📐', path: '/settings/design/database', desc: 'V4 架构设计' },
+              { label: 'ER 关系图', icon: '📈', path: '/settings/design/database', desc: '实体关系可视化' },
             ].map(item => (
               <a
                 key={item.path}
@@ -218,5 +225,46 @@ export default function DatabaseOverview() {
         </PageCard>
       </div>
     </MainLayout>
+  );
+}
+
+// Schema Registry 统计卡片组件
+function SchemaRegistryCard() {
+  const { totalCount, totalFieldCount, domainStats } = useTableSchema();
+  return (
+    <PageCard title="V4 Schema Registry" icon={<BookOpen className="w-3.5 h-3.5" />}>
+      <div className="space-y-3">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+          <div className="p-2 rounded bg-secondary/50 text-center">
+            <div className="text-lg font-bold text-foreground">{totalCount}</div>
+            <div className="text-[10px] text-muted-foreground">数据表</div>
+          </div>
+          <div className="p-2 rounded bg-secondary/50 text-center">
+            <div className="text-lg font-bold text-foreground">{totalFieldCount}</div>
+            <div className="text-[10px] text-muted-foreground">字段总数</div>
+          </div>
+          <div className="p-2 rounded bg-secondary/50 text-center">
+            <div className="text-lg font-bold text-foreground">{DOMAINS.length}</div>
+            <div className="text-[10px] text-muted-foreground">业务域</div>
+          </div>
+          <div className="p-2 rounded bg-secondary/50 text-center">
+            <div className="text-lg font-bold text-foreground">28</div>
+            <div className="text-[10px] text-muted-foreground">外键关系</div>
+          </div>
+        </div>
+        <div className="space-y-1.5">
+          {domainStats.map(d => (
+            <div key={d.id} className="flex items-center gap-2 text-xs">
+              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: d.color }} />
+              <span className="w-28 truncate text-foreground">{d.label}</span>
+              <div className="flex-1 bg-secondary rounded-full h-1.5">
+                <div className="rounded-full h-1.5 transition-all" style={{ width: `${(d.count / totalCount) * 100}%`, backgroundColor: d.color }} />
+              </div>
+              <span className="text-muted-foreground w-8 text-right">{d.count} 表</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </PageCard>
   );
 }

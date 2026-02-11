@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef, lazy, Suspense } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { PageCard } from '@/components/common/PageCard';
 import { StatCard } from '@/components/common/StatCard';
@@ -11,11 +11,21 @@ import {
   ChevronRight, ChevronDown, Eye, Edit3, Download, Upload,
   Terminal, Zap, Link2, Layers, HardDrive, Activity, Settings,
   ArrowUpDown, Filter, X, Check, AlertTriangle, Copy, Code2,
-  LayoutGrid, List, Server, Wifi, WifiOff
+  LayoutGrid, List, Server, Wifi, WifiOff,
+  GitBranch, Palette, BookOpen, Key, Hash, Type, Calendar, FileJson, Network, ArrowRight, Cpu, MapPin, ZoomIn, ZoomOut, Maximize2, EyeOff
 } from 'lucide-react';
 
+// Schema Registry 设计器组件（懒加载）
+const ERDiagram = lazy(() => import('@/components/designer/ERDiagram'));
+const VisualDesigner = lazy(() => import('@/components/designer/VisualDesigner'));
+const SchemaTableManagement = lazy(() => import('@/components/designer/TableManagement'));
+const SchemaDataBrowser = lazy(() => import('@/components/designer/DataBrowser'));
+const SchemaSqlEditor = lazy(() => import('@/components/designer/SqlEditor'));
+const SchemaStatusBar = lazy(() => import('@/components/designer/StatusBar'));
+const ExportDDLDialog = lazy(() => import('@/components/designer/ExportDDLDialog'));
+
 // ============ 类型 ============
-type Tab = 'overview' | 'tables' | 'data' | 'sql' | 'create';
+type Tab = 'overview' | 'tables' | 'data' | 'sql' | 'create' | 'schema' | 'erd' | 'designer';
 type TableDetailTab = 'columns' | 'indexes' | 'foreignKeys' | 'ddl' | 'api';
 
 interface ColumnDef {
@@ -52,6 +62,7 @@ export default function DatabaseWorkbench() {
   const [orderDir, setOrderDir] = useState<'ASC' | 'DESC'>('ASC');
   const [editingRow, setEditingRow] = useState<Record<string, unknown> | null>(null);
   const [insertMode, setInsertMode] = useState(false);
+  const [ddlDialogOpen, setDdlDialogOpen] = useState(false);
   const [newRowData, setNewRowData] = useState<Record<string, string>>({});
 
   // 建表向导状态
@@ -235,6 +246,9 @@ export default function DatabaseWorkbench() {
     { id: 'data', label: '数据浏览', icon: <LayoutGrid className="w-3.5 h-3.5" /> },
     { id: 'sql', label: 'SQL 工作台', icon: <Terminal className="w-3.5 h-3.5" /> },
     { id: 'create', label: '创建表', icon: <Plus className="w-3.5 h-3.5" /> },
+    { id: 'schema', label: 'Schema 设计', icon: <BookOpen className="w-3.5 h-3.5" /> },
+    { id: 'erd', label: 'ER 关系图', icon: <GitBranch className="w-3.5 h-3.5" /> },
+    { id: 'designer', label: '可视化设计器', icon: <Palette className="w-3.5 h-3.5" /> },
   ];
 
   return (
@@ -1029,6 +1043,55 @@ export default function DatabaseWorkbench() {
                 <RefreshCw className="w-3 h-3 mr-1" />重置
               </Button>
             </div>
+          </div>
+        )}
+
+        {/* ====== Schema 设计（V4 Schema Registry） ====== */}
+        {activeTab === 'schema' && (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 mb-2">
+              <BookOpen className="w-4 h-4 text-primary" />
+              <h3 className="text-sm font-semibold">V4 Schema Registry</h3>
+              <span className="text-xs text-muted-foreground">92 表 · 11 域 · 完整字段定义</span>
+              <div className="ml-auto">
+                <Button variant="outline" size="sm" className="text-xs h-7" onClick={() => setDdlDialogOpen(true)}>
+                  <Download className="w-3 h-3 mr-1" />导出 DDL
+                </Button>
+                <Suspense fallback={null}>
+                  <ExportDDLDialog open={ddlDialogOpen} onOpenChange={setDdlDialogOpen} />
+                </Suspense>
+              </div>
+            </div>
+            <Suspense fallback={<div className="flex items-center justify-center h-64 text-xs text-muted-foreground">加载 Schema 管理器...</div>}>
+              <div className="space-y-3">
+                <SchemaTableManagement />
+                <div className="border-t border-border pt-3">
+                  <SchemaDataBrowser />
+                </div>
+                <div className="border-t border-border pt-3">
+                  <SchemaSqlEditor />
+                </div>
+                <SchemaStatusBar />
+              </div>
+            </Suspense>
+          </div>
+        )}
+
+        {/* ====== ER 关系图 ====== */}
+        {activeTab === 'erd' && (
+          <div className="h-[calc(100vh-180px)]">
+            <Suspense fallback={<div className="flex items-center justify-center h-64 text-xs text-muted-foreground">加载 ER 图...</div>}>
+              <ERDiagram />
+            </Suspense>
+          </div>
+        )}
+
+        {/* ====== 可视化设计器 ====== */}
+        {activeTab === 'designer' && (
+          <div className="h-[calc(100vh-180px)]">
+            <Suspense fallback={<div className="flex items-center justify-center h-64 text-xs text-muted-foreground">加载可视化设计器...</div>}>
+              <VisualDesigner />
+            </Suspense>
           </div>
         )}
       </div>

@@ -52,7 +52,10 @@ import {
   PipelineManager,
   PipelineEditor,
   DataStream,
-  GraphQueryManager
+  GraphQueryManager,
+  SchemaDesigner,
+  ERDiagramPage,
+  VisualDesignerPage
 } from "./pages/settings/design";
 
 // 平台管理 - 配置中心（精简：移除 ResourcesOverview、DbManagement）
@@ -160,6 +163,9 @@ function Router() {
       <Route path="/settings/design/datastream" component={DataStream} />
       <Route path="/settings/design/graph-query" component={GraphQueryManager} />
       <Route path="/settings/design/workbench" component={DatabaseWorkbench} />
+      <Route path="/settings/design/database" component={SchemaDesigner} />
+      <Route path="/settings/design/er-diagram" component={ERDiagramPage} />
+      <Route path="/settings/design/visual-designer" component={VisualDesignerPage} />
 
       {/* 配置中心 */}
       <Route path="/settings/config/infrastructure" component={Infrastructure} />
