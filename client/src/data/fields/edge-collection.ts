@@ -1,502 +1,430 @@
+/**
+ * V4.0 edge-collection 域表定义
+ * 表数量: 2
+ */
 import type { TableRegistryEntry } from "../types";
 
 export const EDGE_COLLECTION_TABLES: TableRegistryEntry[] = [
   {
-    "tableName": "data_collection_tasks",
-    "tableComment": "数据采集任务",
-    "displayName": "采集任务",
-    "description": "采集任务管理",
+    "tableName": "edge_gateways",
+    "tableComment": "边缘网关设备",
+    "displayName": "边缘网关",
+    "description": "边缘网关设备注册与管理",
     "domain": "edge-collection",
-    "icon": "Radio",
+    "icon": "Router",
     "engine": "InnoDB",
     "charset": "utf8mb4",
     "collate": "utf8mb4_unicode_ci",
     "fields": [
       {
-        "name": "task_id",
-        "type": "VARCHAR",
-        "length": "64",
-        "nullable": false,
-        "primaryKey": true,
-        "autoIncrement": false,
-        "unique": false,
-        "defaultVal": "",
-        "comment": "任务ID"
+            "name": "id",
+            "type": "int unsigned",
+            "length": "",
+            "nullable": false,
+            "primaryKey": true,
+            "autoIncrement": true,
+            "unique": false,
+            "defaultVal": "",
+            "comment": "auto_increment"
       },
       {
-        "name": "task_name",
-        "type": "VARCHAR",
-        "length": "100",
-        "nullable": false,
-        "primaryKey": false,
-        "autoIncrement": false,
-        "unique": false,
-        "defaultVal": "",
-        "comment": "任务名称"
+            "name": "gateway_id",
+            "type": "varchar",
+            "length": "64",
+            "nullable": false,
+            "primaryKey": false,
+            "autoIncrement": false,
+            "unique": true,
+            "defaultVal": "",
+            "comment": "网关ID"
       },
       {
-        "name": "gateway_id",
-        "type": "VARCHAR",
-        "length": "64",
-        "nullable": false,
-        "primaryKey": false,
-        "autoIncrement": false,
-        "unique": false,
-        "defaultVal": "",
-        "comment": "执行网关 → edge_gateways"
+            "name": "name",
+            "type": "varchar",
+            "length": "100",
+            "nullable": false,
+            "primaryKey": false,
+            "autoIncrement": false,
+            "unique": false,
+            "defaultVal": "",
+            "comment": "网关名称"
       },
       {
-        "name": "task_type",
-        "type": "VARCHAR",
-        "length": "20",
-        "nullable": true,
-        "primaryKey": false,
-        "autoIncrement": false,
-        "unique": false,
-        "defaultVal": "continuous",
-        "comment": "任务类型(continuous/scheduled/on_demand)"
+            "name": "gateway_type",
+            "type": "varchar",
+            "length": "30",
+            "nullable": false,
+            "primaryKey": false,
+            "autoIncrement": false,
+            "unique": false,
+            "defaultVal": "",
+            "comment": "网关类型"
       },
       {
-        "name": "sensor_ids",
-        "type": "JSON",
-        "length": "",
-        "nullable": false,
-        "primaryKey": false,
-        "autoIncrement": false,
-        "unique": false,
-        "defaultVal": "",
-        "comment": "关联传感器ID列表"
+            "name": "protocol",
+            "type": "varchar",
+            "length": "30",
+            "nullable": false,
+            "primaryKey": false,
+            "autoIncrement": false,
+            "unique": false,
+            "defaultVal": "",
+            "comment": "通信协议: mqtt/opcua/modbus"
       },
       {
-        "name": "schedule_config",
-        "type": "JSON",
-        "length": "",
-        "nullable": true,
-        "primaryKey": false,
-        "autoIncrement": false,
-        "unique": false,
-        "defaultVal": "",
-        "comment": "调度配置(cron/interval)"
+            "name": "ip_address",
+            "type": "varchar",
+            "length": "45",
+            "nullable": true,
+            "primaryKey": false,
+            "autoIncrement": false,
+            "unique": false,
+            "defaultVal": "",
+            "comment": "IP地址"
       },
       {
-        "name": "sampling_config",
-        "type": "JSON",
-        "length": "",
-        "nullable": true,
-        "primaryKey": false,
-        "autoIncrement": false,
-        "unique": false,
-        "defaultVal": "",
-        "comment": "采集参数(rate/duration/format)"
+            "name": "port",
+            "type": "int unsigned",
+            "length": "",
+            "nullable": true,
+            "primaryKey": false,
+            "autoIncrement": false,
+            "unique": false,
+            "defaultVal": "",
+            "comment": "端口号"
       },
       {
-        "name": "preprocessing_config",
-        "type": "JSON",
-        "length": "",
-        "nullable": true,
-        "primaryKey": false,
-        "autoIncrement": false,
-        "unique": false,
-        "defaultVal": "",
-        "comment": "预处理配置"
+            "name": "firmware_version",
+            "type": "varchar",
+            "length": "30",
+            "nullable": true,
+            "primaryKey": false,
+            "autoIncrement": false,
+            "unique": false,
+            "defaultVal": "",
+            "comment": "固件版本"
       },
       {
-        "name": "trigger_config",
-        "type": "JSON",
-        "length": "",
-        "nullable": true,
-        "primaryKey": false,
-        "autoIncrement": false,
-        "unique": false,
-        "defaultVal": "",
-        "comment": "FSD触发配置"
+            "name": "status",
+            "type": "varchar",
+            "length": "20",
+            "nullable": false,
+            "primaryKey": false,
+            "autoIncrement": false,
+            "unique": false,
+            "defaultVal": "offline",
+            "comment": "状态: online/offline/error"
       },
       {
-        "name": "upload_config",
-        "type": "JSON",
-        "length": "",
-        "nullable": true,
-        "primaryKey": false,
-        "autoIncrement": false,
-        "unique": false,
-        "defaultVal": "",
-        "comment": "上传配置"
+            "name": "last_heartbeat",
+            "type": "datetime(3)",
+            "length": "",
+            "nullable": true,
+            "primaryKey": false,
+            "autoIncrement": false,
+            "unique": false,
+            "defaultVal": "",
+            "comment": "最后心跳时间"
       },
       {
-        "name": "total_collected",
-        "type": "BIGINT",
-        "length": "",
-        "nullable": true,
-        "primaryKey": false,
-        "autoIncrement": false,
-        "unique": false,
-        "defaultVal": "0",
-        "comment": "累计采集数据点"
+            "name": "config",
+            "type": "json",
+            "length": "",
+            "nullable": true,
+            "primaryKey": false,
+            "autoIncrement": false,
+            "unique": false,
+            "defaultVal": "",
+            "comment": "网关配置"
       },
       {
-        "name": "total_uploaded",
-        "type": "BIGINT",
-        "length": "",
-        "nullable": true,
-        "primaryKey": false,
-        "autoIncrement": false,
-        "unique": false,
-        "defaultVal": "0",
-        "comment": "累计上传数据点"
+            "name": "buffer_size_sec",
+            "type": "int unsigned",
+            "length": "",
+            "nullable": false,
+            "primaryKey": false,
+            "autoIncrement": false,
+            "unique": false,
+            "defaultVal": "60",
+            "comment": "环形缓冲区大小(秒)"
       },
       {
-        "name": "total_triggered",
-        "type": "INT",
-        "length": "",
-        "nullable": true,
-        "primaryKey": false,
-        "autoIncrement": false,
-        "unique": false,
-        "defaultVal": "0",
-        "comment": "累计触发次数"
+            "name": "is_active",
+            "type": "tinyint(1)",
+            "length": "",
+            "nullable": false,
+            "primaryKey": false,
+            "autoIncrement": false,
+            "unique": false,
+            "defaultVal": "1",
+            "comment": "是否启用"
       },
       {
-        "name": "error_count",
-        "type": "INT",
-        "length": "",
-        "nullable": true,
-        "primaryKey": false,
-        "autoIncrement": false,
-        "unique": false,
-        "defaultVal": "0",
-        "comment": "累计错误次数"
-      },
-      {
-        "name": "last_error",
-        "type": "TEXT",
-        "length": "",
-        "nullable": true,
-        "primaryKey": false,
-        "autoIncrement": false,
-        "unique": false,
-        "defaultVal": "",
-        "comment": "最近错误信息"
-      },
-      {
-        "name": "last_run_at",
-        "type": "TIMESTAMP",
-        "length": "",
-        "nullable": true,
-        "primaryKey": false,
-        "autoIncrement": false,
-        "unique": false,
-        "defaultVal": "",
-        "comment": "最近执行时间"
-      },
-      {
-        "name": "status",
-        "type": "VARCHAR",
-        "length": "20",
-        "nullable": true,
-        "primaryKey": false,
-        "autoIncrement": false,
-        "unique": false,
-        "defaultVal": "stopped",
-        "comment": "状态(running/stopped/error/paused)"
-      },
-      {
-        "name": "created_at",
-        "type": "TIMESTAMP",
-        "length": "",
-        "nullable": true,
-        "primaryKey": false,
-        "autoIncrement": false,
-        "unique": false,
-        "defaultVal": "CURRENT_TIMESTAMP",
-        "comment": ""
-      },
-      {
-        "name": "updated_at",
-        "type": "TIMESTAMP",
-        "length": "",
-        "nullable": true,
-        "primaryKey": false,
-        "autoIncrement": false,
-        "unique": false,
-        "defaultVal": "CURRENT_TIMESTAMP",
-        "comment": ""
+            "name": "created_at",
+            "type": "datetime(3)",
+            "length": "",
+            "nullable": false,
+            "primaryKey": false,
+            "autoIncrement": false,
+            "unique": false,
+            "defaultVal": "CURRENT_TIMESTAMP(3)",
+            "comment": "创建时间"
       }
-    ],
+],
     "columns": [
       {
-        "name": "task_id",
-        "type": "VARCHAR(64)",
-        "pk": true
+            "name": "id",
+            "type": "int unsigned",
+            "pk": true
       },
       {
-        "name": "task_name",
-        "type": "VARCHAR(100)"
+            "name": "gateway_id",
+            "type": "varchar"
       },
       {
-        "name": "gateway_id",
-        "type": "VARCHAR(64)"
+            "name": "name",
+            "type": "varchar"
       },
       {
-        "name": "task_type",
-        "type": "VARCHAR(20)"
+            "name": "gateway_type",
+            "type": "varchar"
       },
       {
-        "name": "sensor_ids",
-        "type": "JSON"
+            "name": "protocol",
+            "type": "varchar"
       },
       {
-        "name": "schedule_config",
-        "type": "JSON"
+            "name": "ip_address",
+            "type": "varchar"
       },
       {
-        "name": "sampling_config",
-        "type": "JSON"
+            "name": "port",
+            "type": "int unsigned"
       },
       {
-        "name": "preprocessing_config",
-        "type": "JSON"
+            "name": "firmware_version",
+            "type": "varchar"
+      },
+      {
+            "name": "status",
+            "type": "varchar"
+      },
+      {
+            "name": "last_heartbeat",
+            "type": "datetime(3)"
+      },
+      {
+            "name": "config",
+            "type": "json"
+      },
+      {
+            "name": "buffer_size_sec",
+            "type": "int unsigned"
+      },
+      {
+            "name": "is_active",
+            "type": "tinyint(1)"
+      },
+      {
+            "name": "created_at",
+            "type": "datetime(3)"
       }
-    ]
+]
   },
   {
-    "tableName": "edge_gateway_config",
-    "tableComment": "边缘网关配置",
-    "displayName": "边缘网关配置",
-    "description": "边缘网关配置（V4.0新增）",
+    "tableName": "realtime_telemetry",
+    "tableComment": "实时遥测数据缓存",
+    "displayName": "实时遥测",
+    "description": "边缘网关上报的实时遥测数据（写入后同步到ClickHouse）",
     "domain": "edge-collection",
-    "icon": "Radio",
+    "icon": "Activity",
     "engine": "InnoDB",
     "charset": "utf8mb4",
     "collate": "utf8mb4_unicode_ci",
     "fields": [
       {
-        "name": "id",
-        "type": "BIGINT",
-        "length": "",
-        "nullable": false,
-        "primaryKey": true,
-        "autoIncrement": true,
-        "unique": false,
-        "defaultVal": "",
-        "comment": "主键"
+            "name": "id",
+            "type": "bigint unsigned",
+            "length": "",
+            "nullable": false,
+            "primaryKey": true,
+            "autoIncrement": true,
+            "unique": false,
+            "defaultVal": "",
+            "comment": "auto_increment"
       },
       {
-        "name": "gateway_code",
-        "type": "VARCHAR",
-        "length": "64",
-        "nullable": false,
-        "primaryKey": false,
-        "autoIncrement": false,
-        "unique": true,
-        "defaultVal": "",
-        "comment": "网关编码"
+            "name": "gateway_id",
+            "type": "varchar",
+            "length": "64",
+            "nullable": false,
+            "primaryKey": false,
+            "autoIncrement": false,
+            "unique": false,
+            "defaultVal": "",
+            "comment": "网关ID"
       },
       {
-        "name": "gateway_name",
-        "type": "VARCHAR",
-        "length": "128",
-        "nullable": false,
-        "primaryKey": false,
-        "autoIncrement": false,
-        "unique": false,
-        "defaultVal": "",
-        "comment": "网关名称"
+            "name": "device_code",
+            "type": "varchar",
+            "length": "64",
+            "nullable": false,
+            "primaryKey": false,
+            "autoIncrement": false,
+            "unique": false,
+            "defaultVal": "",
+            "comment": "设备编码"
       },
       {
-        "name": "gateway_type",
-        "type": "VARCHAR",
-        "length": "32",
-        "nullable": false,
-        "primaryKey": false,
-        "autoIncrement": false,
-        "unique": false,
-        "defaultVal": "",
-        "comment": "网关类型"
+            "name": "mp_code",
+            "type": "varchar",
+            "length": "64",
+            "nullable": false,
+            "primaryKey": false,
+            "autoIncrement": false,
+            "unique": false,
+            "defaultVal": "",
+            "comment": "测点编码"
       },
       {
-        "name": "ip_address",
-        "type": "VARCHAR",
-        "length": "45",
-        "nullable": true,
-        "primaryKey": false,
-        "autoIncrement": false,
-        "unique": false,
-        "defaultVal": "",
-        "comment": "IP地址"
+            "name": "timestamp",
+            "type": "datetime(3)",
+            "length": "",
+            "nullable": false,
+            "primaryKey": false,
+            "autoIncrement": false,
+            "unique": false,
+            "defaultVal": "",
+            "comment": "采集时间戳"
       },
       {
-        "name": "port",
-        "type": "INT",
-        "length": "",
-        "nullable": true,
-        "primaryKey": false,
-        "autoIncrement": false,
-        "unique": false,
-        "defaultVal": "",
-        "comment": "端口"
+            "name": "value",
+            "type": "double",
+            "length": "",
+            "nullable": true,
+            "primaryKey": false,
+            "autoIncrement": false,
+            "unique": false,
+            "defaultVal": "",
+            "comment": "测量值"
       },
       {
-        "name": "firmware_version",
-        "type": "VARCHAR",
-        "length": "32",
-        "nullable": true,
-        "primaryKey": false,
-        "autoIncrement": false,
-        "unique": false,
-        "defaultVal": "",
-        "comment": "固件版本"
+            "name": "unit",
+            "type": "varchar",
+            "length": "20",
+            "nullable": true,
+            "primaryKey": false,
+            "autoIncrement": false,
+            "unique": false,
+            "defaultVal": "",
+            "comment": "单位"
       },
       {
-        "name": "protocols",
-        "type": "JSON",
-        "length": "",
-        "nullable": true,
-        "primaryKey": false,
-        "autoIncrement": false,
-        "unique": false,
-        "defaultVal": "",
-        "comment": "支持协议列表"
+            "name": "quality",
+            "type": "int unsigned",
+            "length": "",
+            "nullable": false,
+            "primaryKey": false,
+            "autoIncrement": false,
+            "unique": false,
+            "defaultVal": "192",
+            "comment": "数据质量码"
       },
       {
-        "name": "max_devices",
-        "type": "INT",
-        "length": "",
-        "nullable": false,
-        "primaryKey": false,
-        "autoIncrement": false,
-        "unique": false,
-        "defaultVal": "100",
-        "comment": "最大设备数"
+            "name": "features",
+            "type": "json",
+            "length": "",
+            "nullable": true,
+            "primaryKey": false,
+            "autoIncrement": false,
+            "unique": false,
+            "defaultVal": "",
+            "comment": "特征值(RMS/峰值等)"
       },
       {
-        "name": "heartbeat_interval",
-        "type": "INT",
-        "length": "",
-        "nullable": false,
-        "primaryKey": false,
-        "autoIncrement": false,
-        "unique": false,
-        "defaultVal": "30",
-        "comment": "心跳间隔(秒)"
+            "name": "is_anomaly",
+            "type": "tinyint(1)",
+            "length": "",
+            "nullable": false,
+            "primaryKey": false,
+            "autoIncrement": false,
+            "unique": false,
+            "defaultVal": "0",
+            "comment": "是否异常"
       },
       {
-        "name": "status",
-        "type": "VARCHAR",
-        "length": "16",
-        "nullable": false,
-        "primaryKey": false,
-        "autoIncrement": false,
-        "unique": false,
-        "defaultVal": "offline",
-        "comment": "状态(online/offline/error)"
+            "name": "synced_to_ch",
+            "type": "tinyint(1)",
+            "length": "",
+            "nullable": false,
+            "primaryKey": false,
+            "autoIncrement": false,
+            "unique": false,
+            "defaultVal": "0",
+            "comment": "是否已同步到ClickHouse"
       },
       {
-        "name": "last_heartbeat",
-        "type": "DATETIME",
-        "length": "3",
-        "nullable": true,
-        "primaryKey": false,
-        "autoIncrement": false,
-        "unique": false,
-        "defaultVal": "",
-        "comment": "最后心跳时间"
-      },
-      {
-        "name": "location",
-        "type": "VARCHAR",
-        "length": "255",
-        "nullable": true,
-        "primaryKey": false,
-        "autoIncrement": false,
-        "unique": false,
-        "defaultVal": "",
-        "comment": "安装位置"
-      },
-      {
-        "name": "created_at",
-        "type": "DATETIME",
-        "length": "3",
-        "nullable": false,
-        "primaryKey": false,
-        "autoIncrement": false,
-        "unique": false,
-        "defaultVal": "CURRENT_TIMESTAMP(3)",
-        "comment": "创建时间"
-      },
-      {
-        "name": "updated_at",
-        "type": "DATETIME",
-        "length": "3",
-        "nullable": true,
-        "primaryKey": false,
-        "autoIncrement": false,
-        "unique": false,
-        "defaultVal": "",
-        "comment": "更新时间"
+            "name": "created_at",
+            "type": "datetime(3)",
+            "length": "",
+            "nullable": false,
+            "primaryKey": false,
+            "autoIncrement": false,
+            "unique": false,
+            "defaultVal": "CURRENT_TIMESTAMP(3)",
+            "comment": "创建时间"
       }
-    ],
+],
     "columns": [
       {
-        "name": "id",
-        "type": "BIGINT",
-        "pk": true
+            "name": "id",
+            "type": "bigint unsigned",
+            "pk": true
       },
       {
-        "name": "gateway_code",
-        "type": "VARCHAR"
+            "name": "gateway_id",
+            "type": "varchar"
       },
       {
-        "name": "gateway_name",
-        "type": "VARCHAR"
+            "name": "device_code",
+            "type": "varchar"
       },
       {
-        "name": "gateway_type",
-        "type": "VARCHAR"
+            "name": "mp_code",
+            "type": "varchar"
       },
       {
-        "name": "ip_address",
-        "type": "VARCHAR"
+            "name": "timestamp",
+            "type": "datetime(3)"
       },
       {
-        "name": "port",
-        "type": "INT"
+            "name": "value",
+            "type": "double"
       },
       {
-        "name": "firmware_version",
-        "type": "VARCHAR"
+            "name": "unit",
+            "type": "varchar"
       },
       {
-        "name": "protocols",
-        "type": "JSON"
+            "name": "quality",
+            "type": "int unsigned"
       },
       {
-        "name": "max_devices",
-        "type": "INT"
+            "name": "features",
+            "type": "json"
       },
       {
-        "name": "heartbeat_interval",
-        "type": "INT"
+            "name": "is_anomaly",
+            "type": "tinyint(1)"
       },
       {
-        "name": "status",
-        "type": "VARCHAR"
+            "name": "synced_to_ch",
+            "type": "tinyint(1)"
       },
       {
-        "name": "last_heartbeat",
-        "type": "DATETIME"
-      },
-      {
-        "name": "location",
-        "type": "VARCHAR"
-      },
-      {
-        "name": "created_at",
-        "type": "DATETIME"
-      },
-      {
-        "name": "updated_at",
-        "type": "DATETIME"
+            "name": "created_at",
+            "type": "datetime(3)"
       }
-    ]
+]
   }
 ];

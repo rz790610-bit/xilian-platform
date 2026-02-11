@@ -1,4 +1,5 @@
 import { int, bigint, tinyint, smallint, mysqlEnum, mysqlTable, text, timestamp, varchar, json, boolean, double, date, datetime, index, uniqueIndex } from "drizzle-orm/mysql-core";
+import { sql } from "drizzle-orm";
 
 /**
  * Core user table backing auth flow.
@@ -398,14 +399,6 @@ export type ModelUsageLog = typeof modelUsageLogs.$inferSelect;
 export type InsertModelUsageLog = typeof modelUsageLogs.$inferInsert;
 
 
-
-
-
-
-
-
-
-
 // ============ [DEPRECATED] 旧设备管理表已移除 ============
 // devices, sensors, sensorReadings, sensorAggregates 已废弃
 // 设备数据统一使用 asset_nodes 表 (见 v1.5 数据库模块)
@@ -535,11 +528,6 @@ export const diagnosisTasks = mysqlTable("diagnosis_tasks", {
 
 export type DiagnosisTask = typeof diagnosisTasks.$inferSelect;
 export type InsertDiagnosisTask = typeof diagnosisTasks.$inferInsert;
-
-
-
-
-
 
 
 // ============ 设备台账扩展表 (device_ 前缀) ============
@@ -703,149 +691,26 @@ export type InsertDeviceKpi = typeof deviceKpis.$inferInsert;
 /**
  * Outbox 事件表 - 事务性事件发布（Outbox 模式）
  */
-export const outboxEvents = mysqlTable("outbox_events", {
-  id: int("id").autoincrement().primaryKey(),
-  eventId: varchar("event_id", { length: 64 }).notNull().unique(),
-  eventType: varchar("event_type", { length: 100 }).notNull(),
-  aggregateType: varchar("aggregate_type", { length: 100 }).notNull(),
-  aggregateId: varchar("aggregate_id", { length: 64 }).notNull(),
-  payload: json("payload").$type<Record<string, unknown>>().notNull(),
-  metadata: json("metadata").$type<{
-    correlationId?: string;
-    causationId?: string;
-    userId?: string;
-    source?: string;
-  }>(),
-  status: mysqlEnum("status", ["pending", "processing", "published", "failed"]).default("pending").notNull(),
-  retryCount: int("retry_count").default(0).notNull(),
-  maxRetries: int("max_retries").default(3).notNull(),
-  lastError: text("last_error"),
-  publishedAt: timestamp("published_at"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
-});
-
-export type OutboxEvent = typeof outboxEvents.$inferSelect;
-export type InsertOutboxEvent = typeof outboxEvents.$inferInsert;
 
 /**
  * Outbox 路由配置表 - 事件路由策略配置
  */
-export const outboxRoutingConfig = mysqlTable("outbox_routing_config", {
-  id: int("id").autoincrement().primaryKey(),
-  eventType: varchar("event_type", { length: 100 }).notNull().unique(),
-  publishMode: mysqlEnum("publish_mode", ["cdc", "polling"]).default("cdc").notNull(),
-  cdcEnabled: boolean("cdc_enabled").default(true).notNull(),
-  pollingIntervalMs: int("polling_interval_ms"),
-  pollingBatchSize: int("polling_batch_size"),
-  requiresProcessing: boolean("requires_processing").default(false).notNull(),
-  processorClass: varchar("processor_class", { length: 200 }),
-  description: text("description"),
-  isActive: boolean("is_active").default(true).notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
-});
-
-export type OutboxRoutingConfig = typeof outboxRoutingConfig.$inferSelect;
-export type InsertOutboxRoutingConfig = typeof outboxRoutingConfig.$inferInsert;
 
 /**
  * Saga 实例表 - Saga 编排实例
  */
-export const sagaInstances = mysqlTable("saga_instances", {
-  id: int("id").autoincrement().primaryKey(),
-  sagaId: varchar("saga_id", { length: 64 }).notNull().unique(),
-  sagaType: varchar("saga_type", { length: 100 }).notNull(),
-  status: mysqlEnum("status", ["running", "completed", "failed", "compensating", "compensated", "partial"]).default("running").notNull(),
-  currentStep: int("current_step").default(0).notNull(),
-  totalSteps: int("total_steps").notNull(),
-  input: json("input").$type<Record<string, unknown>>(),
-  output: json("output").$type<Record<string, unknown>>(),
-  checkpoint: json("checkpoint").$type<{
-    processed: string[];
-    failed: Array<{ item: string; error: string }>;
-    lastCompletedStep: number;
-  }>(),
-  error: text("error"),
-  startedAt: timestamp("started_at").defaultNow().notNull(),
-  completedAt: timestamp("completed_at"),
-  timeoutAt: timestamp("timeout_at"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
-});
-
-export type SagaInstance = typeof sagaInstances.$inferSelect;
-export type InsertSagaInstance = typeof sagaInstances.$inferInsert;
 
 /**
  * Saga 步骤表 - Saga 执行步骤记录
  */
-export const sagaSteps = mysqlTable("saga_steps", {
-  id: int("id").autoincrement().primaryKey(),
-  stepId: varchar("step_id", { length: 64 }).notNull().unique(),
-  sagaId: varchar("saga_id", { length: 64 }).notNull(),
-  stepIndex: int("step_index").notNull(),
-  stepName: varchar("step_name", { length: 100 }).notNull(),
-  stepType: mysqlEnum("step_type", ["action", "compensation"]).default("action").notNull(),
-  status: mysqlEnum("status", ["pending", "running", "completed", "failed", "skipped", "compensated"]).default("pending").notNull(),
-  input: json("input").$type<Record<string, unknown>>(),
-  output: json("output").$type<Record<string, unknown>>(),
-  error: text("error"),
-  retryCount: int("retry_count").default(0).notNull(),
-  startedAt: timestamp("started_at"),
-  completedAt: timestamp("completed_at"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
-});
-
-export type SagaStep = typeof sagaSteps.$inferSelect;
-export type InsertSagaStep = typeof sagaSteps.$inferInsert;
 
 /**
  * Saga 死信队列表 - 失败的 Saga 记录
  */
-export const sagaDeadLetters = mysqlTable("saga_dead_letters", {
-  id: int("id").autoincrement().primaryKey(),
-  deadLetterId: varchar("dead_letter_id", { length: 64 }).notNull().unique(),
-  sagaId: varchar("saga_id", { length: 64 }).notNull(),
-  sagaType: varchar("saga_type", { length: 100 }).notNull(),
-  failureReason: text("failure_reason").notNull(),
-  failureType: mysqlEnum("failure_type", ["timeout", "max_retries", "compensation_failed", "unknown"]).notNull(),
-  originalInput: json("original_input").$type<Record<string, unknown>>(),
-  lastCheckpoint: json("last_checkpoint").$type<Record<string, unknown>>(),
-  retryable: boolean("retryable").default(true).notNull(),
-  retryCount: int("retry_count").default(0).notNull(),
-  lastRetryAt: timestamp("last_retry_at"),
-  resolvedAt: timestamp("resolved_at"),
-  resolvedBy: varchar("resolved_by", { length: 100 }),
-  resolution: text("resolution"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
-});
-
-export type SagaDeadLetter = typeof sagaDeadLetters.$inferSelect;
-export type InsertSagaDeadLetter = typeof sagaDeadLetters.$inferInsert;
 
 /**
  * 已处理事件表 - 幂等性去重记录
  */
-export const processedEvents = mysqlTable("processed_events", {
-  id: int("id").autoincrement().primaryKey(),
-  eventId: varchar("event_id", { length: 64 }).notNull().unique(),
-  eventType: varchar("event_type", { length: 100 }).notNull(),
-  consumerGroup: varchar("consumer_group", { length: 100 }).notNull(),
-  processedAt: timestamp("processed_at").defaultNow().notNull(),
-  expiresAt: timestamp("expires_at").notNull(),
-  metadata: json("metadata").$type<{
-    partition?: number;
-    offset?: string;
-    processingTimeMs?: number;
-  }>(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
-
-export type ProcessedEvent = typeof processedEvents.$inferSelect;
-export type InsertProcessedEvent = typeof processedEvents.$inferInsert;
 
 /**
  * 设备采样配置表 - 自适应采样率配置
@@ -897,38 +762,6 @@ export type InsertIdempotentRecord = typeof idempotentRecords.$inferInsert;
 /**
  * 回滚执行表扩展 - 支持 Saga 模式
  */
-export const rollbackExecutions = mysqlTable("rollback_executions", {
-  id: int("id").autoincrement().primaryKey(),
-  executionId: varchar("execution_id", { length: 64 }).notNull().unique(),
-  sagaId: varchar("saga_id", { length: 64 }),
-  triggerId: varchar("trigger_id", { length: 64 }).notNull(),
-  targetType: mysqlEnum("target_type", ["rule", "model", "config", "firmware"]).notNull(),
-  targetId: varchar("target_id", { length: 64 }).notNull(),
-  fromVersion: varchar("from_version", { length: 50 }).notNull(),
-  toVersion: varchar("to_version", { length: 50 }).notNull(),
-  triggerReason: text("trigger_reason"),
-  status: mysqlEnum("status", ["pending", "executing", "completed", "failed", "partial", "cancelled"]).default("pending").notNull(),
-  totalDevices: int("total_devices"),
-  completedDevices: int("completed_devices").default(0),
-  failedDevices: int("failed_devices").default(0),
-  checkpoint: json("checkpoint").$type<{
-    processed: string[];
-    failed: Array<{ device: string; error: string }>;
-  }>(),
-  result: json("result").$type<{
-    total: number;
-    succeeded: number;
-    failed: number;
-    details?: Array<{ deviceId: string; status: string; error?: string }>;
-  }>(),
-  startedAt: timestamp("started_at"),
-  completedAt: timestamp("completed_at"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
-});
-
-export type RollbackExecution = typeof rollbackExecutions.$inferSelect;
-export type InsertRollbackExecution = typeof rollbackExecutions.$inferInsert;
 
 /**
  * 系统容量指标表 - 用于自适应配置
@@ -1507,41 +1340,10 @@ export type InsertBaseDictItem = typeof baseDictItems.$inferInsert;
 /**
  * 事件存储表
  */
-export const eventStore = mysqlTable("event_store", {
-  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
-  eventId: varchar("event_id", { length: 64 }).notNull().unique(),
-  eventType: varchar("event_type", { length: 100 }).notNull(),
-  eventVersion: smallint("event_version").default(1).notNull(),
-  aggregateType: varchar("aggregate_type", { length: 50 }).notNull(),
-  aggregateId: varchar("aggregate_id", { length: 100 }).notNull(),
-  aggregateVersion: bigint("aggregate_version", { mode: "number" }).notNull(),
-  payload: json("payload").notNull(),
-  metadata: json("metadata"),
-  causationId: varchar("causation_id", { length: 64 }),
-  correlationId: varchar("correlation_id", { length: 64 }),
-  occurredAt: datetime("occurred_at", { fsp: 3 }).notNull(),
-  recordedAt: datetime("recorded_at", { fsp: 3 }).notNull(),
-  actorId: varchar("actor_id", { length: 64 }),
-  actorType: varchar("actor_type", { length: 20 }),
-});
-
-export type EventStoreEntry = typeof eventStore.$inferSelect;
-export type InsertEventStoreEntry = typeof eventStore.$inferInsert;
 
 /**
  * 聚合快照表
  */
-export const eventSnapshots = mysqlTable("event_snapshots", {
-  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
-  aggregateType: varchar("aggregate_type", { length: 50 }).notNull(),
-  aggregateId: varchar("aggregate_id", { length: 100 }).notNull(),
-  aggregateVersion: bigint("aggregate_version", { mode: "number" }).notNull(),
-  state: json("state").notNull(),
-  createdAt: datetime("created_at", { fsp: 3 }).notNull(),
-});
-
-export type EventSnapshot = typeof eventSnapshots.$inferSelect;
-export type InsertEventSnapshot = typeof eventSnapshots.$inferInsert;
 
 // ============ V4.0 新增表 ============
 
@@ -1637,21 +1439,6 @@ export type DataGovernanceJob = typeof dataGovernanceJobs.$inferSelect;
 export type InsertDataGovernanceJob = typeof dataGovernanceJobs.$inferInsert;
 
 // §15 数据治理域 - MinIO 清理日志
-export const minioCleanupLog = mysqlTable("minio_cleanup_log", {
-  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
-  jobId: bigint("job_id", { mode: "number" }).notNull(),
-  bucket: varchar("bucket", { length: 64 }).notNull(),
-  objectKey: varchar("object_key", { length: 512 }).notNull(),
-  objectSize: bigint("object_size", { mode: "number" }).notNull(),
-  action: varchar("action", { length: 32 }).notNull(),
-  status: varchar("status", { length: 32 }).notNull().default("completed"),
-  createdAt: timestamp("created_at", { fsp: 3 }).defaultNow().notNull(),
-}, (table) => [
-  index("idx_mcl_job").on(table.jobId),
-  index("idx_mcl_bucket").on(table.bucket),
-]);
-export type MinioCleanupLog = typeof minioCleanupLog.$inferSelect;
-export type InsertMinioCleanupLog = typeof minioCleanupLog.$inferInsert;
 
 // §15 数据治理域 - 数据血缘
 export const dataLineage = mysqlTable("data_lineage", {
@@ -1796,76 +1583,10 @@ export type PluginEvent = typeof pluginEvents.$inferSelect;
 export type InsertPluginEvent = typeof pluginEvents.$inferInsert;
 
 // §22 配置中心域 - 系统配置
-export const systemConfigs = mysqlTable("system_configs", {
-  id: int("id").autoincrement().primaryKey(),
-  configKey: varchar("config_key", { length: 128 }).notNull(),
-  configValue: json("config_value").notNull(),
-  valueType: varchar("value_type", { length: 32 }).notNull().default("string"),
-  category: varchar("category", { length: 64 }).notNull(),
-  environment: varchar("environment", { length: 32 }).notNull().default("production"),
-  description: text("description"),
-  isSensitive: tinyint("is_sensitive").notNull().default(0),
-  version: int("version").notNull().default(1),
-  status: varchar("status", { length: 32 }).notNull().default("active"),
-  createdAt: timestamp("created_at", { fsp: 3 }).defaultNow().notNull(),
-  createdBy: varchar("created_by", { length: 64 }),
-  updatedAt: timestamp("updated_at", { fsp: 3 }).defaultNow().notNull(),
-  updatedBy: varchar("updated_by", { length: 64 }),
-}, (table) => [
-  index("idx_sc_category").on(table.category),
-  uniqueIndex("uk_sc_key_env").on(table.configKey, table.environment),
-]);
-export type SystemConfig = typeof systemConfigs.$inferSelect;
-export type InsertSystemConfig = typeof systemConfigs.$inferInsert;
 
 // §22 配置中心域 - 配置变更日志
-export const configChangeLogs = mysqlTable("config_change_logs", {
-  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
-  configId: int("config_id").notNull(),
-  configKey: varchar("config_key", { length: 128 }).notNull(),
-  oldValue: json("old_value"),
-  newValue: json("new_value").notNull(),
-  oldVersion: int("old_version"),
-  newVersion: int("new_version").notNull(),
-  changeReason: text("change_reason"),
-  changedBy: varchar("changed_by", { length: 64 }).notNull(),
-  changedAt: timestamp("changed_at", { fsp: 3 }).defaultNow().notNull(),
-  rollbackTo: bigint("rollback_to", { mode: "number" }),
-}, (table) => [
-  index("idx_ccl_config").on(table.configId),
-  index("idx_ccl_time").on(table.changedAt),
-]);
-export type ConfigChangeLog = typeof configChangeLogs.$inferSelect;
-export type InsertConfigChangeLog = typeof configChangeLogs.$inferInsert;
 
 // §22a 运营管理域 - 告警规则
-export const alertRules = mysqlTable("alert_rules", {
-  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
-  ruleCode: varchar("rule_code", { length: 64 }).notNull().unique(),
-  name: varchar("name", { length: 200 }).notNull(),
-  deviceType: varchar("device_type", { length: 64 }).notNull(),
-  measurementType: varchar("measurement_type", { length: 64 }).notNull(),
-  severity: varchar("severity", { length: 20 }).notNull().default("warning"),
-  condition: json("condition").notNull(),
-  cooldownSeconds: int("cooldown_seconds").notNull().default(300),
-  notificationChannels: json("notification_channels"),
-  isActive: tinyint("is_active").notNull().default(1),
-  priority: int("priority").notNull().default(0),
-  description: text("description"),
-  version: int("version").notNull().default(1),
-  createdBy: varchar("created_by", { length: 64 }),
-  createdAt: timestamp("created_at", { fsp: 3 }).defaultNow().notNull(),
-  updatedBy: varchar("updated_by", { length: 64 }),
-  updatedAt: timestamp("updated_at", { fsp: 3 }).defaultNow().notNull(),
-  isDeleted: tinyint("is_deleted").notNull().default(0),
-}, (table) => [
-  index("idx_ar_device_type").on(table.deviceType),
-  index("idx_ar_measurement").on(table.measurementType),
-  index("idx_ar_severity").on(table.severity),
-  index("idx_ar_time").on(table.createdAt),
-]);
-export type AlertRule = typeof alertRules.$inferSelect;
-export type InsertAlertRule = typeof alertRules.$inferInsert;
 
 // §22a 运营管理域 - 审计日志
 export const auditLogs = mysqlTable("audit_logs", {
@@ -1894,227 +1615,18 @@ export type AuditLog = typeof auditLogs.$inferSelect;
 export type InsertAuditLog = typeof auditLogs.$inferInsert;
 
 // §22a 运营管理域 - 数据导出任务
-export const dataExportTasks = mysqlTable("data_export_tasks", {
-  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
-  taskCode: varchar("task_code", { length: 64 }).notNull().unique(),
-  name: varchar("name", { length: 200 }).notNull(),
-  exportType: varchar("export_type", { length: 32 }).notNull(),
-  format: varchar("format", { length: 20 }).notNull().default("csv"),
-  queryParams: json("query_params").notNull(),
-  status: varchar("status", { length: 32 }).notNull().default("pending"),
-  progress: varchar("progress", { length: 10 }).notNull().default("0"),
-  totalRows: bigint("total_rows", { mode: "number" }),
-  fileSize: bigint("file_size", { mode: "number" }),
-  storagePath: varchar("storage_path", { length: 500 }),
-  downloadUrl: varchar("download_url", { length: 1000 }),
-  expiresAt: timestamp("expires_at"),
-  errorMessage: text("error_message"),
-  createdBy: varchar("created_by", { length: 64 }).notNull(),
-  createdAt: timestamp("created_at", { fsp: 3 }).defaultNow().notNull(),
-  completedAt: timestamp("completed_at", { fsp: 3 }),
-}, (table) => [
-  index("idx_det_type").on(table.exportType),
-  index("idx_det_status").on(table.status),
-  index("idx_det_creator").on(table.createdBy),
-  index("idx_det_time").on(table.createdAt),
-]);
-export type DataExportTask = typeof dataExportTasks.$inferSelect;
-export type InsertDataExportTask = typeof dataExportTasks.$inferInsert;
 
 // §22b 调度管理域 - 定时任务
-export const scheduledTasks = mysqlTable("scheduled_tasks", {
-  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
-  taskCode: varchar("task_code", { length: 64 }).notNull().unique(),
-  name: varchar("name", { length: 200 }).notNull(),
-  taskType: varchar("task_type", { length: 32 }).notNull(),
-  cronExpression: varchar("cron_expression", { length: 100 }),
-  intervalSeconds: int("interval_seconds"),
-  handler: varchar("handler", { length: 200 }).notNull(),
-  params: json("params"),
-  status: varchar("status", { length: 32 }).notNull().default("active"),
-  lastRunAt: timestamp("last_run_at", { fsp: 3 }),
-  lastRunResult: varchar("last_run_result", { length: 20 }),
-  nextRunAt: timestamp("next_run_at", { fsp: 3 }),
-  retryCount: int("retry_count").notNull().default(0),
-  maxRetries: int("max_retries").notNull().default(3),
-  timeoutSeconds: int("timeout_seconds").notNull().default(300),
-  description: text("description"),
-  version: int("version").notNull().default(1),
-  createdBy: varchar("created_by", { length: 64 }),
-  createdAt: timestamp("created_at", { fsp: 3 }).defaultNow().notNull(),
-  updatedAt: timestamp("updated_at", { fsp: 3 }).defaultNow().notNull(),
-  isDeleted: tinyint("is_deleted").notNull().default(0),
-}, (table) => [
-  index("idx_st_type").on(table.taskType),
-  index("idx_st_status").on(table.status),
-  index("idx_st_next_run").on(table.nextRunAt),
-]);
-export type ScheduledTask = typeof scheduledTasks.$inferSelect;
-export type InsertScheduledTask = typeof scheduledTasks.$inferInsert;
 
 // §22b 调度管理域 - 回滚触发器
-export const rollbackTriggers = mysqlTable("rollback_triggers", {
-  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
-  triggerCode: varchar("trigger_code", { length: 64 }).notNull().unique(),
-  name: varchar("name", { length: 200 }).notNull(),
-  targetTable: varchar("target_table", { length: 128 }).notNull(),
-  conditionType: varchar("condition_type", { length: 32 }).notNull(),
-  conditionParams: json("condition_params").notNull(),
-  rollbackAction: varchar("rollback_action", { length: 32 }).notNull(),
-  actionParams: json("action_params"),
-  isActive: tinyint("is_active").notNull().default(1),
-  lastTriggeredAt: timestamp("last_triggered_at", { fsp: 3 }),
-  triggerCount: int("trigger_count").notNull().default(0),
-  version: int("version").notNull().default(1),
-  createdBy: varchar("created_by", { length: 64 }),
-  createdAt: timestamp("created_at", { fsp: 3 }).defaultNow().notNull(),
-  updatedAt: timestamp("updated_at", { fsp: 3 }).defaultNow().notNull(),
-  isDeleted: tinyint("is_deleted").notNull().default(0),
-}, (table) => [
-  index("idx_rt_table").on(table.targetTable),
-]);
-export type RollbackTrigger = typeof rollbackTriggers.$inferSelect;
-export type InsertRollbackTrigger = typeof rollbackTriggers.$inferInsert;
 
 // ═══════════════════════════════════════════════════════════════
 // §23 前端 Schema Registry 对齐补充 — 28张表 (72→100)
 // ═══════════════════════════════════════════════════════════════
 
 // ── 设备运维域 ──────────────────────────────
-export const alertEventLog = mysqlTable("alert_event_log", {
-  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),  // 主键
-  alertId: varchar("alert_id", { length: 128 }).notNull(),  // 告警ID
-  ruleId: bigint("rule_id", { mode: "number" }),  // 关联规则ID
-  deviceCode: varchar("device_code", { length: 64 }).notNull(),  // 设备编码
-  severity: varchar("severity", { length: 128 }).notNull(),  // 严重级别
-  alertType: varchar("alert_type", { length: 64 }).notNull(),  // 告警类型
-  message: text("message").notNull(),  // 告警消息
-  metricValue: double("metric_value"),  // 指标值
-  thresholdValue: double("threshold_value"),  // 阈值
-  acknowledged: tinyint("acknowledged").notNull(),  // 是否已确认
-  acknowledgedBy: varchar("acknowledged_by", { length: 64 }),  // 确认人
-  resolvedAt: timestamp("resolved_at", { fsp: 3 }),  // 解决时间
-  createdAt: timestamp("created_at", { fsp: 3 }).defaultNow().notNull(),  // 创建时间
-}, (table) => [
-  index("idx_ael_ai").on(table.alertId),
-  index("idx_ael_ri").on(table.ruleId),
-  index("idx_ael_dc").on(table.deviceCode)
-]);
-export type AlertEventLog = typeof alertEventLog.$inferSelect;
-export type InsertAlertEventLog = typeof alertEventLog.$inferInsert;
-export const deviceDailySummary = mysqlTable("device_daily_summary", {
-  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),  // 主键
-  deviceCode: varchar("device_code", { length: 64 }).notNull(),  // 设备编码
-  summaryDate: date("summary_date").notNull(),  // 统计日期
-  onlineHours: double("online_hours"),  // 在线时长(小时)
-  alertCount: int("alert_count").notNull(),  // 告警次数
-  dataPoints: bigint("data_points", { mode: "number" }).notNull(),  // 数据点数
-  avgCpuUsage: double("avg_cpu_usage"),  // 平均CPU使用率
-  avgMemoryUsage: double("avg_memory_usage"),  // 平均内存使用率
-  maxTemperature: double("max_temperature"),  // 最高温度
-  createdAt: timestamp("created_at", { fsp: 3 }).defaultNow().notNull(),  // 创建时间
-}, (table) => [
-  index("idx_dds_dc").on(table.deviceCode)
-]);
-export type DeviceDailySummary = typeof deviceDailySummary.$inferSelect;
-export type InsertDeviceDailySummary = typeof deviceDailySummary.$inferInsert;
-export const deviceFirmwareVersions = mysqlTable("device_firmware_versions", {
-  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),  // 主键
-  deviceType: varchar("device_type", { length: 64 }).notNull(),  // 设备类型
-  firmwareVersion: varchar("firmware_version", { length: 64 }).notNull(),  // 固件版本号
-  releaseNotes: text("release_notes"),  // 发布说明
-  fileUrl: varchar("file_url", { length: 500 }).notNull(),  // 固件文件URL
-  fileHash: varchar("file_hash", { length: 128 }).notNull(),  // 文件哈希
-  fileSize: bigint("file_size", { mode: "number" }).notNull(),  // 文件大小(字节)
-  isMandatory: tinyint("is_mandatory").notNull(),  // 是否强制升级
-  status: varchar("status", { length: 64 }).notNull().default('active'),  // 状态(draft/released/deprecated)
-  releasedAt: timestamp("released_at", { fsp: 3 }),  // 发布时间
-  createdAt: timestamp("created_at", { fsp: 3 }).defaultNow().notNull(),  // 创建时间
-}, (table) => [
-  index("idx_dfv_dt").on(table.deviceType),
-  index("idx_dfv_s").on(table.status)
-]);
-export type DeviceFirmwareVersions = typeof deviceFirmwareVersions.$inferSelect;
-export type InsertDeviceFirmwareVersions = typeof deviceFirmwareVersions.$inferInsert;
-export const deviceMaintenanceLogs = mysqlTable("device_maintenance_logs", {
-  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),  // 主键
-  deviceCode: varchar("device_code", { length: 64 }).notNull(),  // 设备编码
-  maintenanceType: varchar("maintenance_type", { length: 64 }).notNull(),  // 维护类型(preventive/corrective/predictive)
-  title: varchar("title", { length: 200 }).notNull(),  // 维护标题
-  description: text("description"),  // 维护描述
-  operator: varchar("operator", { length: 128 }).notNull(),  // 操作人
-  startedAt: timestamp("started_at", { fsp: 3 }).notNull(),  // 开始时间
-  completedAt: timestamp("completed_at", { fsp: 3 }),  // 完成时间
-  result: varchar("result", { length: 128 }),  // 维护结果(success/partial/failed)
-  cost: double("cost"),  // 维护成本
-  partsReplaced: json("parts_replaced"),  // 更换部件JSON
-  attachments: json("attachments"),  // 附件列表
-  nextMaintenanceDate: date("next_maintenance_date"),  // 下次维护日期
-  createdAt: timestamp("created_at", { fsp: 3 }).defaultNow().notNull(),  // 创建时间
-}, (table) => [
-  index("idx_dml_dc").on(table.deviceCode),
-  index("idx_dml_mt").on(table.maintenanceType)
-]);
-export type DeviceMaintenanceLogs = typeof deviceMaintenanceLogs.$inferSelect;
-export type InsertDeviceMaintenanceLogs = typeof deviceMaintenanceLogs.$inferInsert;
-export const deviceStatusLog = mysqlTable("device_status_log", {
-  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),  // 主键
-  deviceCode: varchar("device_code", { length: 64 }).notNull(),  // 设备编码
-  previousStatus: varchar("previous_status", { length: 64 }),  // 原状态
-  currentStatus: varchar("current_status", { length: 64 }).notNull(),  // 新状态
-  reason: varchar("reason", { length: 128 }),  // 变更原因
-  triggeredBy: varchar("triggered_by", { length: 64 }),  // 触发方式(auto/manual/alert)
-  metadata: json("metadata"),  // 附加元数据
-  createdAt: timestamp("created_at", { fsp: 3 }).defaultNow().notNull(),  // 创建时间
-}, (table) => [
-  index("idx_dsl_dc").on(table.deviceCode)
-]);
-export type DeviceStatusLog = typeof deviceStatusLog.$inferSelect;
-export type InsertDeviceStatusLog = typeof deviceStatusLog.$inferInsert;
 
 // ── 诊断分析域 ──────────────────────────────
-export const anomalyModels = mysqlTable("anomaly_models", {
-  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),  // 主键
-  modelCode: varchar("model_code", { length: 64 }).notNull(),  // 模型编码
-  modelName: varchar("model_name", { length: 200 }).notNull(),  // 模型名称
-  modelType: varchar("model_type", { length: 64 }).notNull(),  // 模型类型(isolation_forest/lstm/autoencoder)
-  targetMetric: varchar("target_metric", { length: 128 }).notNull(),  // 目标指标
-  hyperparams: json("hyperparams"),  // 超参数JSON
-  trainingDataRange: json("training_data_range"),  // 训练数据范围
-  accuracy: double("accuracy"),  // 准确率
-  modelFileUrl: varchar("model_file_url", { length: 500 }),  // 模型文件URL
-  status: varchar("status", { length: 64 }).notNull().default('active'),  // 状态(draft/training/deployed/archived)
-  deployedAt: timestamp("deployed_at", { fsp: 3 }),  // 部署时间
-  createdAt: timestamp("created_at", { fsp: 3 }).defaultNow().notNull(),  // 创建时间
-  updatedAt: timestamp("updated_at", { fsp: 3 }).defaultNow().notNull(),  // 更新时间
-}, (table) => [
-  index("idx_am_mc").on(table.modelCode),
-  index("idx_am_mt").on(table.modelType),
-  index("idx_am_s").on(table.status)
-]);
-export type AnomalyModels = typeof anomalyModels.$inferSelect;
-export type InsertAnomalyModels = typeof anomalyModels.$inferInsert;
-export const diagnosisResults = mysqlTable("diagnosis_results", {
-  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),  // 主键
-  taskId: bigint("task_id", { mode: "number" }).notNull(),  // 诊断任务ID
-  deviceCode: varchar("device_code", { length: 64 }).notNull(),  // 设备编码
-  diagnosisType: varchar("diagnosis_type", { length: 64 }).notNull(),  // 诊断类型
-  severity: varchar("severity", { length: 128 }).notNull(),  // 严重程度
-  faultCode: varchar("fault_code", { length: 64 }),  // 故障代码
-  faultDescription: text("fault_description"),  // 故障描述
-  confidence: double("confidence"),  // 置信度
-  evidence: json("evidence"),  // 证据数据JSON
-  recommendation: text("recommendation"),  // 处理建议
-  resolved: tinyint("resolved").notNull().default(0),  // 是否已处理
-  resolvedAt: timestamp("resolved_at", { fsp: 3 }),  // 处理时间
-  createdAt: timestamp("created_at", { fsp: 3 }).defaultNow().notNull(),  // 创建时间
-}, (table) => [
-  index("idx_dr_ti").on(table.taskId),
-  index("idx_dr_dc").on(table.deviceCode),
-  index("idx_dr_dt").on(table.diagnosisType)
-]);
-export type DiagnosisResults = typeof diagnosisResults.$inferSelect;
-export type InsertDiagnosisResults = typeof diagnosisResults.$inferInsert;
 
 // ── 数据治理域 ──────────────────────────────
 export const auditLogsSensitive = mysqlTable("audit_logs_sensitive", {
@@ -2133,24 +1645,6 @@ export const auditLogsSensitive = mysqlTable("audit_logs_sensitive", {
 ]);
 export type AuditLogsSensitive = typeof auditLogsSensitive.$inferSelect;
 export type InsertAuditLogsSensitive = typeof auditLogsSensitive.$inferInsert;
-export const dataCleanResults = mysqlTable("data_clean_results", {
-  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),  // 主键
-  taskId: bigint("task_id", { mode: "number" }).notNull(),  // 清洗任务ID
-  sourceTable: varchar("source_table", { length: 128 }).notNull(),  // 源表名
-  sourceRowId: bigint("source_row_id", { mode: "number" }).notNull(),  // 源行ID
-  fieldName: varchar("field_name", { length: 200 }).notNull(),  // 字段名
-  originalValue: text("original_value"),  // 原始值
-  cleanedValue: text("cleaned_value"),  // 清洗后值
-  ruleApplied: varchar("rule_applied", { length: 128 }),  // 应用规则
-  status: varchar("status", { length: 64 }).notNull().default('active'),  // 状态
-  createdAt: timestamp("created_at", { fsp: 3 }).defaultNow().notNull(),  // 创建时间
-}, (table) => [
-  index("idx_dcr_ti").on(table.taskId),
-  index("idx_dcr_sri").on(table.sourceRowId),
-  index("idx_dcr_s").on(table.status)
-]);
-export type DataCleanResults = typeof dataCleanResults.$inferSelect;
-export type InsertDataCleanResults = typeof dataCleanResults.$inferInsert;
 export const dataCollectionTasks = mysqlTable("data_collection_tasks", {
   id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),  // 主键
   taskId: varchar("task_id", { length: 128 }).notNull(),  // 任务ID
@@ -2181,6 +1675,430 @@ export type DataCollectionTasks = typeof dataCollectionTasks.$inferSelect;
 export type InsertDataCollectionTasks = typeof dataCollectionTasks.$inferInsert;
 
 // ── 边缘采集域 ──────────────────────────────
+
+// ── AI知识域 - 知识库 ──────────────────────────────
+
+// ── AI知识域 - 模型中心 ──────────────────────────────
+
+// ── 消息与任务域 ──────────────────────────────
+export const messageRoutingConfig = mysqlTable("message_routing_config", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),  // 主键
+  routeName: varchar("route_name", { length: 200 }).notNull(),  // 路由名称
+  sourceTopic: varchar("source_topic", { length: 128 }).notNull(),  // 源主题
+  targetTopic: varchar("target_topic", { length: 128 }).notNull(),  // 目标主题
+  filterExpr: text("filter_expr"),  // 过滤表达式
+  transformScript: text("transform_script"),  // 转换脚本
+  priority: int("priority").notNull(),  // 优先级
+  isEnabled: tinyint("is_enabled").notNull(),  // 是否启用
+  createdAt: timestamp("created_at", { fsp: 3 }).defaultNow().notNull(),  // 创建时间
+  updatedAt: timestamp("updated_at", { fsp: 3 }).defaultNow().notNull(),  // 更新时间
+});
+export type MessageRoutingConfig = typeof messageRoutingConfig.$inferSelect;
+export type InsertMessageRoutingConfig = typeof messageRoutingConfig.$inferInsert;
+
+// ── 实时遥测域 ──────────────────────────────
+
+// ── 系统拓扑域 ──────────────────────────────
+
+// ===== V4.0 新增表 =====
+
+/** 数据资产登记 */
+export const dataAssets = mysqlTable("data_assets", {
+  id: int("id").autoincrement().primaryKey(),
+  assetCode: varchar("asset_code", { length: 64 }).notNull().unique(),
+  name: varchar("name", { length: 200 }).notNull(),
+  assetType: varchar("asset_type", { length: 30 }).notNull(),
+  sourceTable: varchar("source_table", { length: 100 }),
+  owner: varchar("owner", { length: 64 }),
+  department: varchar("department", { length: 100 }),
+  sensitivityLevel: varchar("sensitivity_level", { length: 20 }).notNull().default("internal"),
+  description: text("description"),
+  tags: json("tags"),
+  isActive: tinyint("is_active").notNull().default(1),
+  version: int("version").notNull().default(1),
+  createdBy: varchar("created_by", { length: 64 }),
+  createdAt: datetime("created_at", { fsp: 3 }).notNull().default(sql`CURRENT_TIMESTAMP(3)`),
+}, (t) => ({
+  assetCodeIdx: index("idx_da_asset_code").on(t.assetCode),
+  typeIdx: index("idx_da_type").on(t.assetType),
+}));
+
+/** 数据生命周期策略 */
+export const dataLifecyclePolicies = mysqlTable("data_lifecycle_policies", {
+  id: int("id").autoincrement().primaryKey(),
+  policyCode: varchar("policy_code", { length: 64 }).notNull().unique(),
+  name: varchar("name", { length: 100 }).notNull(),
+  targetTable: varchar("target_table", { length: 100 }).notNull(),
+  retentionDays: int("retention_days").notNull().default(365),
+  archiveEngine: varchar("archive_engine", { length: 30 }),
+  archiveFormat: varchar("archive_format", { length: 20 }),
+  cleanStrategy: varchar("clean_strategy", { length: 30 }).notNull().default("soft_delete"),
+  cronExpression: varchar("cron_expression", { length: 50 }),
+  isActive: tinyint("is_active").notNull().default(1),
+  version: int("version").notNull().default(1),
+  createdAt: datetime("created_at", { fsp: 3 }).notNull().default(sql`CURRENT_TIMESTAMP(3)`),
+}, (t) => ({
+  policyCodeIdx: index("idx_dlp_policy_code").on(t.policyCode),
+  targetIdx: index("idx_dlp_target").on(t.targetTable),
+}));
+
+/** 数据采集指标统计 */
+export const dataCollectionMetrics = mysqlTable("data_collection_metrics", {
+  id: int("id").autoincrement().primaryKey(),
+  taskId: varchar("task_id", { length: 64 }).notNull(),
+  deviceCode: varchar("device_code", { length: 64 }).notNull(),
+  metricDate: date("metric_date").notNull(),
+  totalPoints: bigint("total_points", { mode: "number" }).notNull().default(0),
+  successPoints: bigint("success_points", { mode: "number" }).notNull().default(0),
+  errorPoints: bigint("error_points", { mode: "number" }).notNull().default(0),
+  avgLatencyMs: double("avg_latency_ms"),
+  maxLatencyMs: double("max_latency_ms"),
+  dataVolumeBytes: bigint("data_volume_bytes", { mode: "number" }).notNull().default(0),
+  sampleRateHz: int("sample_rate_hz"),
+  createdAt: datetime("created_at", { fsp: 3 }).notNull().default(sql`CURRENT_TIMESTAMP(3)`),
+}, (t) => ({
+  taskIdx: index("idx_dcm_task").on(t.taskId),
+  dateIdx: index("idx_dcm_date").on(t.metricDate),
+}));
+
+/** 边缘网关设备 */
+export const edgeGateways = mysqlTable("edge_gateways", {
+  id: int("id").autoincrement().primaryKey(),
+  gatewayId: varchar("gateway_id", { length: 64 }).notNull().unique(),
+  name: varchar("name", { length: 100 }).notNull(),
+  gatewayType: varchar("gateway_type", { length: 30 }).notNull(),
+  protocol: varchar("protocol", { length: 30 }).notNull(),
+  ipAddress: varchar("ip_address", { length: 45 }),
+  port: int("port"),
+  firmwareVersion: varchar("firmware_version", { length: 30 }),
+  status: varchar("status", { length: 20 }).notNull().default("offline"),
+  lastHeartbeat: datetime("last_heartbeat", { fsp: 3 }),
+  config: json("config"),
+  bufferSizeSec: int("buffer_size_sec").notNull().default(60),
+  isActive: tinyint("is_active").notNull().default(1),
+  createdAt: datetime("created_at", { fsp: 3 }).notNull().default(sql`CURRENT_TIMESTAMP(3)`),
+}, (t) => ({
+  gwIdIdx: index("idx_eg_gw_id").on(t.gatewayId),
+  statusIdx: index("idx_eg_status").on(t.status),
+}));
+
+/** 实时遥测数据缓存 */
+export const realtimeTelemetry = mysqlTable("realtime_telemetry", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  gatewayId: varchar("gateway_id", { length: 64 }).notNull(),
+  deviceCode: varchar("device_code", { length: 64 }).notNull(),
+  mpCode: varchar("mp_code", { length: 64 }).notNull(),
+  timestamp: datetime("timestamp", { fsp: 3 }).notNull(),
+  value: double("value"),
+  unit: varchar("unit", { length: 20 }),
+  quality: int("quality").notNull().default(192),
+  features: json("features"),
+  isAnomaly: tinyint("is_anomaly").notNull().default(0),
+  syncedToCh: tinyint("synced_to_ch").notNull().default(0),
+  createdAt: datetime("created_at", { fsp: 3 }).notNull().default(sql`CURRENT_TIMESTAMP(3)`),
+}, (t) => ({
+  gwDevIdx: index("idx_rt_gw_dev").on(t.gatewayId, t.deviceCode),
+  tsIdx: index("idx_rt_ts").on(t.timestamp),
+  syncIdx: index("idx_rt_sync").on(t.syncedToCh),
+}));
+
+
+// ===== V4.0 恢复的表定义（被 V4 重构脚本误删） =====
+export const systemConfigs = mysqlTable("system_configs", {
+  id: int("id").autoincrement().primaryKey(),
+  configKey: varchar("config_key", { length: 128 }).notNull(),
+  configValue: json("config_value").notNull(),
+  valueType: varchar("value_type", { length: 32 }).notNull().default("string"),
+  category: varchar("category", { length: 64 }).notNull(),
+  environment: varchar("environment", { length: 32 }).notNull().default("production"),
+  description: text("description"),
+  isSensitive: tinyint("is_sensitive").notNull().default(0),
+  version: int("version").notNull().default(1),
+  status: varchar("status", { length: 32 }).notNull().default("active"),
+  createdAt: timestamp("created_at", { fsp: 3 }).defaultNow().notNull(),
+  createdBy: varchar("created_by", { length: 64 }),
+  updatedAt: timestamp("updated_at", { fsp: 3 }).defaultNow().notNull(),
+  updatedBy: varchar("updated_by", { length: 64 }),
+}, (table) => [
+  index("idx_sc_category").on(table.category),
+  uniqueIndex("uk_sc_key_env").on(table.configKey, table.environment),
+]);
+
+export const configChangeLogs = mysqlTable("config_change_logs", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  configId: int("config_id").notNull(),
+  configKey: varchar("config_key", { length: 128 }).notNull(),
+  oldValue: json("old_value"),
+  newValue: json("new_value").notNull(),
+  oldVersion: int("old_version"),
+  newVersion: int("new_version").notNull(),
+  changeReason: text("change_reason"),
+  changedBy: varchar("changed_by", { length: 64 }).notNull(),
+  changedAt: timestamp("changed_at", { fsp: 3 }).defaultNow().notNull(),
+  rollbackTo: bigint("rollback_to", { mode: "number" }),
+}, (table) => [
+  index("idx_ccl_config").on(table.configId),
+  index("idx_ccl_time").on(table.changedAt),
+]);
+
+export const alertRules = mysqlTable("alert_rules", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  ruleCode: varchar("rule_code", { length: 64 }).notNull().unique(),
+  name: varchar("name", { length: 200 }).notNull(),
+  deviceType: varchar("device_type", { length: 64 }).notNull(),
+  measurementType: varchar("measurement_type", { length: 64 }).notNull(),
+  severity: varchar("severity", { length: 20 }).notNull().default("warning"),
+  condition: json("condition").notNull(),
+  cooldownSeconds: int("cooldown_seconds").notNull().default(300),
+  notificationChannels: json("notification_channels"),
+  isActive: tinyint("is_active").notNull().default(1),
+  priority: int("priority").notNull().default(0),
+  description: text("description"),
+  version: int("version").notNull().default(1),
+  createdBy: varchar("created_by", { length: 64 }),
+  createdAt: timestamp("created_at", { fsp: 3 }).defaultNow().notNull(),
+  updatedBy: varchar("updated_by", { length: 64 }),
+  updatedAt: timestamp("updated_at", { fsp: 3 }).defaultNow().notNull(),
+  isDeleted: tinyint("is_deleted").notNull().default(0),
+}, (table) => [
+  index("idx_ar_device_type").on(table.deviceType),
+  index("idx_ar_measurement").on(table.measurementType),
+  index("idx_ar_severity").on(table.severity),
+  index("idx_ar_time").on(table.createdAt),
+]);
+
+export const dataExportTasks = mysqlTable("data_export_tasks", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  taskCode: varchar("task_code", { length: 64 }).notNull().unique(),
+  name: varchar("name", { length: 200 }).notNull(),
+  exportType: varchar("export_type", { length: 32 }).notNull(),
+  format: varchar("format", { length: 20 }).notNull().default("csv"),
+  queryParams: json("query_params").notNull(),
+  status: varchar("status", { length: 32 }).notNull().default("pending"),
+  progress: varchar("progress", { length: 10 }).notNull().default("0"),
+  totalRows: bigint("total_rows", { mode: "number" }),
+  fileSize: bigint("file_size", { mode: "number" }),
+  storagePath: varchar("storage_path", { length: 500 }),
+  downloadUrl: varchar("download_url", { length: 1000 }),
+  expiresAt: timestamp("expires_at"),
+  errorMessage: text("error_message"),
+  createdBy: varchar("created_by", { length: 64 }).notNull(),
+  createdAt: timestamp("created_at", { fsp: 3 }).defaultNow().notNull(),
+  completedAt: timestamp("completed_at", { fsp: 3 }),
+}, (table) => [
+  index("idx_det_type").on(table.exportType),
+  index("idx_det_status").on(table.status),
+  index("idx_det_creator").on(table.createdBy),
+  index("idx_det_time").on(table.createdAt),
+]);
+
+export const scheduledTasks = mysqlTable("scheduled_tasks", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  taskCode: varchar("task_code", { length: 64 }).notNull().unique(),
+  name: varchar("name", { length: 200 }).notNull(),
+  taskType: varchar("task_type", { length: 32 }).notNull(),
+  cronExpression: varchar("cron_expression", { length: 100 }),
+  intervalSeconds: int("interval_seconds"),
+  handler: varchar("handler", { length: 200 }).notNull(),
+  params: json("params"),
+  status: varchar("status", { length: 32 }).notNull().default("active"),
+  lastRunAt: timestamp("last_run_at", { fsp: 3 }),
+  lastRunResult: varchar("last_run_result", { length: 20 }),
+  nextRunAt: timestamp("next_run_at", { fsp: 3 }),
+  retryCount: int("retry_count").notNull().default(0),
+  maxRetries: int("max_retries").notNull().default(3),
+  timeoutSeconds: int("timeout_seconds").notNull().default(300),
+  description: text("description"),
+  version: int("version").notNull().default(1),
+  createdBy: varchar("created_by", { length: 64 }),
+  createdAt: timestamp("created_at", { fsp: 3 }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { fsp: 3 }).defaultNow().notNull(),
+  isDeleted: tinyint("is_deleted").notNull().default(0),
+}, (table) => [
+  index("idx_st_type").on(table.taskType),
+  index("idx_st_status").on(table.status),
+  index("idx_st_next_run").on(table.nextRunAt),
+]);
+
+export const rollbackTriggers = mysqlTable("rollback_triggers", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  triggerCode: varchar("trigger_code", { length: 64 }).notNull().unique(),
+  name: varchar("name", { length: 200 }).notNull(),
+  targetTable: varchar("target_table", { length: 128 }).notNull(),
+  conditionType: varchar("condition_type", { length: 32 }).notNull(),
+  conditionParams: json("condition_params").notNull(),
+  rollbackAction: varchar("rollback_action", { length: 32 }).notNull(),
+  actionParams: json("action_params"),
+  isActive: tinyint("is_active").notNull().default(1),
+  lastTriggeredAt: timestamp("last_triggered_at", { fsp: 3 }),
+  triggerCount: int("trigger_count").notNull().default(0),
+  version: int("version").notNull().default(1),
+  createdBy: varchar("created_by", { length: 64 }),
+  createdAt: timestamp("created_at", { fsp: 3 }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { fsp: 3 }).defaultNow().notNull(),
+  isDeleted: tinyint("is_deleted").notNull().default(0),
+}, (table) => [
+  index("idx_rt_table").on(table.targetTable),
+]);
+
+export const alertEventLog = mysqlTable("alert_event_log", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),  // 主键
+  alertId: varchar("alert_id", { length: 128 }).notNull(),  // 告警ID
+  ruleId: bigint("rule_id", { mode: "number" }),  // 关联规则ID
+  deviceCode: varchar("device_code", { length: 64 }).notNull(),  // 设备编码
+  severity: varchar("severity", { length: 128 }).notNull(),  // 严重级别
+  alertType: varchar("alert_type", { length: 64 }).notNull(),  // 告警类型
+  message: text("message").notNull(),  // 告警消息
+  metricValue: double("metric_value"),  // 指标值
+  thresholdValue: double("threshold_value"),  // 阈值
+  acknowledged: tinyint("acknowledged").notNull(),  // 是否已确认
+  acknowledgedBy: varchar("acknowledged_by", { length: 64 }),  // 确认人
+  resolvedAt: timestamp("resolved_at", { fsp: 3 }),  // 解决时间
+  createdAt: timestamp("created_at", { fsp: 3 }).defaultNow().notNull(),  // 创建时间
+}, (table) => [
+  index("idx_ael_ai").on(table.alertId),
+  index("idx_ael_ri").on(table.ruleId),
+  index("idx_ael_dc").on(table.deviceCode)
+]);
+
+export type AlertEventLog = typeof alertEventLog.$inferSelect;
+export type InsertAlertEventLog = typeof alertEventLog.$inferInsert;
+export const deviceDailySummary = mysqlTable("device_daily_summary", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),  // 主键
+  deviceCode: varchar("device_code", { length: 64 }).notNull(),  // 设备编码
+  summaryDate: date("summary_date").notNull(),  // 统计日期
+  onlineHours: double("online_hours"),  // 在线时长(小时)
+  alertCount: int("alert_count").notNull(),  // 告警次数
+  dataPoints: bigint("data_points", { mode: "number" }).notNull(),  // 数据点数
+  avgCpuUsage: double("avg_cpu_usage"),  // 平均CPU使用率
+  avgMemoryUsage: double("avg_memory_usage"),  // 平均内存使用率
+  maxTemperature: double("max_temperature"),  // 最高温度
+  createdAt: timestamp("created_at", { fsp: 3 }).defaultNow().notNull(),  // 创建时间
+}, (table) => [
+  index("idx_dds_dc").on(table.deviceCode)
+]);
+
+export type DeviceDailySummary = typeof deviceDailySummary.$inferSelect;
+export type InsertDeviceDailySummary = typeof deviceDailySummary.$inferInsert;
+export const deviceFirmwareVersions = mysqlTable("device_firmware_versions", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),  // 主键
+  deviceType: varchar("device_type", { length: 64 }).notNull(),  // 设备类型
+  firmwareVersion: varchar("firmware_version", { length: 64 }).notNull(),  // 固件版本号
+  releaseNotes: text("release_notes"),  // 发布说明
+  fileUrl: varchar("file_url", { length: 500 }).notNull(),  // 固件文件URL
+  fileHash: varchar("file_hash", { length: 128 }).notNull(),  // 文件哈希
+  fileSize: bigint("file_size", { mode: "number" }).notNull(),  // 文件大小(字节)
+  isMandatory: tinyint("is_mandatory").notNull(),  // 是否强制升级
+  status: varchar("status", { length: 64 }).notNull().default('active'),  // 状态(draft/released/deprecated)
+  releasedAt: timestamp("released_at", { fsp: 3 }),  // 发布时间
+  createdAt: timestamp("created_at", { fsp: 3 }).defaultNow().notNull(),  // 创建时间
+}, (table) => [
+  index("idx_dfv_dt").on(table.deviceType),
+  index("idx_dfv_s").on(table.status)
+]);
+
+export type DeviceFirmwareVersions = typeof deviceFirmwareVersions.$inferSelect;
+export type InsertDeviceFirmwareVersions = typeof deviceFirmwareVersions.$inferInsert;
+export const deviceMaintenanceLogs = mysqlTable("device_maintenance_logs", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),  // 主键
+  deviceCode: varchar("device_code", { length: 64 }).notNull(),  // 设备编码
+  maintenanceType: varchar("maintenance_type", { length: 64 }).notNull(),  // 维护类型(preventive/corrective/predictive)
+  title: varchar("title", { length: 200 }).notNull(),  // 维护标题
+  description: text("description"),  // 维护描述
+  operator: varchar("operator", { length: 128 }).notNull(),  // 操作人
+  startedAt: timestamp("started_at", { fsp: 3 }).notNull(),  // 开始时间
+  completedAt: timestamp("completed_at", { fsp: 3 }),  // 完成时间
+  result: varchar("result", { length: 128 }),  // 维护结果(success/partial/failed)
+  cost: double("cost"),  // 维护成本
+  partsReplaced: json("parts_replaced"),  // 更换部件JSON
+  attachments: json("attachments"),  // 附件列表
+  nextMaintenanceDate: date("next_maintenance_date"),  // 下次维护日期
+  createdAt: timestamp("created_at", { fsp: 3 }).defaultNow().notNull(),  // 创建时间
+}, (table) => [
+  index("idx_dml_dc").on(table.deviceCode),
+  index("idx_dml_mt").on(table.maintenanceType)
+]);
+
+export type DeviceMaintenanceLogs = typeof deviceMaintenanceLogs.$inferSelect;
+export type InsertDeviceMaintenanceLogs = typeof deviceMaintenanceLogs.$inferInsert;
+export const deviceStatusLog = mysqlTable("device_status_log", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),  // 主键
+  deviceCode: varchar("device_code", { length: 64 }).notNull(),  // 设备编码
+  previousStatus: varchar("previous_status", { length: 64 }),  // 原状态
+  currentStatus: varchar("current_status", { length: 64 }).notNull(),  // 新状态
+  reason: varchar("reason", { length: 128 }),  // 变更原因
+  triggeredBy: varchar("triggered_by", { length: 64 }),  // 触发方式(auto/manual/alert)
+  metadata: json("metadata"),  // 附加元数据
+  createdAt: timestamp("created_at", { fsp: 3 }).defaultNow().notNull(),  // 创建时间
+}, (table) => [
+  index("idx_dsl_dc").on(table.deviceCode)
+]);
+
+export type DeviceStatusLog = typeof deviceStatusLog.$inferSelect;
+export type InsertDeviceStatusLog = typeof deviceStatusLog.$inferInsert;
+export const anomalyModels = mysqlTable("anomaly_models", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),  // 主键
+  modelCode: varchar("model_code", { length: 64 }).notNull(),  // 模型编码
+  modelName: varchar("model_name", { length: 200 }).notNull(),  // 模型名称
+  modelType: varchar("model_type", { length: 64 }).notNull(),  // 模型类型(isolation_forest/lstm/autoencoder)
+  targetMetric: varchar("target_metric", { length: 128 }).notNull(),  // 目标指标
+  hyperparams: json("hyperparams"),  // 超参数JSON
+  trainingDataRange: json("training_data_range"),  // 训练数据范围
+  accuracy: double("accuracy"),  // 准确率
+  modelFileUrl: varchar("model_file_url", { length: 500 }),  // 模型文件URL
+  status: varchar("status", { length: 64 }).notNull().default('active'),  // 状态(draft/training/deployed/archived)
+  deployedAt: timestamp("deployed_at", { fsp: 3 }),  // 部署时间
+  createdAt: timestamp("created_at", { fsp: 3 }).defaultNow().notNull(),  // 创建时间
+  updatedAt: timestamp("updated_at", { fsp: 3 }).defaultNow().notNull(),  // 更新时间
+}, (table) => [
+  index("idx_am_mc").on(table.modelCode),
+  index("idx_am_mt").on(table.modelType),
+  index("idx_am_s").on(table.status)
+]);
+
+export type AnomalyModels = typeof anomalyModels.$inferSelect;
+export type InsertAnomalyModels = typeof anomalyModels.$inferInsert;
+export const diagnosisResults = mysqlTable("diagnosis_results", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),  // 主键
+  taskId: bigint("task_id", { mode: "number" }).notNull(),  // 诊断任务ID
+  deviceCode: varchar("device_code", { length: 64 }).notNull(),  // 设备编码
+  diagnosisType: varchar("diagnosis_type", { length: 64 }).notNull(),  // 诊断类型
+  severity: varchar("severity", { length: 128 }).notNull(),  // 严重程度
+  faultCode: varchar("fault_code", { length: 64 }),  // 故障代码
+  faultDescription: text("fault_description"),  // 故障描述
+  confidence: double("confidence"),  // 置信度
+  evidence: json("evidence"),  // 证据数据JSON
+  recommendation: text("recommendation"),  // 处理建议
+  resolved: tinyint("resolved").notNull().default(0),  // 是否已处理
+  resolvedAt: timestamp("resolved_at", { fsp: 3 }),  // 处理时间
+  createdAt: timestamp("created_at", { fsp: 3 }).defaultNow().notNull(),  // 创建时间
+}, (table) => [
+  index("idx_dr_ti").on(table.taskId),
+  index("idx_dr_dc").on(table.deviceCode),
+  index("idx_dr_dt").on(table.diagnosisType)
+]);
+
+export type DiagnosisResults = typeof diagnosisResults.$inferSelect;
+export type InsertDiagnosisResults = typeof diagnosisResults.$inferInsert;
+export const dataCleanResults = mysqlTable("data_clean_results", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),  // 主键
+  taskId: bigint("task_id", { mode: "number" }).notNull(),  // 清洗任务ID
+  sourceTable: varchar("source_table", { length: 128 }).notNull(),  // 源表名
+  sourceRowId: bigint("source_row_id", { mode: "number" }).notNull(),  // 源行ID
+  fieldName: varchar("field_name", { length: 200 }).notNull(),  // 字段名
+  originalValue: text("original_value"),  // 原始值
+  cleanedValue: text("cleaned_value"),  // 清洗后值
+  ruleApplied: varchar("rule_applied", { length: 128 }),  // 应用规则
+  status: varchar("status", { length: 64 }).notNull().default('active'),  // 状态
+  createdAt: timestamp("created_at", { fsp: 3 }).defaultNow().notNull(),  // 创建时间
+}, (table) => [
+  index("idx_dcr_ti").on(table.taskId),
+  index("idx_dcr_sri").on(table.sourceRowId),
+  index("idx_dcr_s").on(table.status)
+]);
+
+export type DataCleanResults = typeof dataCleanResults.$inferSelect;
+export type InsertDataCleanResults = typeof dataCleanResults.$inferInsert;
 export const edgeGatewayConfig = mysqlTable("edge_gateway_config", {
   id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),  // 主键
   gatewayCode: varchar("gateway_code", { length: 64 }).notNull(),  // 网关编码
@@ -2202,10 +2120,9 @@ export const edgeGatewayConfig = mysqlTable("edge_gateway_config", {
   index("idx_egc_gt").on(table.gatewayType),
   index("idx_egc_s").on(table.status)
 ]);
+
 export type EdgeGatewayConfig = typeof edgeGatewayConfig.$inferSelect;
 export type InsertEdgeGatewayConfig = typeof edgeGatewayConfig.$inferInsert;
-
-// ── AI知识域 - 知识库 ──────────────────────────────
 export const kbChunks = mysqlTable("kb_chunks", {
   id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),  // 主键
   documentId: bigint("document_id", { mode: "number" }).notNull(),  // 所属文档ID
@@ -2219,6 +2136,7 @@ export const kbChunks = mysqlTable("kb_chunks", {
   index("idx_kc_di").on(table.documentId),
   index("idx_kc_ei").on(table.embeddingId)
 ]);
+
 export type KbChunks = typeof kbChunks.$inferSelect;
 export type InsertKbChunks = typeof kbChunks.$inferInsert;
 export const kbConversationMessages = mysqlTable("kb_conversation_messages", {
@@ -2233,6 +2151,7 @@ export const kbConversationMessages = mysqlTable("kb_conversation_messages", {
 }, (table) => [
   index("idx_kcm_ci").on(table.conversationId)
 ]);
+
 export type KbConversationMessages = typeof kbConversationMessages.$inferSelect;
 export type InsertKbConversationMessages = typeof kbConversationMessages.$inferInsert;
 export const kbConversations = mysqlTable("kb_conversations", {
@@ -2248,6 +2167,7 @@ export const kbConversations = mysqlTable("kb_conversations", {
   index("idx_kconv_ci").on(table.collectionId),
   index("idx_kconv_ui").on(table.userId)
 ]);
+
 export type KbConversations = typeof kbConversations.$inferSelect;
 export type InsertKbConversations = typeof kbConversations.$inferInsert;
 export const kbEmbeddings = mysqlTable("kb_embeddings", {
@@ -2261,6 +2181,7 @@ export const kbEmbeddings = mysqlTable("kb_embeddings", {
 }, (table) => [
   index("idx_ke_ci").on(table.chunkId)
 ]);
+
 export type KbEmbeddings = typeof kbEmbeddings.$inferSelect;
 export type InsertKbEmbeddings = typeof kbEmbeddings.$inferInsert;
 export const kbQaPairs = mysqlTable("kb_qa_pairs", {
@@ -2278,10 +2199,9 @@ export const kbQaPairs = mysqlTable("kb_qa_pairs", {
   index("idx_kqp_ci").on(table.collectionId),
   index("idx_kqp_sdi").on(table.sourceDocumentId)
 ]);
+
 export type KbQaPairs = typeof kbQaPairs.$inferSelect;
 export type InsertKbQaPairs = typeof kbQaPairs.$inferInsert;
-
-// ── AI知识域 - 模型中心 ──────────────────────────────
 export const modelDeployments = mysqlTable("model_deployments", {
   id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),  // 主键
   modelId: bigint("model_id", { mode: "number" }).notNull(),  // 模型ID
@@ -2298,6 +2218,7 @@ export const modelDeployments = mysqlTable("model_deployments", {
   index("idx_md_gt").on(table.gpuType),
   index("idx_md_s").on(table.status)
 ]);
+
 export type ModelDeployments = typeof modelDeployments.$inferSelect;
 export type InsertModelDeployments = typeof modelDeployments.$inferInsert;
 export const modelInferenceLogs = mysqlTable("model_inference_logs", {
@@ -2315,6 +2236,7 @@ export const modelInferenceLogs = mysqlTable("model_inference_logs", {
   index("idx_mil_ri").on(table.requestId),
   index("idx_mil_s").on(table.status)
 ]);
+
 export type ModelInferenceLogs = typeof modelInferenceLogs.$inferSelect;
 export type InsertModelInferenceLogs = typeof modelInferenceLogs.$inferInsert;
 export const modelRegistry = mysqlTable("model_registry", {
@@ -2337,6 +2259,7 @@ export const modelRegistry = mysqlTable("model_registry", {
   index("idx_mr_mt").on(table.modelType),
   index("idx_mr_s").on(table.status)
 ]);
+
 export type ModelRegistry = typeof modelRegistry.$inferSelect;
 export type InsertModelRegistry = typeof modelRegistry.$inferInsert;
 export const modelTrainingJobs = mysqlTable("model_training_jobs", {
@@ -2358,24 +2281,9 @@ export const modelTrainingJobs = mysqlTable("model_training_jobs", {
   index("idx_mtj_gt").on(table.gpuType),
   index("idx_mtj_s").on(table.status)
 ]);
+
 export type ModelTrainingJobs = typeof modelTrainingJobs.$inferSelect;
 export type InsertModelTrainingJobs = typeof modelTrainingJobs.$inferInsert;
-
-// ── 消息与任务域 ──────────────────────────────
-export const messageRoutingConfig = mysqlTable("message_routing_config", {
-  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),  // 主键
-  routeName: varchar("route_name", { length: 200 }).notNull(),  // 路由名称
-  sourceTopic: varchar("source_topic", { length: 128 }).notNull(),  // 源主题
-  targetTopic: varchar("target_topic", { length: 128 }).notNull(),  // 目标主题
-  filterExpr: text("filter_expr"),  // 过滤表达式
-  transformScript: text("transform_script"),  // 转换脚本
-  priority: int("priority").notNull(),  // 优先级
-  isEnabled: tinyint("is_enabled").notNull(),  // 是否启用
-  createdAt: timestamp("created_at", { fsp: 3 }).defaultNow().notNull(),  // 创建时间
-  updatedAt: timestamp("updated_at", { fsp: 3 }).defaultNow().notNull(),  // 更新时间
-});
-export type MessageRoutingConfig = typeof messageRoutingConfig.$inferSelect;
-export type InsertMessageRoutingConfig = typeof messageRoutingConfig.$inferInsert;
 export const minioFileMetadata = mysqlTable("minio_file_metadata", {
   id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),  // 主键
   bucket: varchar("bucket", { length: 128 }).notNull(),  // 存储桶
@@ -2391,6 +2299,7 @@ export const minioFileMetadata = mysqlTable("minio_file_metadata", {
 }, (table) => [
   index("idx_mfm_ct").on(table.contentType)
 ]);
+
 export type MinioFileMetadata = typeof minioFileMetadata.$inferSelect;
 export type InsertMinioFileMetadata = typeof minioFileMetadata.$inferInsert;
 export const minioUploadLogs = mysqlTable("minio_upload_logs", {
@@ -2406,10 +2315,9 @@ export const minioUploadLogs = mysqlTable("minio_upload_logs", {
 }, (table) => [
   index("idx_mul_s").on(table.status)
 ]);
+
 export type MinioUploadLogs = typeof minioUploadLogs.$inferSelect;
 export type InsertMinioUploadLogs = typeof minioUploadLogs.$inferInsert;
-
-// ── 实时遥测域 ──────────────────────────────
 export const realtimeDataLatest = mysqlTable("realtime_data_latest", {
   id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),  // 主键
   deviceCode: varchar("device_code", { length: 64 }).notNull(),  // 设备编码
@@ -2424,6 +2332,7 @@ export const realtimeDataLatest = mysqlTable("realtime_data_latest", {
   index("idx_rdl_dc").on(table.deviceCode),
   index("idx_rdl_mc").on(table.mpCode)
 ]);
+
 export type RealtimeDataLatest = typeof realtimeDataLatest.$inferSelect;
 export type InsertRealtimeDataLatest = typeof realtimeDataLatest.$inferInsert;
 export const vibration1hourAgg = mysqlTable("vibration_1hour_agg", {
@@ -2442,10 +2351,9 @@ export const vibration1hourAgg = mysqlTable("vibration_1hour_agg", {
   index("idx_v1a_dc").on(table.deviceCode),
   index("idx_v1a_mc").on(table.mpCode)
 ]);
+
 export type Vibration1hourAgg = typeof vibration1hourAgg.$inferSelect;
 export type InsertVibration1hourAgg = typeof vibration1hourAgg.$inferInsert;
-
-// ── 系统拓扑域 ──────────────────────────────
 export const topoAlerts = mysqlTable("topo_alerts", {
   id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),  // 主键
   nodeId: varchar("node_id", { length: 128 }).notNull(),  // 节点ID
@@ -2459,6 +2367,7 @@ export const topoAlerts = mysqlTable("topo_alerts", {
   index("idx_ta_ni").on(table.nodeId),
   index("idx_ta_at").on(table.alertType)
 ]);
+
 export type TopoAlerts = typeof topoAlerts.$inferSelect;
 export type InsertTopoAlerts = typeof topoAlerts.$inferInsert;
 export const topoLayers = mysqlTable("topo_layers", {
@@ -2472,6 +2381,7 @@ export const topoLayers = mysqlTable("topo_layers", {
 }, (table) => [
   index("idx_tl_lc").on(table.layerCode)
 ]);
+
 export type TopoLayers = typeof topoLayers.$inferSelect;
 export type InsertTopoLayers = typeof topoLayers.$inferInsert;
 export const topoSnapshots = mysqlTable("topo_snapshots", {
@@ -2483,5 +2393,180 @@ export const topoSnapshots = mysqlTable("topo_snapshots", {
   createdBy: varchar("created_by", { length: 64 }),  // 创建人
   createdAt: timestamp("created_at", { fsp: 3 }).defaultNow().notNull(),  // 创建时间
 });
+
 export type TopoSnapshots = typeof topoSnapshots.$inferSelect;
 export type InsertTopoSnapshots = typeof topoSnapshots.$inferInsert;
+
+// ===== 事件溯源/Saga 基础设施表（旧服务兼容） =====
+export const outboxEvents = mysqlTable("outbox_events", {
+  id: int("id").autoincrement().primaryKey(),
+  eventId: varchar("event_id", { length: 64 }).notNull().unique(),
+  eventType: varchar("event_type", { length: 100 }).notNull(),
+  aggregateType: varchar("aggregate_type", { length: 100 }).notNull(),
+  aggregateId: varchar("aggregate_id", { length: 64 }).notNull(),
+  payload: json("payload").$type<Record<string, unknown>>().notNull(),
+  metadata: json("metadata").$type<{
+    correlationId?: string;
+    causationId?: string;
+    userId?: string;
+    source?: string;
+  }>(),
+  status: mysqlEnum("status", ["pending", "processing", "published", "failed"]).default("pending").notNull(),
+  retryCount: int("retry_count").default(0).notNull(),
+  maxRetries: int("max_retries").default(3).notNull(),
+  lastError: text("last_error"),
+  publishedAt: timestamp("published_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+
+export const outboxRoutingConfig = mysqlTable("outbox_routing_config", {
+  id: int("id").autoincrement().primaryKey(),
+  eventType: varchar("event_type", { length: 100 }).notNull().unique(),
+  publishMode: mysqlEnum("publish_mode", ["cdc", "polling"]).default("cdc").notNull(),
+  cdcEnabled: boolean("cdc_enabled").default(true).notNull(),
+  pollingIntervalMs: int("polling_interval_ms"),
+  pollingBatchSize: int("polling_batch_size"),
+  requiresProcessing: boolean("requires_processing").default(false).notNull(),
+  processorClass: varchar("processor_class", { length: 200 }),
+  description: text("description"),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+
+export type OutboxRoutingConfig = typeof outboxRoutingConfig.$inferSelect;
+export type InsertOutboxRoutingConfig = typeof outboxRoutingConfig.$inferInsert;
+export const sagaInstances = mysqlTable("saga_instances", {
+  id: int("id").autoincrement().primaryKey(),
+  sagaId: varchar("saga_id", { length: 64 }).notNull().unique(),
+  sagaType: varchar("saga_type", { length: 100 }).notNull(),
+  status: mysqlEnum("status", ["running", "completed", "failed", "compensating", "compensated", "partial"]).default("running").notNull(),
+  currentStep: int("current_step").default(0).notNull(),
+  totalSteps: int("total_steps").notNull(),
+  input: json("input").$type<Record<string, unknown>>(),
+  output: json("output").$type<Record<string, unknown>>(),
+  checkpoint: json("checkpoint").$type<{
+    processed: string[];
+    failed: Array<{ item: string; error: string }>;
+    lastCompletedStep: number;
+  }>(),
+  error: text("error"),
+  startedAt: timestamp("started_at").defaultNow().notNull(),
+  completedAt: timestamp("completed_at"),
+  timeoutAt: timestamp("timeout_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+
+export const sagaSteps = mysqlTable("saga_steps", {
+  id: int("id").autoincrement().primaryKey(),
+  stepId: varchar("step_id", { length: 64 }).notNull().unique(),
+  sagaId: varchar("saga_id", { length: 64 }).notNull(),
+  stepIndex: int("step_index").notNull(),
+  stepName: varchar("step_name", { length: 100 }).notNull(),
+  stepType: mysqlEnum("step_type", ["action", "compensation"]).default("action").notNull(),
+  status: mysqlEnum("status", ["pending", "running", "completed", "failed", "skipped", "compensated"]).default("pending").notNull(),
+  input: json("input").$type<Record<string, unknown>>(),
+  output: json("output").$type<Record<string, unknown>>(),
+  error: text("error"),
+  retryCount: int("retry_count").default(0).notNull(),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+
+export const sagaDeadLetters = mysqlTable("saga_dead_letters", {
+  id: int("id").autoincrement().primaryKey(),
+  deadLetterId: varchar("dead_letter_id", { length: 64 }).notNull().unique(),
+  sagaId: varchar("saga_id", { length: 64 }).notNull(),
+  sagaType: varchar("saga_type", { length: 100 }).notNull(),
+  failureReason: text("failure_reason").notNull(),
+  failureType: mysqlEnum("failure_type", ["timeout", "max_retries", "compensation_failed", "unknown"]).notNull(),
+  originalInput: json("original_input").$type<Record<string, unknown>>(),
+  lastCheckpoint: json("last_checkpoint").$type<Record<string, unknown>>(),
+  retryable: boolean("retryable").default(true).notNull(),
+  retryCount: int("retry_count").default(0).notNull(),
+  lastRetryAt: timestamp("last_retry_at"),
+  resolvedAt: timestamp("resolved_at"),
+  resolvedBy: varchar("resolved_by", { length: 100 }),
+  resolution: text("resolution"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+
+export const processedEvents = mysqlTable("processed_events", {
+  id: int("id").autoincrement().primaryKey(),
+  eventId: varchar("event_id", { length: 64 }).notNull().unique(),
+  eventType: varchar("event_type", { length: 100 }).notNull(),
+  consumerGroup: varchar("consumer_group", { length: 100 }).notNull(),
+  processedAt: timestamp("processed_at").defaultNow().notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  metadata: json("metadata").$type<{
+    partition?: number;
+    offset?: string;
+    processingTimeMs?: number;
+  }>(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const rollbackExecutions = mysqlTable("rollback_executions", {
+  id: int("id").autoincrement().primaryKey(),
+  executionId: varchar("execution_id", { length: 64 }).notNull().unique(),
+  sagaId: varchar("saga_id", { length: 64 }),
+  triggerId: varchar("trigger_id", { length: 64 }).notNull(),
+  targetType: mysqlEnum("target_type", ["rule", "model", "config", "firmware"]).notNull(),
+  targetId: varchar("target_id", { length: 64 }).notNull(),
+  fromVersion: varchar("from_version", { length: 50 }).notNull(),
+  toVersion: varchar("to_version", { length: 50 }).notNull(),
+  triggerReason: text("trigger_reason"),
+  status: mysqlEnum("status", ["pending", "executing", "completed", "failed", "partial", "cancelled"]).default("pending").notNull(),
+  totalDevices: int("total_devices"),
+  completedDevices: int("completed_devices").default(0),
+  failedDevices: int("failed_devices").default(0),
+  checkpoint: json("checkpoint").$type<{
+    processed: string[];
+    failed: Array<{ device: string; error: string }>;
+  }>(),
+  result: json("result").$type<{
+    total: number;
+    succeeded: number;
+    failed: number;
+    details?: Array<{ deviceId: string; status: string; error?: string }>;
+  }>(),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+
+export const eventStore = mysqlTable("event_store", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  eventId: varchar("event_id", { length: 64 }).notNull().unique(),
+  eventType: varchar("event_type", { length: 100 }).notNull(),
+  eventVersion: smallint("event_version").default(1).notNull(),
+  aggregateType: varchar("aggregate_type", { length: 50 }).notNull(),
+  aggregateId: varchar("aggregate_id", { length: 100 }).notNull(),
+  aggregateVersion: bigint("aggregate_version", { mode: "number" }).notNull(),
+  payload: json("payload").notNull(),
+  metadata: json("metadata"),
+  causationId: varchar("causation_id", { length: 64 }),
+  correlationId: varchar("correlation_id", { length: 64 }),
+  occurredAt: datetime("occurred_at", { fsp: 3 }).notNull(),
+  recordedAt: datetime("recorded_at", { fsp: 3 }).notNull(),
+  actorId: varchar("actor_id", { length: 64 }),
+  actorType: varchar("actor_type", { length: 20 }),
+});
+
+export type EventStoreEntry = typeof eventStore.$inferSelect;
+export type InsertEventStoreEntry = typeof eventStore.$inferInsert;
+export const eventSnapshots = mysqlTable("event_snapshots", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  aggregateType: varchar("aggregate_type", { length: 50 }).notNull(),
+  aggregateId: varchar("aggregate_id", { length: 100 }).notNull(),
+  aggregateVersion: bigint("aggregate_version", { mode: "number" }).notNull(),
+  state: json("state").notNull(),
+  createdAt: datetime("created_at", { fsp: 3 }).notNull(),
+});
+

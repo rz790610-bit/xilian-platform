@@ -132,7 +132,9 @@ export const navigationConfig: NavItem[] = [
     icon: '⚙️',
     children: [
       { id: 'config-infrastructure', label: '基础设施', icon: '🏛️', path: '/settings/config/infrastructure' },
-      { id: 'config-kafka', label: 'Kafka 监控', icon: '📡', path: '/settings/config/kafka' }
+      { id: 'config-kafka', label: 'Kafka 监控', icon: '📡', path: '/settings/config/kafka' },
+      { id: 'config-alert-rules', label: '告警规则', icon: '🔔', path: '/platform/alert-rules' },
+      { id: 'config-scheduled-tasks', label: '定时任务', icon: '⏰', path: '/platform/scheduled-tasks' }
     ]
   },
   {
@@ -142,7 +144,9 @@ export const navigationConfig: NavItem[] = [
     children: [
       { id: 'status-topology', label: '系统拓扑', icon: '📊', path: '/settings/status/topology' },
       { id: 'status-observability', label: '可观测性', icon: '👁️', path: '/settings/status/observability' },
-      { id: 'status-performance', label: '性能总览', icon: '🚀', path: '/settings/status/performance' }
+      { id: 'status-performance', label: '性能总览', icon: '🚀', path: '/settings/status/performance' },
+      { id: 'status-plugins', label: '插件管理', icon: '🧩', path: '/operations/plugins' },
+      { id: 'status-clickhouse', label: 'ClickHouse 监控', icon: '📊', path: '/monitoring/clickhouse' }
     ]
   },
   {
@@ -151,7 +155,33 @@ export const navigationConfig: NavItem[] = [
     icon: '🛡️',
     children: [
       { id: 'security-ops-dashboard', label: '运维概览', icon: '🛠️', path: '/settings/security/ops' },
-      { id: 'security-falco', label: '安全中心', icon: '🔍', path: '/settings/security/falco' }
+      { id: 'security-falco', label: '安全中心', icon: '🔍', path: '/settings/security/falco' },
+      { id: 'security-audit-logs', label: '审计日志', icon: '📋', path: '/platform/audit-logs' },
+      { id: 'security-data-permissions', label: '数据权限', icon: '🔒', path: '/business/data-permissions' },
+      { id: 'security-approval-workflows', label: '审批流程', icon: '✅', path: '/business/approval-workflows' }
+    ]
+  },
+  // ━━━ 运维中心 ━━━
+  {
+    id: 'ops-center',
+    label: '运维中心',
+    icon: '🔧',
+    section: '运维中心',
+    children: [
+      { id: 'ops-rule-versions', label: '规则版本', icon: '📌', path: '/operations/rule-versions' },
+      { id: 'ops-data-export', label: '数据导出', icon: '📤', path: '/operations/data-export' },
+      { id: 'ops-rollback-triggers', label: '回滚触发器', icon: '↩️', path: '/operations/rollback-triggers' }
+    ]
+  },
+  // ━━━ 业务应用 ━━━
+  {
+    id: 'business-apps',
+    label: '业务应用',
+    icon: '📊',
+    section: '业务应用',
+    children: [
+      { id: 'business-knowledge-graph', label: '知识图谱', icon: '🕸️', path: '/business/knowledge-graph' },
+      { id: 'business-synthetic-datasets', label: '合成数据集', icon: '🧪', path: '/business/synthetic-datasets' }
     ]
   }
 ];

@@ -1,253 +1,11 @@
+/**
+ * V4.0 asset-management 域表定义
+ * 表数量: 4
+ */
 import type { TableRegistryEntry } from "../types";
 
 export const ASSET_MANAGEMENT_TABLES: TableRegistryEntry[] = [
-  {
-    "tableName": "asset_measurement_points",
-    "tableComment": "测点实例",
-    "displayName": "测量点",
-    "description": "测量点管理",
-    "domain": "asset-management",
-    "icon": "Building2",
-    "engine": "InnoDB",
-    "charset": "utf8mb4",
-    "collate": "utf8mb4_unicode_ci",
-    "fields": [
-      {
-        "name": "id",
-        "type": "BIGINT",
-        "length": "",
-        "nullable": false,
-        "primaryKey": true,
-        "autoIncrement": true,
-        "unique": false,
-        "defaultVal": "",
-        "comment": ""
-      },
-      {
-        "name": "mp_id",
-        "type": "VARCHAR",
-        "length": "64",
-        "nullable": false,
-        "primaryKey": false,
-        "autoIncrement": false,
-        "unique": true,
-        "defaultVal": "",
-        "comment": "测点 ID"
-      },
-      {
-        "name": "node_id",
-        "type": "VARCHAR",
-        "length": "64",
-        "nullable": false,
-        "primaryKey": false,
-        "autoIncrement": false,
-        "unique": false,
-        "defaultVal": "",
-        "comment": "挂载节点"
-      },
-      {
-        "name": "device_code",
-        "type": "VARCHAR",
-        "length": "100",
-        "nullable": false,
-        "primaryKey": false,
-        "autoIncrement": false,
-        "unique": false,
-        "defaultVal": "",
-        "comment": "设备编码(冗余加速)"
-      },
-      {
-        "name": "template_code",
-        "type": "VARCHAR",
-        "length": "64",
-        "nullable": true,
-        "primaryKey": false,
-        "autoIncrement": false,
-        "unique": false,
-        "defaultVal": "",
-        "comment": "模板编码"
-      },
-      {
-        "name": "name",
-        "type": "VARCHAR",
-        "length": "100",
-        "nullable": false,
-        "primaryKey": false,
-        "autoIncrement": false,
-        "unique": false,
-        "defaultVal": "",
-        "comment": ""
-      },
-      {
-        "name": "position",
-        "type": "VARCHAR",
-        "length": "100",
-        "nullable": true,
-        "primaryKey": false,
-        "autoIncrement": false,
-        "unique": false,
-        "defaultVal": "",
-        "comment": "位置描述"
-      },
-      {
-        "name": "measurement_type",
-        "type": "VARCHAR",
-        "length": "30",
-        "nullable": false,
-        "primaryKey": false,
-        "autoIncrement": false,
-        "unique": false,
-        "defaultVal": "",
-        "comment": ""
-      },
-      {
-        "name": "warning_threshold",
-        "type": "DOUBLE",
-        "length": "",
-        "nullable": true,
-        "primaryKey": false,
-        "autoIncrement": false,
-        "unique": false,
-        "defaultVal": "",
-        "comment": ""
-      },
-      {
-        "name": "critical_threshold",
-        "type": "DOUBLE",
-        "length": "",
-        "nullable": true,
-        "primaryKey": false,
-        "autoIncrement": false,
-        "unique": false,
-        "defaultVal": "",
-        "comment": ""
-      },
-      {
-        "name": "threshold_config",
-        "type": "JSON",
-        "length": "",
-        "nullable": true,
-        "primaryKey": false,
-        "autoIncrement": false,
-        "unique": false,
-        "defaultVal": "",
-        "comment": ""
-      },
-      {
-        "name": "is_active",
-        "type": "TINYINT",
-        "length": "1",
-        "nullable": false,
-        "primaryKey": false,
-        "autoIncrement": false,
-        "unique": false,
-        "defaultVal": "1",
-        "comment": ""
-      },
-      {
-        "name": "version",
-        "type": "INT",
-        "length": "",
-        "nullable": false,
-        "primaryKey": false,
-        "autoIncrement": false,
-        "unique": false,
-        "defaultVal": "1",
-        "comment": ""
-      },
-      {
-        "name": "created_by",
-        "type": "VARCHAR",
-        "length": "64",
-        "nullable": true,
-        "primaryKey": false,
-        "autoIncrement": false,
-        "unique": false,
-        "defaultVal": "",
-        "comment": ""
-      },
-      {
-        "name": "created_at",
-        "type": "DATETIME",
-        "length": "3",
-        "nullable": false,
-        "primaryKey": false,
-        "autoIncrement": false,
-        "unique": false,
-        "defaultVal": "CURRENT_TIMESTAMP(3)",
-        "comment": ""
-      },
-      {
-        "name": "updated_by",
-        "type": "VARCHAR",
-        "length": "64",
-        "nullable": true,
-        "primaryKey": false,
-        "autoIncrement": false,
-        "unique": false,
-        "defaultVal": "",
-        "comment": ""
-      },
-      {
-        "name": "updated_at",
-        "type": "DATETIME",
-        "length": "3",
-        "nullable": false,
-        "primaryKey": false,
-        "autoIncrement": false,
-        "unique": false,
-        "defaultVal": "CURRENT_TIMESTAMP(3)",
-        "comment": ""
-      },
-      {
-        "name": "is_deleted",
-        "type": "TINYINT",
-        "length": "1",
-        "nullable": false,
-        "primaryKey": false,
-        "autoIncrement": false,
-        "unique": false,
-        "defaultVal": "0",
-        "comment": ""
-      }
-    ],
-    "columns": [
-      {
-        "name": "id",
-        "type": "BIGINT UNSIGNED",
-        "pk": true
-      },
-      {
-        "name": "mp_id",
-        "type": "VARCHAR(64)"
-      },
-      {
-        "name": "node_id",
-        "type": "VARCHAR(64)"
-      },
-      {
-        "name": "device_code",
-        "type": "VARCHAR(100)"
-      },
-      {
-        "name": "template_code",
-        "type": "VARCHAR(64)"
-      },
-      {
-        "name": "name",
-        "type": "VARCHAR(100)"
-      },
-      {
-        "name": "position",
-        "type": "VARCHAR(100)"
-      },
-      {
-        "name": "measurement_type",
-        "type": "VARCHAR(30)"
-      }
-    ]
-  },
-  {
+{
     "tableName": "asset_nodes",
     "tableComment": "资产节点",
     "displayName": "资产节点",
@@ -669,7 +427,253 @@ export const ASSET_MANAGEMENT_TABLES: TableRegistryEntry[] = [
       }
     ]
   },
-  {
+{
+    "tableName": "asset_measurement_points",
+    "tableComment": "测点实例",
+    "displayName": "测量点",
+    "description": "测量点管理",
+    "domain": "asset-management",
+    "icon": "Building2",
+    "engine": "InnoDB",
+    "charset": "utf8mb4",
+    "collate": "utf8mb4_unicode_ci",
+    "fields": [
+      {
+        "name": "id",
+        "type": "BIGINT",
+        "length": "",
+        "nullable": false,
+        "primaryKey": true,
+        "autoIncrement": true,
+        "unique": false,
+        "defaultVal": "",
+        "comment": ""
+      },
+      {
+        "name": "mp_id",
+        "type": "VARCHAR",
+        "length": "64",
+        "nullable": false,
+        "primaryKey": false,
+        "autoIncrement": false,
+        "unique": true,
+        "defaultVal": "",
+        "comment": "测点 ID"
+      },
+      {
+        "name": "node_id",
+        "type": "VARCHAR",
+        "length": "64",
+        "nullable": false,
+        "primaryKey": false,
+        "autoIncrement": false,
+        "unique": false,
+        "defaultVal": "",
+        "comment": "挂载节点"
+      },
+      {
+        "name": "device_code",
+        "type": "VARCHAR",
+        "length": "100",
+        "nullable": false,
+        "primaryKey": false,
+        "autoIncrement": false,
+        "unique": false,
+        "defaultVal": "",
+        "comment": "设备编码(冗余加速)"
+      },
+      {
+        "name": "template_code",
+        "type": "VARCHAR",
+        "length": "64",
+        "nullable": true,
+        "primaryKey": false,
+        "autoIncrement": false,
+        "unique": false,
+        "defaultVal": "",
+        "comment": "模板编码"
+      },
+      {
+        "name": "name",
+        "type": "VARCHAR",
+        "length": "100",
+        "nullable": false,
+        "primaryKey": false,
+        "autoIncrement": false,
+        "unique": false,
+        "defaultVal": "",
+        "comment": ""
+      },
+      {
+        "name": "position",
+        "type": "VARCHAR",
+        "length": "100",
+        "nullable": true,
+        "primaryKey": false,
+        "autoIncrement": false,
+        "unique": false,
+        "defaultVal": "",
+        "comment": "位置描述"
+      },
+      {
+        "name": "measurement_type",
+        "type": "VARCHAR",
+        "length": "30",
+        "nullable": false,
+        "primaryKey": false,
+        "autoIncrement": false,
+        "unique": false,
+        "defaultVal": "",
+        "comment": ""
+      },
+      {
+        "name": "warning_threshold",
+        "type": "DOUBLE",
+        "length": "",
+        "nullable": true,
+        "primaryKey": false,
+        "autoIncrement": false,
+        "unique": false,
+        "defaultVal": "",
+        "comment": ""
+      },
+      {
+        "name": "critical_threshold",
+        "type": "DOUBLE",
+        "length": "",
+        "nullable": true,
+        "primaryKey": false,
+        "autoIncrement": false,
+        "unique": false,
+        "defaultVal": "",
+        "comment": ""
+      },
+      {
+        "name": "threshold_config",
+        "type": "JSON",
+        "length": "",
+        "nullable": true,
+        "primaryKey": false,
+        "autoIncrement": false,
+        "unique": false,
+        "defaultVal": "",
+        "comment": ""
+      },
+      {
+        "name": "is_active",
+        "type": "TINYINT",
+        "length": "1",
+        "nullable": false,
+        "primaryKey": false,
+        "autoIncrement": false,
+        "unique": false,
+        "defaultVal": "1",
+        "comment": ""
+      },
+      {
+        "name": "version",
+        "type": "INT",
+        "length": "",
+        "nullable": false,
+        "primaryKey": false,
+        "autoIncrement": false,
+        "unique": false,
+        "defaultVal": "1",
+        "comment": ""
+      },
+      {
+        "name": "created_by",
+        "type": "VARCHAR",
+        "length": "64",
+        "nullable": true,
+        "primaryKey": false,
+        "autoIncrement": false,
+        "unique": false,
+        "defaultVal": "",
+        "comment": ""
+      },
+      {
+        "name": "created_at",
+        "type": "DATETIME",
+        "length": "3",
+        "nullable": false,
+        "primaryKey": false,
+        "autoIncrement": false,
+        "unique": false,
+        "defaultVal": "CURRENT_TIMESTAMP(3)",
+        "comment": ""
+      },
+      {
+        "name": "updated_by",
+        "type": "VARCHAR",
+        "length": "64",
+        "nullable": true,
+        "primaryKey": false,
+        "autoIncrement": false,
+        "unique": false,
+        "defaultVal": "",
+        "comment": ""
+      },
+      {
+        "name": "updated_at",
+        "type": "DATETIME",
+        "length": "3",
+        "nullable": false,
+        "primaryKey": false,
+        "autoIncrement": false,
+        "unique": false,
+        "defaultVal": "CURRENT_TIMESTAMP(3)",
+        "comment": ""
+      },
+      {
+        "name": "is_deleted",
+        "type": "TINYINT",
+        "length": "1",
+        "nullable": false,
+        "primaryKey": false,
+        "autoIncrement": false,
+        "unique": false,
+        "defaultVal": "0",
+        "comment": ""
+      }
+    ],
+    "columns": [
+      {
+        "name": "id",
+        "type": "BIGINT UNSIGNED",
+        "pk": true
+      },
+      {
+        "name": "mp_id",
+        "type": "VARCHAR(64)"
+      },
+      {
+        "name": "node_id",
+        "type": "VARCHAR(64)"
+      },
+      {
+        "name": "device_code",
+        "type": "VARCHAR(100)"
+      },
+      {
+        "name": "template_code",
+        "type": "VARCHAR(64)"
+      },
+      {
+        "name": "name",
+        "type": "VARCHAR(100)"
+      },
+      {
+        "name": "position",
+        "type": "VARCHAR(100)"
+      },
+      {
+        "name": "measurement_type",
+        "type": "VARCHAR(30)"
+      }
+    ]
+  },
+{
     "tableName": "asset_sensors",
     "tableComment": "传感器实例",
     "displayName": "传感器",
@@ -1091,7 +1095,7 @@ export const ASSET_MANAGEMENT_TABLES: TableRegistryEntry[] = [
       }
     ]
   },
-  {
+{
     "tableName": "sensor_mp_mapping",
     "tableComment": "传感器-测点映射关系",
     "displayName": "传感器测点映射",

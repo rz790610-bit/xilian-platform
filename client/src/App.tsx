@@ -57,6 +57,22 @@ import {
   ERDiagramPage,
   VisualDesignerPage
 } from "./pages/settings/design";
+// V4.0 新增页面 - Platform
+import AlertRules from "./pages/platform/AlertRules";
+import AuditLogs from "./pages/platform/AuditLogs";
+import ScheduledTasks from "./pages/platform/ScheduledTasks";
+// V4.0 新增页面 - Operations
+import RuleVersions from "./pages/operations/RuleVersions";
+import DataExport from "./pages/operations/DataExport";
+import RollbackTriggers from "./pages/operations/RollbackTriggers";
+import PluginManager from "./pages/operations/PluginManager";
+// V4.0 新增页面 - Business
+import KnowledgeGraphPage from "./pages/business/KnowledgeGraphPage";
+import DataPermissions from "./pages/business/DataPermissions";
+import ApprovalWorkflows from "./pages/business/ApprovalWorkflows";
+import SyntheticDatasets from "./pages/business/SyntheticDatasets";
+// V4.0 新增页面 - Monitoring
+import ClickHouseDashboard from "./pages/monitoring/ClickHouseDashboard";
 
 // 平台管理 - 配置中心（精简：移除 ResourcesOverview、DbManagement）
 import {
@@ -184,6 +200,26 @@ function Router() {
       {/* 安全运维 */}
       <Route path="/settings/security/ops" component={OpsDashboard} />
       <Route path="/settings/security/falco" component={FalcoSecurityCenter} />
+
+      {/* V4.0 新增 - Platform 平台底座 */}
+      <Route path="/platform/alert-rules" component={AlertRules} />
+      <Route path="/platform/audit-logs" component={AuditLogs} />
+      <Route path="/platform/scheduled-tasks" component={ScheduledTasks} />
+
+      {/* V4.0 新增 - Operations 运维配置 */}
+      <Route path="/operations/rule-versions" component={RuleVersions} />
+      <Route path="/operations/data-export" component={DataExport} />
+      <Route path="/operations/rollback-triggers" component={RollbackTriggers} />
+      <Route path="/operations/plugins" component={PluginManager} />
+
+      {/* V4.0 新增 - Business 业务应用 */}
+      <Route path="/business/knowledge-graph" component={KnowledgeGraphPage} />
+      <Route path="/business/data-permissions" component={DataPermissions} />
+      <Route path="/business/approval-workflows" component={ApprovalWorkflows} />
+      <Route path="/business/synthetic-datasets" component={SyntheticDatasets} />
+
+      {/* V4.0 新增 - Monitoring 监控大屏 */}
+      <Route path="/monitoring/clickhouse" component={ClickHouseDashboard} />
 
       {/* Settings redirect */}
       <Route path="/settings">
