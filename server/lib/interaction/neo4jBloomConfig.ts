@@ -69,25 +69,6 @@ export interface RelationshipStyleConfig {
   animated?: boolean;
 }
 
-;
-  hierarchical: {
-    direction: 'TB' | 'BT' | 'LR' | 'RL';
-    levelSeparation: number;
-    nodeSpacing: number;
-    treeSpacing: number;
-  };
-  circular: {
-    radius: number;
-    startAngle: number;
-    endAngle: number;
-  };
-  animation: {
-    enabled: boolean;
-    duration: number;
-    easing: 'linear' | 'ease-in' | 'ease-out' | 'ease-in-out';
-  };
-}
-
 export interface InteractionConfig {
   zoom: {
     enabled: boolean;

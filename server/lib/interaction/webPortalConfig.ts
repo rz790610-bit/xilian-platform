@@ -63,29 +63,6 @@ export interface ThemeConfig {
   customColors: Record<string, string>;
 }
 
-;
-  header: {
-    height: number;
-    sticky: boolean;
-    showBreadcrumb: boolean;
-  };
-  footer: {
-    height: number;
-    show: boolean;
-  };
-  content: {
-    maxWidth: number;
-    padding: number;
-  };
-  breakpoints: {
-    sm: number;
-    md: number;
-    lg: number;
-    xl: number;
-    '2xl': number;
-  };
-}
-
 export interface I18nConfig {
   defaultLocale: string;
   supportedLocales: string[];
