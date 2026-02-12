@@ -294,7 +294,7 @@ export default function StorageStatus() {
             <div className="space-y-2">
               <p className="text-xs text-muted-foreground">
                 Docker Engine 已连接，可通过上方卡片中的按钮直接管理各引擎的启停。
-                更多高级管理功能请前往 <span className="text-primary font-medium">设计工具 → 基础设施管理 → 引擎管理</span> 页面。
+                更多高级管理功能请前往 <span className="text-primary font-medium">配置中心 → 基础设施管理 → 引擎管理</span> 页面。
               </p>
             </div>
           </PageCard>
