@@ -58,7 +58,6 @@ export const navigationConfig: NavItem[] = [
       { id: 'db-clean', label: '数据清洗', icon: '🧹', path: '/database/clean' },
       { id: 'db-events', label: '事件溯源', icon: '📜', path: '/database/events' },
       { id: 'db-storage', label: '存储状态', icon: '💾', path: '/database/storage' },
-      { id: 'db-workbench', label: '数据库工作台', icon: '🛠️', path: '/settings/design/workbench' },
     ]
   },
 
