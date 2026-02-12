@@ -200,7 +200,7 @@ class DockerClient {
     return new Promise((resolve, reject) => {
       const options: http.RequestOptions = {
         method,
-        path: `/v1.43${path}`,
+        path: `/v1.46${path}`,
         headers: {
           'Content-Type': 'application/json',
         },
