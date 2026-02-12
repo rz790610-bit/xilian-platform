@@ -117,12 +117,7 @@ export const navigationConfig: NavItem[] = [
     section: '平台管理',
     children: [
       { id: 'design-pipeline', label: 'Pipeline 编排', icon: '🔗', path: '/settings/design/pipeline' },
-      { id: 'design-datastream', label: '数据流监控', icon: '⚡', path: '/settings/design/datastream' },
-      { id: 'design-graph-query', label: '图查询优化', icon: '🗂️', path: '/settings/design/graph-query' },
-      { id: 'design-db-workbench', label: '数据库工作台', icon: '🛠️', path: '/settings/design/workbench' },
-      { id: 'design-schema', label: 'Schema 设计', icon: '📐', path: '/settings/design/database' },
-      { id: 'design-er-diagram', label: 'ER 关系图', icon: '📈', path: '/settings/design/er-diagram' },
-      { id: 'design-visual-designer', label: '可视化设计器', icon: '🎨', path: '/settings/design/visual-designer' }
+      { id: 'design-db-workbench', label: '数据库工作台', icon: '🛠️', path: '/settings/design/workbench' }
     ]
   },
   {
@@ -145,7 +140,9 @@ export const navigationConfig: NavItem[] = [
       { id: 'status-observability', label: '可观测性', icon: '👁️', path: '/settings/status/observability' },
       { id: 'status-performance', label: '性能总览', icon: '🚀', path: '/settings/status/performance' },
       { id: 'status-plugins', label: '插件管理', icon: '🧩', path: '/operations/plugins' },
-      { id: 'status-clickhouse', label: 'ClickHouse 监控', icon: '📊', path: '/monitoring/clickhouse' }
+      { id: 'status-clickhouse', label: 'ClickHouse 监控', icon: '📊', path: '/monitoring/clickhouse' },
+      { id: 'status-datastream', label: '数据流监控', icon: '⚡', path: '/settings/design/datastream' },
+      { id: 'status-graph-query', label: '图查询优化', icon: '🗂️', path: '/settings/design/graph-query' }
     ]
   },
   {

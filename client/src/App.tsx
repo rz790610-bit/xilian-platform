@@ -52,10 +52,7 @@ import {
   PipelineManager,
   PipelineEditor,
   DataStream,
-  GraphQueryManager,
-  SchemaDesigner,
-  ERDiagramPage,
-  VisualDesignerPage
+  GraphQueryManager
 } from "./pages/settings/design";
 // V4.0 新增页面 - Platform
 import AlertRules from "./pages/platform/AlertRules";
@@ -179,9 +176,6 @@ function Router() {
       <Route path="/settings/design/datastream" component={DataStream} />
       <Route path="/settings/design/graph-query" component={GraphQueryManager} />
       <Route path="/settings/design/workbench" component={DatabaseWorkbench} />
-      <Route path="/settings/design/database" component={SchemaDesigner} />
-      <Route path="/settings/design/er-diagram" component={ERDiagramPage} />
-      <Route path="/settings/design/visual-designer" component={VisualDesignerPage} />
 
       {/* 配置中心 */}
       <Route path="/settings/config/infrastructure" component={Infrastructure} />
