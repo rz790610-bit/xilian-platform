@@ -35,3 +35,13 @@
 ### 验证
 - [ ] TypeScript 编译通过
 - [ ] 全链路完整
+
+## 三、Docker引擎生命周期管理（当前任务）
+
+- [ ] 后端：dockerManager.service.ts - 通过Docker Engine API管理容器
+- [ ] 后端：docker.router.ts - tRPC路由（list/start/stop/restart/inspect）
+- [ ] 后端：注册到appRouter
+- [ ] 前端：Infrastructure页面增加引擎管理面板（启用/禁用/重启按钮）
+- [ ] 前端：实时状态轮询 + 操作反馈
+- [ ] 集成storageHealth与docker状态
+- [ ] 提交并推送代码

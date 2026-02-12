@@ -38,6 +38,8 @@ import { assetsRoutes } from "./business/routes/assets.routes";
 import { diagnosisRoutes } from "./business/routes/diagnosis.routes";
 import { knowledgeRoutes } from "./business/routes/knowledge.routes";
 import { monitoringRoutes } from "./business/routes/monitoring.routes";
+// ============ Docker 引擎管理 ============
+import { dockerRouter } from "./api/docker.router";
 
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/core/index.ts, all api should start with '/api/' so that the gateway can route correctly
@@ -144,6 +146,9 @@ export const appRouter = router({
   bizKnowledge: knowledgeRoutes,
   // 业务应用 - 监控（遥测/ClickHouse仪表盘）
   bizMonitoring: monitoringRoutes,
+
+  // ============ Docker 引擎管理 ============
+  docker: dockerRouter,
 });
 
 export type AppRouter = typeof appRouter;

@@ -17,7 +17,8 @@ import {
   Server, Cpu, HardDrive, Network, Shield, GitBranch,
   RefreshCw, Plus, Settings2, Activity, Database, Lock,
   Eye, Play, Square, AlertTriangle, CheckCircle, XCircle,
-  Layers, Box, Container, Cloud, Key, Scan, Bell
+  Layers, Box, Container, Cloud, Key, Scan, Bell,
+  Power, RotateCcw, StopCircle, PlayCircle, Loader2, Terminal
 } from 'lucide-react';
 
 // 格式化字节
@@ -34,6 +35,375 @@ function formatBytes(bytes: number, decimals = 2): string {
 function calcPercent(used: number, total: number): number {
   if (total === 0) return 0;
   return Math.round((used / total) * 100);
+}
+
+// ============ Docker 引擎管理面板 ============
+function DockerEnginePanel() {
+  const toast = useToast();
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [showLogsDialog, setShowLogsDialog] = useState(false);
+  const [logsTarget, setLogsTarget] = useState('');
+  const [logsTargetName, setLogsTargetName] = useState('');
+
+  // Docker 连接状态
+  const { data: dockerConn, refetch: refetchConn } = trpc.docker.checkConnection.useQuery(undefined, {
+    refetchInterval: 30000,
+  });
+
+  // 引擎列表
+  const { data: engineData, refetch: refetchEngines } = trpc.docker.listEngines.useQuery(undefined, {
+    refetchInterval: 10000,
+  });
+
+  // 日志查询
+  const { data: logsData } = trpc.docker.getEngineLogs.useQuery(
+    { containerName: logsTarget, tail: 100 },
+    { enabled: !!logsTarget && showLogsDialog }
+  );
+
+  // Mutations
+  const startMut = trpc.docker.startEngine.useMutation({
+    onSuccess: (res) => {
+      if (res.success) toast.success(`${res.containerName} 启动成功`);
+      else toast.error(`启动失败: ${res.error}`);
+      refetchEngines();
+      setActionLoading(null);
+    },
+    onError: (e) => { toast.error(e.message); setActionLoading(null); },
+  });
+
+  const stopMut = trpc.docker.stopEngine.useMutation({
+    onSuccess: (res) => {
+      if (res.success) toast.success(`${res.containerName} 已停止`);
+      else toast.error(`停止失败: ${res.error}`);
+      refetchEngines();
+      setActionLoading(null);
+    },
+    onError: (e) => { toast.error(e.message); setActionLoading(null); },
+  });
+
+  const restartMut = trpc.docker.restartEngine.useMutation({
+    onSuccess: (res) => {
+      if (res.success) toast.success(`${res.containerName} 重启成功`);
+      else toast.error(`重启失败: ${res.error}`);
+      refetchEngines();
+      setActionLoading(null);
+    },
+    onError: (e) => { toast.error(e.message); setActionLoading(null); },
+  });
+
+  const startAllMut = trpc.docker.startAll.useMutation({
+    onSuccess: (res) => {
+      toast.success(`批量启动完成: ${res.started}成功 / ${res.failed}失败`);
+      refetchEngines();
+      setActionLoading(null);
+    },
+    onError: (e) => { toast.error(e.message); setActionLoading(null); },
+  });
+
+  const stopAllMut = trpc.docker.stopAll.useMutation({
+    onSuccess: (res) => {
+      toast.success(`批量停止完成: ${res.stopped}成功 / ${res.failed}失败`);
+      refetchEngines();
+      setActionLoading(null);
+    },
+    onError: (e) => { toast.error(e.message); setActionLoading(null); },
+  });
+
+  const handleStart = (name: string) => { setActionLoading(`start-${name}`); startMut.mutate({ containerName: name }); };
+  const handleStop = (name: string) => { setActionLoading(`stop-${name}`); stopMut.mutate({ containerName: name }); };
+  const handleRestart = (name: string) => { setActionLoading(`restart-${name}`); restartMut.mutate({ containerName: name }); };
+  const handleStartAll = () => { setActionLoading('start-all'); startAllMut.mutate(); };
+  const handleStopAll = () => { setActionLoading('stop-all'); stopAllMut.mutate(); };
+  const handleViewLogs = (containerName: string, displayName: string) => {
+    setLogsTarget(containerName);
+    setLogsTargetName(displayName);
+    setShowLogsDialog(true);
+  };
+
+  const engines = engineData?.engines || [];
+  const runningCount = engines.filter(e => e.state === 'running').length;
+  const totalCount = engines.length;
+  const dockerConnected = dockerConn?.connected ?? false;
+
+  const stateColors: Record<string, string> = {
+    running: 'bg-emerald-500',
+    exited: 'bg-red-500',
+    paused: 'bg-amber-500',
+    restarting: 'bg-blue-500',
+    created: 'bg-gray-400',
+    dead: 'bg-red-700',
+    removing: 'bg-orange-500',
+  };
+
+  const stateLabels: Record<string, string> = {
+    running: '运行中',
+    exited: '已停止',
+    paused: '已暂停',
+    restarting: '重启中',
+    created: '已创建',
+    dead: '已崩溃',
+    removing: '删除中',
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Docker 连接状态 + 批量操作 */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <div className={cn(
+              "w-3 h-3 rounded-full",
+              dockerConnected ? "bg-emerald-500 animate-pulse" : "bg-red-500"
+            )} />
+            <span className="text-sm font-medium">
+              {dockerConnected ? 'Docker Engine 已连接' : 'Docker Engine 未连接'}
+            </span>
+            {dockerConn?.version && (
+              <span className="text-xs text-muted-foreground">({dockerConn.version})</span>
+            )}
+          </div>
+          {dockerConnected && (
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-emerald-500 font-medium">{runningCount}</span>
+              <span className="text-muted-foreground">/</span>
+              <span>{totalCount}</span>
+              <span className="text-muted-foreground">引擎运行中</span>
+            </div>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => { refetchConn(); refetchEngines(); }}
+          >
+            <RefreshCw className="w-4 h-4 mr-1" />
+            刷新
+          </Button>
+          {dockerConnected && (
+            <>
+              <Button
+                size="sm"
+                onClick={handleStartAll}
+                disabled={!!actionLoading}
+                className="bg-emerald-600 hover:bg-emerald-700"
+              >
+                {actionLoading === 'start-all' ? (
+                  <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                ) : (
+                  <PlayCircle className="w-4 h-4 mr-1" />
+                )}
+                一键启动全部
+              </Button>
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={handleStopAll}
+                disabled={!!actionLoading}
+              >
+                {actionLoading === 'stop-all' ? (
+                  <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                ) : (
+                  <StopCircle className="w-4 h-4 mr-1" />
+                )}
+                全部停止
+              </Button>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Docker 未连接提示 */}
+      {!dockerConnected && (
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-6">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-amber-500 mt-0.5 shrink-0" />
+            <div className="space-y-2">
+              <p className="font-medium text-amber-500">Docker Engine 未连接</p>
+              <p className="text-sm text-muted-foreground">
+                {dockerConn?.error || '无法连接到 Docker Engine。请确保 Docker Desktop 正在运行。'}
+              </p>
+              <div className="text-xs text-muted-foreground space-y-1 mt-3 font-mono bg-background/50 rounded p-3">
+                <p># 检查 Docker 是否运行</p>
+                <p>docker info</p>
+                <p># 如果使用远程 Docker，设置环境变量</p>
+                <p>DOCKER_HOST=tcp://your-docker-host:2375</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 引擎列表 */}
+      {dockerConnected && (
+        <div className="grid grid-cols-1 gap-4">
+          {engines.map((engine) => {
+            const isLoading = actionLoading?.includes(engine.containerName);
+            return (
+              <div
+                key={engine.containerId}
+                className={cn(
+                  "rounded-lg border p-4 transition-all",
+                  engine.state === 'running'
+                    ? "border-emerald-500/30 bg-emerald-500/5"
+                    : engine.state === 'exited'
+                    ? "border-red-500/20 bg-red-500/5"
+                    : "border-border bg-card"
+                )}
+              >
+                <div className="flex items-center justify-between">
+                  {/* 左侧: 引擎信息 */}
+                  <div className="flex items-center gap-4 flex-1 min-w-0">
+                    <span className="text-2xl">{engine.icon}</span>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold">{engine.displayName}</span>
+                        <span className="text-xs px-2 py-0.5 rounded bg-muted text-muted-foreground">
+                          {engine.engineType}
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <div className={cn("w-2 h-2 rounded-full", stateColors[engine.state] || 'bg-gray-400')} />
+                          <span className={cn(
+                            "text-xs font-medium",
+                            engine.state === 'running' ? 'text-emerald-500' : 'text-red-400'
+                          )}>
+                            {stateLabels[engine.state] || engine.state}
+                          </span>
+                        </div>
+                        {engine.health && engine.health !== 'none' && (
+                          <span className={cn(
+                            "text-xs px-1.5 py-0.5 rounded",
+                            engine.health === 'healthy' ? 'bg-emerald-500/20 text-emerald-400' :
+                            engine.health === 'unhealthy' ? 'bg-red-500/20 text-red-400' :
+                            'bg-amber-500/20 text-amber-400'
+                          )}>
+                            {engine.health}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                        {engine.description}
+                      </p>
+                      <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+                        <span>镜像: {engine.image}</span>
+                        <span>ID: {engine.containerId}</span>
+                        {engine.ports.length > 0 && (
+                          <span>
+                            端口: {engine.ports
+                              .filter(p => p.publicPort)
+                              .map(p => `${p.publicPort}→${p.privatePort}`)
+                              .join(', ') || '-'}
+                          </span>
+                        )}
+                        {engine.uptime && <span>{engine.status}</span>}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 右侧: 操作按钮 */}
+                  <div className="flex items-center gap-2 ml-4 shrink-0">
+                    {/* 日志 */}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleViewLogs(engine.containerName, engine.displayName)}
+                      title="查看日志"
+                    >
+                      <Terminal className="w-4 h-4" />
+                    </Button>
+
+                    {/* 启动 */}
+                    {engine.canStart && (
+                      <Button
+                        size="sm"
+                        onClick={() => handleStart(engine.containerName)}
+                        disabled={!!actionLoading}
+                        className="bg-emerald-600 hover:bg-emerald-700"
+                      >
+                        {isLoading && actionLoading?.startsWith('start') ? (
+                          <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                        ) : (
+                          <PlayCircle className="w-4 h-4 mr-1" />
+                        )}
+                        启动
+                      </Button>
+                    )}
+
+                    {/* 重启 */}
+                    {engine.canRestart && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleRestart(engine.containerName)}
+                        disabled={!!actionLoading}
+                      >
+                        {isLoading && actionLoading?.startsWith('restart') ? (
+                          <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                        ) : (
+                          <RotateCcw className="w-4 h-4 mr-1" />
+                        )}
+                        重启
+                      </Button>
+                    )}
+
+                    {/* 停止 */}
+                    {engine.canStop && (
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => {
+                          if (engine.serviceName === 'mysql') {
+                            if (!confirm('❗ 停止 MySQL 将导致平台数据库不可用，确定继续？')) return;
+                          }
+                          handleStop(engine.containerName);
+                        }}
+                        disabled={!!actionLoading}
+                      >
+                        {isLoading && actionLoading?.startsWith('stop') ? (
+                          <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                        ) : (
+                          <StopCircle className="w-4 h-4 mr-1" />
+                        )}
+                        停止
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+
+          {engines.length === 0 && (
+            <div className="text-center py-12 text-muted-foreground">
+              <Container className="w-12 h-12 mx-auto mb-3 opacity-50" />
+              <p>未发现 PortAI 引擎容器</p>
+              <p className="text-xs mt-1">请确保已执行 docker-compose up -d</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 日志对话框 */}
+      <Dialog open={showLogsDialog} onOpenChange={setShowLogsDialog}>
+        <DialogContent className="max-w-3xl max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle>容器日志 - {logsTargetName}</DialogTitle>
+          </DialogHeader>
+          <div className="bg-black/90 rounded-lg p-4 font-mono text-xs text-green-400 overflow-auto max-h-[60vh] whitespace-pre-wrap">
+            {logsData?.success ? (
+              logsData.logs || '(无日志)'
+            ) : (
+              <span className="text-red-400">{logsData?.error || '加载中...'}</span>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowLogsDialog(false)}>关闭</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
 }
 
 export default function Infrastructure() {
@@ -186,6 +556,10 @@ export default function Infrastructure() {
           <TabsTrigger value="cicd">
             <GitBranch className="w-4 h-4 mr-2" />
             CI/CD
+          </TabsTrigger>
+          <TabsTrigger value="engines">
+            <Container className="w-4 h-4 mr-2" />
+            引擎管理
           </TabsTrigger>
         </TabsList>
 
@@ -726,6 +1100,11 @@ export default function Infrastructure() {
               </div>
             </PageCard>
           </div>
+        </TabsContent>
+
+        {/* Docker 引擎管理 */}
+        <TabsContent value="engines">
+          <DockerEnginePanel />
         </TabsContent>
       </Tabs>
 
