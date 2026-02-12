@@ -10,7 +10,15 @@ import { z } from "zod";
 const clickhouseDashboardRouter = router({
   overview: publicProcedure.query(async () => {
     const connected = await clickhouseClient.checkConnection();
-    const stats = connected ? await clickhouseClient.getDatabaseStats() : null;
+    const rawStats = connected ? await clickhouseClient.getDatabaseStats() : null;
+    // 将 Date 对象转为字符串，避免前端序列化问题
+    const stats = rawStats ? {
+      totalTables: rawStats.totalTables,
+      totalRows: rawStats.totalRows,
+      diskUsage: rawStats.diskUsage,
+      oldestData: rawStats.oldestData?.toISOString() ?? null,
+      newestData: rawStats.newestData?.toISOString() ?? null,
+    } : null;
     return { connected, stats };
   }),
   tables: publicProcedure.query(async () => {
