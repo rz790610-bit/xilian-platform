@@ -6,15 +6,15 @@ import { Badge } from '@/components/common/Badge';
 import { Button } from '@/components/ui/button';
 import { trpc } from '@/lib/trpc';
 import { useToast } from '@/components/common/Toast';
-import { RefreshCw, Database, HardDrive, Server, Activity, Clock, Layers } from 'lucide-react';
+import { RefreshCw, Database, HardDrive, Server, Activity, Clock, Layers, Play, Square, RotateCcw, Container } from 'lucide-react';
 
 export default function StorageStatus() {
   const toast = useToast();
 
-  // tRPC 查询 - 存储引擎健康检查（实时检测）
+  // tRPC 查询 - 存储引擎健康检查（实时检测，集成 Docker 状态）
   const { data: storageData, refetch: refetchStorage, isLoading: loadingStorage } =
     trpc.database.workbench.storage.healthCheck.useQuery(undefined, {
-      refetchInterval: 30000, // 每30秒自动刷新
+      refetchInterval: 15000, // 每15秒自动刷新
     });
 
   // tRPC 查询 - 汇总各模块统计
@@ -22,6 +22,36 @@ export default function StorageStatus() {
   const { data: sliceStats, refetch: refetchSlices } = trpc.database.slice.getSliceStats.useQuery();
   const { data: eventStats, refetch: refetchEvents } = trpc.database.event.getEventStats.useQuery();
   const { data: qualityStats, refetch: refetchQuality } = trpc.database.clean.getQualityStats.useQuery();
+
+  // Docker 操作 mutations
+  const startEngine = trpc.docker.startEngine.useMutation({
+    onSuccess: (_, vars) => {
+      toast.success(`正在启动 ${vars.engineName}...`);
+      setTimeout(() => refetchStorage(), 3000);
+    },
+    onError: (err) => toast.error(`启动失败: ${err.message}`),
+  });
+  const stopEngine = trpc.docker.stopEngine.useMutation({
+    onSuccess: (_, vars) => {
+      toast.success(`正在停止 ${vars.engineName}...`);
+      setTimeout(() => refetchStorage(), 2000);
+    },
+    onError: (err) => toast.error(`停止失败: ${err.message}`),
+  });
+  const restartEngine = trpc.docker.restartEngine.useMutation({
+    onSuccess: (_, vars) => {
+      toast.success(`正在重启 ${vars.engineName}...`);
+      setTimeout(() => refetchStorage(), 5000);
+    },
+    onError: (err) => toast.error(`重启失败: ${err.message}`),
+  });
+  const startAll = trpc.docker.startAll.useMutation({
+    onSuccess: () => {
+      toast.success('正在启动所有引擎...');
+      setTimeout(() => refetchStorage(), 5000);
+    },
+    onError: (err) => toast.error(`批量启动失败: ${err.message}`),
+  });
 
   const handleRefresh = () => {
     refetchStorage();
@@ -31,6 +61,30 @@ export default function StorageStatus() {
 
   const engines = storageData?.engines ?? [];
   const summary = storageData?.summary;
+
+  // 引擎名称到 Docker 容器名称的映射
+  const engineToContainer: Record<string, string> = {
+    'MySQL 8.0': 'portai-mysql',
+    'Redis 7': 'portai-redis',
+    'ClickHouse': 'portai-clickhouse',
+    'MinIO / S3': 'portai-minio',
+    'Qdrant': 'portai-qdrant',
+    'Kafka': 'portai-kafka',
+    'Neo4j': 'portai-neo4j',
+  };
+
+  const getStatusBadge = (engine: any) => {
+    if (engine.status === 'online') {
+      return <Badge variant="success" dot className="text-[9px]">在线</Badge>;
+    }
+    if (engine.status === 'starting') {
+      return <Badge variant="warning" dot className="text-[9px]">启动中</Badge>;
+    }
+    if (engine.status === 'standby') {
+      return <Badge variant="warning" dot className="text-[9px]">待部署</Badge>;
+    }
+    return <Badge variant="danger" dot className="text-[9px]">离线</Badge>;
+  };
 
   return (
     <MainLayout title="存储状态">
@@ -45,17 +99,37 @@ export default function StorageStatus() {
                   最后检测: {new Date(summary.checkedAt).toLocaleTimeString()}
                 </span>
               )}
+              {summary?.dockerAvailable && (
+                <span className="ml-2 text-[10px] text-green-600">
+                  · Docker 已集成
+                </span>
+              )}
             </p>
           </div>
-          <Button size="sm" variant="outline" onClick={handleRefresh} className="text-xs" disabled={loadingStorage}>
-            <RefreshCw className={`w-3 h-3 mr-1 ${loadingStorage ? 'animate-spin' : ''}`} />
-            {loadingStorage ? '检测中...' : '刷新状态'}
-          </Button>
+          <div className="flex gap-2">
+            {summary?.dockerAvailable && summary.offline > 0 && (
+              <Button
+                size="sm"
+                variant="default"
+                onClick={() => startAll.mutate({})}
+                className="text-xs"
+                disabled={startAll.isPending}
+              >
+                <Play className="w-3 h-3 mr-1" />
+                一键启动全部
+              </Button>
+            )}
+            <Button size="sm" variant="outline" onClick={handleRefresh} className="text-xs" disabled={loadingStorage}>
+              <RefreshCw className={`w-3 h-3 mr-1 ${loadingStorage ? 'animate-spin' : ''}`} />
+              {loadingStorage ? '检测中...' : '刷新状态'}
+            </Button>
+          </div>
         </div>
 
         {/* 总览统计 */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           <StatCard value={summary?.online ?? 0} label="在线引擎" icon="✅" />
+          <StatCard value={summary?.starting ?? 0} label="启动中" icon="🔄" />
           <StatCard value={summary?.offline ?? 0} label="离线引擎" icon="⏳" />
           <StatCard value={summary?.total ?? 0} label="总引擎数" icon="🗄️" />
           <StatCard
@@ -74,32 +148,78 @@ export default function StorageStatus() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5">
                     <span className="font-medium text-sm text-foreground">{engine.name}</span>
-                    <Badge
-                      variant={engine.status === 'online' ? 'success' : engine.status === 'standby' ? 'warning' : 'danger'}
-                      dot
-                      className="text-[9px]"
-                    >
-                      {engine.status === 'online' ? '在线' : engine.status === 'standby' ? '待部署' : '离线'}
-                    </Badge>
+                    {getStatusBadge(engine)}
                     {engine.status === 'online' && engine.latency > 0 && (
                       <span className="text-[9px] text-muted-foreground font-mono">{engine.latency}ms</span>
                     )}
                   </div>
                   <div className="text-[10px] text-muted-foreground mt-0.5">
                     {engine.type} · {engine.connectionInfo}
+                    {engine.dockerStatus && (
+                      <span className="ml-1 text-[9px]">
+                        · 容器: <span className={engine.dockerStatus === 'running' ? 'text-green-600' : 'text-orange-500'}>{engine.dockerStatus}</span>
+                      </span>
+                    )}
                   </div>
                   <div className="text-[10px] text-muted-foreground mt-1">{engine.description}</div>
                   <div className="grid grid-cols-2 gap-x-3 gap-y-1 mt-2">
                     {Object.entries(engine.metrics).map(([key, val]) => (
                       <div key={key} className="flex justify-between text-[10px]">
                         <span className="text-muted-foreground">{key}</span>
-                        <span className="font-mono text-foreground">{val}</span>
+                        <span className="font-mono text-foreground">{String(val)}</span>
                       </div>
                     ))}
                   </div>
-                  {engine.error && (
+                  {engine.error && engine.status !== 'starting' && (
                     <div className="mt-2 text-[9px] text-red-500 truncate" title={engine.error}>
                       错误: {engine.error}
+                    </div>
+                  )}
+
+                  {/* Docker 操作按钮 */}
+                  {summary?.dockerAvailable && engineToContainer[engine.name] && (
+                    <div className="flex gap-1.5 mt-2 pt-2 border-t border-border/50">
+                      {engine.status !== 'online' && engine.dockerStatus !== 'running' && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-6 text-[10px] px-2"
+                          onClick={() => startEngine.mutate({ engineName: engineToContainer[engine.name] })}
+                          disabled={startEngine.isPending}
+                        >
+                          <Play className="w-2.5 h-2.5 mr-0.5" />
+                          启动
+                        </Button>
+                      )}
+                      {(engine.status === 'online' || engine.dockerStatus === 'running') && (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-6 text-[10px] px-2"
+                            onClick={() => restartEngine.mutate({ engineName: engineToContainer[engine.name] })}
+                            disabled={restartEngine.isPending}
+                          >
+                            <RotateCcw className="w-2.5 h-2.5 mr-0.5" />
+                            重启
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-6 text-[10px] px-2 text-red-500 hover:text-red-600"
+                            onClick={() => {
+                              if (engine.name === 'MySQL 8.0') {
+                                if (!confirm('停止 MySQL 将影响所有业务数据，确定要停止吗？')) return;
+                              }
+                              stopEngine.mutate({ engineName: engineToContainer[engine.name] });
+                            }}
+                            disabled={stopEngine.isPending}
+                          >
+                            <Square className="w-2.5 h-2.5 mr-0.5" />
+                            停止
+                          </Button>
+                        </>
+                      )}
                     </div>
                   )}
                 </div>
@@ -152,24 +272,33 @@ export default function StorageStatus() {
           </div>
         </PageCard>
 
-        {/* Docker 一键部署提示 */}
-        <PageCard title="一键部署" icon={<Server className="w-3.5 h-3.5" />}>
-          <div className="space-y-2">
-            <p className="text-xs text-muted-foreground">
-              使用 Docker Compose 一键启动所有存储引擎：
-            </p>
-            <div className="bg-secondary/80 rounded-lg p-3 font-mono text-xs space-y-1">
-              <div className="text-muted-foreground"># 启动全部服务</div>
-              <div className="text-foreground">docker-compose up -d</div>
-              <div className="text-muted-foreground mt-2"># 仅启动核心服务 (MySQL + Redis)</div>
-              <div className="text-foreground">docker-compose up -d mysql redis</div>
-              <div className="text-muted-foreground mt-2"># 启动核心数据库集群</div>
-              <div className="text-foreground">docker-compose up -d mysql redis clickhouse qdrant minio</div>
-              <div className="text-muted-foreground mt-2"># 查看服务状态</div>
-              <div className="text-foreground">docker-compose ps</div>
+        {/* Docker 状态提示 */}
+        {!summary?.dockerAvailable && (
+          <PageCard title="Docker 未检测到" icon={<Server className="w-3.5 h-3.5" />}>
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground">
+                未检测到 Docker Engine 连接，无法进行引擎启停操作。请确保 Docker Desktop 已启动。
+              </p>
+              <div className="bg-secondary/80 rounded-lg p-3 font-mono text-xs space-y-1">
+                <div className="text-muted-foreground"># 检查 Docker 是否运行</div>
+                <div className="text-foreground">docker info</div>
+                <div className="text-muted-foreground mt-2"># 启动全部服务</div>
+                <div className="text-foreground">docker-compose up -d</div>
+              </div>
             </div>
-          </div>
-        </PageCard>
+          </PageCard>
+        )}
+
+        {summary?.dockerAvailable && (
+          <PageCard title="引擎管理" icon={<Server className="w-3.5 h-3.5" />}>
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground">
+                Docker Engine 已连接，可通过上方卡片中的按钮直接管理各引擎的启停。
+                更多高级管理功能请前往 <span className="text-primary font-medium">设计工具 → 基础设施管理 → 引擎管理</span> 页面。
+              </p>
+            </div>
+          </PageCard>
+        )}
       </div>
     </MainLayout>
   );

@@ -1,6 +1,7 @@
 /**
  * 存储引擎健康检查服务
  * 统一检测所有数据库/存储服务的连接状态和基本指标
+ * 集成 Docker 容器状态作为补充判断
  */
 import { sql } from 'drizzle-orm';
 import { getDb } from '../../lib/db';
@@ -10,17 +11,106 @@ interface StorageEngineStatus {
   type: string;
   icon: string;
   description: string;
-  status: 'online' | 'offline' | 'standby';
+  status: 'online' | 'offline' | 'starting' | 'standby';
   latency: number; // ms
   connectionInfo: string;
   metrics: Record<string, string | number>;
   error?: string;
+  dockerStatus?: string; // Docker 容器状态（running / stopped / ...）
 }
+
+// Docker 容器名称到引擎名称的映射
+const DOCKER_CONTAINER_MAP: Record<string, string> = {
+  'portai-mysql': 'MySQL 8.0',
+  'portai-redis': 'Redis 7',
+  'portai-clickhouse': 'ClickHouse',
+  'portai-minio': 'MinIO / S3',
+  'portai-qdrant': 'Qdrant',
+  'portai-kafka': 'Kafka',
+  'portai-neo4j': 'Neo4j',
+};
+
+/**
+ * 查询 Docker 容器状态
+ */
+async function getDockerContainerStatuses(): Promise<Record<string, string>> {
+  const result: Record<string, string> = {};
+  try {
+    const socketPath = process.env.DOCKER_HOST?.replace('unix://', '') || '/var/run/docker.sock';
+    const http = await import('http');
+    
+    const data = await new Promise<string>((resolve, reject) => {
+      const req = http.request({
+        socketPath,
+        path: '/v1.46/containers/json?all=true',
+        method: 'GET',
+        timeout: 3000,
+      }, (res) => {
+        let body = '';
+        res.on('data', (chunk: Buffer) => body += chunk.toString());
+        res.on('end', () => resolve(body));
+      });
+      req.on('error', reject);
+      req.on('timeout', () => { req.destroy(); reject(new Error('timeout')); });
+      req.end();
+    });
+
+    const containers = JSON.parse(data);
+    for (const c of containers) {
+      const name = (c.Names?.[0] || '').replace(/^\//, '');
+      if (DOCKER_CONTAINER_MAP[name]) {
+        result[DOCKER_CONTAINER_MAP[name]] = c.State || 'unknown';
+      }
+    }
+  } catch {
+    // Docker 不可用，返回空
+  }
+  return result;
+}
+
+/**
+ * 带超时的 fetch
+ */
+async function fetchWithTimeout(url: string, timeoutMs: number, options?: RequestInit): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, { ...options, signal: controller.signal });
+    return response;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * 根据直连状态和 Docker 容器状态综合判断引擎状态
+ */
+function resolveStatus(
+  directConnected: boolean,
+  dockerState: string | undefined
+): { status: StorageEngineStatus['status']; connectionInfo: string } {
+  if (directConnected) {
+    return { status: 'online', connectionInfo: '已连接' };
+  }
+  if (dockerState === 'running') {
+    return { status: 'starting', connectionInfo: '容器运行中（服务连接中）' };
+  }
+  if (dockerState === 'exited' || dockerState === 'dead') {
+    return { status: 'offline', connectionInfo: '容器已停止' };
+  }
+  if (dockerState) {
+    return { status: 'offline', connectionInfo: `容器状态: ${dockerState}` };
+  }
+  return { status: 'offline', connectionInfo: '未连接' };
+}
+
+// ─── 超时常量 ───
+const CONNECT_TIMEOUT = 5000;
 
 /**
  * 检测 MySQL 连接状态
  */
-async function checkMySQL(): Promise<StorageEngineStatus> {
+async function checkMySQL(dockerState?: string): Promise<StorageEngineStatus> {
   const start = Date.now();
   try {
     const db = await getDb();
@@ -28,7 +118,6 @@ async function checkMySQL(): Promise<StorageEngineStatus> {
     await db.execute(sql`SELECT 1`);
     const latency = Date.now() - start;
 
-    // 获取基本指标
     const statusResult: any = await db.execute(sql.raw("SHOW GLOBAL STATUS WHERE Variable_name IN ('Threads_connected', 'Questions', 'Uptime')"));
     const statusRows = Array.isArray(statusResult) ? (statusResult[0] || statusResult) : [];
     const statusMap: Record<string, string> = {};
@@ -48,6 +137,7 @@ async function checkMySQL(): Promise<StorageEngineStatus> {
       status: 'online',
       latency,
       connectionInfo: '已连接',
+      dockerStatus: dockerState,
       metrics: {
         '数据表': tableCount,
         '连接数': statusMap['Threads_connected'] ?? '-',
@@ -56,14 +146,16 @@ async function checkMySQL(): Promise<StorageEngineStatus> {
       }
     };
   } catch (e: any) {
+    const { status, connectionInfo } = resolveStatus(false, dockerState);
     return {
       name: 'MySQL 8.0',
       type: 'RDBMS',
       icon: '🐬',
       description: '关系型主数据库，存储资产树、配置、事件等结构化数据',
-      status: 'offline',
+      status,
       latency: Date.now() - start,
-      connectionInfo: '未连接',
+      connectionInfo,
+      dockerStatus: dockerState,
       metrics: { '数据表': '-', '连接数': '-', '查询总数': '-', '运行时间': '-' },
       error: e.message
     };
@@ -73,68 +165,73 @@ async function checkMySQL(): Promise<StorageEngineStatus> {
 /**
  * 检测 Redis 连接状态
  */
-async function checkRedis(): Promise<StorageEngineStatus> {
+async function checkRedis(dockerState?: string): Promise<StorageEngineStatus> {
   const start = Date.now();
   try {
-    const host = process.env.REDIS_HOST || 'localhost';
-    const port = process.env.REDIS_PORT || '6379';
-    const response = await fetchWithTimeout(`http://localhost:3000/api/trpc/redis.healthCheck`, 3000);
+    // 先尝试 tRPC 健康检查
+    const response = await fetchWithTimeout(`http://localhost:3000/api/trpc/redis.healthCheck`, CONNECT_TIMEOUT);
     const latency = Date.now() - start;
 
     if (response.ok) {
       const data = await response.json();
       const result = data?.result?.data;
-      return {
-        name: 'Redis 7',
-        type: 'Cache',
-        icon: '🔴',
-        description: '缓存层，用于设备状态缓存、会话管理、事件去重',
-        status: result?.connected ? 'online' : 'offline',
-        latency,
-        connectionInfo: result?.connected ? '已连接' : '未连接',
-        metrics: {
-          '缓存键': result?.keyCount ?? '-',
-          '内存使用': result?.memoryUsage ?? '-',
-          '命中率': result?.hitRate ?? '-',
-          '连接数': result?.connectedClients ?? '-',
-        }
-      };
+      if (result?.connected) {
+        return {
+          name: 'Redis 7',
+          type: 'Cache',
+          icon: '🔴',
+          description: '缓存层，用于设备状态缓存、会话管理、事件去重',
+          status: 'online',
+          latency,
+          connectionInfo: '已连接',
+          dockerStatus: dockerState,
+          metrics: {
+            '缓存键': result?.keyCount ?? '-',
+            '内存使用': result?.memoryUsage ?? '-',
+            '命中率': result?.hitRate ?? '-',
+            '连接数': result?.connectedClients ?? '-',
+          }
+        };
+      }
     }
     throw new Error('Redis health check failed');
   } catch (e: any) {
-    // 直接尝试 TCP 连接检测
-    const latency = Date.now() - start;
+    // 回退到 TCP 连接检测
     try {
       const net = await import('net');
       const host = process.env.REDIS_HOST || 'localhost';
       const port = parseInt(process.env.REDIS_PORT || '6379');
       const connected = await new Promise<boolean>((resolve) => {
         const socket = new net.Socket();
-        socket.setTimeout(2000);
+        socket.setTimeout(CONNECT_TIMEOUT);
         socket.on('connect', () => { socket.destroy(); resolve(true); });
         socket.on('timeout', () => { socket.destroy(); resolve(false); });
         socket.on('error', () => { socket.destroy(); resolve(false); });
         socket.connect(port, host);
       });
+      const { status, connectionInfo } = resolveStatus(connected, dockerState);
       return {
         name: 'Redis 7',
         type: 'Cache',
         icon: '🔴',
         description: '缓存层，用于设备状态缓存、会话管理、事件去重',
-        status: connected ? 'online' : 'offline',
+        status,
         latency: Date.now() - start,
-        connectionInfo: connected ? '已连接' : '未连接',
+        connectionInfo,
+        dockerStatus: dockerState,
         metrics: { '缓存键': '-', '内存使用': '-', '命中率': '-', '连接数': '-' },
       };
     } catch {
+      const { status, connectionInfo } = resolveStatus(false, dockerState);
       return {
         name: 'Redis 7',
         type: 'Cache',
         icon: '🔴',
         description: '缓存层，用于设备状态缓存、会话管理、事件去重',
-        status: 'offline',
-        latency,
-        connectionInfo: '未连接',
+        status,
+        latency: Date.now() - start,
+        connectionInfo,
+        dockerStatus: dockerState,
         metrics: { '缓存键': '-', '内存使用': '-', '命中率': '-', '连接数': '-' },
         error: e.message
       };
@@ -145,16 +242,15 @@ async function checkRedis(): Promise<StorageEngineStatus> {
 /**
  * 检测 ClickHouse 连接状态
  */
-async function checkClickHouse(): Promise<StorageEngineStatus> {
+async function checkClickHouse(dockerState?: string): Promise<StorageEngineStatus> {
   const start = Date.now();
   try {
     const host = process.env.CLICKHOUSE_HOST || 'localhost';
     const port = process.env.CLICKHOUSE_PORT || '8123';
-    const response = await fetchWithTimeout(`http://${host}:${port}/ping`, 3000);
+    const response = await fetchWithTimeout(`http://${host}:${port}/ping`, CONNECT_TIMEOUT);
     const latency = Date.now() - start;
 
     if (response.ok) {
-      // 尝试获取指标
       let metrics: Record<string, string | number> = {};
       try {
         const user = process.env.CLICKHOUSE_USER || 'default';
@@ -166,7 +262,7 @@ async function checkClickHouse(): Promise<StorageEngineStatus> {
 
         const tablesRes = await fetchWithTimeout(
           `http://${host}:${port}/?query=SELECT+count()+FROM+system.tables+WHERE+database='${dbName}'+FORMAT+JSON`,
-          3000, { headers }
+          CONNECT_TIMEOUT, { headers }
         );
         if (tablesRes.ok) {
           const data = await tablesRes.json();
@@ -175,7 +271,7 @@ async function checkClickHouse(): Promise<StorageEngineStatus> {
 
         const uptimeRes = await fetchWithTimeout(
           `http://${host}:${port}/?query=SELECT+uptime()+as+uptime+FORMAT+JSON`,
-          3000, { headers }
+          CONNECT_TIMEOUT, { headers }
         );
         if (uptimeRes.ok) {
           const data = await uptimeRes.json();
@@ -197,19 +293,22 @@ async function checkClickHouse(): Promise<StorageEngineStatus> {
         status: 'online',
         latency,
         connectionInfo: '已连接',
+        dockerStatus: dockerState,
         metrics
       };
     }
     throw new Error('ClickHouse ping failed');
   } catch (e: any) {
+    const { status, connectionInfo } = resolveStatus(false, dockerState);
     return {
       name: 'ClickHouse',
       type: 'TSDB',
       icon: '⚡',
       description: '时序数据库，用于存储高频传感器数据和聚合指标',
-      status: 'offline',
+      status,
       latency: Date.now() - start,
-      connectionInfo: '未连接',
+      connectionInfo,
+      dockerStatus: dockerState,
       metrics: { '时序表': '-', '数据点': '-', '压缩率': '-', '查询延迟': '-' },
       error: e.message
     };
@@ -219,13 +318,12 @@ async function checkClickHouse(): Promise<StorageEngineStatus> {
 /**
  * 检测 MinIO 连接状态
  */
-async function checkMinIO(): Promise<StorageEngineStatus> {
+async function checkMinIO(dockerState?: string): Promise<StorageEngineStatus> {
   const start = Date.now();
   try {
     const endpoint = process.env.MINIO_ENDPOINT || 'http://localhost:9010';
-    // MinIO health endpoint
     const url = endpoint.startsWith('http') ? `${endpoint}/minio/health/live` : `http://${endpoint}/minio/health/live`;
-    const response = await fetchWithTimeout(url, 3000);
+    const response = await fetchWithTimeout(url, CONNECT_TIMEOUT);
     const latency = Date.now() - start;
 
     if (response.ok) {
@@ -237,6 +335,7 @@ async function checkMinIO(): Promise<StorageEngineStatus> {
         status: 'online',
         latency,
         connectionInfo: '已连接',
+        dockerStatus: dockerState,
         metrics: {
           '存储桶': '5 (预设)',
           '对象数': '-',
@@ -247,14 +346,16 @@ async function checkMinIO(): Promise<StorageEngineStatus> {
     }
     throw new Error('MinIO health check failed');
   } catch (e: any) {
+    const { status, connectionInfo } = resolveStatus(false, dockerState);
     return {
       name: 'MinIO / S3',
       type: 'Object Store',
       icon: '📦',
       description: '对象存储，用于存储波形文件、频谱图、模型文件等大文件',
-      status: 'offline',
+      status,
       latency: Date.now() - start,
-      connectionInfo: '未连接',
+      connectionInfo,
+      dockerStatus: dockerState,
       metrics: { '存储桶': '-', '对象数': '-', '总容量': '-', '可用空间': '-' },
       error: e.message
     };
@@ -264,12 +365,12 @@ async function checkMinIO(): Promise<StorageEngineStatus> {
 /**
  * 检测 Qdrant 连接状态
  */
-async function checkQdrant(): Promise<StorageEngineStatus> {
+async function checkQdrant(dockerState?: string): Promise<StorageEngineStatus> {
   const start = Date.now();
   try {
     const host = process.env.QDRANT_URL || process.env.QDRANT_HOST || 'http://localhost:6333';
     const url = host.startsWith('http') ? host : `http://${host}`;
-    const response = await fetchWithTimeout(`${url}/collections`, 3000);
+    const response = await fetchWithTimeout(`${url}/collections`, CONNECT_TIMEOUT);
     const latency = Date.now() - start;
 
     if (response.ok) {
@@ -283,6 +384,7 @@ async function checkQdrant(): Promise<StorageEngineStatus> {
         status: 'online',
         latency,
         connectionInfo: '已连接',
+        dockerStatus: dockerState,
         metrics: {
           '集合数': collections.length,
           '向量数': '-',
@@ -293,14 +395,16 @@ async function checkQdrant(): Promise<StorageEngineStatus> {
     }
     throw new Error('Qdrant check failed');
   } catch (e: any) {
+    const { status, connectionInfo } = resolveStatus(false, dockerState);
     return {
       name: 'Qdrant',
       type: 'Vector DB',
       icon: '🧮',
       description: '向量数据库，用于相似故障检索和语义搜索',
-      status: 'offline',
+      status,
       latency: Date.now() - start,
-      connectionInfo: '未连接',
+      connectionInfo,
+      dockerStatus: dockerState,
       metrics: { '集合数': '-', '向量数': '-', '维度': '-', '索引状态': '-' },
       error: e.message
     };
@@ -310,7 +414,7 @@ async function checkQdrant(): Promise<StorageEngineStatus> {
 /**
  * 检测 Kafka 连接状态
  */
-async function checkKafka(): Promise<StorageEngineStatus> {
+async function checkKafka(dockerState?: string): Promise<StorageEngineStatus> {
   const start = Date.now();
   try {
     const net = await import('net');
@@ -320,7 +424,7 @@ async function checkKafka(): Promise<StorageEngineStatus> {
 
     const connected = await new Promise<boolean>((resolve) => {
       const socket = new net.Socket();
-      socket.setTimeout(3000);
+      socket.setTimeout(CONNECT_TIMEOUT);
       socket.on('connect', () => { socket.destroy(); resolve(true); });
       socket.on('timeout', () => { socket.destroy(); resolve(false); });
       socket.on('error', () => { socket.destroy(); resolve(false); });
@@ -328,14 +432,16 @@ async function checkKafka(): Promise<StorageEngineStatus> {
     });
     const latency = Date.now() - start;
 
+    const { status, connectionInfo } = resolveStatus(connected, dockerState);
     return {
       name: 'Kafka',
       type: 'Message Queue',
       icon: '📨',
       description: '消息队列，用于事件总线、数据流处理和异步通信',
-      status: connected ? 'online' : 'offline',
+      status,
       latency,
-      connectionInfo: connected ? '已连接' : '未连接',
+      connectionInfo,
+      dockerStatus: dockerState,
       metrics: {
         'Broker': connected ? '1' : '-',
         'Topics': '-',
@@ -344,14 +450,16 @@ async function checkKafka(): Promise<StorageEngineStatus> {
       }
     };
   } catch (e: any) {
+    const { status, connectionInfo } = resolveStatus(false, dockerState);
     return {
       name: 'Kafka',
       type: 'Message Queue',
       icon: '📨',
       description: '消息队列，用于事件总线、数据流处理和异步通信',
-      status: 'offline',
+      status,
       latency: Date.now() - start,
-      connectionInfo: '未连接',
+      connectionInfo,
+      dockerStatus: dockerState,
       metrics: { 'Broker': '-', 'Topics': '-', '分区数': '-', '消息延迟': '-' },
       error: e.message
     };
@@ -361,13 +469,12 @@ async function checkKafka(): Promise<StorageEngineStatus> {
 /**
  * 检测 Neo4j 连接状态
  */
-async function checkNeo4j(): Promise<StorageEngineStatus> {
+async function checkNeo4j(dockerState?: string): Promise<StorageEngineStatus> {
   const start = Date.now();
   try {
     const host = process.env.NEO4J_HOST || 'localhost';
     const port = process.env.NEO4J_HTTP_PORT || '7474';
-    // Neo4j HTTP API endpoint
-    const response = await fetchWithTimeout(`http://${host}:${port}`, 3000);
+    const response = await fetchWithTimeout(`http://${host}:${port}`, CONNECT_TIMEOUT);
     const latency = Date.now() - start;
 
     if (response.ok) {
@@ -379,6 +486,7 @@ async function checkNeo4j(): Promise<StorageEngineStatus> {
         status: 'online',
         latency,
         connectionInfo: '已连接',
+        dockerStatus: dockerState,
         metrics: {
           '顶点数': '-',
           '边数': '-',
@@ -389,14 +497,16 @@ async function checkNeo4j(): Promise<StorageEngineStatus> {
     }
     throw new Error('Neo4j check failed');
   } catch (e: any) {
+    const { status, connectionInfo } = resolveStatus(false, dockerState);
     return {
       name: 'Neo4j',
       type: 'Graph DB',
       icon: '🕸️',
       description: '图数据库，用于知识图谱和设备关系拓扑（Cypher 查询语言）',
-      status: 'offline',
+      status,
       latency: Date.now() - start,
-      connectionInfo: '未连接',
+      connectionInfo,
+      dockerStatus: dockerState,
       metrics: { '顶点数': '-', '边数': '-', '数据库': '-', '查询延迟': '-' },
       error: e.message
     };
@@ -404,21 +514,7 @@ async function checkNeo4j(): Promise<StorageEngineStatus> {
 }
 
 /**
- * 带超时的 fetch
- */
-async function fetchWithTimeout(url: string, timeoutMs: number, options?: RequestInit): Promise<Response> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const response = await fetch(url, { ...options, signal: controller.signal });
-    return response;
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-/**
- * 检测所有存储引擎状态
+ * 检测所有存储引擎状态（集成 Docker 容器状态）
  */
 export async function checkAllStorageEngines(): Promise<{
   engines: StorageEngineStatus[];
@@ -426,46 +522,57 @@ export async function checkAllStorageEngines(): Promise<{
     total: number;
     online: number;
     offline: number;
+    starting: number;
     checkedAt: string;
+    dockerAvailable: boolean;
   };
 }> {
-  // 并行检测所有服务
+  // 先获取 Docker 容器状态
+  const dockerStatuses = await getDockerContainerStatuses();
+  const dockerAvailable = Object.keys(dockerStatuses).length > 0;
+
+  // 并行检测所有服务，传入 Docker 状态
   const results = await Promise.allSettled([
-    checkMySQL(),
-    checkRedis(),
-    checkClickHouse(),
-    checkMinIO(),
-    checkQdrant(),
-    checkKafka(),
-    checkNeo4j(),
+    checkMySQL(dockerStatuses['MySQL 8.0']),
+    checkRedis(dockerStatuses['Redis 7']),
+    checkClickHouse(dockerStatuses['ClickHouse']),
+    checkMinIO(dockerStatuses['MinIO / S3']),
+    checkQdrant(dockerStatuses['Qdrant']),
+    checkKafka(dockerStatuses['Kafka']),
+    checkNeo4j(dockerStatuses['Neo4j']),
   ]);
 
+  const names = ['MySQL 8.0', 'Redis 7', 'ClickHouse', 'MinIO / S3', 'Qdrant', 'Kafka', 'Neo4j'];
   const engines = results.map((r, i) => {
     if (r.status === 'fulfilled') return r.value;
-    // fallback for rejected promises
-    const names = ['MySQL 8.0', 'Redis 7', 'ClickHouse', 'MinIO / S3', 'Qdrant', 'Kafka', 'Neo4j'];
+    const ds = dockerStatuses[names[i]];
+    const { status, connectionInfo } = resolveStatus(false, ds);
     return {
       name: names[i],
       type: 'Unknown',
       icon: '❓',
       description: '',
-      status: 'offline' as const,
+      status,
       latency: 0,
-      connectionInfo: '检测失败',
+      connectionInfo,
+      dockerStatus: ds,
       metrics: {},
       error: r.reason?.message || 'Unknown error'
     };
   });
 
   const online = engines.filter(e => e.status === 'online').length;
+  const starting = engines.filter(e => e.status === 'starting').length;
 
   return {
     engines,
     summary: {
       total: engines.length,
       online,
-      offline: engines.length - online,
+      offline: engines.length - online - starting,
+      starting,
       checkedAt: new Date().toISOString(),
+      dockerAvailable,
     }
   };
 }
