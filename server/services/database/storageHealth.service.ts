@@ -163,79 +163,79 @@ async function checkMySQL(dockerState?: string): Promise<StorageEngineStatus> {
 }
 
 /**
- * 检测 Redis 连接状态
+ * 检测 Redis 连接状态（TCP 直连 + PING 命令）
  */
 async function checkRedis(dockerState?: string): Promise<StorageEngineStatus> {
   const start = Date.now();
+  const host = process.env.REDIS_HOST || 'localhost';
+  const port = parseInt(process.env.REDIS_PORT || '6379');
   try {
-    // 先尝试 tRPC 健康检查
-    const response = await fetchWithTimeout(`http://localhost:3000/api/trpc/redis.healthCheck`, CONNECT_TIMEOUT);
-    const latency = Date.now() - start;
-
-    if (response.ok) {
-      const data = await response.json();
-      const result = data?.result?.data;
-      if (result?.connected) {
-        return {
-          name: 'Redis 7',
-          type: 'Cache',
-          icon: '🔴',
-          description: '缓存层，用于设备状态缓存、会话管理、事件去重',
-          status: 'online',
-          latency,
-          connectionInfo: '已连接',
-          dockerStatus: dockerState,
-          metrics: {
-            '缓存键': result?.keyCount ?? '-',
-            '内存使用': result?.memoryUsage ?? '-',
-            '命中率': result?.hitRate ?? '-',
-            '连接数': result?.connectedClients ?? '-',
-          }
-        };
-      }
-    }
-    throw new Error('Redis health check failed');
-  } catch (e: any) {
-    // 回退到 TCP 连接检测
-    try {
-      const net = await import('net');
-      const host = process.env.REDIS_HOST || 'localhost';
-      const port = parseInt(process.env.REDIS_PORT || '6379');
-      const connected = await new Promise<boolean>((resolve) => {
-        const socket = new net.Socket();
-        socket.setTimeout(CONNECT_TIMEOUT);
-        socket.on('connect', () => { socket.destroy(); resolve(true); });
-        socket.on('timeout', () => { socket.destroy(); resolve(false); });
-        socket.on('error', () => { socket.destroy(); resolve(false); });
-        socket.connect(port, host);
+    const net = await import('net');
+    const { connected, info } = await new Promise<{ connected: boolean; info: Record<string, string> }>((resolve) => {
+      const socket = new net.Socket();
+      let buffer = '';
+      socket.setTimeout(CONNECT_TIMEOUT);
+      socket.on('connect', () => {
+        // 发送 PING 命令验证 Redis 协议
+        socket.write('*1\r\n$4\r\nPING\r\n');
       });
-      const { status, connectionInfo } = resolveStatus(connected, dockerState);
-      return {
-        name: 'Redis 7',
-        type: 'Cache',
-        icon: '🔴',
-        description: '缓存层，用于设备状态缓存、会话管理、事件去重',
-        status,
-        latency: Date.now() - start,
-        connectionInfo,
-        dockerStatus: dockerState,
-        metrics: { '缓存键': '-', '内存使用': '-', '命中率': '-', '连接数': '-' },
-      };
-    } catch {
-      const { status, connectionInfo } = resolveStatus(false, dockerState);
-      return {
-        name: 'Redis 7',
-        type: 'Cache',
-        icon: '🔴',
-        description: '缓存层，用于设备状态缓存、会话管理、事件去重',
-        status,
-        latency: Date.now() - start,
-        connectionInfo,
-        dockerStatus: dockerState,
-        metrics: { '缓存键': '-', '内存使用': '-', '命中率': '-', '连接数': '-' },
-        error: e.message
-      };
-    }
+      socket.on('data', (data: Buffer) => {
+        buffer += data.toString();
+        if (buffer.includes('+PONG')) {
+          // PING 成功，尝试获取 INFO 统计
+          socket.write('*2\r\n$4\r\nINFO\r\n$6\r\nserver\r\n');
+          // 给 INFO 响应一点时间
+          setTimeout(() => {
+            const info: Record<string, string> = {};
+            // 解析 INFO 响应中的关键指标
+            const lines = buffer.split('\r\n');
+            for (const line of lines) {
+              if (line.includes(':')) {
+                const [k, v] = line.split(':');
+                if (k && v) info[k.trim()] = v.trim();
+              }
+            }
+            socket.destroy();
+            resolve({ connected: true, info });
+          }, 200);
+        }
+      });
+      socket.on('timeout', () => { socket.destroy(); resolve({ connected: false, info: {} }); });
+      socket.on('error', () => { socket.destroy(); resolve({ connected: false, info: {} }); });
+      socket.connect(port, host);
+    });
+    const latency = Date.now() - start;
+    const { status, connectionInfo } = resolveStatus(connected, dockerState);
+    return {
+      name: 'Redis 7',
+      type: 'Cache',
+      icon: '🔴',
+      description: '缓存层，用于设备状态缓存、会话管理、事件去重',
+      status,
+      latency,
+      connectionInfo,
+      dockerStatus: dockerState,
+      metrics: {
+        '缓存键': '-',
+        '内存使用': info?.used_memory_human ?? '-',
+        '命中率': '-',
+        '连接数': info?.connected_clients ?? '-',
+      }
+    };
+  } catch (e: any) {
+    const { status, connectionInfo } = resolveStatus(false, dockerState);
+    return {
+      name: 'Redis 7',
+      type: 'Cache',
+      icon: '🔴',
+      description: '缓存层，用于设备状态缓存、会话管理、事件去重',
+      status,
+      latency: Date.now() - start,
+      connectionInfo,
+      dockerStatus: dockerState,
+      metrics: { '缓存键': '-', '内存使用': '-', '命中率': '-', '连接数': '-' },
+      error: e.message
+    };
   }
 }
 
