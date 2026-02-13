@@ -1,0 +1,221 @@
+{
+  "stress": {
+    "sensorId": "1904000115",
+    "channelCount": 24,
+    "samplingRate": 20,
+    "unit": "MPa",
+    "timeRange": {
+      "start": "2026-01-24 11:30:59",
+      "end": "2026-01-24 11:32:59"
+    },
+    "channelSummary": [
+      {
+        "channelId": "01",
+        "channelName": "通道01",
+        "mean": -38.5128,
+        "min": -38.67,
+        "max": -38.4113,
+        "totalPoints": 3600
+      },
+      {
+        "channelId": "02",
+        "channelName": "通道02",
+        "mean": -20.3837,
+        "min": -20.6313,
+        "max": -20.2,
+        "totalPoints": 3600
+      },
+      {
+        "channelId": "03",
+        "channelName": "通道03",
+        "mean": -12.1264,
+        "min": -12.7625,
+        "max": -11.555,
+        "totalPoints": 3600
+      },
+      {
+        "channelId": "04",
+        "channelName": "通道04",
+        "mean": -56.5136,
+        "min": -56.6775,
+        "max": -56.3325,
+        "totalPoints": 3600
+      },
+      {
+        "channelId": "05",
+        "channelName": "通道05",
+        "mean": 12.3515,
+        "min": 12.2188,
+        "max": 12.4775,
+        "totalPoints": 3600
+      },
+      {
+        "channelId": "06",
+        "channelName": "通道06",
+        "mean": -13.2405,
+        "min": -13.8625,
+        "max": -12.5687,
+        "totalPoints": 3600
+      },
+      {
+        "channelId": "07",
+        "channelName": "通道07",
+        "mean": -27.8576,
+        "min": -27.9313,
+        "max": -27.7588,
+        "totalPoints": 3600
+      },
+      {
+        "channelId": "08",
+        "channelName": "通道08",
+        "mean": -26.3701,
+        "min": -27.3625,
+        "max": -25.2925,
+        "totalPoints": 3600
+      },
+      {
+        "channelId": "09",
+        "channelName": "通道09",
+        "mean": -47.9963,
+        "min": -48.1188,
+        "max": -47.86,
+        "totalPoints": 3600
+      },
+      {
+        "channelId": "10",
+        "channelName": "通道10",
+        "mean": -56.1776,
+        "min": -56.2812,
+        "max": -56.0225,
+        "totalPoints": 3600
+      },
+      {
+        "channelId": "11",
+        "channelName": "通道11",
+        "mean": 27.3937,
+        "min": 25.6875,
+        "max": 28.4475,
+        "totalPoints": 3600
+      },
+      {
+        "channelId": "12",
+        "channelName": "通道12",
+        "mean": -35.7755,
+        "min": -35.9538,
+        "max": -35.6087,
+        "totalPoints": 3600
+      },
+      {
+        "channelId": "13",
+        "channelName": "通道13",
+        "mean": -41.3153,
+        "min": -41.4012,
+        "max": -41.1425,
+        "totalPoints": 3600
+      },
+      {
+        "channelId": "14",
+        "channelName": "通道14",
+        "mean": 47.4845,
+        "min": 46.0063,
+        "max": 48.7663,
+        "totalPoints": 3600
+      },
+      {
+        "channelId": "15",
+        "channelName": "通道15",
+        "mean": -50.7231,
+        "min": -50.9975,
+        "max": -50.5662,
+        "totalPoints": 3600
+      },
+      {
+        "channelId": "16",
+        "channelName": "通道16",
+        "mean": -13.2469,
+        "min": -13.3925,
+        "max": -13.1337,
+        "totalPoints": 3600
+      },
+      {
+        "channelId": "17",
+        "channelName": "通道17",
+        "mean": 47.5999,
+        "min": 47.3975,
+        "max": 47.8287,
+        "totalPoints": 3600
+      },
+      {
+        "channelId": "18",
+        "channelName": "通道18",
+        "mean": 36.3512,
+        "min": 36.2662,
+        "max": 36.4388,
+        "totalPoints": 3600
+      },
+      {
+        "channelId": "19",
+        "channelName": "通道19",
+        "mean": -18.4708,
+        "min": -18.6888,
+        "max": -18.1712,
+        "totalPoints": 3600
+      },
+      {
+        "channelId": "20",
+        "channelName": "通道20",
+        "mean": 38.8203,
+        "min": 38.7975,
+        "max": 38.8837,
+        "totalPoints": 3600
+      },
+      {
+        "channelId": "21",
+        "channelName": "通道21",
+        "mean": -15.8285,
+        "min": -16.3537,
+        "max": -15.3187,
+        "totalPoints": 3600
+      },
+      {
+        "channelId": "22",
+        "channelName": "通道22",
+        "mean": -49.5147,
+        "min": -49.935,
+        "max": -49.245,
+        "totalPoints": 3600
+      },
+      {
+        "channelId": "23",
+        "channelName": "通道23",
+        "mean": -29.8034,
+        "min": -30.02,
+        "max": -29.5887,
+        "totalPoints": 3600
+      },
+      {
+        "channelId": "24",
+        "channelName": "通道24",
+        "mean": -25.4588,
+        "min": -26.0013,
+        "max": -24.7938,
+        "totalPoints": 3600
+      }
+    ]
+  },
+  "temperature": {
+    "sensorId": "1903000114",
+    "channelCount": 1,
+    "unit": "°C",
+    "channels": [
+      {
+        "channelId": "05",
+        "channelName": "温度通道05",
+        "timestamp": "2025-11-28 12:22:04",
+        "temperature": 12.968,
+        "sensorId": "1903000114",
+        "dataType": "温度"
+      }
+    ]
+  }
+}

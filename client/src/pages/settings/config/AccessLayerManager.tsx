@@ -494,6 +494,11 @@ export default function AccessLayerManager() {
                   加载SHM演示数据
                 </Button>
               )}
+              <a href="/settings/config/shm-data-preview">
+                <Button size="sm" variant="outline">
+                  <BarChart3 className="w-3.5 h-3.5 mr-1" /> SHM数据预览
+                </Button>
+              </a>
               <Button size="sm" onClick={() => setShowCreateDialog(true)}>
                 <Plus className="w-3.5 h-3.5 mr-1" /> 新建连接器
               </Button>

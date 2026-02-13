@@ -75,7 +75,8 @@ import ClickHouseDashboard from "./pages/monitoring/ClickHouseDashboard";
 import {
   Infrastructure,
   KafkaMonitor,
-  AccessLayerManager
+  AccessLayerManager,
+  SHMDataPreview
 } from "./pages/settings/config";
 
 // 平台管理 - 状态监控（精简：移除 PluginsManager、EnginesManager、ModelsManager、ServicesOverview）
@@ -182,6 +183,7 @@ function Router() {
       <Route path="/settings/config/infrastructure" component={Infrastructure} />
       <Route path="/settings/config/kafka" component={KafkaMonitor} />
       <Route path="/settings/config/access-layer" component={AccessLayerManager} />
+      <Route path="/settings/config/shm-data-preview" component={SHMDataPreview} />
 
       {/* 状态监控 */}
       <Route path="/settings/status/topology" component={SystemTopology} />

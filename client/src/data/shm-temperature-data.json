@@ -1,0 +1,15 @@
+{
+  "sensorId": "1903000114",
+  "sensorType": "temperature",
+  "unit": "°C",
+  "channels": [
+    {
+      "channelId": "05",
+      "channelName": "温度通道05",
+      "timestamp": "2025-11-28 12:22:04",
+      "temperature": 12.968,
+      "sensorId": "1903000114",
+      "dataType": "温度"
+    }
+  ]
+}
