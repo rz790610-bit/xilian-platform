@@ -117,6 +117,7 @@ export const navigationConfig: NavItem[] = [
     section: '平台管理',
     children: [
       { id: 'design-pipeline', label: 'Pipeline 编排', icon: '🔗', path: '/settings/design/pipeline' },
+      { id: 'design-kg-orchestrator', label: '知识图谱编排', icon: '🕸️', path: '/settings/design/kg-orchestrator' },
       { id: 'design-db-workbench', label: '数据库工作台', icon: '🛠️', path: '/settings/design/workbench' }
     ]
   },

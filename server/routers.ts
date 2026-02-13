@@ -40,6 +40,8 @@ import { knowledgeRoutes } from "./business/routes/knowledge.routes";
 import { monitoringRoutes } from "./business/routes/monitoring.routes";
 // ============ Docker 引擎管理 ============
 import { dockerRouter } from "./api/docker.router";
+// ============ 知识图谱编排器 ============
+import { kgOrchestratorRouter } from "./api/kgOrchestrator.router";
 
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/core/index.ts, all api should start with '/api/' so that the gateway can route correctly
@@ -149,6 +151,9 @@ export const appRouter = router({
 
   // ============ Docker 引擎管理 ============
   docker: dockerRouter,
+
+  // ============ 知识图谱编排器 ============
+  kgOrchestrator: kgOrchestratorRouter,
 });
 
 export type AppRouter = typeof appRouter;

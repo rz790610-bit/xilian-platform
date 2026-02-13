@@ -1197,7 +1197,7 @@ export const dataCleanTasks = mysqlTable("data_clean_tasks", {
   progress: tinyint("progress").default(0).notNull(),
   stats: json("stats"),
   startedAt: datetime("started_at", { fsp: 3 }),
-  completedAt: datetime("completed_at", { fsp: 3 }),
+  completedAt: timestamp("completed_at"),
   errorMessage: text("error_message"),
   version: int("version").default(1).notNull(),
   createdBy: varchar("created_by", { length: 64 }),
@@ -2554,7 +2554,7 @@ export const eventStore = mysqlTable("event_store", {
   causationId: varchar("causation_id", { length: 64 }),
   correlationId: varchar("correlation_id", { length: 64 }),
   occurredAt: datetime("occurred_at", { fsp: 3 }).notNull(),
-  recordedAt: datetime("recorded_at", { fsp: 3 }).notNull(),
+  recordedAt: timestamp("recorded_at").notNull(),
   actorId: varchar("actor_id", { length: 64 }),
   actorType: varchar("actor_type", { length: 20 }),
 });
@@ -2588,7 +2588,7 @@ export const pipelines = mysqlTable("pipelines", {
   totalRuns: int("total_runs").default(0),
   successRuns: int("success_runs").default(0),
   failedRuns: int("failed_runs").default(0),
-  lastRunAt: datetime("last_run_at", { fsp: 3 }),
+  lastRunAt: timestamp("last_run_at"),
   createdAt: datetime("created_at", { fsp: 3 }).notNull(),
   updatedAt: datetime("updated_at", { fsp: 3 }).notNull(),
 });
@@ -2631,3 +2631,195 @@ export const pipelineNodeMetrics = mysqlTable("pipeline_node_metrics", {
 });
 export type PipelineNodeMetric = typeof pipelineNodeMetrics.$inferSelect;
 export type InsertPipelineNodeMetric = typeof pipelineNodeMetrics.$inferInsert;
+
+// ============================================================
+// §21 知识图谱编排器
+// ============================================================
+
+/** 图谱定义 — 一个完整的诊断知识图谱 */
+export const kgGraphs = mysqlTable("kg_graphs", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  graphId: varchar("graph_id", { length: 64 }).notNull().unique(),
+  name: varchar("name", { length: 200 }).notNull(),
+  description: text("description"),
+  /** 场景类型：vibration_diagnosis | degradation_prediction | fault_propagation | multimodal_fusion | fleet_learning | custom */
+  scenario: varchar("scenario", { length: 64 }).notNull().default("custom"),
+  /** 来源模板ID（如果从模板创建） */
+  templateId: varchar("template_id", { length: 64 }),
+  /** 版本号 */
+  version: int("version").default(1).notNull(),
+  /** 图谱状态 */
+  status: mysqlEnum("status", ["draft", "active", "archived", "evolving"]).default("draft").notNull(),
+  /** 画布视口配置（缩放、偏移等） */
+  viewportConfig: json("viewport_config").$type<{ zoom: number; panX: number; panY: number }>(),
+  /** 统计 */
+  nodeCount: int("node_count").default(0),
+  edgeCount: int("edge_count").default(0),
+  /** 自进化统计 */
+  totalDiagnosisRuns: int("total_diagnosis_runs").default(0),
+  avgAccuracy: double("avg_accuracy"),
+  lastEvolvedAt: timestamp("last_evolved_at"),
+  /** 元数据标签 */
+  tags: json("tags").$type<string[]>(),
+  createdBy: varchar("created_by", { length: 64 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+export type KgGraph = typeof kgGraphs.$inferSelect;
+export type InsertKgGraph = typeof kgGraphs.$inferInsert;
+
+/** 图谱节点实例 — 画布上的每个实体 */
+export const kgGraphNodes = mysqlTable("kg_graph_nodes", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  graphId: varchar("graph_id", { length: 64 }).notNull(),
+  nodeId: varchar("node_id", { length: 64 }).notNull(),
+  /** 节点大类：equipment | fault | diagnosis | solution | data | mechanism */
+  category: varchar("category", { length: 32 }).notNull(),
+  /** 节点子类型：device | component | sensor | fault_mode | symptom | diagnosis_rule | repair | ... */
+  subType: varchar("sub_type", { length: 64 }).notNull(),
+  /** 显示名称 */
+  label: varchar("label", { length: 200 }).notNull(),
+  /** 画布坐标 */
+  x: double("x").default(0).notNull(),
+  y: double("y").default(0).notNull(),
+  /** 节点配置参数（根据subType不同而不同） */
+  config: json("config").$type<Record<string, unknown>>(),
+  /** 节点状态：normal | pending_confirm | deprecated */
+  nodeStatus: mysqlEnum("node_status", ["normal", "pending_confirm", "deprecated"]).default("normal").notNull(),
+  /** 自进化：该节点参与诊断的次数 */
+  hitCount: int("hit_count").default(0),
+  /** 自进化：该节点的准确率 */
+  accuracy: double("accuracy"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("idx_kgn_graph").on(table.graphId),
+  index("idx_kgn_category").on(table.category),
+]);
+export type KgGraphNode = typeof kgGraphNodes.$inferSelect;
+export type InsertKgGraphNode = typeof kgGraphNodes.$inferInsert;
+
+/** 图谱关系实例 — 画布上的每条语义边 */
+export const kgGraphEdges = mysqlTable("kg_graph_edges", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  graphId: varchar("graph_id", { length: 64 }).notNull(),
+  edgeId: varchar("edge_id", { length: 64 }).notNull(),
+  sourceNodeId: varchar("source_node_id", { length: 64 }).notNull(),
+  targetNodeId: varchar("target_node_id", { length: 64 }).notNull(),
+  /** 关系类型：HAS_PART | CAUSES | MANIFESTS | DIAGNOSED_BY | RESOLVED_BY | AFFECTS | SIMILAR_TO | DEGRADES_TO | TRIGGERS | FEEDS | REFERENCES | HAS_SENSOR */
+  relationType: varchar("relation_type", { length: 32 }).notNull(),
+  /** 显示标签 */
+  label: varchar("label", { length: 200 }),
+  /** 关系权重/置信度 (0~1) */
+  weight: double("weight").default(1).notNull(),
+  /** 关系配置 */
+  config: json("config").$type<Record<string, unknown>>(),
+  /** 自进化：该路径的诊断准确率 */
+  pathAccuracy: double("path_accuracy"),
+  /** 自进化：该路径被使用的次数 */
+  hitCount: int("hit_count").default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("idx_kge_graph").on(table.graphId),
+  index("idx_kge_source").on(table.sourceNodeId),
+  index("idx_kge_target").on(table.targetNodeId),
+]);
+export type KgGraphEdge = typeof kgGraphEdges.$inferSelect;
+export type InsertKgGraphEdge = typeof kgGraphEdges.$inferInsert;
+
+/** 诊断运行记录 */
+export const kgDiagnosisRuns = mysqlTable("kg_diagnosis_runs", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  runId: varchar("run_id", { length: 64 }).notNull().unique(),
+  graphId: varchar("graph_id", { length: 64 }).notNull(),
+  /** 触发方式 */
+  triggerType: mysqlEnum("trigger_type", ["manual", "auto", "api", "edge"]).default("manual").notNull(),
+  /** 输入数据（传感器读数、设备ID等） */
+  inputData: json("input_data").$type<Record<string, unknown>>(),
+  /** 诊断状态 */
+  status: mysqlEnum("status", ["running", "completed", "failed", "timeout"]).default("running").notNull(),
+  /** 诊断结果 */
+  result: json("result").$type<{
+    conclusion: string;
+    confidence: number;
+    faultCodes: string[];
+    severity: string;
+    recommendedActions: string[];
+  }>(),
+  /** 推理路径（经过的节点和边） */
+  inferencePathIds: json("inference_path_ids").$type<string[]>(),
+  /** 推理深度（跳数） */
+  inferenceDepth: int("inference_depth"),
+  /** 耗时 */
+  durationMs: int("duration_ms"),
+  /** 人工反馈：correct | incorrect | partial | pending */
+  feedback: mysqlEnum("feedback", ["correct", "incorrect", "partial", "pending"]).default("pending").notNull(),
+  /** 反馈备注 */
+  feedbackNote: text("feedback_note"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_kgdr_graph").on(table.graphId),
+  index("idx_kgdr_status").on(table.status),
+]);
+export type KgDiagnosisRun = typeof kgDiagnosisRuns.$inferSelect;
+export type InsertKgDiagnosisRun = typeof kgDiagnosisRuns.$inferInsert;
+
+/** 诊断推理路径详情 */
+export const kgDiagnosisPaths = mysqlTable("kg_diagnosis_paths", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  runId: varchar("run_id", { length: 64 }).notNull(),
+  graphId: varchar("graph_id", { length: 64 }).notNull(),
+  /** 路径序号（同一次诊断可能有多条候选路径） */
+  pathIndex: int("path_index").notNull(),
+  /** 路径经过的节点ID序列 */
+  nodeSequence: json("node_sequence").$type<string[]>().notNull(),
+  /** 路径经过的边ID序列 */
+  edgeSequence: json("edge_sequence").$type<string[]>().notNull(),
+  /** 该路径的置信度 */
+  confidence: double("confidence").notNull(),
+  /** 该路径的诊断结论 */
+  conclusion: varchar("conclusion", { length: 500 }),
+  /** 是否为最终选择的路径 */
+  isSelected: boolean("is_selected").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_kgdp_run").on(table.runId),
+]);
+export type KgDiagnosisPath = typeof kgDiagnosisPaths.$inferSelect;
+export type InsertKgDiagnosisPath = typeof kgDiagnosisPaths.$inferInsert;
+
+/** 自进化日志 */
+export const kgEvolutionLog = mysqlTable("kg_evolution_log", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  graphId: varchar("graph_id", { length: 64 }).notNull(),
+  /** 进化类型：accuracy_update | new_pattern | fleet_merge | weight_adjust | node_deprecate */
+  evolutionType: varchar("evolution_type", { length: 32 }).notNull(),
+  /** 进化描述 */
+  description: text("description"),
+  /** 变更详情 */
+  changes: json("changes").$type<{
+    addedNodes?: Array<{ nodeId: string; label: string; reason: string }>;
+    addedEdges?: Array<{ edgeId: string; label: string; reason: string }>;
+    updatedWeights?: Array<{ edgeId: string; oldWeight: number; newWeight: number }>;
+    deprecatedNodes?: Array<{ nodeId: string; reason: string }>;
+    accuracyDelta?: number;
+  }>(),
+  /** 触发来源 */
+  triggeredBy: mysqlEnum("triggered_by", ["system", "diagnosis_feedback", "fleet_sync", "manual"]).default("system").notNull(),
+  /** 来源设备数（Fleet学习） */
+  sourceDeviceCount: int("source_device_count"),
+  /** 进化前后的准确率变化 */
+  accuracyBefore: double("accuracy_before"),
+  accuracyAfter: double("accuracy_after"),
+  /** 状态：applied | pending_review | rejected */
+  status: mysqlEnum("status", ["applied", "pending_review", "rejected"]).default("pending_review").notNull(),
+  reviewedBy: varchar("reviewed_by", { length: 64 }),
+  reviewedAt: datetime("reviewed_at", { fsp: 3 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_kgel_graph").on(table.graphId),
+  index("idx_kgel_type").on(table.evolutionType),
+]);
+export type KgEvolutionLog = typeof kgEvolutionLog.$inferSelect;
+export type InsertKgEvolutionLog = typeof kgEvolutionLog.$inferInsert;

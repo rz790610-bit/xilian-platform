@@ -51,7 +51,8 @@ import {
 import {
   PipelineEditor,
   DataStream,
-  GraphQueryManager
+  GraphQueryManager,
+  KGOrchestrator,
 } from "./pages/settings/design";
 // V4.0 新增页面 - Platform
 import AlertRules from "./pages/platform/AlertRules";
@@ -174,6 +175,7 @@ function Router() {
       <Route path="/settings/design/datastream" component={DataStream} />
       <Route path="/settings/design/graph-query" component={GraphQueryManager} />
       <Route path="/settings/design/workbench" component={DatabaseWorkbench} />
+      <Route path="/settings/design/kg-orchestrator" component={KGOrchestrator} />
 
       {/* 配置中心 */}
       <Route path="/settings/config/infrastructure" component={Infrastructure} />
