@@ -4,6 +4,7 @@
  * 5 个 Tab: 图谱画布 | 场景模板 | 诊断运行 | 自进化面板 | 图谱列表
  */
 import { useState, useMemo, useCallback } from "react";
+import { MainLayout } from "@/components/layout/MainLayout";
 import { useKGOrchestratorStore } from "../../../stores/kgOrchestratorStore";
 import { useToast } from "@/components/common/Toast";
 import KGCanvas from "../../../components/kg-orchestrator/KGCanvas";
@@ -289,6 +290,7 @@ export default function KGOrchestrator() {
   }, [store, toast]);
 
   return (
+    <MainLayout title="知识图谱编排">
     <div className="h-full flex flex-col bg-slate-950 text-slate-200">
       {/* Tab 栏 */}
       <div className="shrink-0 flex items-center border-b border-slate-800 bg-slate-900/80 px-2">
@@ -319,6 +321,7 @@ export default function KGOrchestrator() {
       {activeTab === "evolution" && <EvolutionTab />}
       {activeTab === "list" && <GraphListTab />}
     </div>
+    </MainLayout>
   );
 }
 
