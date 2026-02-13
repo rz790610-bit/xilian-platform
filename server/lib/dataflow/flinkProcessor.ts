@@ -8,7 +8,8 @@
  */
 
 import { kafkaCluster, XILIAN_TOPICS } from './kafkaCluster';
-import type { SensorReading, AnomalyResult, WindowConfig } from "../../core/types/domain";
+import { SensorReading, AnomalyResult, WindowConfig } from "../../core/types/domain";
+export { SensorReading, AnomalyResult, WindowConfig };
 
 // ============ 类型定义 ============
 
@@ -116,7 +117,7 @@ class WindowState<T> {
 
   evict(currentTime: number): Array<{ key: string; data: T[]; startTime: number; endTime: number }> {
     const evicted: Array<{ key: string; data: T[]; startTime: number; endTime: number }> = [];
-    const cutoff = currentTime - this.config.sizeMs - this.config.allowedLatenessMs;
+    const cutoff = currentTime - this.config.sizeMs - (this.config.allowedLatenessMs || 0);
 
     for (const [key, window] of Array.from(this.windows.entries())) {
       if (window.endTime < cutoff) {
@@ -150,6 +151,7 @@ export class AnomalyDetector {
   constructor(config?: Partial<AnomalyDetectorConfig>) {
     this.config = {
       window: {
+        type: 'sliding' as const,
         sizeMs: 60000, // 1分钟
         slideMs: 10000, // 10秒滑动
         allowedLatenessMs: 5000,
@@ -230,7 +232,7 @@ export class AnomalyDetector {
       const key = `${reading.deviceId}:${reading.sensorId}:${reading.metricName}`;
 
       // 添加到窗口
-      this.windowState.add(key, reading, reading.timestamp);
+      this.windowState.add(key, reading, Number(reading.timestamp));
 
       // 实时检测
       const result = this.detectAnomaly(key, reading);
@@ -360,7 +362,7 @@ export class AnomalyDetector {
    */
   async pushReading(reading: SensorReading): Promise<AnomalyResult | null> {
     const key = `${reading.deviceId}:${reading.sensorId}:${reading.metricName}`;
-    this.windowState.add(key, reading, reading.timestamp);
+    this.windowState.add(key, reading, Number(reading.timestamp));
     
     const result = this.detectAnomaly(key, reading);
     if (result && result.isAnomaly) {
@@ -387,11 +389,13 @@ export class MetricsAggregator {
     this.config = {
       windows: {
         '1m': {
+          type: 'tumbling' as const,
           sizeMs: 60000,
           slideMs: 60000,
           allowedLatenessMs: 5000,
         },
         '1h': {
+          type: 'tumbling' as const,
           sizeMs: 3600000,
           slideMs: 3600000,
           allowedLatenessMs: 60000,
@@ -487,8 +491,8 @@ export class MetricsAggregator {
       const key = `${reading.deviceId}:${reading.sensorId}:${reading.metricName}`;
 
       // 添加到两个窗口
-      this.window1m.add(key, reading, reading.timestamp);
-      this.window1h.add(key, reading, reading.timestamp);
+      this.window1m.add(key, reading, Number(reading.timestamp));
+      this.window1h.add(key, reading, Number(reading.timestamp));
     } catch (error) {
       console.error('[MetricsAggregator] Error processing message:', error);
     }
@@ -610,8 +614,8 @@ export class MetricsAggregator {
    */
   pushReading(reading: SensorReading): void {
     const key = `${reading.deviceId}:${reading.sensorId}:${reading.metricName}`;
-    this.window1m.add(key, reading, reading.timestamp);
-    this.window1h.add(key, reading, reading.timestamp);
+    this.window1m.add(key, reading, Number(reading.timestamp));
+    this.window1h.add(key, reading, Number(reading.timestamp));
   }
 
   /**

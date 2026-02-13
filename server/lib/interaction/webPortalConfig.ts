@@ -1,4 +1,5 @@
-import type { LayoutConfig } from "../../core/types/domain";
+import { LayoutConfig } from "../../core/types/domain";
+export { LayoutConfig };
 
 /**
  * React 19 Web Portal 配置服务
@@ -164,11 +165,12 @@ export const DEFAULT_THEME: ThemeConfig = {
 };
 
 export const DEFAULT_LAYOUT: LayoutConfig = {
+  type: 'sidebar',
   sidebar: {
     width: 280,
     collapsedWidth: 64,
     position: 'left',
-    defaultCollapsed: false,
+    collapsed: false,
   },
   header: {
     height: 64,
@@ -667,15 +669,15 @@ export class WebPortalConfigService {
     const layout = this.config.layout;
     return `
 .app-layout {
-  --sidebar-width: ${layout.sidebar.width}px;
-  --sidebar-collapsed-width: ${layout.sidebar.collapsedWidth}px;
-  --header-height: ${layout.header.height}px;
-  --footer-height: ${layout.footer.height}px;
-  --content-max-width: ${layout.content.maxWidth}px;
-  --content-padding: ${layout.content.padding}px;
+  --sidebar-width: ${layout.sidebar?.width}px;
+  --sidebar-collapsed-width: ${layout.sidebar?.collapsedWidth}px;
+  --header-height: ${layout.header?.height}px;
+  --footer-height: ${layout.footer?.height}px;
+  --content-max-width: ${layout.content?.maxWidth}px;
+  --content-padding: ${layout.content?.padding}px;
 }
 
-@media (max-width: ${layout.breakpoints.md}px) {
+@media (max-width: ${layout.breakpoints?.md}px) {
   .app-layout {
     --sidebar-width: 0px;
   }

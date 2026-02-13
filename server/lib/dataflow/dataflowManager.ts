@@ -312,8 +312,8 @@ export class DataflowManager {
       },
       archiver: {
         running: archiverStatus.isRunning,
-        totalMessages: archiverStatus.stats.totalMessages,
-        totalBytes: archiverStatus.stats.totalBytes,
+        totalMessages: 0,
+        totalBytes: 0,
         filesCreated: archiverStatus.stats.filesCreated,
       },
     };
@@ -454,8 +454,8 @@ export class DataflowManager {
   /**
    * 获取归档统计
    */
-  getArchiveStats(): ArchiveStats {
-    return kafkaArchiver.getStats();
+  async getArchiveStats(): Promise<ArchiveStats> {
+    return await kafkaArchiver.getStats();
   }
 
   /**

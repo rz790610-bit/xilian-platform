@@ -241,7 +241,7 @@ export const asyncTaskLogService = {
     if (!db) throw new Error('Database not available');
     await db.insert(asyncTaskLog).values({
       taskId: input.taskId, taskType: input.taskType, inputParams: input.inputParams || null,
-      status: 'pending', progress: 0, retryCount: 0, maxRetries: input.maxRetries ?? 3,
+      status: 'pending', progress: '0', retryCount: 0, maxRetries: input.maxRetries ?? 3,
       createdAt: new Date(), createdBy: input.createdBy || 'system',
     });
     return { success: true, taskId: input.taskId };

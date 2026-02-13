@@ -11,24 +11,7 @@ const db = getDb;
 import { eq, desc, and, gte, lte, sql } from 'drizzle-orm';
 import type { EventHandler, EventPayload } from "../../core/types/domain";
 
-// 事件类型定义
-export interface EventPayload {
-  eventId: string;
-  eventType: string;
-  severity: 'info' | 'warning' | 'error' | 'critical';
-  source: string;
-  timestamp: number;
-  data: Record<string, any>;
-  metadata?: {
-    deviceId?: string;
-    sensorId?: string;
-    userId?: string;
-    correlationId?: string;
-    [key: string]: any;
-  };
-}
-
-// 事件处理器类型
+// EventPayload 和 EventHandler 已从 domain.ts 统一导入
 // 订阅信息
 interface Subscription {
   id: string;
@@ -93,6 +76,7 @@ class KafkaEventBus {
 
     const fullEvent: EventPayload = {
       ...event,
+      type: event.type || event.eventType || 'unknown',
       eventId,
       timestamp,
     };
@@ -101,19 +85,18 @@ class KafkaEventBus {
     if (kafkaClient.getConnectionStatus()) {
       try {
         const message: KafkaMessage = {
-          key: fullEvent.metadata?.deviceId || eventId,
+          key: String(fullEvent.metadata?.deviceId || eventId),
           value: JSON.stringify(fullEvent),
           headers: {
-            eventType: event.eventType,
-            severity: event.severity,
-            source: event.source,
+            eventType: event.eventType || '',
+            severity: event.severity || '',
+            source: event.source || '',
           },
           timestamp: timestamp.toString(),
         };
-
         await kafkaClient.produce(topic, [message]);
       } catch (error) {
-        console.error('[KafkaEventBus] Kafka 发送失败，保存到数据库:', error);
+        console.error('[KafkaEventBus] Kafka 发送失败，保存到数据库:', error);;
       }
     }
 
@@ -124,12 +107,12 @@ class KafkaEventBus {
       await database.insert(eventLog).values({
         eventId,
         topic,
-        eventType: event.eventType,
-        severity: event.severity,
-        source: event.source,
-        payload: fullEvent.data,
-        deviceId: fullEvent.metadata?.deviceId || null,
-        sensorId: fullEvent.metadata?.sensorId || null,
+        eventType: event.eventType || '',
+        severity: (event.severity || 'info') as 'info' | 'warning' | 'error' | 'critical',
+        source: event.source || null,
+        payload: fullEvent.data as Record<string, unknown>,
+        nodeId: (fullEvent.metadata?.deviceId as string) || null,
+        sensorId: (fullEvent.metadata?.sensorId as string) || null,
         processed: false,
         createdAt: new Date(timestamp),
       });
@@ -160,6 +143,7 @@ class KafkaEventBus {
 
       const fullEvent: EventPayload = {
         ...event,
+        type: event.type || event.eventType || 'unknown',
         eventId,
         timestamp,
       };
@@ -169,12 +153,12 @@ class KafkaEventBus {
         topicMessages.set(topic, []);
       }
       topicMessages.get(topic)!.push({
-        key: fullEvent.metadata?.deviceId || eventId,
+        key: String(fullEvent.metadata?.deviceId || eventId),
         value: JSON.stringify(fullEvent),
         headers: {
-          eventType: event.eventType,
-          severity: event.severity,
-          source: event.source,
+          eventType: event.eventType || '',
+          severity: event.severity || '',
+          source: event.source || '',
         },
         timestamp: timestamp.toString(),
       });
@@ -183,12 +167,12 @@ class KafkaEventBus {
       dbRecords.push({
         eventId,
         topic,
-        eventType: event.eventType,
-        severity: event.severity,
-        source: event.source,
-        payload: fullEvent.data,
-        deviceId: fullEvent.metadata?.deviceId || null,
-        sensorId: fullEvent.metadata?.sensorId || null,
+        eventType: event.eventType || '',
+        severity: (event.severity || 'info') as 'info' | 'warning' | 'error' | 'critical',
+        source: event.source || null,
+        payload: fullEvent.data as Record<string, unknown>,
+        nodeId: (fullEvent.metadata?.deviceId as string) || null,
+        sensorId: (fullEvent.metadata?.sensorId as string) || null,
         processed: false,
         createdAt: new Date(timestamp),
       });
@@ -250,7 +234,7 @@ class KafkaEventBus {
         const consumerId = await kafkaClient.subscribe(
           groupId,
           [topic],
-          async (message) => {
+          async (message: { topic: string; partition: number; offset: string; key: string | null; value: string | null; headers: Record<string, string>; timestamp: string; }) => {
             if (message.value) {
               try {
                 const event = JSON.parse(message.value) as EventPayload;
@@ -261,7 +245,7 @@ class KafkaEventBus {
       if (!database) throw new Error("Database not connected");
                 await database.update(eventLog)
                   .set({ processed: true, processedAt: new Date() })
-                  .where(eq(eventLog.eventId, event.eventId));
+                  .where(eq(eventLog.eventId, event.eventId || ''));
               } catch (error) {
                 console.error('[KafkaEventBus] 处理消息失败:', error);
               }
@@ -358,7 +342,7 @@ class KafkaEventBus {
       conditions.push(eq(eventLog.severity, options.severity as 'info' | 'warning' | 'error' | 'critical'));
     }
     if (options.deviceId) {
-      conditions.push(eq(eventLog.deviceId, options.deviceId));
+      conditions.push(eq(eventLog.nodeId, options.deviceId));
     }
     if (options.startTime) {
       conditions.push(gte(eventLog.createdAt, new Date(options.startTime)));
@@ -499,6 +483,7 @@ export async function publishEvent(
   }
 ): Promise<string> {
   return kafkaEventBus.publish(topic, {
+    type: eventType,
     eventType,
     severity: options?.severity || 'info',
     source: options?.source || 'system',
@@ -516,6 +501,7 @@ export async function publishSensorReading(
   metadata?: Record<string, any>
 ): Promise<string> {
   return kafkaEventBus.publish(KAFKA_TOPICS.SENSOR_READINGS, {
+    type: 'sensor_reading',
     eventType: 'sensor_reading',
     severity: 'info',
     source: 'sensor',
@@ -533,6 +519,7 @@ export async function publishAnomalyAlert(
   severity: 'warning' | 'error' | 'critical' = 'warning'
 ): Promise<string> {
   return kafkaEventBus.publish(KAFKA_TOPICS.ANOMALY_ALERTS, {
+    type: anomalyType,
     eventType: anomalyType,
     severity,
     source: 'anomaly_detector',

@@ -375,7 +375,7 @@ export default function OpsDashboard() {
                       </div>
                       <Progress value={realData.system.memory.usagePercent} />
                       <p className="text-xs text-muted-foreground">
-                        {(realData.system.memory.used / 1024 / 1024 / 1024).toFixed(1)} / {(realData.system.memory.total / 1024 / 1024 / 1024).toFixed(1)} GB
+                        {(realData.system.memory.usedMB / 1024 / 1024 / 1024).toFixed(1)} / {(realData.system.memory.totalMB / 1024 / 1024 / 1024).toFixed(1)} GB
                       </p>
                     </div>
                     <div className="space-y-2">
@@ -385,16 +385,16 @@ export default function OpsDashboard() {
                       </div>
                       <Progress value={realData.system.disk.usagePercent} />
                       <p className="text-xs text-muted-foreground">
-                        {(realData.system.disk.used / 1024 / 1024 / 1024).toFixed(1)} / {(realData.system.disk.total / 1024 / 1024 / 1024).toFixed(1)} GB
+                        {(realData.system.disk.usedGB / 1024 / 1024 / 1024).toFixed(1)} / {(realData.system.disk.totalGB / 1024 / 1024 / 1024).toFixed(1)} GB
                       </p>
                     </div>
                     <div className="space-y-2">
                       <div className="flex justify-between text-sm">
                         <span className="flex items-center gap-1"><Server className="h-3 w-3" /> 运行时间</span>
                       </div>
-                      <div className="text-lg font-bold">{Math.floor(realData.system.uptime / 86400)}天</div>
+                      <div className="text-lg font-bold">{Math.floor(realData.system.process.uptime / 86400)}天</div>
                       <p className="text-xs text-muted-foreground">
-                        负载: {realData.system.cpu.loadAverage?.[0]?.toFixed(2) || '-'}
+                        负载: {realData.system.cpu.loadAvg?.[0]?.toFixed(2) || '-'}
                       </p>
                     </div>
                   </div>
@@ -578,10 +578,10 @@ export default function OpsDashboard() {
                         <TableRow key={db.name}>
                           <TableCell className="font-medium">{db.name}</TableCell>
                           <TableCell>{getStatusBadge(db.status)}</TableCell>
-                          <TableCell>{db.connections || '-'}</TableCell>
+                          <TableCell>{db.connections.active || '-'}</TableCell>
                           <TableCell>
-                            <span className={(db.latency || 0) > 100 ? 'text-yellow-500' : 'text-green-500'}>
-                              {db.latency?.toFixed(1) || '-'}ms
+                            <span className={(db.performance?.queryLatencyMs || 0) > 100 ? 'text-yellow-500' : 'text-green-500'}>
+                              {db.performance?.queryLatencyMs?.toFixed(1) || '-'}ms
                             </span>
                           </TableCell>
                           <TableCell className="text-xs text-muted-foreground">{db.version || '-'}</TableCell>
@@ -789,8 +789,8 @@ export default function OpsDashboard() {
                           <TableCell className="text-xs">{engine.version}</TableCell>
                           <TableCell>{getStatusBadge(engine.status)}</TableCell>
                           <TableCell><Badge variant="outline">{engine.type}</Badge></TableCell>
-                          <TableCell>{engine.metrics?.cpu?.toFixed(1) || '-'}%</TableCell>
-                          <TableCell>{engine.metrics?.memory?.toFixed(1) || '-'}%</TableCell>
+                          <TableCell>{engine.resources?.cpuPercent?.toFixed(1) || '-'}%</TableCell>
+                          <TableCell>{engine.resources?.memoryMB?.toFixed(0) || '-'} MB</TableCell>
                           <TableCell className="text-right">
                             <div className="flex justify-end gap-1">
                               {engine.status === 'running' ? (
@@ -936,7 +936,7 @@ export default function OpsDashboard() {
                   <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                     {(dashboard.services || []).map((service) => (
                       <div key={service.name} className={`p-3 rounded-lg border ${
-                        service.status === 'healthy' || service.status === 'online' ? 'bg-green-500/10 border-green-500/30' :
+                        service.status === 'healthy' ? 'bg-green-500/10 border-green-500/30' :
                         service.status === 'degraded' ? 'bg-yellow-500/10 border-yellow-500/30' :
                         'bg-red-500/10 border-red-500/30'
                       }`}>
@@ -945,7 +945,7 @@ export default function OpsDashboard() {
                           {getStatusBadge(service.status)}
                         </div>
                         <div className="text-xs text-muted-foreground">
-                          {service.responseTime ? `${service.responseTime.toFixed(0)}ms` : '-'}
+                          {service.responseTimeMs ? `${service.responseTimeMs.toFixed(0)}ms` : '-'}
                         </div>
                       </div>
                     ))}

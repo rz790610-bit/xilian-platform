@@ -496,7 +496,7 @@ export default function Infrastructure() {
     } as any);
   };
 
-  const cluster = summary?.cluster;
+  const cluster = (summary as any)?.cluster;
 
   return (
     <MainLayout title="基础设施管理">
@@ -504,7 +504,7 @@ export default function Infrastructure() {
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-6">
         <StatCard
           label="节点"
-          value={(summary as any)?.nodes?.total ?? (summary?.cluster as any)?.nodes ?? 0}
+          value={(summary as any)?.nodes?.total ?? (summary as any)?.cluster?.nodes ?? 0}
           icon="🖥️"
         />
         <StatCard
@@ -514,22 +514,22 @@ export default function Infrastructure() {
         />
         <StatCard
           label="存储类"
-          value={summary?.storage.classes || 0}
+          value={(summary as any)?.storage?.classes || 0}
           icon="💾"
         />
         <StatCard
           label="安全策略"
-          value={summary?.security.policies || 0}
+          value={(summary as any)?.security?.policies || 0}
           icon="🛡️"
         />
         <StatCard
           label="Runner"
-          value={(summary?.cicd as any)?.runners || 0}
+          value={(summary as any)?.cicd?.runners || 0}
           icon="⚡"
         />
         <StatCard
           label="ArgoCD 应用"
-          value={(summary?.cicd as any)?.apps || 0}
+          value={(summary as any)?.cicd?.apps || 0}
           icon="☁️"
         />
       </div>

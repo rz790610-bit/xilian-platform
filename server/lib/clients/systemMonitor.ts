@@ -5,7 +5,7 @@
 
 import si from 'systeminformation';
 import os from 'os';
-import type { SystemResource } from '../../services/monitoring.service';
+import type { SystemResource } from '../../core/types/domain';
 
 /**
  * 获取系统资源状态

@@ -3,6 +3,7 @@
  */
 
 import { z } from 'zod';
+import type { SensorReading } from '../core/types/domain';
 import { router, publicProcedure, protectedProcedure } from '../core/trpc';
 import { clickhouseClient } from '../lib/clients/clickhouse.client';
 
@@ -38,8 +39,8 @@ export const clickhouseRouter = router({
       })),
     }))
     .mutation(async ({ input }) => {
-      const readings = input.readings.map(r => ({
-        ...r,
+      const readings: SensorReading[] = input.readings.map(r => ({
+        sensorId: r.sensor_id, deviceId: r.device_id, metricName: r.metric_name, value: r.value, unit: r.unit, quality: r.quality, metadata: r.metadata as Record<string, unknown>,
         timestamp: new Date(r.timestamp),
       }));
       await clickhouseClient.insertSensorReadings(readings);

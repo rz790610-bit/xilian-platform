@@ -119,7 +119,7 @@ export const observabilityRouter = router({
   getGpuMetrics: publicProcedure
     .input(z.object({ gpuId: z.number().optional() }).optional())
     .query(({ input }) => {
-      return PrometheusService.getInstance().getGpuMetrics(input?.gpuId);
+      return PrometheusService.getInstance().getGpuMetrics(input?.gpuId != null ? String(input.gpuId) : undefined);
     }),
 
   queryPrometheus: publicProcedure

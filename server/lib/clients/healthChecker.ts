@@ -6,7 +6,7 @@
 import http from 'http';
 import https from 'https';
 import net from 'net';
-import type { ServiceHealth } from '../../services/monitoring.service';
+import type { ServiceHealth } from '../../core/types/domain';
 
 export interface HealthCheckConfig {
   name: string;

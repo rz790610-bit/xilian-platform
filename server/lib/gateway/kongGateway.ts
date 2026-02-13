@@ -11,7 +11,8 @@
  */
 
 import Redis from 'ioredis';
-import type { GatewayStats } from "../../core/types/domain";
+import { GatewayStats } from "../../core/types/domain";
+export { GatewayStats };
 
 // ============ 类型定义 ============
 
@@ -366,6 +367,11 @@ export class KongGateway {
   private roles: Map<string, RBACRole> = new Map();
   private stats: GatewayStats = {
     totalRequests: 0,
+    activeConnections: 0,
+    requestsPerSecond: 0,
+    averageLatency: 0,
+    errorRate: 0,
+    uptime: 0,
     blockedRequests: 0,
     rateLimitedRequests: 0,
     authFailures: 0,
@@ -521,7 +527,7 @@ export class KongGateway {
       // 验证签名
       const expectedSignature = this.sign(`${headerB64}.${payloadB64}`);
       if (signature !== expectedSignature) {
-        this.stats.authFailures++;
+        this.stats.authFailures = (this.stats.authFailures || 0) + 1;
         return { valid: false, error: 'Invalid signature' };
       }
 
@@ -531,13 +537,13 @@ export class KongGateway {
       // 检查过期
       const now = Math.floor(Date.now() / 1000);
       if (payload.exp && payload.exp < now) {
-        this.stats.authFailures++;
+        this.stats.authFailures = (this.stats.authFailures || 0) + 1;
         return { valid: false, error: 'Token expired' };
       }
 
       return { valid: true, payload };
     } catch (error) {
-      this.stats.authFailures++;
+      this.stats.authFailures = (this.stats.authFailures || 0) + 1;
       return { valid: false, error: 'Token parsing failed' };
     }
   }
@@ -661,7 +667,7 @@ export class KongGateway {
       const currentCount = (results[1]?.[1] as number) || 0;
 
       if (currentCount >= limit) {
-        this.stats.rateLimitedRequests++;
+        this.stats.rateLimitedRequests = (this.stats.rateLimitedRequests || 0) + 1;
         return {
           allowed: false,
           remaining: 0,
@@ -864,14 +870,14 @@ export class KongGateway {
       // 1. 路由匹配
       const route = this.matchRoute(request.path, request.method);
       if (!route) {
-        this.stats.blockedRequests++;
+        this.stats.blockedRequests = (this.stats.blockedRequests || 0) + 1;
         return { allowed: false, error: 'Route not found' };
       }
 
       // 2. 获取服务
       const service = Array.from(this.services.values()).find(s => s.name === route.service);
       if (!service) {
-        this.stats.blockedRequests++;
+        this.stats.blockedRequests = (this.stats.blockedRequests || 0) + 1;
         return { allowed: false, error: 'Service not found' };
       }
 
@@ -880,7 +886,7 @@ export class KongGateway {
       if (route.plugins.includes('jwt-auth')) {
         const authHeader = request.headers['authorization'];
         if (!authHeader || !authHeader.startsWith('Bearer ')) {
-          this.stats.authFailures++;
+          this.stats.authFailures = (this.stats.authFailures || 0) + 1;
           return { allowed: false, route, service, error: 'Missing authorization header' };
         }
 
@@ -913,7 +919,7 @@ export class KongGateway {
       if (user && route.plugins.includes('jwt-auth')) {
         const action = this.methodToAction(request.method);
         if (!this.checkPermission(user.roles, request.path, action)) {
-          this.stats.blockedRequests++;
+          this.stats.blockedRequests = (this.stats.blockedRequests || 0) + 1;
           return { allowed: false, route, service, user, rateLimitInfo, error: 'Permission denied' };
         }
       }
@@ -926,7 +932,7 @@ export class KongGateway {
 
       // 更新延迟统计
       const latency = Date.now() - startTime;
-      this.stats.avgLatencyMs = (this.stats.avgLatencyMs + latency) / 2;
+      this.stats.avgLatencyMs = ((this.stats.avgLatencyMs || 0) + latency) / 2;
 
       return {
         allowed: true,
@@ -937,7 +943,7 @@ export class KongGateway {
         rateLimitInfo,
       };
     } catch (error) {
-      this.stats.upstreamErrors++;
+      this.stats.upstreamErrors = (this.stats.upstreamErrors || 0) + 1;
       return { allowed: false, error: 'Internal gateway error' };
     }
   }
@@ -974,6 +980,11 @@ export class KongGateway {
   resetStats(): void {
     this.stats = {
       totalRequests: 0,
+      activeConnections: 0,
+      requestsPerSecond: 0,
+      averageLatency: 0,
+      errorRate: 0,
+      uptime: 0,
       blockedRequests: 0,
       rateLimitedRequests: 0,
       authFailures: 0,

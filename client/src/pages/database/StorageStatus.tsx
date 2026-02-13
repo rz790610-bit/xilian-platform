@@ -26,21 +26,21 @@ export default function StorageStatus() {
   // Docker 操作 mutations
   const startEngine = trpc.docker.startEngine.useMutation({
     onSuccess: (_, vars) => {
-      toast.success(`正在启动 ${vars.engineName}...`);
+      toast.success(`正在启动 ${vars.containerName}...`);
       setTimeout(() => refetchStorage(), 3000);
     },
     onError: (err) => toast.error(`启动失败: ${err.message}`),
   });
   const stopEngine = trpc.docker.stopEngine.useMutation({
     onSuccess: (_, vars) => {
-      toast.success(`正在停止 ${vars.engineName}...`);
+      toast.success(`正在停止 ${vars.containerName}...`);
       setTimeout(() => refetchStorage(), 2000);
     },
     onError: (err) => toast.error(`停止失败: ${err.message}`),
   });
   const restartEngine = trpc.docker.restartEngine.useMutation({
     onSuccess: (_, vars) => {
-      toast.success(`正在重启 ${vars.engineName}...`);
+      toast.success(`正在重启 ${vars.containerName}...`);
       setTimeout(() => refetchStorage(), 5000);
     },
     onError: (err) => toast.error(`重启失败: ${err.message}`),
@@ -111,7 +111,7 @@ export default function StorageStatus() {
               <Button
                 size="sm"
                 variant="default"
-                onClick={() => startAll.mutate({})}
+                onClick={() => startAll.mutate()}
                 className="text-xs"
                 disabled={startAll.isPending}
               >
@@ -184,7 +184,7 @@ export default function StorageStatus() {
                           size="sm"
                           variant="outline"
                           className="h-6 text-[10px] px-2"
-                          onClick={() => startEngine.mutate({ engineName: engineToContainer[engine.name] })}
+                          onClick={() => startEngine.mutate({ containerName: engineToContainer[engine.name] })}
                           disabled={startEngine.isPending}
                         >
                           <Play className="w-2.5 h-2.5 mr-0.5" />
@@ -197,7 +197,7 @@ export default function StorageStatus() {
                             size="sm"
                             variant="outline"
                             className="h-6 text-[10px] px-2"
-                            onClick={() => restartEngine.mutate({ engineName: engineToContainer[engine.name] })}
+                            onClick={() => restartEngine.mutate({ containerName: engineToContainer[engine.name] })}
                             disabled={restartEngine.isPending}
                           >
                             <RotateCcw className="w-2.5 h-2.5 mr-0.5" />
@@ -211,7 +211,7 @@ export default function StorageStatus() {
                               if (engine.name === 'MySQL 8.0') {
                                 if (!confirm('停止 MySQL 将影响所有业务数据，确定要停止吗？')) return;
                               }
-                              stopEngine.mutate({ engineName: engineToContainer[engine.name] });
+                              stopEngine.mutate({ containerName: engineToContainer[engine.name] });
                             }}
                             disabled={stopEngine.isPending}
                           >

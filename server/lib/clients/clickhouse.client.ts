@@ -114,7 +114,7 @@ export interface AnomalyDetection {
   timestamp: Date;
 }
 
-export interface AggregationOptions extends QueryOptions {
+export interface ClickHouseAggregationOptions extends QueryOptions {
   interval: '1m' | '5m' | '1h' | '1d';
 }
 
@@ -128,16 +128,19 @@ export async function insertSensorReadings(readings: SensorReading[]): Promise<v
 
   const ch = getClickHouseClient();
   
-  const rows = readings.map(r => ({
-    device_id: r.device_id,
-    sensor_id: r.sensor_id,
-    metric_name: r.metric_name,
-    value: r.value,
-    unit: r.unit || '',
-    quality: r.quality || 'good',
-    timestamp: r.timestamp.toISOString().replace('T', ' ').replace('Z', ''),
-    metadata: JSON.stringify(r.metadata || {}),
-  }));
+  const rows = readings.map(r => {
+    const ts = r.timestamp instanceof Date ? r.timestamp : new Date(r.timestamp);
+    return {
+      device_id: r.deviceId,
+      sensor_id: r.sensorId,
+      metric_name: r.metricName || '',
+      value: r.value,
+      unit: r.unit || '',
+      quality: typeof r.quality === 'number' ? 'good' : (r.quality || 'good'),
+      timestamp: ts.toISOString().replace('T', ' ').replace('Z', ''),
+      metadata: JSON.stringify(r.metadata || {}),
+    };
+  });
 
   await ch.insert({
     table: 'sensor_readings',
@@ -218,12 +221,14 @@ export async function querySensorReadings(options: QueryOptions): Promise<Sensor
   
   if (options.startTime) {
     query += ` AND timestamp >= {startTime:DateTime64(3)}`;
-    params.startTime = options.startTime.toISOString().replace('T', ' ').replace('Z', '');
+    const st = options.startTime instanceof Date ? options.startTime : new Date(String(options.startTime));
+    params.startTime = st.toISOString().replace('T', ' ').replace('Z', '');
   }
   
   if (options.endTime) {
     query += ` AND timestamp <= {endTime:DateTime64(3)}`;
-    params.endTime = options.endTime.toISOString().replace('T', ' ').replace('Z', '');
+    const et = options.endTime instanceof Date ? options.endTime : new Date(String(options.endTime));
+    params.endTime = et.toISOString().replace('T', ' ').replace('Z', '');
   }
   
   if (options.deviceIds && options.deviceIds.length > 0) {
@@ -241,7 +246,7 @@ export async function querySensorReadings(options: QueryOptions): Promise<Sensor
     params.metricNames = options.metricNames;
   }
   
-  query += ` ORDER BY timestamp ${options.orderBy === 'asc' ? 'ASC' : 'DESC'}`;
+  query += ` ORDER BY timestamp ${options.orderDirection === 'asc' ? 'ASC' : 'DESC'}`;
   
   if (options.limit) {
     query += ` LIMIT {limit:UInt32}`;
@@ -273,9 +278,9 @@ export async function querySensorReadings(options: QueryOptions): Promise<Sensor
   const rows = await result.json() as ReadingRow[];
   
   return rows.map(row => ({
-    device_id: row.device_id,
-    sensor_id: row.sensor_id,
-    metric_name: row.metric_name,
+    sensorId: row.sensor_id,
+    deviceId: row.device_id,
+    metricName: row.metric_name,
     value: row.value,
     unit: row.unit,
     quality: row.quality as SensorReading['quality'],
@@ -287,7 +292,7 @@ export async function querySensorReadings(options: QueryOptions): Promise<Sensor
 /**
  * 查询聚合数据
  */
-export async function queryAggregatedData(options: AggregationOptions): Promise<AggregatedData[]> {
+export async function queryAggregatedData(options: ClickHouseAggregationOptions): Promise<AggregatedData[]> {
   const ch = getClickHouseClient();
   
   // 根据聚合间隔选择表
@@ -312,12 +317,14 @@ export async function queryAggregatedData(options: AggregationOptions): Promise<
   
   if (options.startTime) {
     query += ` AND window_start >= {startTime:DateTime}`;
-    params.startTime = options.startTime.toISOString().replace('T', ' ').replace('Z', '');
+    const st = options.startTime instanceof Date ? options.startTime : new Date(String(options.startTime));
+    params.startTime = st.toISOString().replace('T', ' ').replace('Z', '');
   }
   
   if (options.endTime) {
     query += ` AND window_start <= {endTime:DateTime}`;
-    params.endTime = options.endTime.toISOString().replace('T', ' ').replace('Z', '');
+    const et = options.endTime instanceof Date ? options.endTime : new Date(String(options.endTime));
+    params.endTime = et.toISOString().replace('T', ' ').replace('Z', '');
   }
   
   if (options.deviceIds && options.deviceIds.length > 0) {
@@ -330,7 +337,7 @@ export async function queryAggregatedData(options: AggregationOptions): Promise<
     params.sensorIds = options.sensorIds;
   }
   
-  query += ` ORDER BY window_start ${options.orderBy === 'asc' ? 'ASC' : 'DESC'}`;
+  query += ` ORDER BY window_start ${options.orderDirection === 'asc' ? 'ASC' : 'DESC'}`;
   
   if (options.limit) {
     query += ` LIMIT {limit:UInt32}`;
@@ -391,12 +398,14 @@ export async function queryAnomalies(options: QueryOptions & { severity?: string
   
   if (options.startTime) {
     query += ` AND timestamp >= {startTime:DateTime64(3)}`;
-    params.startTime = options.startTime.toISOString().replace('T', ' ').replace('Z', '');
+    const st = options.startTime instanceof Date ? options.startTime : new Date(String(options.startTime));
+    params.startTime = st.toISOString().replace('T', ' ').replace('Z', '');
   }
   
   if (options.endTime) {
     query += ` AND timestamp <= {endTime:DateTime64(3)}`;
-    params.endTime = options.endTime.toISOString().replace('T', ' ').replace('Z', '');
+    const et = options.endTime instanceof Date ? options.endTime : new Date(String(options.endTime));
+    params.endTime = et.toISOString().replace('T', ' ').replace('Z', '');
   }
   
   if (options.deviceIds && options.deviceIds.length > 0) {

@@ -9,7 +9,8 @@
  */
 
 import { EventEmitter } from 'events';
-import type { GatewayStats } from "../../core/types/domain";
+import { GatewayStats } from "../../core/types/domain";
+export { GatewayStats };
 
 // ============ 类型定义 ============
 
@@ -537,6 +538,7 @@ export class GraphQLGateway extends EventEmitter {
   private cache: Map<string, { data: unknown; expiresAt: number }> = new Map();
   private stats: GatewayStats = {
     totalQueries: 0,
+    totalRequests: 0, activeConnections: 0, requestsPerSecond: 0, averageLatency: 0, errorRate: 0, uptime: 0,
     totalMutations: 0,
     totalSubscriptions: 0,
     batchedQueries: 0,
@@ -720,7 +722,7 @@ export class GraphQLGateway extends EventEmitter {
 
       batch.results = results;
       batch.status = 'completed';
-      this.stats.batchedQueries += batch.queries.length;
+      this.stats.batchedQueries = (this.stats.batchedQueries || 0) + batch.queries.length;
 
       const latency = Date.now() - startTime;
       this.recordLatency(latency);
@@ -728,7 +730,7 @@ export class GraphQLGateway extends EventEmitter {
       return results;
     } catch (error) {
       batch.status = 'failed';
-      this.stats.errors++;
+      this.stats.errors = (this.stats.errors || 0) + 1;
       throw error;
     }
   }
@@ -744,19 +746,19 @@ export class GraphQLGateway extends EventEmitter {
       const cacheKey = this.getCacheKey(query);
       const cached = this.getFromCache(cacheKey);
       if (cached) {
-        this.stats.cacheHits++;
+        this.stats.cacheHits = (this.stats.cacheHits || 0) + 1;
         return { data: cached };
       }
 
-      this.stats.cacheMisses++;
+      this.stats.cacheMisses = (this.stats.cacheMisses || 0) + 1;
 
       // 解析查询类型
       const operationType = this.getOperationType(query.query);
       
       if (operationType === 'query') {
-        this.stats.totalQueries++;
+        this.stats.totalQueries = (this.stats.totalQueries || 0) + 1;
       } else if (operationType === 'mutation') {
-        this.stats.totalMutations++;
+        this.stats.totalMutations = (this.stats.totalMutations || 0) + 1;
       }
 
       // 路由到对应子图
@@ -780,7 +782,7 @@ export class GraphQLGateway extends EventEmitter {
 
       return result;
     } catch (error) {
-      this.stats.errors++;
+      this.stats.errors = (this.stats.errors || 0) + 1;
       return {
         errors: [{ message: error instanceof Error ? error.message : 'Unknown error' }],
       };
@@ -857,7 +859,7 @@ export class GraphQLGateway extends EventEmitter {
     };
 
     this.subscriptions.set(subscription.id, subscription);
-    this.stats.totalSubscriptions++;
+    this.stats.totalSubscriptions = (this.stats.totalSubscriptions || 0) + 1;
 
     console.log(`[GraphQLGateway] Subscription created: ${subscription.id}`);
     return subscription.id;
@@ -1077,6 +1079,7 @@ export class GraphQLGateway extends EventEmitter {
   resetStats(): void {
     this.stats = {
       totalQueries: 0,
+      totalRequests: 0, activeConnections: 0, requestsPerSecond: 0, averageLatency: 0, errorRate: 0, uptime: 0,
       totalMutations: 0,
       totalSubscriptions: 0,
       batchedQueries: 0,

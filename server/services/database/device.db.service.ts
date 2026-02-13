@@ -64,7 +64,7 @@ export const deviceDailySummaryService = {
   async create(input: { deviceCode: string; summaryDate: string; onlineHours?: number; alertCount: number; dataPoints: number; avgCpuUsage?: number; avgMemoryUsage?: number; maxTemperature?: number }) {
     const db = await getDb();
     if (!db) throw new Error('Database not available');
-    await db.insert(deviceDailySummary).values({ ...input, createdAt: new Date() });
+    await db.insert(deviceDailySummary).values({ ...input, summaryDate: new Date(input.summaryDate) as any, createdAt: new Date() });
     return { success: true };
   },
 };
@@ -134,7 +134,7 @@ export const deviceMaintenanceService = {
   async create(input: { deviceCode: string; maintenanceType: string; title: string; description?: string; operator: string; startedAt: Date; completedAt?: Date; result?: string; cost?: number; partsReplaced?: any; attachments?: any; nextMaintenanceDate?: string }) {
     const db = await getDb();
     if (!db) throw new Error('Database not available');
-    await db.insert(deviceMaintenanceLogs).values({ ...input, createdAt: new Date() });
+    await db.insert(deviceMaintenanceLogs).values({ ...input, nextMaintenanceDate: input.nextMaintenanceDate ? new Date(input.nextMaintenanceDate) as any : null, createdAt: new Date() });
     return { success: true };
   },
 };

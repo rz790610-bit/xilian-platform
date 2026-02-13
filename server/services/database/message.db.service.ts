@@ -71,7 +71,7 @@ export const minioFileService = {
   async create(input: { bucket: string; objectKey: string; contentType: string; fileSize: number; etag?: string; tags?: any; uploadedBy?: string; expiresAt?: Date }) {
     const db = await getDb();
     if (!db) throw new Error('Database not available');
-    await db.insert(minioFileMetadata).values({ ...input, createdAt: new Date() });
+    await db.insert(minioFileMetadata).values({ ...input, originalName: (input as any).originalName || input.objectKey.split('/').pop() || 'unknown', createdAt: new Date() });
     return { success: true };
   },
 };

@@ -254,11 +254,11 @@ function SchemaRegistryCard() {
         </div>
         <div className="space-y-1.5">
           {domainStats.map(d => (
-            <div key={d.id} className="flex items-center gap-2 text-xs">
-              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: d.color }} />
-              <span className="w-28 truncate text-foreground">{d.label}</span>
+            <div key={d.domainId} className="flex items-center gap-2 text-xs">
+              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: "#6366f1" }} />
+              <span className="w-28 truncate text-foreground">{d.domainId}</span>
               <div className="flex-1 bg-secondary rounded-full h-1.5">
-                <div className="rounded-full h-1.5 transition-all" style={{ width: `${(d.count / totalCount) * 100}%`, backgroundColor: d.color }} />
+                <div className="rounded-full h-1.5 transition-all" style={{ width: `${(d.count / totalCount) * 100}%`, backgroundColor: "#6366f1" }} />
               </div>
               <span className="text-muted-foreground w-8 text-right">{d.count} 表</span>
             </div>

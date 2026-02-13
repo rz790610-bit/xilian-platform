@@ -15,7 +15,7 @@
  *     }]
  *   });
  */
-import { storagePut } from "server/storage";
+import { storagePut } from "../storage";
 import { ENV } from "./env";
 
 export type GenerateImageOptions = {
@@ -84,7 +84,7 @@ export async function generateImage(
   const { url } = await storagePut(
     `generated/${Date.now()}.png`,
     buffer,
-    result.image.mimeType
+    { contentType: result.image.mimeType }
   );
   return {
     url,

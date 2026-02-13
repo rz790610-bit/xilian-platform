@@ -200,10 +200,10 @@ const dataRouter = router({
   insertRow: publicProcedure
     .input(z.object({
       tableName: z.string(),
-      data: z.record(z.unknown()),
+      data: z.record(z.string(), z.unknown()),
     }))
     .mutation(async ({ input }) => {
-      return dataService.insertRow(input.tableName, input.data);
+      return dataService.insertRow(input.tableName, input.data as Record<string, unknown>);
     }),
 
   updateRow: publicProcedure
@@ -213,10 +213,10 @@ const dataRouter = router({
         column: z.string(),
         value: z.unknown(),
       }),
-      data: z.record(z.unknown()),
+      data: z.record(z.string(), z.unknown()),
     }))
     .mutation(async ({ input }) => {
-      return dataService.updateRow(input.tableName, input.primaryKey, input.data);
+      return dataService.updateRow(input.tableName, input.primaryKey, input.data as Record<string, unknown>);
     }),
 
   deleteRow: publicProcedure

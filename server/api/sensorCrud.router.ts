@@ -33,7 +33,7 @@ export const sensorCrudRouter = router({
       const db = await getDb();
       if (!db) return { items: [], total: 0, page: 1, pageSize: 20 };
 
-      const params = input || {};
+      const params: { deviceId?: string; type?: string | string[]; status?: string | string[]; search?: string; page?: number; pageSize?: number } = input || {};
       const conditions: any[] = [];
 
       if (params.deviceId) {
@@ -207,7 +207,7 @@ export const sensorCrudRouter = router({
       byStatusResult.forEach(r => { byStatus[r.status] = r.count; });
 
       const byType: Record<string, number> = {};
-      byTypeResult.forEach(r => { byType[r.type] = r.count; });
+      byTypeResult.forEach(r => { if (r.type) byType[r.type] = r.count; });
 
       return {
         total: totalResult[0]?.count || 0,

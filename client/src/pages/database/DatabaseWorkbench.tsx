@@ -57,7 +57,7 @@ export default function DatabaseWorkbench() {
   const [tableSearch, setTableSearch] = useState('');
   const [dataPage, setDataPage] = useState(1);
   const [dataPageSize] = useState(50);
-  const [dataFilters, setDataFilters] = useState<Array<{ column: string; operator: string; value: string }>>([]);
+  const [dataFilters, setDataFilters] = useState<Array<{ column: string; operator: 'eq' | 'neq' | 'gt' | 'lt' | 'gte' | 'lte' | 'like' | 'is_null' | 'not_null'; value: string }>>([]);
   const [orderBy, setOrderBy] = useState<string | undefined>();
   const [orderDir, setOrderDir] = useState<'ASC' | 'DESC'>('ASC');
   const [editingRow, setEditingRow] = useState<Record<string, unknown> | null>(null);
@@ -544,7 +544,7 @@ export default function DatabaseWorkbench() {
                           <div className="space-y-1">
                             {apiEndpoints.rest.map((ep: any, i: number) => (
                               <div key={i} className="flex items-center gap-2 p-1.5 rounded bg-secondary/30 text-xs group">
-                                <Badge variant={ep.method === 'GET' ? 'success' : ep.method === 'POST' ? 'info' : ep.method === 'PUT' ? 'warning' : 'destructive'} className="text-[9px] font-mono w-14 text-center shrink-0">{ep.method}</Badge>
+                                <Badge variant={ep.method === 'GET' ? 'success' : ep.method === 'POST' ? 'info' : ep.method === 'PUT' ? 'warning' : 'danger'} className="text-[9px] font-mono w-14 text-center shrink-0">{ep.method}</Badge>
                                 <code className="font-mono text-foreground flex-1 truncate">{ep.path}</code>
                                 <span className="text-muted-foreground text-[10px] shrink-0">{ep.description}</span>
                                 <button onClick={() => { navigator.clipboard.writeText(ep.path); }} className="opacity-0 group-hover:opacity-100 transition-opacity" title="复制">

@@ -151,14 +151,14 @@ export default function SliceManager() {
                     <div><span className="text-muted-foreground">切片ID：</span><span className="font-mono">{sliceDetail.sliceId}</span></div>
                     <div><span className="text-muted-foreground">状态：</span><Badge variant={statusVariant(sliceDetail.status)} dot>{sliceDetail.status}</Badge></div>
                     <div><span className="text-muted-foreground">节点：</span>{sliceDetail.nodeId}</div>
-                    <div><span className="text-muted-foreground">测点：</span>{sliceDetail.mpId || '-'}</div>
-                    <div><span className="text-muted-foreground">采样率：</span>{sliceDetail.sampleRate ?? '-'} Hz</div>
-                    <div><span className="text-muted-foreground">数据点：</span>{sliceDetail.pointCount ?? '-'}</div>
+                    <div><span className="text-muted-foreground">设备：</span>{sliceDetail.deviceCode || '-'}</div>
+                    <div><span className="text-muted-foreground">负载率：</span>{sliceDetail.loadRate ?? '-'}</div>
+                    <div><span className="text-muted-foreground">时长(ms)：</span>{sliceDetail.durationMs ?? '-'}</div>
                     <div><span className="text-muted-foreground">开始时间：</span>{sliceDetail.startTime ? new Date(sliceDetail.startTime).toLocaleString() : '-'}</div>
                     <div><span className="text-muted-foreground">结束时间：</span>{sliceDetail.endTime ? new Date(sliceDetail.endTime).toLocaleString() : '-'}</div>
                     <div><span className="text-muted-foreground">标注状态：</span>{sliceDetail.labelStatus || '-'}</div>
                     <div><span className="text-muted-foreground">质量分数：</span>{sliceDetail.qualityScore ?? '-'}</div>
-                    <div className="col-span-2"><span className="text-muted-foreground">存储路径：</span><span className="font-mono text-[10px]">{sliceDetail.storagePath || '-'}</span></div>
+                    <div className="col-span-2"><span className="text-muted-foreground">数据位置：</span><span className="font-mono text-[10px]">{sliceDetail.dataLocation ? JSON.stringify(sliceDetail.dataLocation) : '-'}</span></div>
                   </div>
                 ) : (
                   <div className="text-xs text-muted-foreground text-center py-8">请在切片实例列表中选择一个切片查看详情</div>
@@ -237,8 +237,8 @@ export default function SliceManager() {
               <Button size="sm" className="text-xs" onClick={() => createRule.mutate({
                 ruleId: ruleForm.ruleId, name: ruleForm.name,
                 triggerType: ruleForm.triggerType || 'time_window',
-                windowSize: ruleForm.windowSize ? Number(ruleForm.windowSize) : undefined,
-                description: ruleForm.description,
+                                triggerConfig: { windowSize: ruleForm.windowSize ? Number(ruleForm.windowSize) : undefined },
+
               })} disabled={createRule.isPending}>
                 {createRule.isPending ? '创建中...' : '创建'}
               </Button>
@@ -279,9 +279,7 @@ export default function SliceManager() {
             <DialogFooter>
               <Button variant="outline" size="sm" className="text-xs" onClick={() => setShowCreateSlice(false)}>取消</Button>
               <Button size="sm" className="text-xs" onClick={() => createSlice.mutate({
-                sliceId: sliceForm.sliceId, nodeId: sliceForm.nodeId,
-                mpId: sliceForm.mpId || undefined,
-                sampleRate: sliceForm.sampleRate ? Number(sliceForm.sampleRate) : undefined,
+                sliceId: sliceForm.sliceId, deviceCode: sliceForm.nodeId, startTime: new Date().toISOString(), endTime: new Date().toISOString(),
               })} disabled={createSlice.isPending}>
                 {createSlice.isPending ? '创建中...' : '创建'}
               </Button>

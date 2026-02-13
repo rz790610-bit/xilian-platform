@@ -804,7 +804,7 @@ export default function SmartMonitoring() {
                   <CardContent className="space-y-3">
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-muted-foreground">响应时间</span>
-                      <span className="font-medium">{service.responseTimeMs.toFixed(1)}ms</span>
+                      <span className="font-medium">{(service.responseTimeMs ?? 0).toFixed(1)}ms</span>
                     </div>
                     {/* 健康检查 */}
                     <div className="space-y-1">

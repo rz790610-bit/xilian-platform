@@ -133,7 +133,7 @@ export const pluginInstanceService = {
     const now = new Date();
     await db.insert(pluginInstances).values({
       instanceCode: input.instanceCode, pluginId: input.pluginId, name: input.name,
-      boundEntityType: input.boundEntityType || null, boundEntityId: input.boundEntityId || null,
+      boundEntityType: input.boundEntityType || null, boundEntityId: input.boundEntityId ? (typeof input.boundEntityId === 'string' ? parseInt(input.boundEntityId as string, 10) : input.boundEntityId) : null,
       config: input.config || null, runtimeState: null, status: 'created',
       createdAt: now, createdBy: input.createdBy || 'system', updatedAt: now,
     });

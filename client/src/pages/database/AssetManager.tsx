@@ -188,7 +188,7 @@ export default function AssetManager() {
               {isLoading ? (
                 <div className="text-xs text-muted-foreground text-center py-8">加载中...</div>
               ) : rootNodes.length > 0 ? (
-                rootNodes.map(node => renderTreeNode(node, treeMap))
+                rootNodes.map((node: any) => renderTreeNode(node, treeMap))
               ) : (
                 <div className="text-xs text-muted-foreground text-center py-8">
                   暂无资产节点，点击"新建节点"开始创建

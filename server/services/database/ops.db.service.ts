@@ -182,7 +182,7 @@ export const dataExportTaskService = {
     await db.insert(dataExportTasks).values({
       taskCode: input.taskCode, name: input.name, exportType: input.exportType,
       format: input.format, queryParams: input.queryParams,
-      status: 'pending', progress: 0, createdBy: input.createdBy || 'system', createdAt: new Date(),
+      status: 'pending', progress: '0', createdBy: input.createdBy || 'system', createdAt: new Date(),
     });
     return this.getById((await db.select({ id: dataExportTasks.id }).from(dataExportTasks)
       .where(eq(dataExportTasks.taskCode, input.taskCode)))[0]?.id);
@@ -191,7 +191,7 @@ export const dataExportTaskService = {
   async updateProgress(id: number, progress: number, totalRows?: number) {
     const db = await getDb();
     if (!db) throw new Error('Database not available');
-    const updates: any = { progress, status: progress >= 100 ? 'completed' : 'running' };
+    const updates: any = { progress: String(progress), status: progress >= 100 ? 'completed' : 'running' };
     if (totalRows !== undefined) updates.totalRows = totalRows;
     if (progress >= 100) updates.completedAt = new Date();
     await db.update(dataExportTasks).set(updates).where(eq(dataExportTasks.id, id));
@@ -204,7 +204,7 @@ export const dataExportTaskService = {
     await db.update(dataExportTasks).set({
       storagePath: result.storagePath, downloadUrl: result.downloadUrl,
       fileSize: result.fileSize, totalRows: result.totalRows,
-      expiresAt: result.expiresAt || null, status: 'completed', progress: 100, completedAt: new Date(),
+      expiresAt: result.expiresAt || null, status: 'completed', progress: '100', completedAt: new Date(),
     }).where(eq(dataExportTasks.id, id));
     return this.getById(id);
   },

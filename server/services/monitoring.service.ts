@@ -32,7 +32,7 @@ import type {
   SystemResource, 
   ServiceHealth, 
   MonitoringAlert 
-} from './monitoring.service';
+} from '../core/types/domain';
 
 // ============================================================
 // 增强监控服务类

@@ -9,7 +9,8 @@
  */
 
 import { EventEmitter } from 'events';
-import type { LayoutConfig } from "../../core/types/domain";
+import { LayoutConfig } from "../../core/types/domain";
+export { LayoutConfig };
 
 // ============ 类型定义 ============
 
@@ -178,15 +179,17 @@ export const DEFAULT_VISUALIZATION: VisualizationConfig = {
   shadows: true,
 };
 
-export const DEFAULT_LAYOUT: LayoutConfig = {
+export const DEFAULT_LAYOUT = {
+  type: 'force-directed',
   algorithm: 'force-directed',
   forceDirected: {
-    strength: -300,
-    distance: 100,
+    repulsion: 300,
+    attraction: 0.1,
+    damping: 0.9,
+    springLength: 100,
+    springConstant: 0.04,
+    centralGravity: 0.1,
     iterations: 300,
-    gravity: 0.1,
-    charge: -100,
-    friction: 0.9,
   },
   hierarchical: {
     direction: 'TB',

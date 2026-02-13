@@ -263,7 +263,7 @@ class StreamProcessor {
 
     // 订阅传感器数据事件
     eventBus.subscribe(TOPICS.SENSOR_READING, async (event) => {
-      await this.processReading(event);
+      await this.processReading(event as any);
     });
 
     // 定期处理窗口
@@ -353,7 +353,8 @@ class StreamProcessor {
         await this.recordAnomaly({
           sensorId,
           deviceId: deviceId || 'unknown',
-          algorithmType: 'zscore',
+          isAnomaly: true,
+          algorithm: 'zscore',
           currentValue: latestValue,
           expectedValue: stats.mean,
           deviation: zScoreResult.deviation,
@@ -460,18 +461,18 @@ class StreamProcessor {
       
       await db.insert(anomalyDetections).values({
         detectionId: `anom_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
-        sensorId: result.sensorId,
-        nodeId: result.nodeId || result.deviceId,
-        algorithmType: result.algorithmType,
+        sensorId: result.sensorId || '',
+        nodeId: result.nodeId || result.deviceId || '',
+        algorithmType: (result.algorithm || 'zscore') as 'zscore' | 'iqr' | 'mad' | 'isolation_forest' | 'custom',
         windowSize: 60,
         threshold: 300, // 3.0 * 100
-        currentValue: Math.round(result.currentValue * 100),
-        expectedValue: Math.round(result.expectedValue * 100),
-        deviation: Math.round(result.deviation * 100),
+        currentValue: Math.round((result.currentValue ?? 0) * 100),
+        expectedValue: Math.round((result.expectedValue ?? 0) * 100),
+        deviation: Math.round((result.deviation ?? 0) * 100),
         score: Math.round(result.score * 100),
-        severity: result.severity,
-        status: 'open',
-        createdAt: result.timestamp,
+        severity: (result.severity || 'low') as 'low' | 'medium' | 'high' | 'critical',
+        status: 'open' as 'open' | 'acknowledged' | 'resolved' | 'false_positive',
+        createdAt: result.timestamp instanceof Date ? result.timestamp : new Date(result.timestamp || Date.now()),
       });
     } catch (error) {
       console.error('[StreamProcessor] Failed to record anomaly:', error);
@@ -491,13 +492,13 @@ class StreamProcessor {
         eventType: 'aggregation_result',
         eventVersion: 1,
         aggregateType: 'sensor',
-        aggregateId: result.sensorId,
+        aggregateId: result.sensorId || '',
         aggregateVersion: Date.now(),
         payload: JSON.stringify({
           sensorId: result.sensorId,
           deviceId: result.deviceId,
           period: result.period,
-          periodStart: result.periodStart.toISOString(),
+          periodStart: result.periodStart?.toISOString(),
           avg: result.avg,
           min: result.min,
           max: result.max,
@@ -505,7 +506,7 @@ class StreamProcessor {
           count: result.count,
           stdDev: result.stdDev,
         }),
-        occurredAt: result.periodStart,
+        occurredAt: result.periodStart || new Date(),
         recordedAt: new Date(),
       });
     } catch (error) {
@@ -569,7 +570,8 @@ class StreamProcessor {
     return {
       sensorId,
       deviceId: deviceId || 'unknown',
-      algorithmType: algorithm,
+      isAnomaly: true,
+      algorithm,
       currentValue: latestValue,
       expectedValue: stats.mean,
       deviation: result.deviation,

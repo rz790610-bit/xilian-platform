@@ -14,12 +14,16 @@ export interface Event {
   eventId: string;
   topic: string;
   eventType: string;
+  type?: string;
   source?: string;
   deviceId?: string;
+  nodeId?: string;
   sensorId?: string;
   severity: 'info' | 'warning' | 'error' | 'critical';
   payload: Record<string, unknown>;
+  data?: unknown;
   timestamp: Date;
+  metadata?: Record<string, unknown>;
 }
 
 export interface TopicSubscription {
@@ -206,7 +210,7 @@ class EventBus {
     const wrappedHandler = async (event: Event) => {
       if (!filter || filter(event)) {
         try {
-          await handler(event);
+          await handler(event as any);
         } catch (error) {
           console.error(`[EventBus] Handler error for topic ${topic}:`, error);
         }
@@ -240,9 +244,9 @@ class EventBus {
         eventId: event.eventId,
         topic: event.topic,
         eventType: event.eventType,
-        source: event.source,
-        deviceId: event.nodeId,
-        sensorId: event.sensorId,
+        source: event.source || null,
+        nodeId: event.nodeId || event.deviceId || null,
+        sensorId: event.sensorId || null,
         severity: event.severity,
         payload: event.payload,
         processed: false,

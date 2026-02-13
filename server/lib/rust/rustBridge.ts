@@ -394,7 +394,7 @@ export class SignalProcessor {
       isAnomaly: zScore > threshold,
       score: zScore,
       threshold,
-      method: 'Z-Score',
+      algorithm: 'Z-Score',
       details: `mean=${stats.mean.toFixed(4)}, std=${stats.stdDev.toFixed(4)}`,
     };
   }
@@ -418,7 +418,7 @@ export class SignalProcessor {
       isAnomaly,
       score: Math.max(0, score),
       threshold: k,
-      method: 'IQR',
+      algorithm: 'IQR',
       details: `bounds=[${lowerBound.toFixed(4)}, ${upperBound.toFixed(4)}]`,
     };
   }
@@ -639,10 +639,10 @@ export class TimeWindowAggregator {
   private getWindowStart(timestamp: number): number {
     switch (this.config.windowType) {
       case 'tumbling':
-        return Math.floor(timestamp / this.config.windowSizeMs) * this.config.windowSizeMs;
+        return Math.floor(timestamp / this.config.windowSizeMs!) * this.config.windowSizeMs!;
       case 'sliding':
-        const slide = this.config.slideSizeMs || this.config.windowSizeMs;
-        return Math.floor(timestamp / slide) * slide;
+        const slide = this.config.slideSizeMs || this.config.windowSizeMs!;
+        return Math.floor(timestamp / slide!) * slide!;
       case 'session':
         return this.currentWindowStart;
       default:
@@ -651,7 +651,7 @@ export class TimeWindowAggregator {
   }
 
   private cleanupOldWindows(currentTime: number): void {
-    const maxAge = this.config.windowSizeMs * (this.config.maxWindowCount || 1000);
+    const maxAge = this.config.windowSizeMs! * (this.config.maxWindowCount || 1000);
     const cutoff = currentTime - maxAge;
 
     const keysToDelete: number[] = [];
@@ -670,7 +670,7 @@ export class TimeWindowAggregator {
     const [start, window] = entries[entries.length - 1];
     const result = window.accumulator.getResult();
     result.windowStart = start;
-    result.windowEnd = start + this.config.windowSizeMs;
+    result.windowEnd = start + this.config.windowSizeMs!;
     return result;
   }
 
@@ -679,7 +679,7 @@ export class TimeWindowAggregator {
     return entries.map(([start, window]) => {
       const result = window.accumulator.getResult();
       result.windowStart = start;
-      result.windowEnd = start + this.config.windowSizeMs;
+      result.windowEnd = start + this.config.windowSizeMs!;
       return result;
     });
   }

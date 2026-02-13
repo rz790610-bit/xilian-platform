@@ -25,7 +25,8 @@ import {
   diagnosisTasks
 } from '../../../drizzle/schema';
 import { eq, and, or, desc, asc, sql, gte, lte, like, inArray, isNull, isNotNull } from 'drizzle-orm';
-import type { PaginatedResult, QueryOptions } from "../../core/types/domain";
+import { PaginatedResult, QueryOptions } from "../../core/types/domain";
+export { PaginatedResult, QueryOptions };
 
 // ============ 类型定义 ============
 
@@ -274,7 +275,7 @@ export class PostgresStorage {
     search?: string;
   } = {}): Promise<PaginatedResult<DeviceRecord>> {
     const db = await getDb();
-    if (!db) return { data: [], total: 0, page: 1, pageSize: 20, totalPages: 0 };
+    if (!db) return { data: [], items: [], total: 0, page: 1, pageSize: 20, totalPages: 0 };
 
     try {
       const limit = options.limit || 20;
@@ -320,7 +321,7 @@ export class PostgresStorage {
         .offset(offset);
 
       return {
-        data: result.map(r => this.mapDeviceRecord(r)),
+        data: result.map(r => this.mapDeviceRecord(r)), items: result.map(r => this.mapDeviceRecord(r)),
         total,
         page,
         pageSize: limit,
@@ -328,7 +329,7 @@ export class PostgresStorage {
       };
     } catch (error) {
       console.error('[PostgreSQL] List devices error:', error);
-      return { data: [], total: 0, page: 1, pageSize: 20, totalPages: 0 };
+      return { data: [], items: [], total: 0, page: 1, pageSize: 20, totalPages: 0 };
     }
   }
 
@@ -373,7 +374,7 @@ export class PostgresStorage {
    */
   async listUsers(options: QueryOptions & { role?: string } = {}): Promise<PaginatedResult<UserRecord>> {
     const db = await getDb();
-    if (!db) return { data: [], total: 0, page: 1, pageSize: 20, totalPages: 0 };
+    if (!db) return { data: [], items: [], total: 0, page: 1, pageSize: 20, totalPages: 0 };
 
     try {
       const limit = options.limit || 20;
@@ -398,7 +399,7 @@ export class PostgresStorage {
       const result = await query.limit(limit).offset(offset);
 
       return {
-        data: result.map(r => this.mapUserRecord(r)),
+        data: result.map(r => this.mapUserRecord(r)), items: result.map(r => this.mapUserRecord(r)),
         total,
         page,
         pageSize: limit,
@@ -406,7 +407,7 @@ export class PostgresStorage {
       };
     } catch (error) {
       console.error('[PostgreSQL] List users error:', error);
-      return { data: [], total: 0, page: 1, pageSize: 20, totalPages: 0 };
+      return { data: [], items: [], total: 0, page: 1, pageSize: 20, totalPages: 0 };
     }
   }
 
@@ -422,7 +423,7 @@ export class PostgresStorage {
     try {
       const result = await db.insert(deviceMaintenanceRecords).values({
         recordId: `MR-${Date.now()}`,
-        deviceId: log.deviceId,
+        nodeId: log.deviceId,
         maintenanceType: log.maintenanceType as any,
         title: log.description.substring(0, 200),
         description: log.description,
@@ -455,7 +456,7 @@ export class PostgresStorage {
     endDate?: Date;
   } = {}): Promise<PaginatedResult<MaintenanceLogRecord>> {
     const db = await getDb();
-    if (!db) return { data: [], total: 0, page: 1, pageSize: 20, totalPages: 0 };
+    if (!db) return { data: [], items: [], total: 0, page: 1, pageSize: 20, totalPages: 0 };
 
     try {
       const limit = options.limit || 20;
@@ -492,7 +493,7 @@ export class PostgresStorage {
         .offset(offset);
 
       return {
-        data: result.map(r => this.mapMaintenanceLogRecord(r)),
+        data: result.map(r => this.mapMaintenanceLogRecord(r)), items: result.map(r => this.mapMaintenanceLogRecord(r)),
         total,
         page,
         pageSize: limit,
@@ -500,7 +501,7 @@ export class PostgresStorage {
       };
     } catch (error) {
       console.error('[PostgreSQL] List maintenance logs error:', error);
-      return { data: [], total: 0, page: 1, pageSize: 20, totalPages: 0 };
+      return { data: [], items: [], total: 0, page: 1, pageSize: 20, totalPages: 0 };
     }
   }
 
@@ -596,13 +597,13 @@ export class PostgresStorage {
     try {
       const result = await db.insert(deviceAlerts).values({
         alertId: alert.alertId,
-        deviceId: alert.deviceId,
+        nodeId: alert.deviceId,
         sensorId: alert.sensorId,
-        alertType: alert.alertType,
+        alertType: alert.alertType as any,
         title: alert.title,
         message: alert.message,
-        severity: alert.severity,
-        status: alert.status || 'active',
+        severity: alert.severity as any,
+        status: (alert.status || 'active') as any,
         triggerValue: alert.triggerValue,
         thresholdValue: alert.thresholdValue,
         metadata: alert.metadata,
@@ -669,7 +670,7 @@ export class PostgresStorage {
     severity?: string;
   } = {}): Promise<PaginatedResult<AlertRecord>> {
     const db = await getDb();
-    if (!db) return { data: [], total: 0, page: 1, pageSize: 20, totalPages: 0 };
+    if (!db) return { data: [], items: [], total: 0, page: 1, pageSize: 20, totalPages: 0 };
 
     try {
       const limit = options.limit || 20;
@@ -697,7 +698,7 @@ export class PostgresStorage {
         .offset(offset);
 
       return {
-        data: result.map(r => this.mapAlertRecord(r)),
+        data: result.map(r => this.mapAlertRecord(r)), items: result.map(r => this.mapAlertRecord(r)),
         total,
         page,
         pageSize: limit,
@@ -705,7 +706,7 @@ export class PostgresStorage {
       };
     } catch (error) {
       console.error('[PostgreSQL] Get active alerts error:', error);
-      return { data: [], total: 0, page: 1, pageSize: 20, totalPages: 0 };
+      return { data: [], items: [], total: 0, page: 1, pageSize: 20, totalPages: 0 };
     }
   }
 
@@ -720,7 +721,7 @@ export class PostgresStorage {
 
     try {
       const result = await db.insert(deviceKpis).values({
-        deviceId: kpi.deviceId,
+        nodeId: kpi.deviceId,
         periodType: kpi.periodType,
         periodStart: kpi.periodStart,
         periodEnd: kpi.periodEnd,

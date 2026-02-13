@@ -2570,3 +2570,64 @@ export const eventSnapshots = mysqlTable("event_snapshots", {
   createdAt: datetime("created_at", { fsp: 3 }).notNull(),
 });
 
+
+// ============================================================
+// §20 Pipeline 工作台
+// ============================================================
+
+export const pipelines = mysqlTable("pipelines", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  pipelineId: varchar("pipeline_id", { length: 64 }).notNull().unique(),
+  name: varchar("name", { length: 128 }).notNull(),
+  description: text("description"),
+  category: varchar("category", { length: 32 }).notNull().default("custom"),
+  dagConfig: json("dag_config"),
+  status: mysqlEnum("status", ["draft", "active", "paused", "error", "running", "archived"]).notNull().default("draft"),
+  nodeCount: int("node_count").default(0),
+  connectionCount: int("connection_count").default(0),
+  totalRuns: int("total_runs").default(0),
+  successRuns: int("success_runs").default(0),
+  failedRuns: int("failed_runs").default(0),
+  lastRunAt: datetime("last_run_at", { fsp: 3 }),
+  createdAt: datetime("created_at", { fsp: 3 }).notNull(),
+  updatedAt: datetime("updated_at", { fsp: 3 }).notNull(),
+});
+export type Pipeline = typeof pipelines.$inferSelect;
+export type InsertPipeline = typeof pipelines.$inferInsert;
+
+export const pipelineRuns = mysqlTable("pipeline_runs", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  runId: varchar("run_id", { length: 64 }).notNull().unique(),
+  pipelineId: varchar("pipeline_id", { length: 64 }).notNull(),
+  status: mysqlEnum("status", ["pending", "running", "completed", "failed", "cancelled"]).notNull().default("pending"),
+  triggerType: mysqlEnum("trigger_type", ["manual", "schedule", "api", "event"]).notNull().default("manual"),
+  startedAt: datetime("started_at", { fsp: 3 }),
+  finishedAt: datetime("finished_at", { fsp: 3 }),
+  durationMs: int("duration_ms"),
+  totalRecordsIn: int("total_records_in").default(0),
+  totalRecordsOut: int("total_records_out").default(0),
+  errorCount: int("error_count").default(0),
+  nodeResults: json("node_results"),
+  lineageData: json("lineage_data"),
+  createdAt: datetime("created_at", { fsp: 3 }).notNull(),
+});
+export type PipelineRun = typeof pipelineRuns.$inferSelect;
+export type InsertPipelineRun = typeof pipelineRuns.$inferInsert;
+
+export const pipelineNodeMetrics = mysqlTable("pipeline_node_metrics", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  runId: varchar("run_id", { length: 64 }).notNull(),
+  pipelineId: varchar("pipeline_id", { length: 64 }).notNull(),
+  nodeId: varchar("node_id", { length: 64 }).notNull(),
+  nodeName: varchar("node_name", { length: 128 }),
+  nodeType: varchar("node_type", { length: 32 }),
+  nodeSubType: varchar("node_sub_type", { length: 64 }),
+  status: varchar("status", { length: 16 }),
+  recordsIn: int("records_in").default(0),
+  recordsOut: int("records_out").default(0),
+  durationMs: int("duration_ms"),
+  errorMessage: text("error_message"),
+  createdAt: datetime("created_at", { fsp: 3 }).notNull(),
+});
+export type PipelineNodeMetric = typeof pipelineNodeMetrics.$inferSelect;
+export type InsertPipelineNodeMetric = typeof pipelineNodeMetrics.$inferInsert;

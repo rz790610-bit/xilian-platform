@@ -38,13 +38,13 @@ export const dataGovernanceJobService = {
   },
 
   async create(input: {
-    jobId: string; policyId: string; jobType: string; targetTable: string;
+    jobId: string; policyId: string | number; jobType: string; targetTable: string;
     filterCondition?: any;
   }) {
     const db = await getDb();
     if (!db) throw new Error('Database not available');
     await db.insert(dataGovernanceJobs).values({
-      jobId: input.jobId, policyId: input.policyId, jobType: input.jobType,
+      jobId: input.jobId, policyId: typeof input.policyId === 'string' ? parseInt(input.policyId, 10) : input.policyId, jobType: input.jobType,
       targetTable: input.targetTable, filterCondition: input.filterCondition || null,
       status: 'pending', createdAt: new Date(),
     });
@@ -144,9 +144,9 @@ export const anomalyDetectionService = {
     if (!db) return { rows: [], total: 0 };
     const conditions: any[] = [];
     if (filters?.sensorId) conditions.push(eq(anomalyDetections.sensorId, filters.sensorId));
-    if (filters?.severity) conditions.push(eq(anomalyDetections.severity, filters.severity));
-    if (filters?.status) conditions.push(eq(anomalyDetections.status, filters.status));
-    if (filters?.algorithmType) conditions.push(eq(anomalyDetections.algorithmType, filters.algorithmType));
+    if (filters?.severity) conditions.push(eq(anomalyDetections.severity, filters.severity as any));
+    if (filters?.status) conditions.push(eq(anomalyDetections.status, filters.status as any));
+    if (filters?.algorithmType) conditions.push(eq(anomalyDetections.algorithmType, filters.algorithmType as any));
     if (filters?.startDate) conditions.push(gte(anomalyDetections.createdAt, filters.startDate));
     if (filters?.endDate) conditions.push(lte(anomalyDetections.createdAt, filters.endDate));
     const where = conditions.length > 0 ? and(...conditions) : undefined;
@@ -176,11 +176,11 @@ export const anomalyDetectionService = {
     if (!db) throw new Error('Database not available');
     const now = new Date();
     await db.insert(anomalyDetections).values({
-      detectionId: input.detectionId, sensorId: input.sensorId, nodeId: input.nodeId || null,
-      algorithmType: input.algorithmType, windowSize: input.windowSize, threshold: input.threshold,
-      currentValue: input.currentValue.toString(), expectedValue: input.expectedValue.toString(),
-      deviation: input.deviation.toString(), score: input.score.toString(),
-      severity: input.severity, status: 'detected', createdAt: now, updatedAt: now,
+      detectionId: input.detectionId, sensorId: input.sensorId, nodeId: input.nodeId || '',
+      algorithmType: input.algorithmType as any, windowSize: input.windowSize, threshold: input.threshold,
+      currentValue: input.currentValue, expectedValue: input.expectedValue,
+      deviation: input.deviation, score: input.score,
+      severity: input.severity as any, status: 'open', createdAt: now, updatedAt: now,
     });
     return { success: true, detectionId: input.detectionId };
   },
@@ -189,7 +189,7 @@ export const anomalyDetectionService = {
     const db = await getDb();
     if (!db) throw new Error('Database not available');
     await db.update(anomalyDetections).set({
-      status: 'acknowledged', acknowledgedBy, acknowledgedAt: new Date(), updatedAt: new Date(),
+      status: 'acknowledged' as any, acknowledgedBy, acknowledgedAt: new Date(), updatedAt: new Date(),
     }).where(eq(anomalyDetections.id, id));
     return this.getById(id);
   },
@@ -198,7 +198,7 @@ export const anomalyDetectionService = {
     const db = await getDb();
     if (!db) throw new Error('Database not available');
     await db.update(anomalyDetections).set({
-      status: 'resolved', resolvedAt: new Date(), notes: notes || null, updatedAt: new Date(),
+      status: 'resolved' as any, resolvedAt: new Date(), notes: notes || null, updatedAt: new Date(),
     }).where(eq(anomalyDetections.id, id));
     return this.getById(id);
   },
@@ -207,9 +207,9 @@ export const anomalyDetectionService = {
     const db = await getDb();
     if (!db) return { total: 0, detected: 0, acknowledged: 0, resolved: 0 };
     const [total] = await db.select({ count: count() }).from(anomalyDetections);
-    const [detected] = await db.select({ count: count() }).from(anomalyDetections).where(eq(anomalyDetections.status, 'detected'));
-    const [acknowledged] = await db.select({ count: count() }).from(anomalyDetections).where(eq(anomalyDetections.status, 'acknowledged'));
-    const [resolved] = await db.select({ count: count() }).from(anomalyDetections).where(eq(anomalyDetections.status, 'resolved'));
+    const [detected] = await db.select({ count: count() }).from(anomalyDetections).where(eq(anomalyDetections.status, 'open' as any));
+    const [acknowledged] = await db.select({ count: count() }).from(anomalyDetections).where(eq(anomalyDetections.status, 'acknowledged' as any));
+    const [resolved] = await db.select({ count: count() }).from(anomalyDetections).where(eq(anomalyDetections.status, 'resolved' as any));
     return { total: total.count, detected: detected.count, acknowledged: acknowledged.count, resolved: resolved.count };
   },
 };

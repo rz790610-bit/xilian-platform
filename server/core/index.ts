@@ -98,12 +98,12 @@ async function registerEventBusIntegration(): Promise<void> {
     // 所有事件经过去重服务
     eventBus.subscribeAll(async (event) => {
       try {
-        const result = await deduplicationService.isDuplicate(event.eventId, 'global');
+        const result = await deduplicationService.isDuplicate(event.eventId || '', 'global');
         if (result.isDuplicate) {
           console.log(`[v1.9] Duplicate event filtered: ${event.eventId}`);
           return;
         }
-        await deduplicationService.markProcessed(event.eventId, event.eventType || 'unknown', 'global');
+        await deduplicationService.markProcessed(event.eventId || '', event.eventType || 'unknown', 'global');
       } catch (err) {
         // 去重服务失败不应阻塞事件处理
         console.warn('[v1.9] Deduplication check failed:', err);
@@ -118,7 +118,7 @@ async function registerEventBusIntegration(): Promise<void> {
           eventType: 'DeviceUpdated',
           aggregateType: 'Device',
           aggregateId: event.deviceId || 'unknown',
-          payload: event.payload,
+          payload: event.payload as Record<string, unknown>,
           metadata: { source: 'eventBus', correlationId: event.eventId },
         });
       } catch (err) {

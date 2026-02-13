@@ -345,6 +345,7 @@ export class DeviceCrudService {
       if (!db) {
         return {
           items: [],
+          data: [],
           total: 0,
           page: 1,
           pageSize: 20,
@@ -431,6 +432,7 @@ export class DeviceCrudService {
 
       return {
         items,
+        data: items,
         total,
         page,
         pageSize,
@@ -442,6 +444,7 @@ export class DeviceCrudService {
       console.error('[DeviceCrudService] List failed:', error);
       return {
         items: [],
+        data: [],
         total: 0,
         page: 1,
         pageSize: 20,

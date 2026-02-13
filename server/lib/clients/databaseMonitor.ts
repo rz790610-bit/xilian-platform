@@ -8,7 +8,7 @@ import { sql } from 'drizzle-orm';
 import { redisClient } from './redis.client';
 import { getClickHouseClient, checkConnection as checkClickHouseConnection } from './clickhouse.client';
 import { QdrantClient } from '@qdrant/js-client-rest';
-import type { DatabaseStatus } from '../../services/monitoring.service';
+import type { DatabaseStatus } from '../../core/types/domain';
 
 // Qdrant 客户端单例
 let qdrantClientInstance: QdrantClient | null = null;

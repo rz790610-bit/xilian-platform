@@ -57,7 +57,7 @@ export default function CleanManager() {
         {/* 统计卡片 */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <StatCard value={cleanRules?.length ?? 0} label="清洗规则" icon="🧹" />
-          <StatCard value={cleanTasks?.length ?? 0} label="清洗任务" icon="⚡" />
+          <StatCard value={cleanTasks?.total ?? 0} label="清洗任务" icon="⚡" />
           <StatCard value={qualityStats?.totalReports ?? 0} label="质量报告" icon="📋" />
           <StatCard value={qualityStats?.avgScore ?? '-'} label="平均质量分" icon="✅" />
         </div>

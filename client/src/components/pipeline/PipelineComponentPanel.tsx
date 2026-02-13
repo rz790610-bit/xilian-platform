@@ -5,14 +5,14 @@
 
 import { cn } from '@/lib/utils';
 import { SOURCE_TYPES, PROCESSOR_TYPES, SINK_TYPES } from '@shared/pipelineTypes';
-import type { EditorNodeType, SourceType, ProcessorType, SinkType } from '@shared/pipelineTypes';
+import type { EditorNodeType, NodeSubType } from '@shared/pipelineTypes';
 import { usePipelineEditorStore } from '@/stores/pipelineEditorStore';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { useState } from 'react';
 
 interface ComponentItemProps {
   type: EditorNodeType;
-  subType: SourceType | ProcessorType | SinkType;
+  subType: NodeSubType;
   name: string;
   description: string;
   icon: string;
@@ -75,7 +75,7 @@ function CollapsibleSection({ title, icon, children, defaultOpen = true }: Colla
   );
 }
 
-export function PipelineComponentPanel() {
+export function PipelineComponentPanel({ className }: { className?: string }) {
   const { editor } = usePipelineEditorStore();
 
   // 检查是否已有 Source 或 Sink

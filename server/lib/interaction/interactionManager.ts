@@ -367,9 +367,9 @@ export class InteractionManager extends EventEmitter {
 
     return {
       graphql: {
-        totalQueries: graphqlStats.totalQueries,
-        cacheHitRate: graphqlStats.cacheHits / Math.max(graphqlStats.totalQueries, 1),
-        avgLatency: graphqlStats.avgLatencyMs,
+        totalQueries: graphqlStats.totalQueries || 0,
+        cacheHitRate: (graphqlStats.cacheHits || 0) / Math.max(graphqlStats.totalQueries || 0, 1),
+        avgLatency: graphqlStats.avgLatencyMs || 0,
         activeSubscriptions: this.graphqlGateway.getStatus().activeSubscriptions,
       },
       web: {

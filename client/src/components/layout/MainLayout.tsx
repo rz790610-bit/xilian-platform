@@ -5,7 +5,7 @@ import { Topbar } from './Topbar';
 
 interface MainLayoutProps {
   children: React.ReactNode;
-  title: string;
+  title?: string;
 }
 
 export function MainLayout({ children, title }: MainLayoutProps) {
@@ -27,7 +27,7 @@ export function MainLayout({ children, title }: MainLayoutProps) {
           sidebarCollapsed ? "ml-[50px]" : "ml-[200px]"
         )}
       >
-        <Topbar title={title} />
+        <Topbar title={title ?? ''} />
         <div className="flex-1 p-3 overflow-y-auto">
           {children}
         </div>

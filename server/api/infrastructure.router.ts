@@ -158,7 +158,7 @@ export const infrastructureRouter = router({
       status: z.enum(['ready', 'not_ready', 'scheduling_disabled', 'unknown']),
     }))
     .mutation(({ input }) => {
-      return InfrastructureService.setNodeStatus(input.id, input.status);
+      return InfrastructureService.setNodeStatus(input.id, input.status === 'ready');
     }),
 
   // ============ Kubernetes 命名空间 ============
@@ -703,13 +703,13 @@ export const infrastructureRouter = router({
       })).optional(),
     }))
     .mutation(({ input }) => {
-      return InfrastructureService.createNetworkPolicy(input as any);
+      return InfrastructureService.createNetworkPolicy('default', input as any);
     }),
 
   deleteNetworkPolicy: protectedProcedure
     .input(z.object({ id: z.string() }))
     .mutation(({ input }) => {
-      return InfrastructureService.deleteNetworkPolicy(input.id);
+      return InfrastructureService.deleteNetworkPolicy('default', input.id);
     }),
 
   // ============ 存储管理 (保留模拟服务) ============
@@ -744,7 +744,8 @@ export const infrastructureRouter = router({
   // ============ CI/CD (保留模拟服务) ============
 
   getCICDPipelines: publicProcedure.query(() => {
-    return InfrastructureService.getCicdPipelines();
+    // getCicdPipelines 尚未实现，返回空数组
+    return [];
   }),
 
   triggerPipeline: protectedProcedure
@@ -789,11 +790,11 @@ export const infrastructureRouter = router({
           claims: (await InfrastructureService.getPersistentVolumeClaims()).length,
         },
         security: {
-          policies: InfrastructureService.getOpaPolicies().length,
-          roles: InfrastructureService.getRbacRoles().length,
+          policies: (await InfrastructureService.getOpaPolicies()).length,
+          roles: (await InfrastructureService.getRbacRoles()).length,
         },
         cicd: {
-          pipelines: InfrastructureService.getCicdPipelines().length,
+          pipelines: 0, // getCicdPipelines 尚未实现
         },
       };
     } catch {

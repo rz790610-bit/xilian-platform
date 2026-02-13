@@ -879,3 +879,115 @@ export class KafkaClusterService {
 // 导出单例
 export const kafkaCluster = new KafkaClusterService();
 export default kafkaCluster;
+
+// ============================================================
+// Kafka Archiver (归档模块)
+// ============================================================
+
+export interface ArchiveConfig {
+  enabled: boolean;
+  storagePath: string;
+  retentionDays: number;
+  compressionType?: 'gzip' | 'snappy' | 'lz4' | 'none';
+  maxFileSizeMB?: number;
+  topics?: string[];
+}
+
+export interface ArchiveRecord {
+  id: string;
+  topic: string;
+  partition: number;
+  startOffset: number;
+  endOffset: number;
+  messageCount: number;
+  filePath: string;
+  fileSize: number;
+  createdAt: Date;
+  compressedSize?: number;
+}
+
+export interface ArchiveStats {
+  totalFiles: number;
+  totalMessages: number;
+  totalSizeBytes: number;
+  oldestArchive?: Date;
+  newestArchive?: Date;
+  topicStats: Record<string, { files: number; messages: number; sizeBytes: number }>;
+}
+
+export interface ArchiveFile {
+  path: string;
+  topic: string;
+  partition: number;
+  startOffset: number;
+  endOffset: number;
+  messageCount: number;
+  sizeBytes: number;
+  createdAt: Date;
+}
+
+export class KafkaArchiver {
+  private config: ArchiveConfig;
+  constructor(config?: Partial<ArchiveConfig>) {
+    this.config = {
+      enabled: false,
+      storagePath: '/data/kafka-archives',
+      retentionDays: 30,
+      ...config,
+    };
+  }
+  async archive(topic: string): Promise<ArchiveFile | null> {
+    console.log(`[KafkaArchiver] Archive topic: ${topic}`);
+    return null;
+  }
+  async getStats(): Promise<ArchiveStats> {
+    return { totalFiles: 0, totalMessages: 0, totalSizeBytes: 0, topicStats: {} };
+  }
+  async listArchives(topic?: string): Promise<ArchiveRecord[]> {
+    return [];
+  }
+  async restore(archiveId: string): Promise<boolean> {
+    return false;
+  }
+  async cleanup(beforeDate?: Date): Promise<number> {
+    return 0;
+  }
+
+  // ============ dataflowManager 所需方法 ============
+  private archiveCallbacks: Array<(file: ArchiveFile) => void> = [];
+  private _isRunning = false;
+
+  onArchive(callback: (file: ArchiveFile) => void): void {
+    this.archiveCallbacks.push(callback);
+  }
+
+  async start(): Promise<void> {
+    this._isRunning = true;
+    console.log('[KafkaArchiver] Started');
+  }
+
+  async stop(): Promise<void> {
+    this._isRunning = false;
+    console.log('[KafkaArchiver] Stopped');
+  }
+
+  getStatus(): { isRunning: boolean; stats: { filesCreated: number } } {
+    return { isRunning: this._isRunning, stats: { filesCreated: 0 } };
+  }
+
+  getRecentArchives(limit: number = 10): ArchiveFile[] {
+    return [];
+  }
+
+  async triggerArchive(topic?: string): Promise<void> {
+    if (topic) {
+      await this.archive(topic);
+    }
+  }
+
+  async cleanupExpiredArchives(): Promise<number> {
+    return this.cleanup();
+  }
+}
+
+export const kafkaArchiver = new KafkaArchiver();

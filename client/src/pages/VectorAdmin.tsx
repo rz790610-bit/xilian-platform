@@ -123,9 +123,9 @@ export default function VectorAdmin() {
   // 统计信息
   const overviewStats = useMemo(() => ({
     collectionsCount: collections.length,
-    totalPoints: stats?.totalPoints || 0,
-    totalDocuments: stats?.totalDocuments || 0,
-    totalNodes: stats?.totalNodes || 0
+    totalPoints: stats?.pointsCount || 0,
+    totalDocuments: stats?.documentsCount || 0,
+    totalNodes: stats?.nodesCount || 0
   }), [collections, stats]);
 
   // 类别颜色映射

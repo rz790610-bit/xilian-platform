@@ -93,7 +93,7 @@ export default function KnowledgeManager() {
   // ━━━ 数据 ━━━
   const qdrantStatus = qdrantStatusQuery.data;
   const documents = documentsQuery.data || [];
-  const stats = statsQuery.data || { totalPoints: 0, totalDocuments: 0, totalNodes: 0, totalEdges: 0 };
+  const stats = statsQuery.data || { pointsCount: 0, documentsCount: 0, nodesCount: 0, edgesCount: 0, categories: [] as string[] };
 
   // 获取文件图标
   const getFileIcon = (filename: string) => {
@@ -243,10 +243,10 @@ export default function KnowledgeManager() {
 
         {/* 统计卡片 */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-          <StatCard label="文档总数" value={stats.totalDocuments || 0} icon="📁" />
-          <StatCard label="知识点" value={stats.totalPoints || 0} icon="📝" />
-          <StatCard label="图谱节点" value={stats.totalNodes || 0} icon="🏷️" />
-          <StatCard label="图谱关系" value={stats.totalEdges || 0} icon="🔗" />
+          <StatCard label="文档总数" value={stats.documentsCount || 0} icon="📁" />
+          <StatCard label="知识点" value={stats.pointsCount || 0} icon="📝" />
+          <StatCard label="图谱节点" value={stats.nodesCount || 0} icon="🏷️" />
+          <StatCard label="图谱关系" value={stats.edgesCount || 0} icon="🔗" />
           <StatCard label="集合数" value={collections.length} icon="📦" />
         </div>
 
