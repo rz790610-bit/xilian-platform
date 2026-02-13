@@ -436,6 +436,20 @@ export default function AccessLayerManager() {
     },
   });
 
+  const seedMutation = trpc.accessLayer.seedDemoData.useMutation({
+    onSuccess: (data) => {
+      if (data.seeded) {
+        toast.success(data.message);
+        utils.accessLayer.listConnectors.invalidate();
+        utils.accessLayer.stats.invalidate();
+        utils.accessLayer.listBindings.invalidate();
+      } else {
+        toast.info(data.message);
+      }
+    },
+    onError: (err) => toast.error(`加载失败: ${err.message}`),
+  });
+
   const stats = statsQuery.data;
 
   // 如果选中了某个连接器，显示详情
@@ -473,9 +487,17 @@ export default function AccessLayerManager() {
                 <Globe className="w-3.5 h-3.5 mr-1" /> 协议总览
               </TabsTrigger>
             </TabsList>
-            <Button size="sm" onClick={() => setShowCreateDialog(true)}>
-              <Plus className="w-3.5 h-3.5 mr-1" /> 新建连接器
-            </Button>
+            <div className="flex items-center gap-2">
+              {(stats?.totalConnectors || 0) === 0 && (
+                <Button size="sm" variant="outline" onClick={() => seedMutation.mutate()} disabled={seedMutation.isPending}>
+                  {seedMutation.isPending ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Database className="w-3.5 h-3.5 mr-1" />}
+                  加载SHM演示数据
+                </Button>
+              )}
+              <Button size="sm" onClick={() => setShowCreateDialog(true)}>
+                <Plus className="w-3.5 h-3.5 mr-1" /> 新建连接器
+              </Button>
+            </div>
           </div>
 
           {/* 连接器列表 */}

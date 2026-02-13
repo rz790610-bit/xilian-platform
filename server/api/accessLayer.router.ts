@@ -7,6 +7,8 @@ import { publicProcedure, router } from "../core/trpc";
 import * as alService from "../services/access-layer.service";
 
 export const accessLayerRouter = router({
+  // ============ 演示数据种子 ============
+  seedDemoData: publicProcedure.mutation(() => alService.seedDemoData()),
   // ============ 统计 ============
   stats: publicProcedure.query(() => alService.getStats()),
 
