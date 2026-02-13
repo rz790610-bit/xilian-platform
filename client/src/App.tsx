@@ -49,7 +49,6 @@ import {
 
 // 平台管理 - 设计工具
 import {
-  PipelineManager,
   PipelineEditor,
   DataStream,
   GraphQueryManager
@@ -171,8 +170,7 @@ function Router() {
 
       {/* ━━━ 平台管理 ━━━ */}
       {/* 设计工具 */}
-      <Route path="/settings/design/pipeline" component={PipelineManager} />
-      <Route path="/settings/design/pipeline/editor" component={PipelineEditor} />
+      <Route path="/settings/design/pipeline" component={PipelineEditor} />
       <Route path="/settings/design/datastream" component={DataStream} />
       <Route path="/settings/design/graph-query" component={GraphQueryManager} />
       <Route path="/settings/design/workbench" component={DatabaseWorkbench} />
@@ -223,9 +221,6 @@ function Router() {
       {/* Legacy route redirects for backward compatibility */}
       <Route path="/pipeline">
         <Redirect to="/settings/design/pipeline" />
-      </Route>
-      <Route path="/pipeline/editor">
-        <Redirect to="/settings/design/pipeline/editor" />
       </Route>
       {/* 已删除页面的旧路由 → 重定向到最近的保留页面 */}
       <Route path="/settings/design/db-workbench">

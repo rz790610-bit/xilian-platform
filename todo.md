@@ -50,3 +50,12 @@
 
 - [ ] 插件管理页面问题排查与修复
 - [ ] ClickHouse监控页面问题排查与修复
+
+## 五、Pipeline 编排界面排查（当前任务）
+
+- [ ] Pipeline 编排页面在浏览器中是否正常渲染
+- [ ] 路由 /settings/design/pipeline 和 /settings/design/pipeline/editor 是否生效
+- [ ] 前端组件是否有运行时错误（控制台报错）
+- [ ] tRPC 路由 pipeline.list / pipeline.get 是否正常返回数据
+- [ ] 导航栏中 Pipeline 入口是否可点击跳转
+- [ ] 根据排查结果修复界面不显示的问题

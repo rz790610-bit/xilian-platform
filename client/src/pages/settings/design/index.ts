@@ -1,4 +1,3 @@
-export { default as PipelineManager } from './PipelineManager';
 export { default as PipelineEditor } from './PipelineEditor';
 export { default as DataStream } from './DataStream';
 export { default as GraphQueryManager } from './GraphQueryManager';
