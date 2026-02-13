@@ -2823,3 +2823,91 @@ export const kgEvolutionLog = mysqlTable("kg_evolution_log", {
 ]);
 export type KgEvolutionLog = typeof kgEvolutionLog.$inferSelect;
 export type InsertKgEvolutionLog = typeof kgEvolutionLog.$inferInsert;
+
+// ============ §14 接入层 - 统一数据采集模型 ============
+
+/**
+ * 数据连接器（Connector）
+ * 一个外部系统的接入配置，如 MQTT Broker、MySQL 实例、Kafka 集群等
+ */
+export const dataConnectors = mysqlTable("data_connectors", {
+  id: int("id").autoincrement().primaryKey(),
+  connectorId: varchar("connector_id", { length: 64 }).notNull().unique(),
+  name: varchar("name", { length: 200 }).notNull(),
+  description: text("description"),
+  protocolType: varchar("protocol_type", { length: 32 }).notNull(),
+  connectionParams: json("connection_params").notNull(),
+  authConfig: json("auth_config"),
+  healthCheckConfig: json("health_check_config"),
+  status: varchar("status", { length: 32 }).notNull().default("draft"),
+  lastHealthCheck: timestamp("last_health_check", { fsp: 3 }),
+  lastError: text("last_error"),
+  sourceRef: varchar("source_ref", { length: 128 }),
+  tags: json("tags"),
+  createdAt: timestamp("created_at", { fsp: 3 }).defaultNow().notNull(),
+  createdBy: varchar("created_by", { length: 64 }),
+  updatedAt: timestamp("updated_at", { fsp: 3 }).defaultNow().notNull(),
+}, (table) => [
+  index("idx_dc_protocol").on(table.protocolType),
+  index("idx_dc_status").on(table.status),
+  index("idx_dc_source_ref").on(table.sourceRef),
+]);
+export type DataConnector = typeof dataConnectors.$inferSelect;
+export type InsertDataConnector = typeof dataConnectors.$inferInsert;
+
+/**
+ * 数据端点（Endpoint）
+ * 连接器下的具体资源，如 MQTT Topic、数据库表、Kafka Topic、MinIO Bucket 等
+ */
+export const dataEndpoints = mysqlTable("data_endpoints", {
+  id: int("id").autoincrement().primaryKey(),
+  endpointId: varchar("endpoint_id", { length: 64 }).notNull().unique(),
+  connectorId: varchar("connector_id", { length: 64 }).notNull(),
+  name: varchar("name", { length: 200 }).notNull(),
+  resourcePath: varchar("resource_path", { length: 500 }).notNull(),
+  resourceType: varchar("resource_type", { length: 32 }).notNull(),
+  dataFormat: varchar("data_format", { length: 32 }).default("json"),
+  schemaInfo: json("schema_info"),
+  samplingConfig: json("sampling_config"),
+  preprocessConfig: json("preprocess_config"),
+  protocolConfigId: varchar("protocol_config_id", { length: 64 }),
+  sensorId: varchar("sensor_id", { length: 64 }),
+  status: varchar("status", { length: 32 }).notNull().default("active"),
+  discoveredAt: timestamp("discovered_at", { fsp: 3 }),
+  metadata: json("metadata"),
+  createdAt: timestamp("created_at", { fsp: 3 }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { fsp: 3 }).defaultNow().notNull(),
+}, (table) => [
+  index("idx_de_connector").on(table.connectorId),
+  index("idx_de_resource_type").on(table.resourceType),
+  index("idx_de_sensor").on(table.sensorId),
+  index("idx_de_status").on(table.status),
+]);
+export type DataEndpoint = typeof dataEndpoints.$inferSelect;
+export type InsertDataEndpoint = typeof dataEndpoints.$inferInsert;
+
+/**
+ * 数据绑定（Binding）
+ * 端点与平台内部消费者的关联
+ */
+export const dataBindings = mysqlTable("data_bindings", {
+  id: int("id").autoincrement().primaryKey(),
+  bindingId: varchar("binding_id", { length: 64 }).notNull().unique(),
+  endpointId: varchar("endpoint_id", { length: 64 }).notNull(),
+  targetType: varchar("target_type", { length: 32 }).notNull(),
+  targetId: varchar("target_id", { length: 128 }).notNull(),
+  direction: varchar("direction", { length: 16 }).notNull().default("ingest"),
+  transformConfig: json("transform_config"),
+  bufferConfig: json("buffer_config"),
+  status: varchar("status", { length: 32 }).notNull().default("active"),
+  lastSyncAt: timestamp("last_sync_at", { fsp: 3 }),
+  syncStats: json("sync_stats"),
+  createdAt: timestamp("created_at", { fsp: 3 }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { fsp: 3 }).defaultNow().notNull(),
+}, (table) => [
+  index("idx_db_endpoint").on(table.endpointId),
+  index("idx_db_target").on(table.targetType, table.targetId),
+  index("idx_db_status").on(table.status),
+]);
+export type DataBinding = typeof dataBindings.$inferSelect;
+export type InsertDataBinding = typeof dataBindings.$inferInsert;

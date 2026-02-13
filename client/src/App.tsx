@@ -74,7 +74,8 @@ import ClickHouseDashboard from "./pages/monitoring/ClickHouseDashboard";
 // 平台管理 - 配置中心（精简：移除 ResourcesOverview、DbManagement）
 import {
   Infrastructure,
-  KafkaMonitor
+  KafkaMonitor,
+  AccessLayerManager
 } from "./pages/settings/config";
 
 // 平台管理 - 状态监控（精简：移除 PluginsManager、EnginesManager、ModelsManager、ServicesOverview）
@@ -180,6 +181,7 @@ function Router() {
       {/* 配置中心 */}
       <Route path="/settings/config/infrastructure" component={Infrastructure} />
       <Route path="/settings/config/kafka" component={KafkaMonitor} />
+      <Route path="/settings/config/access-layer" component={AccessLayerManager} />
 
       {/* 状态监控 */}
       <Route path="/settings/status/topology" component={SystemTopology} />

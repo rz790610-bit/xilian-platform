@@ -6,6 +6,9 @@ import { useMemo, useState } from "react";
 import { useKGOrchestratorStore } from "../../stores/kgOrchestratorStore";
 import { getKGNodeTypeInfo, getKGRelationTypeInfo, ALL_KG_RELATION_TYPES } from "../../../../shared/kgOrchestratorTypes";
 import type { KGConfigField } from "../../../../shared/kgOrchestratorTypes";
+import { PROTOCOL_META } from "../../../../shared/accessLayerTypes";
+import type { ProtocolType } from "../../../../shared/accessLayerTypes";
+import { trpc } from "../../lib/trpc";
 
 export default function KGConfigPanel() {
   const {
@@ -98,6 +101,17 @@ export default function KGConfigPanel() {
                 />
               ))}
             </div>
+          )}
+
+          {/* 数据源绑定（仅数据层节点） */}
+          {selectedNode.category === "data" && (
+            <DataSourceBindingSection
+              nodeId={selectedNode.nodeId}
+              config={selectedNode.config}
+              onUpdate={(bindingConfig) => updateNode(selectedNode.nodeId, {
+                config: { ...selectedNode.config, ...bindingConfig },
+              })}
+            />
           )}
 
           {/* 运行统计 */}
@@ -325,6 +339,100 @@ function ConfigFieldInput({ field, value, onChange }: {
 
       {field.description && field.type !== "boolean" && (
         <div className="text-[9px] text-slate-600 mt-0.5">{field.description}</div>
+      )}
+    </div>
+  );
+}
+
+// ============ 数据源绑定区域（数据层节点专用） ============
+function DataSourceBindingSection({ nodeId, config, onUpdate }: {
+  nodeId: string;
+  config: Record<string, unknown>;
+  onUpdate: (bindingConfig: Record<string, unknown>) => void;
+}) {
+  const connectorsQuery = trpc.accessLayer.listConnectors.useQuery({});
+  const endpointsQuery = trpc.accessLayer.listEndpoints.useQuery(
+    { connectorId: config._boundConnectorId as string },
+    { enabled: !!config._boundConnectorId }
+  );
+
+  const connectors = connectorsQuery.data?.items || [];
+  const endpoints = endpointsQuery.data || [];
+
+  const boundConnectorId = (config._boundConnectorId as string) || '';
+  const boundEndpointId = (config._boundEndpointId as string) || '';
+  const boundConnector = connectors.find((c: any) => c.connectorId === boundConnectorId);
+
+  return (
+    <div className="border-t border-slate-700/50 pt-3">
+      <div className="flex items-center gap-1.5 mb-2">
+        <span className="text-xs">\uD83D\uDD0C</span>
+        <span className="text-xs font-semibold text-slate-400">数据源绑定</span>
+      </div>
+
+      {/* 选择连接器 */}
+      <div className="mb-2">
+        <label className="text-[11px] text-slate-400 block mb-1">连接器</label>
+        <select
+          value={boundConnectorId}
+          onChange={e => {
+            const cid = e.target.value;
+            onUpdate({ _boundConnectorId: cid || undefined, _boundEndpointId: undefined });
+          }}
+          className="w-full bg-slate-800 border border-slate-600 rounded px-2 py-1 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
+        >
+          <option value="">未绑定</option>
+          {connectors.map((c: any) => {
+            const meta = PROTOCOL_META[c.protocolType as ProtocolType];
+            return (
+              <option key={c.connectorId} value={c.connectorId}>
+                {meta?.icon || '\uD83D\uDCE6'} {c.name} ({meta?.label || c.protocolType})
+              </option>
+            );
+          })}
+        </select>
+      </div>
+
+      {/* 选择端点 */}
+      {boundConnectorId && (
+        <div className="mb-2">
+          <label className="text-[11px] text-slate-400 block mb-1">端点</label>
+          <select
+            value={boundEndpointId}
+            onChange={e => onUpdate({ _boundConnectorId: boundConnectorId, _boundEndpointId: e.target.value || undefined })}
+            className="w-full bg-slate-800 border border-slate-600 rounded px-2 py-1 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          >
+            <option value="">全部端点</option>
+            {endpoints.map((ep: any) => (
+              <option key={ep.endpointId} value={ep.endpointId}>
+                {ep.name} ({ep.resourcePath})
+              </option>
+            ))}
+          </select>
+          {endpointsQuery.isLoading && (
+            <div className="text-[9px] text-slate-500 mt-0.5">加载端点中...</div>
+          )}
+        </div>
+      )}
+
+      {/* 绑定状态 */}
+      {boundConnectorId ? (
+        <div className="bg-blue-900/20 border border-blue-800/30 rounded p-2 text-[10px]">
+          <div className="flex items-center gap-1 text-blue-400">
+            <span>\u2713</span>
+            <span>已绑定: {boundConnector?.name || boundConnectorId.slice(0, 8)}</span>
+          </div>
+          {boundEndpointId && (
+            <div className="text-blue-400/70 mt-0.5">
+              端点: {endpoints.find((ep: any) => ep.endpointId === boundEndpointId)?.name || boundEndpointId.slice(0, 8)}
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="bg-slate-800/50 border border-slate-700/30 rounded p-2 text-[10px] text-slate-500">
+          未绑定数据源。绑定后，此节点可从真实数据源获取数据。
+          <a href="/settings/config/access-layer" className="text-blue-400 hover:underline ml-1">前往接入层管理</a>
+        </div>
       )}
     </div>
   );

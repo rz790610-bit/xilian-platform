@@ -42,6 +42,8 @@ import { monitoringRoutes } from "./business/routes/monitoring.routes";
 import { dockerRouter } from "./api/docker.router";
 // ============ 知识图谱编排器 ============
 import { kgOrchestratorRouter } from "./api/kgOrchestrator.router";
+// ============ 接入层统一管理 ============
+import { accessLayerRouter } from "./api/accessLayer.router";
 
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/core/index.ts, all api should start with '/api/' so that the gateway can route correctly
@@ -154,6 +156,9 @@ export const appRouter = router({
 
   // ============ 知识图谱编排器 ============
   kgOrchestrator: kgOrchestratorRouter,
+
+  // ============ 接入层统一管理 ============
+  accessLayer: accessLayerRouter,
 });
 
 export type AppRouter = typeof appRouter;

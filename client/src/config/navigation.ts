@@ -126,6 +126,7 @@ export const navigationConfig: NavItem[] = [
     label: '配置中心',
     icon: '⚙️',
     children: [
+      { id: 'config-access-layer', label: '接入层管理', icon: '🔌', path: '/settings/config/access-layer' },
       { id: 'config-infrastructure', label: '基础设施', icon: '🏛️', path: '/settings/config/infrastructure' },
       { id: 'config-kafka', label: 'Kafka 监控', icon: '📡', path: '/settings/config/kafka' },
       { id: 'config-alert-rules', label: '告警规则', icon: '🔔', path: '/platform/alert-rules' },

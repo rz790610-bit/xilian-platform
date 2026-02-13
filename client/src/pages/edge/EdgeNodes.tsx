@@ -413,8 +413,15 @@ export default function EdgeNodes() {
           <TabsContent value="gateway">
             <Card>
               <CardHeader>
-                <CardTitle className="text-sm font-medium">协议网关</CardTitle>
-                <CardDescription>边缘协议转换网关（MQTT / OPC-UA / Modbus / HTTP / CoAP）</CardDescription>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-sm font-medium">协议网关</CardTitle>
+                    <CardDescription>边缘协议转换网关（MQTT / OPC-UA / Modbus / HTTP / CoAP）</CardDescription>
+                  </div>
+                  <a href="/settings/config/access-layer" className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1">
+                    \uD83D\uDD0C 接入层管理 \u2192
+                  </a>
+                </div>
               </CardHeader>
               <CardContent>
                 <Table>
