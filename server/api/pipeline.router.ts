@@ -11,6 +11,7 @@ import { router, publicProcedure, protectedProcedure } from '../core/trpc';
 import { pipelineEngine, PipelineConfig } from '../services/pipeline.engine';
 import { ALL_NODE_TYPES } from '../../shared/pipelineTypes';
 import type { PipelineCategory, TriggerType } from '../../shared/pipelineTypes';
+import { resourceDiscovery } from '../platform/services/resource-discovery.service';
 
 // ============ Zod Schemas ============
 
@@ -362,5 +363,54 @@ export const pipelineRouter = router({
     }
 
     return processors;
+  }),
+
+  // ======== 资源自动发现 ========
+
+  /**
+   * 执行资源扫描，返回所有自动发现的组件
+   * 扫描 MySQL 表、Kafka Topic、Qdrant 集合、模型、插件等
+   */
+  discoverResources: publicProcedure.query(async () => {
+    const components = await resourceDiscovery.scan();
+    const summary = resourceDiscovery.getSummary();
+    return { components, summary };
+  }),
+
+  /**
+   * 获取已缓存的发现组件（不触发重新扫描）
+   */
+  getDiscoveredComponents: publicProcedure
+    .input(z.object({
+      nodeType: z.enum(['source', 'processor', 'sink']).optional(),
+      resourceType: z.string().optional(),
+      search: z.string().optional(),
+    }).optional())
+    .query(async ({ input }) => {
+      let components = await resourceDiscovery.getComponents();
+
+      if (input?.nodeType) {
+        components = components.filter(c => c.nodeType === input.nodeType);
+      }
+      if (input?.resourceType) {
+        components = components.filter(c => c.resourceType === input.resourceType);
+      }
+      if (input?.search) {
+        const q = input.search.toLowerCase();
+        components = components.filter(c =>
+          c.name.toLowerCase().includes(q) ||
+          c.description.toLowerCase().includes(q) ||
+          c.tags.some(t => t.toLowerCase().includes(q))
+        );
+      }
+
+      return components;
+    }),
+
+  /**
+   * 获取发现摘要统计
+   */
+  getDiscoverySummary: publicProcedure.query(() => {
+    return resourceDiscovery.getSummary();
   }),
 });
