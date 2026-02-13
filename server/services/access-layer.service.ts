@@ -16,6 +16,86 @@ import type {
 } from "../../shared/accessLayerTypes";
 import { protocolAdapters } from "./protocol-adapters";
 
+// ============ 自动建表 ============
+let _tablesEnsured = false;
+async function ensureAccessLayerTables(db: NonNullable<Awaited<ReturnType<typeof getDb>>>) {
+  if (_tablesEnsured) return;
+  try {
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS data_connectors (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        connector_id VARCHAR(64) NOT NULL UNIQUE,
+        name VARCHAR(200) NOT NULL,
+        description TEXT,
+        protocol_type VARCHAR(32) NOT NULL,
+        connection_params JSON NOT NULL,
+        auth_config JSON,
+        health_check_config JSON,
+        status VARCHAR(32) NOT NULL DEFAULT 'draft',
+        last_health_check TIMESTAMP(3) NULL,
+        last_error TEXT,
+        source_ref VARCHAR(128),
+        tags JSON,
+        created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+        created_by VARCHAR(64),
+        updated_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+        INDEX idx_dc_protocol (protocol_type),
+        INDEX idx_dc_status (status),
+        INDEX idx_dc_source_ref (source_ref)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS data_endpoints (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        endpoint_id VARCHAR(64) NOT NULL UNIQUE,
+        connector_id VARCHAR(64) NOT NULL,
+        name VARCHAR(200) NOT NULL,
+        resource_path VARCHAR(500) NOT NULL,
+        resource_type VARCHAR(32) NOT NULL,
+        data_format VARCHAR(32) DEFAULT 'json',
+        schema_info JSON,
+        sampling_config JSON,
+        preprocess_config JSON,
+        protocol_config_id VARCHAR(64),
+        sensor_id VARCHAR(64),
+        status VARCHAR(32) NOT NULL DEFAULT 'active',
+        discovered_at TIMESTAMP(3) NULL,
+        metadata JSON,
+        created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+        updated_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+        INDEX idx_de_connector (connector_id),
+        INDEX idx_de_resource_type (resource_type),
+        INDEX idx_de_sensor (sensor_id),
+        INDEX idx_de_status (status)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS data_bindings (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        binding_id VARCHAR(64) NOT NULL UNIQUE,
+        endpoint_id VARCHAR(64) NOT NULL,
+        target_type VARCHAR(32) NOT NULL,
+        target_id VARCHAR(128) NOT NULL,
+        direction VARCHAR(16) NOT NULL DEFAULT 'ingest',
+        transform_config JSON,
+        buffer_config JSON,
+        status VARCHAR(32) NOT NULL DEFAULT 'active',
+        last_sync_at TIMESTAMP(3) NULL,
+        sync_stats JSON,
+        created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+        updated_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+        INDEX idx_db_endpoint (endpoint_id),
+        INDEX idx_db_target (target_type, target_id),
+        INDEX idx_db_status (status)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+    _tablesEnsured = true;
+  } catch (err) {
+    console.warn('[AccessLayer] ensureAccessLayerTables warning:', err);
+    _tablesEnsured = true; // 避免反复重试
+  }
+}
+
 // ============ Connector CRUD ============
 
 export async function listConnectors(opts: {
@@ -27,6 +107,7 @@ export async function listConnectors(opts: {
 } = {}) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
+  await ensureAccessLayerTables(db);
 
   const { page = 1, pageSize = 50, protocolType, status, search } = opts;
   const conditions = [];
@@ -69,6 +150,7 @@ export async function listConnectors(opts: {
 export async function getConnector(connectorId: string) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
+  await ensureAccessLayerTables(db);
 
   const [connector] = await db.select().from(dataConnectors)
     .where(eq(dataConnectors.connectorId, connectorId)).limit(1);
@@ -468,6 +550,7 @@ export async function healthCheck(connectorId: string): Promise<HealthCheckResul
 export async function getStats(): Promise<AccessLayerStats> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
+  await ensureAccessLayerTables(db);
 
   const [connCount] = await db.select({ count: sql<number>`count(*)` }).from(dataConnectors);
   const [connectedCount] = await db.select({ count: sql<number>`count(*)` }).from(dataConnectors).where(eq(dataConnectors.status, "connected"));
@@ -516,6 +599,8 @@ export function getAllProtocolSchemas() {
 export async function seedDemoData() {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
+
+  await ensureAccessLayerTables(db);
 
   // 检查是否已有数据
   const [existing] = await db.select({ count: sql<number>`count(*)` }).from(dataConnectors);
