@@ -13,6 +13,8 @@ import { PipelineOverview } from '@/components/pipeline/PipelineOverview';
 import { PipelineAPIPanel } from '@/components/pipeline/PipelineAPIPanel';
 import { PipelineLineagePanel } from '@/components/pipeline/PipelineLineagePanel';
 import { usePipelineEditorStore } from '@/stores/pipelineEditorStore';
+import type { EditorState, EditorNode, EditorConnection, NodeSubType, EditorNodeType } from '@shared/pipelineTypes';
+import { getNodeTypeInfo } from '@shared/pipelineTypes';
 import { trpc } from '@/lib/trpc';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -75,6 +77,8 @@ export default function PipelineEditor() {
     setPipelines,
     loadPipeline,
     newPipeline,
+    loadEditorState,
+    setPipelineInfo,
     setIsLoading,
   } = usePipelineEditorStore();
 
@@ -141,63 +145,170 @@ export default function PipelineEditor() {
     { id: 'lineage', label: '数据血缘', icon: <GitBranch className="w-3.5 h-3.5" /> },
   ];
 
-  // 模板数据
-  const templates = [
+  // ====== 模板工具函数 ======
+  const makeNode = (id: string, subType: NodeSubType, nodeType: EditorNodeType, x: number, y: number, config: Record<string, unknown> = {}): EditorNode => {
+    const info = getNodeTypeInfo(subType);
+    return {
+      id,
+      type: nodeType,
+      subType,
+      domain: info?.domain || 'data_engineering',
+      name: info?.name || String(subType),
+      x, y, config,
+      validated: false,
+      inputs: info?.inputs,
+      outputs: info?.outputs,
+    };
+  };
+  const makeConn = (id: string, from: string, to: string, fp = 0, tp = 0): EditorConnection => ({
+    id, fromNodeId: from, toNodeId: to, fromPort: fp, toPort: tp,
+  });
+
+  // ====== 模板定义（含完整节点 + 连线） ======
+  interface PipelineTemplate {
+    id: string;
+    name: string;
+    description: string;
+    domain: NodeDomain;
+    tags: string[];
+    build: () => { nodes: EditorNode[]; connections: EditorConnection[] };
+  }
+
+  const templates: PipelineTemplate[] = [
     {
       id: 'sensor-collect',
       name: '传感器数据采集',
       description: 'MQTT → 数据清洗 → ClickHouse 时序存储',
       domain: 'source' as NodeDomain,
-      nodes: 4,
       tags: ['IoT', '时序数据'],
+      build: () => {
+        const n1 = makeNode('t1-mqtt', 'mqtt', 'source', 80, 180, { topic: 'sensors/#', qos: 1 });
+        const n2 = makeNode('t1-clean', 'data_clean', 'processor', 360, 180, { removeNull: true, dedup: true });
+        const n3 = makeNode('t1-transform', 'transform', 'processor', 640, 180, { expression: 'row.value = parseFloat(row.raw)' });
+        const n4 = makeNode('t1-ch', 'clickhouse_sink', 'sink', 920, 180, { table: 'sensor_data', database: 'iot' });
+        return {
+          nodes: [n1, n2, n3, n4],
+          connections: [makeConn('c1', n1.id, n2.id), makeConn('c2', n2.id, n3.id), makeConn('c3', n3.id, n4.id)],
+        };
+      },
     },
     {
       id: 'fault-predict',
       name: '设备故障预警',
       description: 'ClickHouse → 特征工程 → 异常检测 → 告警通知',
       domain: 'machine_learning' as NodeDomain,
-      nodes: 5,
       tags: ['ML', '预测性维护'],
+      build: () => {
+        const n1 = makeNode('t2-ch', 'clickhouse', 'source', 80, 180, { query: 'SELECT * FROM vibration_data ORDER BY ts DESC LIMIT 10000' });
+        const n2 = makeNode('t2-feat', 'feature_engineering', 'processor', 360, 180, { method: 'fft', normalize: true });
+        const n3 = makeNode('t2-anomaly', 'anomaly_detect', 'processor', 640, 180, { algorithm: 'isolation_forest', threshold: 0.85 });
+        const n4 = makeNode('t2-notify', 'notify', 'control', 920, 120, { channel: 'webhook', url: '/api/alerts' });
+        const n5 = makeNode('t2-dash', 'dashboard_sink', 'sink', 920, 260, { topic: 'fault-predictions' });
+        return {
+          nodes: [n1, n2, n3, n4, n5],
+          connections: [makeConn('c1', n1.id, n2.id), makeConn('c2', n2.id, n3.id), makeConn('c3', n3.id, n4.id), makeConn('c4', n3.id, n5.id, 0, 0)],
+        };
+      },
     },
     {
       id: 'rag-pipeline',
       name: 'RAG 检索增强',
-      description: '文档 → 文本分割 → 向量化 → Qdrant 存储',
+      description: '文档解析 → 向量化 → Qdrant 存储 + 向量检索 → LLM 调用',
       domain: 'llm' as NodeDomain,
-      nodes: 5,
       tags: ['LLM', 'RAG'],
+      build: () => {
+        const n1 = makeNode('t3-file', 'file_upload', 'source', 80, 180, { formats: ['pdf', 'docx', 'txt'] });
+        const n2 = makeNode('t3-parse', 'doc_parse', 'processor', 360, 180, { ocr: true, chunkSize: 512 });
+        const n3 = makeNode('t3-embed', 'embedding', 'processor', 640, 120, { model: 'bge-large-zh-v1.5' });
+        const n4 = makeNode('t3-qdrant', 'qdrant_sink', 'sink', 920, 120, { collection: 'knowledge_base' });
+        const n5 = makeNode('t3-search', 'vector_search', 'processor', 640, 300, { topK: 5, collection: 'knowledge_base' });
+        const n6 = makeNode('t3-llm', 'llm_call', 'processor', 920, 300, { model: 'qwen2.5-72b', temperature: 0.3 });
+        return {
+          nodes: [n1, n2, n3, n4, n5, n6],
+          connections: [
+            makeConn('c1', n1.id, n2.id), makeConn('c2', n2.id, n3.id), makeConn('c3', n3.id, n4.id),
+            makeConn('c4', n2.id, n5.id), makeConn('c5', n5.id, n6.id),
+          ],
+        };
+      },
     },
     {
       id: 'etl-sync',
       name: 'ETL 数据同步',
-      description: 'MySQL → 数据转换 → Schema 验证 → ClickHouse',
+      description: 'MySQL → 字段映射 → Schema 验证 → ClickHouse',
       domain: 'data_engineering' as NodeDomain,
-      nodes: 4,
       tags: ['ETL', '数据同步'],
+      build: () => {
+        const n1 = makeNode('t4-mysql', 'mysql', 'source', 80, 180, { query: 'SELECT * FROM orders WHERE updated_at > :lastSync' });
+        const n2 = makeNode('t4-map', 'field_map', 'processor', 360, 180, { mapping: { order_id: 'id', created: 'created_at' } });
+        const n3 = makeNode('t4-validate', 'schema_validate', 'processor', 640, 180, { strict: true });
+        const n4 = makeNode('t4-ch', 'clickhouse_sink', 'sink', 920, 180, { table: 'orders_analytics', database: 'dw' });
+        return {
+          nodes: [n1, n2, n3, n4],
+          connections: [makeConn('c1', n1.id, n2.id), makeConn('c2', n2.id, n3.id), makeConn('c3', n3.id, n4.id)],
+        };
+      },
     },
     {
       id: 'smart-qa',
       name: '智能问答',
-      description: '用户输入 → 向量检索 → Prompt 模板 → LLM 调用',
+      description: 'HTTP 输入 → 向量检索 → Prompt 模板 → LLM 调用 → HTTP 输出',
       domain: 'llm' as NodeDomain,
-      nodes: 5,
       tags: ['LLM', '问答'],
+      build: () => {
+        const n1 = makeNode('t5-http', 'http', 'source', 80, 180, { method: 'POST', path: '/api/chat' });
+        const n2 = makeNode('t5-search', 'vector_search', 'processor', 360, 180, { topK: 5, collection: 'knowledge_base' });
+        const n3 = makeNode('t5-prompt', 'prompt_template', 'processor', 640, 180, { template: '基于以下上下文回答问题：\n{{context}}\n\n问题：{{query}}' });
+        const n4 = makeNode('t5-llm', 'llm_call', 'processor', 920, 180, { model: 'qwen2.5-72b', temperature: 0.7, maxTokens: 2048 });
+        const n5 = makeNode('t5-out', 'http_sink', 'sink', 1200, 180, { statusCode: 200 });
+        return {
+          nodes: [n1, n2, n3, n4, n5],
+          connections: [makeConn('c1', n1.id, n2.id), makeConn('c2', n2.id, n3.id), makeConn('c3', n3.id, n4.id), makeConn('c4', n4.id, n5.id)],
+        };
+      },
     },
     {
       id: 'event-driven',
       name: '事件驱动处理',
       description: 'Kafka → 条件分支 → 多路处理 → 聚合通知',
       domain: 'control' as NodeDomain,
-      nodes: 6,
       tags: ['事件驱动', '流处理'],
+      build: () => {
+        const n1 = makeNode('t6-kafka', 'kafka', 'source', 80, 220, { topic: 'events', groupId: 'event-processor' });
+        const n2 = makeNode('t6-cond', 'condition', 'control', 360, 220, { expression: 'event.severity >= "critical"' });
+        const n3 = makeNode('t6-alert', 'notify', 'control', 640, 120, { channel: 'dingtalk', template: '紧急告警: {{event.message}}' });
+        const n4 = makeNode('t6-transform', 'transform', 'processor', 640, 320, { expression: 'Object.assign(row, { processed: true })' });
+        const n5 = makeNode('t6-ch', 'clickhouse_sink', 'sink', 920, 120, { table: 'critical_events' });
+        const n6 = makeNode('t6-kafka-out', 'kafka_sink', 'sink', 920, 320, { topic: 'processed-events' });
+        return {
+          nodes: [n1, n2, n3, n4, n5, n6],
+          connections: [
+            makeConn('c1', n1.id, n2.id), makeConn('c2', n2.id, n3.id, 0, 0), makeConn('c3', n2.id, n4.id, 1, 0),
+            makeConn('c4', n3.id, n5.id), makeConn('c5', n4.id, n6.id),
+          ],
+        };
+      },
     },
     {
       id: 'knowledge-graph',
       name: '知识图谱构建',
-      description: 'MySQL → 实体抽取 → 关系构建 → Neo4j 存储',
+      description: 'MySQL → LLM 实体抽取 → 关系构建 → Neo4j 存储',
       domain: 'data_engineering' as NodeDomain,
-      nodes: 5,
       tags: ['知识图谱', 'NLP'],
+      build: () => {
+        const n1 = makeNode('t7-mysql', 'mysql', 'source', 80, 180, { query: 'SELECT id, content FROM documents WHERE processed = 0' });
+        const n2 = makeNode('t7-llm', 'llm_call', 'processor', 360, 180, { model: 'qwen2.5-72b', systemPrompt: '从文本中抽取实体和关系，返回JSON格式' });
+        const n3 = makeNode('t7-transform', 'transform', 'processor', 640, 180, { expression: 'JSON.parse(row.llm_output)' });
+        const n4 = makeNode('t7-neo4j', 'neo4j_sink', 'sink', 920, 180, { mergeMode: 'MERGE', labelField: 'entity_type' });
+        const n5 = makeNode('t7-mysql-flag', 'mysql_sink', 'sink', 640, 320, { table: 'documents', updateField: 'processed', updateValue: '1' });
+        return {
+          nodes: [n1, n2, n3, n4, n5],
+          connections: [
+            makeConn('c1', n1.id, n2.id), makeConn('c2', n2.id, n3.id), makeConn('c3', n3.id, n4.id),
+            makeConn('c4', n3.id, n5.id),
+          ],
+        };
+      },
     },
   ];
 
@@ -456,8 +567,16 @@ export default function PipelineEditor() {
                 return (
                   <div key={tpl.id} className="border border-border rounded-lg p-3 hover:border-primary/50 hover:shadow-sm transition-all cursor-pointer group"
                     onClick={() => {
-                      // TODO: 加载模板到编辑器
-                      newPipeline();
+                      const { nodes, connections } = tpl.build();
+                      loadEditorState({
+                        nodes,
+                        connections,
+                        selectedNodeId: null,
+                        zoom: 1,
+                        panX: 0,
+                        panY: 0,
+                      });
+                      setPipelineInfo(tpl.name, tpl.description);
                       setActiveTab('editor');
                     }}
                   >
@@ -467,7 +586,7 @@ export default function PipelineEditor() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="text-xs font-semibold truncate">{tpl.name}</div>
-                        <div className="text-[10px] text-muted-foreground">{tpl.nodes} 个节点</div>
+                        <div className="text-[10px] text-muted-foreground">{tpl.build().nodes.length} 个节点</div>
                       </div>
                     </div>
                     <p className="text-[10px] text-muted-foreground mb-2 line-clamp-2">{tpl.description}</p>
