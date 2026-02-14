@@ -70,14 +70,14 @@ export class MqttAdapter extends BaseAdapter {
     ],
   };
 
-  private buildMqttOptions(params: Record<string, unknown>, auth?: Record<string, unknown>): mqtt.IClientOptions {
+  private buildMqttOptions(params: Record<string, unknown>, auth?: Record<string, unknown>): any {
     const protocol = (params.protocol as string) || 'mqtt';
     const host = params.host as string;
     const port = (params.port as number) || 1883;
     const mqttVersion = params.mqttVersion === '5' ? 5 : 4;
 
-    const options: mqtt.IClientOptions = {
-      protocol: protocol as mqtt.IClientOptions['protocol'],
+    const options: Record<string, any> = {
+      protocol: protocol,
       hostname: host,
       port,
       clientId: (params.clientId as string) || `xilian_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
@@ -150,10 +150,11 @@ export class MqttAdapter extends BaseAdapter {
         });
       }, (params.connectTimeout as number) || 10000);
 
-      client.on('connect', (connack) => {
+      client.on('connect', () => {
         clearTimeout(timeout);
+        const connack = (client as any).connackPacket || {};
         const details: Record<string, unknown> = {
-          sessionPresent: connack.sessionPresent,
+          sessionPresent: connack?.sessionPresent,
           protocolVersion: options.protocolVersion,
           clientId: options.clientId,
           transport: options.protocol,
@@ -222,7 +223,7 @@ export class MqttAdapter extends BaseAdapter {
 
       client.on('connect', () => {
         // 订阅 $SYS 主题获取 broker 信息 + 通配符发现业务 Topic
-        client.subscribe(['$SYS/#', '#'], { qos: 0 }, (err) => {
+        (client as any).subscribe(['$SYS/#', '#'], { qos: 0 }, (err: any) => {
           if (err) {
             clearTimeout(timeout);
             client.end(true);

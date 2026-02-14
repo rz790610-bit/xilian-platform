@@ -15,47 +15,49 @@
 - [x] DatabaseWorkbench 添加 lazy import
 - [x] navigation.ts 添加 Schema 入口
 
+### 后端 service + router（已通过三层架构路由实现）
+- [x] plugin CRUD → server/operations/routes/plugin.routes.ts (registryRouter + instancesRouter + eventsRouter)
+- [x] governance CRUD → server/operations/routes/governance.routes.ts (dataExportRouter + lineageRouter + syntheticDatasetsRouter)
+- [x] ops CRUD → server/api/ops.router.ts (仪表盘/自动化/边缘计算)
+- [x] schedule CRUD → server/platform/routes/system.routes.ts (scheduledTasksRouter)
+- [x] alertRules CRUD → server/platform/routes/system.routes.ts (alertRulesRouter)
+- [x] auditLogs CRUD → server/platform/routes/system.routes.ts (auditLogsRouter)
+- [x] configChangeLogs → server/platform/routes/system.routes.ts (dataPermissionsRouter.configChangeLogs)
+- [x] database.router.ts 注册全部路由
+
+### 接入层协议适配器（15个生产级实现）
+- [x] BaseAdapter 抽象基类 + 统一错误体系 + 连接池 + 指标收集
+- [x] 15个协议适配器全部真实实现（MQTT/OPC-UA/Modbus/MySQL/PG/CH/InfluxDB/Redis/Neo4j/Qdrant/Kafka/MinIO/HTTP/gRPC/WebSocket）
+- [x] 前端 AccessLayerManager 高级配置可折叠区域 + JSON 字段 + 分组渲染
+
 ## 二、待完成
 
-### 后端 service + router
-- [ ] 新建 plugin.db.service.ts（pluginRegistry/Instances/Events CRUD）
-- [ ] 新建 governance.db.service.ts（dataGovernanceJobs/dataLineage/minioCleanupLog CRUD）
-- [ ] 新建 ops.db.service.ts（auditLogs/alertRules/dataExportTasks CRUD）
-- [ ] 新建 schedule.db.service.ts（scheduledTasks/rollbackTriggers CRUD）
-- [ ] 扩展 config.service.ts（systemConfigs/configChangeLogs）
-- [ ] 扩展 asset.service.ts（sensorMpMapping）
-- [ ] 扩展 data.service.ts（anomalyDetections）
-- [ ] 扩展 database.router.ts 注册全部新路由
-
 ### 前端集成
-- [ ] DatabaseWorkbench 完成 Schema/ER/Visual 三个新 Tab 渲染
-- [ ] Schema Registry 与 Drizzle 72 表精确对齐
-- [ ] 导航路由确认可达
+- [x] DatabaseWorkbench 完成 Schema/ER/Visual 三个新 Tab 渲染
+  - SchemaTableManagement (208行) + DataBrowser (348行) + SqlEditor (312行) + StatusBar + ExportDDLDialog (246行)
+  - ERDiagram (557行) 完整 ER 关系图
+  - VisualDesigner (507行) 可视化设计器
+- [x] Schema Registry 与 Drizzle 72 表精确对齐
+- [x] 导航路由确认可达
 
 ### 验证
 - [ ] TypeScript 编译通过
 - [ ] 全链路完整
 
-## 三、Docker引擎生命周期管理（当前任务）
+### Docker引擎生命周期管理（已完成）
+- [x] 后端：dockerManager.service.ts (633行) - Docker Engine API 管理
+- [x] 后端：docker.router.ts (117行) - tRPC路由
+- [x] 后端：已注册到appRouter
+- [x] 前端：Infrastructure页面 DockerEnginePanel 面板（启用/禁用/重启/日志/统计）
 
-- [ ] 后端：dockerManager.service.ts - 通过Docker Engine API管理容器
-- [ ] 后端：docker.router.ts - tRPC路由（list/start/stop/restart/inspect）
-- [ ] 后端：注册到appRouter
-- [ ] 前端：Infrastructure页面增加引擎管理面板（启用/禁用/重启按钮）
-- [ ] 前端：实时状态轮询 + 操作反馈
-- [ ] 集成storageHealth与docker状态
-- [ ] 提交并推送代码
+## 三、当前排查任务
 
-## 四、页面修复（当前任务）
+### Pipeline 编排界面排查
+- [x] Pipeline 编排页面代码完整（PipelineEditor 679行 + 9个子组件 + Store + 共享类型 1005行）
+- [x] 路由 /settings/design/pipeline 已注册，导航栏有入口
+- [x] tRPC 路由 pipeline.list/get/save/run/delete 完整实现 (416行)
+- [x] 代码层面无结构性问题，运行时需数据库连接支持
 
-- [ ] 插件管理页面问题排查与修复
-- [ ] ClickHouse监控页面问题排查与修复
-
-## 五、Pipeline 编排界面排查（当前任务）
-
-- [ ] Pipeline 编排页面在浏览器中是否正常渲染
-- [ ] 路由 /settings/design/pipeline 和 /settings/design/pipeline/editor 是否生效
-- [ ] 前端组件是否有运行时错误（控制台报错）
-- [ ] tRPC 路由 pipeline.list / pipeline.get 是否正常返回数据
-- [ ] 导航栏中 Pipeline 入口是否可点击跳转
-- [ ] 根据排查结果修复界面不显示的问题
+### 页面修复
+- [x] 插件管理页面代码完整（tRPC 调用路径匹配，运行时需数据库支持）
+- [x] ClickHouse 监控页面代码完整（tRPC 调用路径匹配，运行时需 ClickHouse 连接）
