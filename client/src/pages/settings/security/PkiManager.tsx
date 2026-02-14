@@ -7,16 +7,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { FileKey, RefreshCw, Plus, AlertTriangle } from 'lucide-react';
-
-const mockCerts = [
-  { cn: '*.xilian.local', issuer: 'Xilian Root CA', type: 'Server', notAfter: '2027-02-08', serial: 'A1:B2:C3:D4', status: 'valid' },
-  { cn: 'api.xilian.local', issuer: 'Xilian Root CA', type: 'Server', notAfter: '2026-08-15', serial: 'E5:F6:G7:H8', status: 'valid' },
-  { cn: 'kafka.xilian.local', issuer: 'Xilian Root CA', type: 'Client', notAfter: '2026-05-20', serial: 'I9:J0:K1:L2', status: 'expiring' },
-  { cn: 'Xilian Root CA', issuer: 'Self-signed', type: 'CA', notAfter: '2036-02-08', serial: 'M3:N4:O5:P6', status: 'valid' },
-];
+import { FileKey, RefreshCw, Plus, AlertTriangle, PlugZap } from 'lucide-react';
+import { toast } from 'sonner';
 
 export default function PkiManager() {
+  const [certs] = useState<any[]>([]);
+
+  const handleConnect = () => {
+    toast.info('请在「系统设置 > 安全集成」中配置 PKI / Vault 连接');
+  };
+
   return (
     <MainLayout>
       <div className="space-y-6">
@@ -34,19 +34,19 @@ export default function PkiManager() {
           <Card>
             <CardHeader className="pb-2">
               <CardDescription>证书总数</CardDescription>
-              <CardTitle className="text-2xl">4</CardTitle>
+              <CardTitle className="text-2xl text-muted-foreground">—</CardTitle>
             </CardHeader>
           </Card>
           <Card>
             <CardHeader className="pb-2">
               <CardDescription>即将过期</CardDescription>
-              <CardTitle className="text-2xl text-yellow-500">1</CardTitle>
+              <CardTitle className="text-2xl text-muted-foreground">—</CardTitle>
             </CardHeader>
           </Card>
           <Card>
             <CardHeader className="pb-2">
               <CardDescription>CA 证书</CardDescription>
-              <CardTitle className="text-2xl">1</CardTitle>
+              <CardTitle className="text-2xl text-muted-foreground">—</CardTitle>
             </CardHeader>
           </Card>
         </div>
@@ -55,32 +55,46 @@ export default function PkiManager() {
             <CardTitle>证书列表</CardTitle>
           </CardHeader>
           <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>通用名称 (CN)</TableHead>
-                  <TableHead>签发者</TableHead>
-                  <TableHead>类型</TableHead>
-                  <TableHead>过期时间</TableHead>
-                  <TableHead>状态</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {mockCerts.map((c) => (
-                  <TableRow key={c.serial}>
-                    <TableCell className="font-mono text-sm">{c.cn}</TableCell>
-                    <TableCell>{c.issuer}</TableCell>
-                    <TableCell><Badge variant="outline">{c.type}</Badge></TableCell>
-                    <TableCell>{c.notAfter}</TableCell>
-                    <TableCell>
-                      <Badge variant={c.status === 'valid' ? 'default' : 'destructive'} className={c.status === 'valid' ? 'bg-green-500' : 'bg-yellow-500'}>
-                        {c.status === 'valid' ? '有效' : '即将过期'}
-                      </Badge>
-                    </TableCell>
+            {certs.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 text-center">
+                <FileKey className="h-16 w-16 text-muted-foreground mb-4 opacity-50" />
+                <h3 className="text-sm font-medium mb-1">暂无证书</h3>
+                <p className="text-xs text-muted-foreground max-w-sm mb-4">
+                  连接 PKI 服务或 HashiCorp Vault 后，TLS/SSL 证书将显示在此处。
+                </p>
+                <Button variant="outline" size="sm" onClick={handleConnect}>
+                  <PlugZap className="h-4 w-4 mr-1" />
+                  配置 PKI 服务
+                </Button>
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>通用名称 (CN)</TableHead>
+                    <TableHead>签发者</TableHead>
+                    <TableHead>类型</TableHead>
+                    <TableHead>过期时间</TableHead>
+                    <TableHead>状态</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {certs.map((c: any) => (
+                    <TableRow key={c.serial}>
+                      <TableCell className="font-mono text-sm">{c.cn}</TableCell>
+                      <TableCell>{c.issuer}</TableCell>
+                      <TableCell><Badge variant="outline">{c.type}</Badge></TableCell>
+                      <TableCell>{c.notAfter}</TableCell>
+                      <TableCell>
+                        <Badge variant={c.status === 'valid' ? 'default' : 'destructive'} className={c.status === 'valid' ? 'bg-green-500' : 'bg-yellow-500'}>
+                          {c.status === 'valid' ? '有效' : '即将过期'}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
           </CardContent>
         </Card>
       </div>

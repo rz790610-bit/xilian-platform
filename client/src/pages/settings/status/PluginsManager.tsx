@@ -7,18 +7,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
-import { Puzzle, RefreshCw, Download, Settings } from 'lucide-react';
-
-const mockPlugins = [
-  { name: 'Falco Runtime Security', version: '0.37.1', status: 'active', description: '运行时安全监控插件' },
-  { name: 'Trivy Scanner', version: '0.48.0', status: 'active', description: '容器镜像漏洞扫描' },
-  { name: 'Prometheus Exporter', version: '2.45.0', status: 'active', description: '指标导出插件' },
-  { name: 'Grafana Dashboard', version: '10.2.0', status: 'active', description: '可视化仪表板' },
-  { name: 'Semgrep SAST', version: '1.52.0', status: 'inactive', description: '静态代码分析' },
-  { name: 'Gitleaks', version: '8.18.0', status: 'active', description: '密钥泄露检测' },
-];
+import { Puzzle, RefreshCw, Download, Settings, PlugZap } from 'lucide-react';
+import { toast } from 'sonner';
 
 export default function PluginsManager() {
+  const [plugins] = useState<any[]>([]);
+
+  const handleConnect = () => {
+    toast.info('请在「系统设置 > 插件市场」中浏览和安装插件');
+  };
+
   return (
     <MainLayout>
       <div className="space-y-6">
@@ -32,27 +30,45 @@ export default function PluginsManager() {
             安装插件
           </Button>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {mockPlugins.map((p) => (
-            <Card key={p.name}>
-              <CardHeader className="pb-2">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-base">{p.name}</CardTitle>
-                  <Switch checked={p.status === 'active'} />
-                </div>
-                <CardDescription>{p.description}</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center justify-between">
-                  <Badge variant="outline">v{p.version}</Badge>
-                  <Badge variant={p.status === 'active' ? 'default' : 'secondary'}>
-                    {p.status === 'active' ? '已启用' : '已禁用'}
-                  </Badge>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+        {plugins.length === 0 ? (
+          <Card>
+            <CardContent className="py-16">
+              <div className="flex flex-col items-center justify-center text-center">
+                <Puzzle className="h-16 w-16 text-muted-foreground mb-4 opacity-50" />
+                <h3 className="text-sm font-medium mb-1">暂无插件</h3>
+                <p className="text-xs text-muted-foreground max-w-sm mb-4">
+                  从插件市场安装扩展插件后，插件状态将显示在此处。
+                </p>
+                <Button variant="outline" size="sm" onClick={handleConnect}>
+                  <PlugZap className="h-4 w-4 mr-1" />
+                  浏览插件市场
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {plugins.map((p: any) => (
+              <Card key={p.name}>
+                <CardHeader className="pb-2">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-base">{p.name}</CardTitle>
+                    <Switch checked={p.status === 'active'} />
+                  </div>
+                  <CardDescription>{p.description}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center justify-between">
+                    <Badge variant="outline">v{p.version}</Badge>
+                    <Badge variant={p.status === 'active' ? 'default' : 'secondary'}>
+                      {p.status === 'active' ? '已启用' : '已禁用'}
+                    </Badge>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
       </div>
     </MainLayout>
   );

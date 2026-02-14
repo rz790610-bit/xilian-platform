@@ -7,17 +7,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Box, RefreshCw, Upload, Download } from 'lucide-react';
-
-const mockModels = [
-  { name: 'vibration-anomaly-v3', type: 'PyTorch', size: '245 MB', version: 'v3.2.1', status: 'deployed', accuracy: '96.8%' },
-  { name: 'bearing-fault-classifier', type: 'TensorFlow', size: '180 MB', version: 'v2.1.0', status: 'deployed', accuracy: '94.2%' },
-  { name: 'temperature-predictor', type: 'ONNX', size: '52 MB', version: 'v1.5.0', status: 'deployed', accuracy: '92.1%' },
-  { name: 'acoustic-emission-detector', type: 'PyTorch', size: '310 MB', version: 'v1.0.0', status: 'testing', accuracy: '89.5%' },
-  { name: 'motor-health-index', type: 'Scikit-learn', size: '12 MB', version: 'v4.0.0', status: 'deployed', accuracy: '91.3%' },
-];
+import { Box, RefreshCw, Upload, Download, PlugZap } from 'lucide-react';
+import { toast } from 'sonner';
 
 export default function ModelsManager() {
+  const [models] = useState<any[]>([]);
+
+  const handleConnect = () => {
+    toast.info('请在「系统设置 > 模型仓库」中配置模型服务连接');
+  };
+
   return (
     <MainLayout>
       <div className="space-y-6">
@@ -33,34 +32,48 @@ export default function ModelsManager() {
         </div>
         <Card>
           <CardContent className="pt-6">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>模型名称</TableHead>
-                  <TableHead>框架</TableHead>
-                  <TableHead>大小</TableHead>
-                  <TableHead>版本</TableHead>
-                  <TableHead>准确率</TableHead>
-                  <TableHead>状态</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {mockModels.map((m) => (
-                  <TableRow key={m.name}>
-                    <TableCell className="font-medium">{m.name}</TableCell>
-                    <TableCell><Badge variant="outline">{m.type}</Badge></TableCell>
-                    <TableCell>{m.size}</TableCell>
-                    <TableCell>{m.version}</TableCell>
-                    <TableCell>{m.accuracy}</TableCell>
-                    <TableCell>
-                      <Badge variant={m.status === 'deployed' ? 'default' : 'secondary'}>
-                        {m.status === 'deployed' ? '已部署' : '测试中'}
-                      </Badge>
-                    </TableCell>
+            {models.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 text-center">
+                <Box className="h-16 w-16 text-muted-foreground mb-4 opacity-50" />
+                <h3 className="text-sm font-medium mb-1">暂无模型</h3>
+                <p className="text-xs text-muted-foreground max-w-sm mb-4">
+                  上传或注册 AI/ML 模型后，模型信息将显示在此处。支持 PyTorch、TensorFlow、ONNX 等框架。
+                </p>
+                <Button variant="outline" size="sm" onClick={handleConnect}>
+                  <PlugZap className="h-4 w-4 mr-1" />
+                  配置模型仓库
+                </Button>
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>模型名称</TableHead>
+                    <TableHead>框架</TableHead>
+                    <TableHead>大小</TableHead>
+                    <TableHead>版本</TableHead>
+                    <TableHead>准确率</TableHead>
+                    <TableHead>状态</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {models.map((m: any) => (
+                    <TableRow key={m.name}>
+                      <TableCell className="font-medium">{m.name}</TableCell>
+                      <TableCell><Badge variant="outline">{m.type}</Badge></TableCell>
+                      <TableCell>{m.size}</TableCell>
+                      <TableCell>{m.version}</TableCell>
+                      <TableCell>{m.accuracy}</TableCell>
+                      <TableCell>
+                        <Badge variant={m.status === 'deployed' ? 'default' : 'secondary'}>
+                          {m.status === 'deployed' ? '已部署' : '测试中'}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
           </CardContent>
         </Card>
       </div>

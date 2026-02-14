@@ -7,17 +7,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Key, RefreshCw, Plus, Shield, Lock } from 'lucide-react';
-
-const mockSecrets = [
-  { path: 'secret/database/mysql', type: 'KV v2', version: 3, lastUpdated: '2026-02-07 14:30', accessCount: 128 },
-  { path: 'secret/database/redis', type: 'KV v2', version: 2, lastUpdated: '2026-02-06 09:15', accessCount: 95 },
-  { path: 'secret/api/openai', type: 'KV v2', version: 5, lastUpdated: '2026-02-08 08:00', accessCount: 342 },
-  { path: 'secret/tls/server-cert', type: 'PKI', version: 1, lastUpdated: '2026-01-15 10:00', accessCount: 56 },
-  { path: 'secret/kafka/credentials', type: 'KV v2', version: 2, lastUpdated: '2026-02-05 16:45', accessCount: 78 },
-];
+import { Key, RefreshCw, Plus, Shield, Lock, PlugZap } from 'lucide-react';
+import { toast } from 'sonner';
 
 export default function VaultManager() {
+  const [secrets] = useState<any[]>([]);
+
+  const handleConnect = () => {
+    toast.info('请在「系统设置 > 安全集成」中配置 HashiCorp Vault 连接');
+  };
+
   return (
     <MainLayout>
       <div className="space-y-6">
@@ -35,21 +34,21 @@ export default function VaultManager() {
           <Card>
             <CardHeader className="pb-2">
               <CardDescription>密钥总数</CardDescription>
-              <CardTitle className="text-2xl">5</CardTitle>
+              <CardTitle className="text-2xl text-muted-foreground">—</CardTitle>
             </CardHeader>
           </Card>
           <Card>
             <CardHeader className="pb-2">
               <CardDescription>Vault 状态</CardDescription>
               <CardTitle className="text-2xl flex items-center gap-2">
-                <Badge className="bg-green-500">已解封</Badge>
+                <Badge variant="secondary">未连接</Badge>
               </CardTitle>
             </CardHeader>
           </Card>
           <Card>
             <CardHeader className="pb-2">
               <CardDescription>今日访问次数</CardDescription>
-              <CardTitle className="text-2xl">699</CardTitle>
+              <CardTitle className="text-2xl text-muted-foreground">—</CardTitle>
             </CardHeader>
           </Card>
         </div>
@@ -58,28 +57,42 @@ export default function VaultManager() {
             <CardTitle>密钥列表</CardTitle>
           </CardHeader>
           <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>路径</TableHead>
-                  <TableHead>类型</TableHead>
-                  <TableHead>版本</TableHead>
-                  <TableHead>最后更新</TableHead>
-                  <TableHead>访问次数</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {mockSecrets.map((s) => (
-                  <TableRow key={s.path}>
-                    <TableCell className="font-mono text-sm">{s.path}</TableCell>
-                    <TableCell><Badge variant="outline">{s.type}</Badge></TableCell>
-                    <TableCell>v{s.version}</TableCell>
-                    <TableCell>{s.lastUpdated}</TableCell>
-                    <TableCell>{s.accessCount}</TableCell>
+            {secrets.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 text-center">
+                <Key className="h-16 w-16 text-muted-foreground mb-4 opacity-50" />
+                <h3 className="text-sm font-medium mb-1">暂无密钥</h3>
+                <p className="text-xs text-muted-foreground max-w-sm mb-4">
+                  连接 HashiCorp Vault 后，密钥与证书将显示在此处。
+                </p>
+                <Button variant="outline" size="sm" onClick={handleConnect}>
+                  <PlugZap className="h-4 w-4 mr-1" />
+                  配置 Vault
+                </Button>
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>路径</TableHead>
+                    <TableHead>类型</TableHead>
+                    <TableHead>版本</TableHead>
+                    <TableHead>最后更新</TableHead>
+                    <TableHead>访问次数</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {secrets.map((s: any) => (
+                    <TableRow key={s.path}>
+                      <TableCell className="font-mono text-sm">{s.path}</TableCell>
+                      <TableCell><Badge variant="outline">{s.type}</Badge></TableCell>
+                      <TableCell>v{s.version}</TableCell>
+                      <TableCell>{s.lastUpdated}</TableCell>
+                      <TableCell>{s.accessCount}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
           </CardContent>
         </Card>
       </div>
