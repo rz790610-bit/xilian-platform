@@ -313,36 +313,26 @@ class AlgorithmService {
   }
 
   /** 同步注册中心的内置算法到数据库 */
-  async syncBuiltinAlgorithms(): Promise<{ synced: number; skipped: number }> {
+  async syncBuiltinAlgorithms(): Promise<{ created: number; updated: number; skipped: number }> {
     const db = await getDb();
-    if (!db) return { synced: 0, skipped: 0 };
+    if (!db) return { created: 0, updated: 0, skipped: 0 };
 
     const registryItems = algorithmRegistry.listItems() as AlgorithmRegistryItem[];
-    let synced = 0;
+    let created = 0;
+    let updated = 0;
     let skipped = 0;
 
     for (const item of registryItems) {
-      // 检查是否已存在
-      const existing = await db.select({ id: algorithmDefinitions.id })
-        .from(algorithmDefinitions)
-        .where(eq(algorithmDefinitions.algoCode, item.id))
-        .limit(1);
-
-      if (existing.length > 0) {
-        skipped++;
-        continue;
-      }
-
       // Convert registry item fields to schema-compatible format
       const inputSchema: Record<string, unknown> = { fields: item.inputFields };
       const outputSchema: Record<string, unknown> = { fields: item.outputFields };
       const configSchema: Record<string, unknown> = { fields: item.configFields };
 
-      await db.insert(algorithmDefinitions).values({
+      const values = {
         algoCode: item.id,
         algoName: item.label,
         description: item.description,
-        category: item.category,
+        category: item.algorithmCategory,
         subcategory: item.subcategory,
         implType: item.implType,
         implRef: item.implRef,
@@ -360,13 +350,44 @@ class AlgorithmService {
         author: 'system',
         documentationUrl: '',
         tags: item.tags || [],
-        status: 'active',
-      });
-      synced++;
+        status: 'active' as const,
+      };
+
+      // 检查是否已存在
+      const existing = await db.select({ id: algorithmDefinitions.id })
+        .from(algorithmDefinitions)
+        .where(eq(algorithmDefinitions.algoCode, item.id))
+        .limit(1);
+
+      if (existing.length > 0) {
+        // 已存在则更新（确保内置算法始终与 Registry 保持一致）
+        await db.update(algorithmDefinitions)
+          .set({
+            algoName: values.algoName,
+            description: values.description,
+            category: values.category,
+            subcategory: values.subcategory,
+            implType: values.implType,
+            implRef: values.implRef,
+            inputSchema: values.inputSchema,
+            outputSchema: values.outputSchema,
+            configSchema: values.configSchema,
+            applicableDeviceTypes: values.applicableDeviceTypes,
+            applicableMeasurementTypes: values.applicableMeasurementTypes,
+            applicableScenarios: values.applicableScenarios,
+            tags: values.tags,
+          })
+          .where(eq(algorithmDefinitions.algoCode, item.id));
+        updated++;
+        continue;
+      }
+
+      await db.insert(algorithmDefinitions).values(values);
+      created++;
     }
 
-    console.log(`[AlgorithmService] Synced ${synced} builtin algorithms, skipped ${skipped} existing`);
-    return { synced, skipped };
+    console.log(`[AlgorithmService] Synced builtin algorithms: ${created} created, ${updated} updated, ${skipped} skipped`);
+    return { created, updated, skipped };
   }
 
   // ========================================================================

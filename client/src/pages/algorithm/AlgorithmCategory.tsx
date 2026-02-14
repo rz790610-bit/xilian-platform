@@ -7,22 +7,32 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const CATEGORY_META: Record<string, { label: string; icon: string; desc: string }> = {
-  signal: { label: "信号处理", icon: "📉", desc: "FFT 频谱分析、STFT 短时傅里叶、小波分析、包络分析、带通滤波、小波降噪、倒频谱、阶次分析" },
-  feature: { label: "特征工程", icon: "🔧", desc: "统计特征提取（22维）、归一化/标准化、对数变换、分箱离散化" },
-  ml: { label: "机器学习", icon: "🧠", desc: "K-Means 聚类、随机森林、SVM、XGBoost、逻辑回归" },
-  anomaly: { label: "异常检测", icon: "⚠️", desc: "Z-Score、孤立森林、IQR、LOF、DBSCAN" },
-  predict: { label: "预测性维护", icon: "🔮", desc: "RUL 预测、健康指数计算、退化建模" },
-  compose: { label: "算法编排", icon: "🔗", desc: "将多个原子算法组合为场景化方案" },
-  execution: { label: "执行记录", icon: "📝", desc: "查看所有算法的执行历史和结果" },
+  mechanical: { label: "机械算法", icon: "⚙️", desc: "FFT频谱分析、倒频谱、包络解调、小波包、带通滤波、谱峭度、重采样、阶次跟踪" },
+  electrical: { label: "电气算法", icon: "⚡", desc: "电机电流分析MCSA、局部放电PD、变频器状态、电能质量" },
+  structural: { label: "结构算法", icon: "🏗️", desc: "Miner累积损伤、声发射分析、模态分析、热点应力、雨流计数" },
+  anomaly: { label: "异常检测", icon: "🚨", desc: "Isolation Forest、LSTM异常检测、自编码器、统计过程控制SPC" },
+  optimization: { label: "优化算法", icon: "📈", desc: "粒子群PSO、遗传算法GA、贝叶斯优化、模拟退火" },
+  comprehensive: { label: "综合算法", icon: "🔗", desc: "DS证据融合、关联规则挖掘、因果推理、工况归一化" },
+  feature: { label: "特征提取", icon: "📊", desc: "时域/频域/时频域特征提取、统计特征、深度特征" },
+  agent: { label: "Agent插件", icon: "🤖", desc: "时序模式、案例检索、物理约束、空间异常、融合诊断、预测专家" },
+  model: { label: "模型迭代", icon: "🔄", desc: "LoRA微调、全量重训练、增量学习、模型蒸馏" },
+  rule: { label: "规则自动学习", icon: "📝", desc: "LLM分析、关联规则学习、决策树归纳、频繁模式挖掘" },
+  compose: { label: "算法编排", icon: "🧩", desc: "将多个原子算法组合为场景化诊断方案" },
+  execution: { label: "执行记录", icon: "📋", desc: "查看所有算法的执行历史和结果" },
 };
 
 // 路由参数到后端分类的映射
 const ROUTE_TO_CATEGORY: Record<string, string> = {
-  signal: "signal_processing",
-  feature: "feature_engineering",
-  ml: "machine_learning",
+  mechanical: "mechanical",
+  electrical: "electrical",
+  structural: "structural",
   anomaly: "anomaly_detection",
-  predict: "predictive_maintenance",
+  optimization: "optimization",
+  comprehensive: "comprehensive",
+  feature: "feature_extraction",
+  agent: "agent_plugin",
+  model: "model_iteration",
+  rule: "rule_learning",
 };
 
 const IMPL_LABELS: Record<string, { label: string; variant: "default" | "secondary" | "outline" }> = {
@@ -69,7 +79,7 @@ export default function AlgorithmCategory() {
 
       {/* 分类标题 */}
       <div>
-        <h1 className="text-2xl font-bold flex items-center gap-2">
+        <h1 className="text-xl font-bold flex items-center gap-2">
           <span>{meta?.icon}</span> {meta?.label || category}
         </h1>
         <p className="text-muted-foreground mt-1">{meta?.desc}</p>
@@ -111,8 +121,8 @@ export default function AlgorithmCategory() {
       ) : (
         <Card>
           <CardContent className="p-12 text-center">
-            <div className="text-4xl mb-4">{meta?.icon || "📦"}</div>
-            <h3 className="text-lg font-medium">暂无{meta?.label}算法</h3>
+            <div className="text-2xl mb-3">{meta?.icon || "📦"}</div>
+            <h3 className="text-base font-medium">暂无{meta?.label}算法</h3>
             <p className="text-sm text-muted-foreground mt-1">后续版本将持续扩充</p>
           </CardContent>
         </Card>
@@ -139,7 +149,7 @@ function AlgorithmComposePage() {
 
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">🔗 算法编排</h1>
+          <h1 className="text-xl font-bold">🔗 算法编排</h1>
           <p className="text-muted-foreground mt-1">将多个原子算法组合为场景化诊断方案</p>
         </div>
         <Button onClick={() => {/* TODO: 新建编排 */}}>
@@ -171,8 +181,8 @@ function AlgorithmComposePage() {
       ) : (
         <Card>
           <CardContent className="p-12 text-center">
-            <div className="text-4xl mb-4">🔗</div>
-            <h3 className="text-lg font-medium">暂无算法编排</h3>
+            <div className="text-2xl mb-3">🔗</div>
+            <h3 className="text-base font-medium">暂无算法编排</h3>
             <p className="text-sm text-muted-foreground mt-1">
               创建编排可以将 FFT → 特征提取 → 异常检测 等多个算法串联为自动化流程
             </p>
@@ -199,7 +209,7 @@ function AlgorithmExecutionPage() {
       </div>
 
       <div>
-        <h1 className="text-2xl font-bold">📝 执行记录</h1>
+        <h1 className="text-xl font-bold">📝 执行记录</h1>
         <p className="text-muted-foreground mt-1">所有算法执行的历史记录和结果追踪</p>
       </div>
 
@@ -213,8 +223,8 @@ function AlgorithmExecutionPage() {
             </div>
           ) : (
             <div className="text-center py-12">
-              <div className="text-4xl mb-4">📝</div>
-              <h3 className="text-lg font-medium">暂无执行记录</h3>
+              <div className="text-2xl mb-3">📝</div>
+              <h3 className="text-base font-medium">暂无执行记录</h3>
               <p className="text-sm text-muted-foreground mt-1">执行算法后，记录将自动出现在这里</p>
             </div>
           )}

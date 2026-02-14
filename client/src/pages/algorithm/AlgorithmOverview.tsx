@@ -11,15 +11,16 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 // 分类元数据
 const CATEGORY_META: Record<string, { label: string; icon: string; color: string; desc: string }> = {
-  signal_processing: { label: "信号处理", icon: "📉", color: "bg-blue-500/10 text-blue-600 border-blue-200", desc: "FFT、小波、包络、滤波等时频域分析" },
-  feature_engineering: { label: "特征工程", icon: "🔧", color: "bg-amber-500/10 text-amber-600 border-amber-200", desc: "统计特征提取、归一化、降维" },
-  machine_learning: { label: "机器学习", icon: "🧠", color: "bg-purple-500/10 text-purple-600 border-purple-200", desc: "分类、回归、聚类、集成学习" },
-  deep_learning: { label: "深度学习", icon: "🔮", color: "bg-pink-500/10 text-pink-600 border-pink-200", desc: "CNN、LSTM、Transformer、自编码器" },
-  anomaly_detection: { label: "异常检测", icon: "⚠️", color: "bg-red-500/10 text-red-600 border-red-200", desc: "Z-Score、孤立森林、LOF、DBSCAN" },
-  predictive_maintenance: { label: "预测性维护", icon: "🔮", color: "bg-green-500/10 text-green-600 border-green-200", desc: "RUL预测、健康指数、退化建模" },
-  optimization: { label: "优化算法", icon: "⚡", color: "bg-cyan-500/10 text-cyan-600 border-cyan-200", desc: "阈值优化、参数调优、约束优化" },
-  statistical_analysis: { label: "统计分析", icon: "📊", color: "bg-indigo-500/10 text-indigo-600 border-indigo-200", desc: "分布检验、相关性、趋势分析" },
-  time_series: { label: "时序分析", icon: "📈", color: "bg-teal-500/10 text-teal-600 border-teal-200", desc: "ARIMA、Prophet、季节分解" },
+  mechanical: { label: "机械算法", icon: "⚙️", color: "bg-blue-500/10 text-blue-600 border-blue-200", desc: "振动信号处理与机械故障诊断" },
+  electrical: { label: "电气算法", icon: "⚡", color: "bg-amber-500/10 text-amber-600 border-amber-200", desc: "电气设备状态监测与故障诊断" },
+  structural: { label: "结构算法", icon: "🏗️", color: "bg-green-500/10 text-green-600 border-green-200", desc: "结构健康监测与疲劳寿命评估" },
+  anomaly_detection: { label: "异常检测", icon: "🚨", color: "bg-red-500/10 text-red-600 border-red-200", desc: "多维度异常检测与统计过程控制" },
+  optimization: { label: "优化算法", icon: "📈", color: "bg-purple-500/10 text-purple-600 border-purple-200", desc: "智能优化与参数寻优" },
+  comprehensive: { label: "综合算法", icon: "🔗", color: "bg-cyan-500/10 text-cyan-600 border-cyan-200", desc: "多源信息融合与因果推理" },
+  feature_extraction: { label: "特征提取", icon: "📊", color: "bg-lime-500/10 text-lime-600 border-lime-200", desc: "时域/频域/时频域特征工程" },
+  agent_plugin: { label: "Agent插件", icon: "🤖", color: "bg-fuchsia-500/10 text-fuchsia-600 border-fuchsia-200", desc: "智能诊断Agent专家插件" },
+  model_iteration: { label: "模型迭代", icon: "🔄", color: "bg-orange-500/10 text-orange-600 border-orange-200", desc: "模型训练、微调、蒸馏与增量学习" },
+  rule_learning: { label: "规则自动学习", icon: "📝", color: "bg-teal-500/10 text-teal-600 border-teal-200", desc: "自动规则发现与模式挖掘" },
 };
 
 // 实现类型标签
@@ -52,7 +53,7 @@ export default function AlgorithmOverview() {
       {/* 页面标题 */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">算法库</h1>
+          <h1 className="text-xl font-bold tracking-tight">算法库</h1>
           <p className="text-muted-foreground mt-1">
             统一管理平台算法资产，支持信号处理、机器学习、异常检测等 9 大领域
           </p>
@@ -70,28 +71,28 @@ export default function AlgorithmOverview() {
             <Card>
               <CardContent className="p-4">
                 <div className="text-sm text-muted-foreground">算法总数</div>
-                <div className="text-3xl font-bold mt-1">{overview?.totalDefinitions ?? 0}</div>
+                <div className="text-2xl font-bold mt-1">{overview?.totalDefinitions ?? 0}</div>
                 <div className="text-xs text-muted-foreground mt-1">{overview?.categoryBreakdown?.length ?? 0} 个分类</div>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="p-4">
                 <div className="text-sm text-muted-foreground">算法组合</div>
-                <div className="text-3xl font-bold mt-1 text-blue-600">{overview?.totalCompositions ?? 0}</div>
+                <div className="text-2xl font-bold mt-1 text-blue-600">{overview?.totalCompositions ?? 0}</div>
                 <div className="text-xs text-muted-foreground mt-1">算法组合</div>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="p-4">
                 <div className="text-sm text-muted-foreground">执行次数</div>
-                <div className="text-3xl font-bold mt-1 text-purple-600">{overview?.totalExecutions ?? 0}</div>
+                <div className="text-2xl font-bold mt-1 text-purple-600">{overview?.totalExecutions ?? 0}</div>
                 <div className="text-xs text-muted-foreground mt-1">历史执行</div>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="p-4">
                 <div className="text-sm text-muted-foreground">活跃绑定</div>
-                <div className="text-3xl font-bold mt-1 text-green-600">{overview?.totalBindings ?? 0}</div>
+                <div className="text-2xl font-bold mt-1 text-green-600">{overview?.totalBindings ?? 0}</div>
                 <div className="text-xs text-muted-foreground mt-1">设备关联</div>
               </CardContent>
             </Card>
@@ -147,7 +148,7 @@ export default function AlgorithmOverview() {
                     <CardHeader className="pb-2">
                       <div className="flex items-start justify-between">
                         <div className="flex items-center gap-2">
-                          <span className="text-xl">{catMeta.icon}</span>
+                          <span className="text-base">{catMeta.icon}</span>
                           <CardTitle className="text-base group-hover:text-primary transition-colors">
                             {algo.label}
                           </CardTitle>
@@ -180,7 +181,7 @@ export default function AlgorithmOverview() {
           ) : (
             <Card>
               <CardContent className="p-12 text-center">
-                <div className="text-4xl mb-4">🔍</div>
+                <div className="text-2xl mb-3">🔍</div>
                 <h3 className="text-lg font-medium">未找到匹配的算法</h3>
                 <p className="text-sm text-muted-foreground mt-1">
                   {search ? `没有与 "${search}" 匹配的算法` : "当前分类下暂无算法"}
@@ -194,7 +195,7 @@ export default function AlgorithmOverview() {
       {/* 分类概览卡片 */}
       {activeCategory === "all" && !search && (
         <div>
-          <h2 className="text-lg font-semibold mb-4">按领域浏览</h2>
+          <h2 className="text-base font-semibold mb-3">按领域浏览</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {Object.entries(CATEGORY_META).map(([key, meta]) => {
               const count = algorithms?.filter((a: any) => a.category === key).length ?? 0;
@@ -206,14 +207,14 @@ export default function AlgorithmOverview() {
                 >
                   <CardContent className="p-4">
                     <div className="flex items-center gap-3">
-                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-xl ${meta.color}`}>
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-base ${meta.color}`}>
                         {meta.icon}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="font-medium">{meta.label}</div>
                         <div className="text-xs text-muted-foreground truncate">{meta.desc}</div>
                       </div>
-                      <div className="text-2xl font-bold text-muted-foreground">{count}</div>
+                      <div className="text-lg font-bold text-muted-foreground">{count}</div>
                     </div>
                   </CardContent>
                 </Card>

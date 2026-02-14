@@ -205,6 +205,17 @@ async function startServer() {
     registerEventBusIntegration().catch(err => {
       console.error('[Server] Failed to register event bus integration:', err);
     });
+
+    // 同步内置算法到数据库
+    import('../services/algorithm.service').then(({ algorithmService }) => {
+      algorithmService.syncBuiltinAlgorithms().then((result) => {
+        console.log(`[Algorithm] ✓ Synced builtin algorithms: ${result.created} created, ${result.updated} updated, ${result.skipped} skipped`);
+      }).catch(err => {
+        console.error('[Algorithm] Failed to sync builtin algorithms:', err.message);
+      });
+    }).catch(err => {
+      console.error('[Algorithm] Failed to load algorithm service:', err.message);
+    });
   });
 }
 

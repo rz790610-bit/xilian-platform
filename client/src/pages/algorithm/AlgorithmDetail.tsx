@@ -72,8 +72,8 @@ export default function AlgorithmDetail() {
       <MainLayout title="算法不存在">
       <Card>
         <CardContent className="p-12 text-center">
-          <div className="text-4xl mb-4">❌</div>
-          <h3 className="text-lg font-medium">算法不存在</h3>
+          <div className="text-2xl mb-3">❌</div>
+          <h3 className="text-base font-medium">算法不存在</h3>
           <p className="text-sm text-muted-foreground mt-2">ID: {algorithmId}</p>
           <Button variant="outline" className="mt-4" onClick={() => navigate("/algorithm/overview")}>
             返回算法库
@@ -104,7 +104,7 @@ export default function AlgorithmDetail() {
           <CardHeader>
             <div className="flex items-start justify-between">
               <div>
-                <CardTitle className="text-xl">{algo.label}</CardTitle>
+                <CardTitle className="text-base">{algo.label}</CardTitle>
                 <CardDescription className="mt-1 font-mono text-xs">{algo.id}</CardDescription>
               </div>
               <div className="flex gap-2">
@@ -296,7 +296,7 @@ export default function AlgorithmDetail() {
                 </Table>
               ) : (
                 <div className="text-center py-8">
-                  <div className="text-3xl mb-2">🔗</div>
+                  <div className="text-2xl mb-2">🔗</div>
                   <p className="text-muted-foreground">暂无设备绑定</p>
                   <Button variant="outline" size="sm" className="mt-3" onClick={() => setBindDialogOpen(true)}>
                     绑定第一个设备
@@ -345,7 +345,7 @@ export default function AlgorithmDetail() {
                 </Table>
               ) : (
                 <div className="text-center py-8">
-                  <div className="text-3xl mb-2">📝</div>
+                  <div className="text-2xl mb-2">📝</div>
                   <p className="text-muted-foreground">暂无执行记录</p>
                   <p className="text-xs text-muted-foreground mt-1">执行算法后，记录将自动出现在这里</p>
                 </div>
@@ -357,9 +357,9 @@ export default function AlgorithmDetail() {
 
       {/* 绑定设备对话框 */}
       <Dialog open={bindDialogOpen} onOpenChange={setBindDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>绑定设备到 {algo.label}</DialogTitle>
+            <DialogTitle className="text-base">绑定设备到 {algo.label}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div>
@@ -397,15 +397,15 @@ export default function AlgorithmDetail() {
 
       {/* 执行算法对话框 */}
       <Dialog open={execDialogOpen} onOpenChange={setExecDialogOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>执行 {algo.label}</DialogTitle>
+            <DialogTitle className="text-base">执行 {algo.label}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div>
               <Label>输入数据</Label>
               <textarea
-                className="w-full mt-1 p-3 border rounded-md text-sm font-mono bg-muted/50 min-h-[120px]"
+                className="w-full mt-1 p-2 border rounded-md text-xs font-mono bg-muted/50 min-h-[80px]"
                 placeholder='{"data": [1.2, 3.4, 5.6, ...], "sampleRate": 1000}'
               />
             </div>

@@ -157,11 +157,16 @@ function Router() {
       {/* 算法库 */}
       <Route path="/algorithm/overview" component={AlgorithmOverview} />
       <Route path="/algorithm/detail/:id" component={AlgorithmDetail} />
-      <Route path="/algorithm/signal" component={AlgorithmCategory} />
-      <Route path="/algorithm/feature" component={AlgorithmCategory} />
-      <Route path="/algorithm/ml" component={AlgorithmCategory} />
+      <Route path="/algorithm/mechanical" component={AlgorithmCategory} />
+      <Route path="/algorithm/electrical" component={AlgorithmCategory} />
+      <Route path="/algorithm/structural" component={AlgorithmCategory} />
       <Route path="/algorithm/anomaly" component={AlgorithmCategory} />
-      <Route path="/algorithm/predict" component={AlgorithmCategory} />
+      <Route path="/algorithm/optimization" component={AlgorithmCategory} />
+      <Route path="/algorithm/comprehensive" component={AlgorithmCategory} />
+      <Route path="/algorithm/feature" component={AlgorithmCategory} />
+      <Route path="/algorithm/agent" component={AlgorithmCategory} />
+      <Route path="/algorithm/model" component={AlgorithmCategory} />
+      <Route path="/algorithm/rule" component={AlgorithmCategory} />
       <Route path="/algorithm/compose" component={AlgorithmCategory} />
       <Route path="/algorithm/execution" component={AlgorithmCategory} />
       
