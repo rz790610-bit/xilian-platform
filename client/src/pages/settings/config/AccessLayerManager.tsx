@@ -80,6 +80,8 @@ function CreateConnectorDialog({
   const [description, setDescription] = useState('');
   const [connectionParams, setConnectionParams] = useState<Record<string, unknown>>({});
   const [authConfig, setAuthConfig] = useState<Record<string, unknown>>({});
+  const [advancedConfig, setAdvancedConfig] = useState<Record<string, unknown>>({});
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   const schemaQuery = trpc.accessLayer.protocolSchema.useQuery(
     { protocolType: selectedProtocol! },
@@ -113,12 +115,15 @@ function CreateConnectorDialog({
     setDescription('');
     setConnectionParams({});
     setAuthConfig({});
+    setAdvancedConfig({});
+    setShowAdvanced(false);
     onOpenChange(false);
   };
 
   const handleTest = () => {
     if (!selectedProtocol) return;
-    testMutation.mutate({ protocolType: selectedProtocol, connectionParams, authConfig });
+    const mergedParams = { ...connectionParams, ...advancedConfig };
+    testMutation.mutate({ protocolType: selectedProtocol, connectionParams: mergedParams, authConfig });
   };
 
   const handleCreate = () => {
@@ -126,11 +131,13 @@ function CreateConnectorDialog({
       toast.error('请填写连接器名称');
       return;
     }
+    // 合并高级配置到连接参数中
+    const mergedParams = { ...connectionParams, ...advancedConfig };
     createMutation.mutate({
       name: name.trim(),
       protocolType: selectedProtocol,
       description: description || undefined,
-      connectionParams,
+      connectionParams: mergedParams,
       authConfig: Object.keys(authConfig).length > 0 ? authConfig : undefined,
     });
   };
@@ -141,6 +148,7 @@ function CreateConnectorDialog({
       <div key={field.key} className="space-y-1.5">
         <Label className="text-xs text-gray-300">
           {field.label} {field.required && <span className="text-red-400">*</span>}
+          {field.group && <span className="ml-1 text-gray-600">[{field.group}]</span>}
         </Label>
         {field.type === 'select' ? (
           <Select value={String(value)} onValueChange={(v) => setter({ ...values, [field.key]: v })}>
@@ -163,6 +171,21 @@ function CreateConnectorDialog({
               <SelectItem value="false">否</SelectItem>
             </SelectContent>
           </Select>
+        ) : field.type === 'json' ? (
+          <textarea
+            value={typeof value === 'string' ? value : JSON.stringify(value, null, 2)}
+            onChange={(e) => {
+              try {
+                const parsed = JSON.parse(e.target.value);
+                setter({ ...values, [field.key]: parsed });
+              } catch {
+                setter({ ...values, [field.key]: e.target.value });
+              }
+            }}
+            placeholder={field.placeholder || '{}'}
+            rows={3}
+            className="w-full bg-white/5 border border-white/10 rounded-md text-sm p-2 font-mono text-gray-200 resize-y"
+          />
         ) : (
           <Input
             type={field.type === 'password' ? 'password' : field.type === 'number' ? 'number' : 'text'}
@@ -174,6 +197,37 @@ function CreateConnectorDialog({
         )}
         {field.description && <p className="text-xs text-gray-500">{field.description}</p>}
       </div>
+    );
+  };
+
+  /** 按 group 分组渲染字段 */
+  const renderFieldsByGroup = (fields: ProtocolConfigField[], values: Record<string, unknown>, setter: (v: Record<string, unknown>) => void) => {
+    const groups = new Map<string, ProtocolConfigField[]>();
+    const ungrouped: ProtocolConfigField[] = [];
+    for (const f of fields) {
+      if (f.group) {
+        if (!groups.has(f.group)) groups.set(f.group, []);
+        groups.get(f.group)!.push(f);
+      } else {
+        ungrouped.push(f);
+      }
+    }
+    return (
+      <>
+        {ungrouped.length > 0 && (
+          <div className="grid grid-cols-2 gap-3">
+            {ungrouped.map(f => renderField(f, values, setter))}
+          </div>
+        )}
+        {Array.from(groups.entries()).map(([group, gFields]) => (
+          <div key={group} className="mt-3">
+            <p className="text-xs font-medium text-gray-500 mb-2 uppercase tracking-wider">{group}</p>
+            <div className="grid grid-cols-2 gap-3 pl-2 border-l-2 border-white/5">
+              {gFields.map(f => renderField(f, values, setter))}
+            </div>
+          </div>
+        ))}
+      </>
     );
   };
 
@@ -249,9 +303,28 @@ function CreateConnectorDialog({
                     <h4 className="text-sm font-medium text-gray-300 flex items-center gap-2">
                       <Shield className="w-4 h-4" /> 认证配置
                     </h4>
-                    <div className="grid grid-cols-2 gap-3">
-                      {schemaQuery.data.authFields.map(f => renderField(f, authConfig, setAuthConfig))}
-                    </div>
+                    {renderFieldsByGroup(schemaQuery.data.authFields, authConfig, setAuthConfig)}
+                  </div>
+                )}
+
+                {/* 高级配置（可折叠） */}
+                {schemaQuery.data.advancedFields && schemaQuery.data.advancedFields.length > 0 && (
+                  <div className="space-y-3">
+                    <button
+                      type="button"
+                      onClick={() => setShowAdvanced(!showAdvanced)}
+                      className="flex items-center gap-2 text-sm font-medium text-gray-400 hover:text-gray-200 transition-colors w-full"
+                    >
+                      {showAdvanced ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                      <Settings className="w-4 h-4" />
+                      高级配置
+                      <span className="text-xs text-gray-600 ml-1">({schemaQuery.data.advancedFields.length} 项)</span>
+                    </button>
+                    {showAdvanced && (
+                      <div className="pl-2 border-l-2 border-blue-500/20 space-y-3">
+                        {renderFieldsByGroup(schemaQuery.data.advancedFields, advancedConfig, setAdvancedConfig)}
+                      </div>
+                    )}
                   </div>
                 )}
               </>
