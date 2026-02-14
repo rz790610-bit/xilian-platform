@@ -117,6 +117,16 @@ class AlgorithmService {
   // 1. CRUD — 算法定义管理
   // ========================================================================
 
+  /** 将数据库记录映射为前端期望的字段格式 */
+  private mapDefinitionToFrontend(item: any): any {
+    if (!item) return item;
+    return {
+      ...item,
+      label: item.algoName,
+      measurementTypes: item.applicableMeasurementTypes,
+    };
+  }
+
   /** 列出所有算法定义（支持分页/筛选/搜索） */
   async listDefinitions(options?: {
     category?: string;
@@ -130,7 +140,7 @@ class AlgorithmService {
     if (!db) return { items: [], total: 0, page: 1, pageSize: 20 };
 
     const page = options?.page || 1;
-    const pageSize = options?.pageSize || 20;
+    const pageSize = options?.pageSize || 100;
     const offset = (page - 1) * pageSize;
 
     const conditions: any[] = [];
@@ -168,24 +178,33 @@ class AlgorithmService {
     ]);
 
     return {
-      items,
+      items: items.map(item => this.mapDefinitionToFrontend(item)),
       total: Number(totalResult[0]?.count || 0),
       page,
       pageSize,
     };
   }
 
-  /** 获取单个算法定义 */
-  async getDefinition(algoCode: string): Promise<any | null> {
+  /** 获取单个算法定义（支持 algoCode 或数字 id） */
+  async getDefinition(algoCodeOrId: string): Promise<any | null> {
     const db = await getDb();
     if (!db) return null;
 
-    const result = await db.select()
+    // 先尝试按 algoCode 查找
+    let result = await db.select()
       .from(algorithmDefinitions)
-      .where(eq(algorithmDefinitions.algoCode, algoCode))
+      .where(eq(algorithmDefinitions.algoCode, algoCodeOrId))
       .limit(1);
 
-    return result[0] || null;
+    // 如果没找到且是数字，按 id 查找
+    if (result.length === 0 && /^\d+$/.test(algoCodeOrId)) {
+      result = await db.select()
+        .from(algorithmDefinitions)
+        .where(eq(algorithmDefinitions.id, Number(algoCodeOrId)))
+        .limit(1);
+    }
+
+    return result[0] ? this.mapDefinitionToFrontend(result[0]) : null;
   }
 
   /** 创建算法定义 */

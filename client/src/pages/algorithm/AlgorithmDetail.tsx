@@ -23,16 +23,32 @@ const IMPL_LABELS: Record<string, string> = {
 };
 
 const CATEGORY_LABELS: Record<string, string> = {
+  mechanical: "机械算法",
+  electrical: "电气算法",
+  structural: "结构算法",
+  anomaly_detection: "异常检测",
+  optimization: "优化算法",
+  comprehensive: "综合算法",
+  feature_extraction: "特征提取",
+  agent_plugin: "Agent插件",
+  model_iteration: "模型迭代",
+  rule_learning: "规则自动学习",
   signal_processing: "信号处理",
   feature_engineering: "特征工程",
   machine_learning: "机器学习",
   deep_learning: "深度学习",
-  anomaly_detection: "异常检测",
   predictive_maintenance: "预测性维护",
-  optimization: "优化算法",
   statistical_analysis: "统计分析",
   time_series: "时序分析",
 };
+
+/** 从 JSON schema 中提取 fields 数组 */
+function extractFields(schema: any): any[] {
+  if (!schema) return [];
+  if (Array.isArray(schema)) return schema;
+  if (schema.fields && Array.isArray(schema.fields)) return schema.fields;
+  return [];
+}
 
 export default function AlgorithmDetail() {
   const [, navigate] = useLocation();
@@ -95,7 +111,7 @@ export default function AlgorithmDetail() {
         <span>/</span>
         <span>{CATEGORY_LABELS[algo.category] || algo.category}</span>
         <span>/</span>
-        <span className="text-foreground font-medium">{algo.label}</span>
+        <span className="text-foreground font-medium">{algo.label || algo.algoName}</span>
       </div>
 
       {/* 算法基本信息 */}
@@ -104,8 +120,8 @@ export default function AlgorithmDetail() {
           <CardHeader>
             <div className="flex items-start justify-between">
               <div>
-                <CardTitle className="text-base">{algo.label}</CardTitle>
-                <CardDescription className="mt-1 font-mono text-xs">{algo.id}</CardDescription>
+                <CardTitle className="text-base">{algo.label || algo.algoName}</CardTitle>
+                <CardDescription className="mt-1 font-mono text-xs">{algo.algoCode}</CardDescription>
               </div>
               <div className="flex gap-2">
                 <Badge>{IMPL_LABELS[algo.implType] || algo.implType}</Badge>
@@ -180,11 +196,12 @@ export default function AlgorithmDetail() {
         <TabsContent value="config">
           <Card>
             <CardContent className="p-4">
-              {algo.configSchema && algo.configSchema.length > 0 ? (
+              {extractFields(algo.configSchema).length > 0 ? (
                 <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead>参数名</TableHead>
+                      <TableHead>标签</TableHead>
                       <TableHead>类型</TableHead>
                       <TableHead>默认值</TableHead>
                       <TableHead>必填</TableHead>
@@ -192,13 +209,14 @@ export default function AlgorithmDetail() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {algo.configSchema.map((field: any, i: number) => (
+                    {extractFields(algo.configSchema).map((field: any, i: number) => (
                       <TableRow key={i}>
                         <TableCell className="font-mono text-sm">{field.name || field.key}</TableCell>
+                        <TableCell className="text-sm">{field.label || "—"}</TableCell>
                         <TableCell><Badge variant="outline">{field.type}</Badge></TableCell>
                         <TableCell className="text-sm">{field.default !== undefined ? String(field.default) : "—"}</TableCell>
                         <TableCell>{field.required ? "✓" : "—"}</TableCell>
-                        <TableCell className="text-sm text-muted-foreground">{field.description || field.label || "—"}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">{field.description || "—"}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -220,12 +238,13 @@ export default function AlgorithmDetail() {
                 <CardTitle className="text-base">📥 输入 Schema</CardTitle>
               </CardHeader>
               <CardContent>
-                {algo.inputSchema && algo.inputSchema.length > 0 ? (
+                {extractFields(algo.inputSchema).length > 0 ? (
                   <div className="space-y-2">
-                    {algo.inputSchema.map((field: any, i: number) => (
+                    {extractFields(algo.inputSchema).map((field: any, i: number) => (
                       <div key={i} className="flex items-center justify-between p-2 bg-muted/50 rounded">
                         <div>
                           <span className="font-mono text-sm">{field.name || field.key}</span>
+                          {field.label && <span className="text-muted-foreground text-xs ml-2">({field.label})</span>}
                           {field.required && <span className="text-red-500 ml-1">*</span>}
                         </div>
                         <Badge variant="outline">{field.type}</Badge>
@@ -242,11 +261,14 @@ export default function AlgorithmDetail() {
                 <CardTitle className="text-base">📤 输出 Schema</CardTitle>
               </CardHeader>
               <CardContent>
-                {algo.outputSchema && algo.outputSchema.length > 0 ? (
+                {extractFields(algo.outputSchema).length > 0 ? (
                   <div className="space-y-2">
-                    {algo.outputSchema.map((field: any, i: number) => (
+                    {extractFields(algo.outputSchema).map((field: any, i: number) => (
                       <div key={i} className="flex items-center justify-between p-2 bg-muted/50 rounded">
-                        <span className="font-mono text-sm">{field.name || field.key}</span>
+                        <div>
+                          <span className="font-mono text-sm">{field.name || field.key}</span>
+                          {field.label && <span className="text-muted-foreground text-xs ml-2">({field.label})</span>}
+                        </div>
                         <Badge variant="outline">{field.type}</Badge>
                       </div>
                     ))}
@@ -359,7 +381,7 @@ export default function AlgorithmDetail() {
       <Dialog open={bindDialogOpen} onOpenChange={setBindDialogOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-base">绑定设备到 {algo.label}</DialogTitle>
+            <DialogTitle className="text-base">绑定设备到 {algo.label || algo.algoName}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div>
@@ -399,7 +421,7 @@ export default function AlgorithmDetail() {
       <Dialog open={execDialogOpen} onOpenChange={setExecDialogOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-base">执行 {algo.label}</DialogTitle>
+            <DialogTitle className="text-base">执行 {algo.label || algo.algoName}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div>
@@ -409,11 +431,11 @@ export default function AlgorithmDetail() {
                 placeholder='{"data": [1.2, 3.4, 5.6, ...], "sampleRate": 1000}'
               />
             </div>
-            {algo.configSchema && algo.configSchema.length > 0 && (
+            {extractFields(algo.configSchema).length > 0 && (
               <div>
                 <Label>配置参数</Label>
                 <div className="space-y-2 mt-1">
-                  {algo.configSchema.map((field: any, i: number) => (
+                  {extractFields(algo.configSchema).map((field: any, i: number) => (
                     <div key={i} className="flex items-center gap-2">
                       <Label className="w-32 text-xs shrink-0">{field.label || field.name || field.key}</Label>
                       <Input

@@ -141,9 +141,9 @@ export default function AlgorithmOverview() {
                 const implMeta = IMPL_LABELS[algo.implType] || { label: algo.implType, variant: "outline" as const };
                 return (
                   <Card
-                    key={algo.id}
+                    key={algo.algoCode || algo.id}
                     className="cursor-pointer hover:shadow-md transition-shadow group"
-                    onClick={() => navigate(`/algorithm/detail/${algo.id}`)}
+                    onClick={() => navigate(`/algorithm/detail/${algo.algoCode}`)}
                   >
                     <CardHeader className="pb-2">
                       <div className="flex items-start justify-between">
@@ -155,8 +155,8 @@ export default function AlgorithmOverview() {
                         </div>
                         <Badge variant={implMeta.variant}>{implMeta.label}</Badge>
                       </div>
-                      <CardDescription className="text-xs mt-1">
-                        {algo.id}
+                      <CardDescription className="text-xs mt-1 font-mono">
+                        {algo.algoCode}
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="pt-0">

@@ -98,18 +98,18 @@ export default function AlgorithmCategory() {
             const implMeta = IMPL_LABELS[algo.implType] || { label: algo.implType, variant: "outline" as const };
             return (
               <Card
-                key={algo.id}
+                key={algo.algoCode || algo.id}
                 className="cursor-pointer hover:shadow-md transition-shadow group"
-                onClick={() => navigate(`/algorithm/detail/${algo.id}`)}
+                onClick={() => navigate(`/algorithm/detail/${algo.algoCode}`)}
               >
                 <CardHeader className="pb-2">
                   <div className="flex items-start justify-between">
                     <CardTitle className="text-base group-hover:text-primary transition-colors">
-                      {algo.label}
+                      {algo.label || algo.algoName}
                     </CardTitle>
                     <Badge variant={implMeta.variant}>{implMeta.label}</Badge>
                   </div>
-                  <CardDescription className="font-mono text-xs">{algo.id}</CardDescription>
+                  <CardDescription className="font-mono text-xs">{algo.algoCode}</CardDescription>
                 </CardHeader>
                 <CardContent className="pt-0">
                   <p className="text-sm text-muted-foreground line-clamp-2">{algo.description}</p>
