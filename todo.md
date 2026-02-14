@@ -41,8 +41,8 @@
 - [x] 导航路由确认可达
 
 ### 验证
-- [ ] TypeScript 编译通过
-- [ ] 全链路完整
+- [x] TypeScript 编译通过（零错误）
+- [x] 全链路完整（代码层面，运行时需数据库/ClickHouse/Docker 连接）
 
 ### Docker引擎生命周期管理（已完成）
 - [x] 后端：dockerManager.service.ts (633行) - Docker Engine API 管理
