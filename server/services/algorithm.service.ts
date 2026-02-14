@@ -788,23 +788,45 @@ class AlgorithmService {
     config: Record<string, unknown>
   ): Promise<Record<string, unknown>> {
     if (!implRef) throw new Error('implRef is required for builtin algorithms');
-    // 动态加载内置算法模块
-    // implRef 格式: "builtin:fft" → 加载 ./algorithm/builtin/fft
-    const moduleName = implRef.replace('builtin:', '');
+
+    // 优先通过 AlgorithmEngine 执行（新架构）
+    // implRef 格式: "server/algorithms/mechanical/FFTSpectrumAnalysis"
+    // 通过 Registry 反查 implRef → 算法 id → 引擎执行
     try {
+      const { getAlgorithmEngine } = await import('../algorithms');
+      const engine = getAlgorithmEngine();
+
+      // 遍历 registry 找到 implRef 对应的 algorithmId
+      const allItems = algorithmRegistry.listItems() as AlgorithmRegistryItem[];
+      const matchedItem = allItems.find(item => item.implRef === implRef);
+      const algoId = matchedItem?.id;
+
+      if (algoId) {
+        const registration = engine.getAlgorithm(algoId);
+        if (registration) {
+          // 构造 AlgorithmInput
+          const algorithmInput: import('../algorithms/_core/types').AlgorithmInput = {
+            data: (inputData.data as number[] | number[][]) || [],
+            sampleRate: inputData.sampleRate as number | undefined,
+            timestamps: inputData.timestamps as string[] | number[] | undefined,
+            equipment: inputData.equipment as any,
+            operatingCondition: inputData.operatingCondition as any,
+            context: inputData.context as Record<string, any> | undefined,
+          };
+          const output = await engine.execute(algoId, algorithmInput, config as Record<string, any>);
+          return output as unknown as Record<string, unknown>;
+        }
+      }
+
+      // 如果引擎中没有找到，尝试旧的动态加载方式
+      const moduleName = implRef.replace('builtin:', '');
       const builtinModule = await import(`./algorithm/builtin/${moduleName}`);
       if (typeof builtinModule.execute !== 'function') {
         throw new Error(`Builtin algorithm ${moduleName} does not export an execute function`);
       }
       return await builtinModule.execute(inputData, config);
     } catch (error: any) {
-      // 回退：尝试从注册中心获取
-      const registryItem = algorithmRegistry.get(implRef);
-      if (registryItem) {
-        // Registry items are metadata only; actual execution requires the module
-        throw new Error(`Builtin algorithm module not found: ${moduleName} — ${error.message}`);
-      }
-      throw new Error(`Builtin algorithm not found: ${moduleName} — ${error.message}`);
+      throw new Error(`Builtin algorithm execution failed: ${implRef} — ${error.message}`);
     }
   }
 

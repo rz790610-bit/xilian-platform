@@ -458,7 +458,7 @@ const BUILTIN_ALGORITHMS: AlgorithmRegistryItem[] = [
     order: 0,
   },
   {
-    id: 'hotspot_stress',
+    id: 'hot_spot_stress',
     label: '热点应力法',
     icon: '🔥',
     description: '线性/二次外推热点应力，SCF应力集中因子，IIW焊接疲劳评估',
@@ -706,7 +706,7 @@ const BUILTIN_ALGORITHMS: AlgorithmRegistryItem[] = [
     order: 0,
   },
   {
-    id: 'association_mining',
+    id: 'association_rules',
     label: '关联规则挖掘',
     icon: '🔍',
     description: 'Apriori/FP-Growth关联规则挖掘，故障模式关联发现',
@@ -797,7 +797,7 @@ const BUILTIN_ALGORITHMS: AlgorithmRegistryItem[] = [
     order: 0,
   },
   {
-    id: 'freq_domain_features',
+    id: 'frequency_domain_features',
     label: '频域特征提取',
     icon: '📡',
     description: '频谱特征(重心频率/均方频率/频率方差) + 频带能量比',
@@ -820,7 +820,7 @@ const BUILTIN_ALGORITHMS: AlgorithmRegistryItem[] = [
     order: 0,
   },
   {
-    id: 'timefreq_features',
+    id: 'time_frequency_features',
     label: '时频域特征提取',
     icon: '🌈',
     description: 'STFT时频图 + 小波系数特征 + 瞬时频率/幅值',
