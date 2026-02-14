@@ -230,11 +230,9 @@ function AlgorithmTestPanel({ algo, onClose }: { algo: any; onClose: () => void 
     setConfigValues(defaults);
   }, [configFields]);
 
-  // 处理文件上传
-  const handleFileUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  // 处理文件（通用函数，接受 File 对象）
+  const processFile = useCallback((file: File) => {
     if (!file) return;
-
     const reader = new FileReader();
     reader.onload = (ev) => {
       const text = ev.target?.result as string;
@@ -246,7 +244,7 @@ function AlgorithmTestPanel({ algo, onClose }: { algo: any; onClose: () => void 
           const { inputData, summary } = parseJSON(text);
           setParsedData({ inputData, summary, fileName: file.name, fileSize: file.size });
         } else {
-          // CSV / TXT
+          // CSV / TXT / TSV
           const { data, headers, rowCount, colCount, preview } = parseCSV(text);
           const inputData: Record<string, any> = { data };
           setParsedData({
@@ -264,8 +262,25 @@ function AlgorithmTestPanel({ algo, onClose }: { algo: any; onClose: () => void 
         toast.error("文件解析失败", { description: err.message });
       }
     };
+    reader.onerror = () => { toast.error("文件读取失败"); };
     reader.readAsText(file);
   }, [initConfigDefaults]);
+
+  // input onChange 处理
+  const handleFileInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) processFile(file);
+    // 重置 input value，允许重复选择同一文件
+    e.target.value = '';
+  }, [processFile]);
+
+  // 拖拽处理
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const file = e.dataTransfer.files?.[0];
+    if (file) processFile(file);
+  }, [processFile]);
 
   // 处理 JSON 直接输入
   const handleJsonSubmit = useCallback(() => {
@@ -334,25 +349,21 @@ function AlgorithmTestPanel({ algo, onClose }: { algo: any; onClose: () => void 
         {inputMode === 'file' ? (
           <div
             className="border-2 border-dashed rounded-lg p-8 text-center cursor-pointer hover:border-primary/50 hover:bg-muted/30 transition-colors"
-            onClick={() => fileInputRef.current?.click()}
-            onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
-            onDrop={(e) => {
-              e.preventDefault(); e.stopPropagation();
-              const file = e.dataTransfer.files[0];
-              if (file && fileInputRef.current) {
-                const dt = new DataTransfer();
-                dt.items.add(file);
-                fileInputRef.current.files = dt.files;
-                fileInputRef.current.dispatchEvent(new Event('change', { bubbles: true }));
-              }
+            onClick={() => {
+              // 先重置 value 再触发点击，确保同一文件也能重新选择
+              if (fileInputRef.current) fileInputRef.current.value = '';
+              fileInputRef.current?.click();
             }}
+            onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+            onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); }}
+            onDrop={handleDrop}
           >
             <input
               ref={fileInputRef}
               type="file"
               accept=".csv,.json,.txt,.tsv"
               className="hidden"
-              onChange={handleFileUpload}
+              onChange={handleFileInputChange}
             />
             <div className="text-3xl mb-3">📄</div>
             <p className="font-medium">点击或拖拽文件到此处</p>
