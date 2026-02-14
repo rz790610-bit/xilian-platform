@@ -1172,14 +1172,16 @@ export default function AlgorithmDetail() {
 
         {/* 算法测试对话框 */}
         <Dialog open={testDialogOpen} onOpenChange={setTestDialogOpen}>
-          <DialogContent className="max-w-lg max-h-[70vh] overflow-y-auto">
-            <DialogHeader>
+          <DialogContent className="max-w-xl max-h-[80vh] flex flex-col p-0">
+            <DialogHeader className="px-5 pt-5 pb-0">
               <DialogTitle className="text-sm flex items-center gap-2">
                 测试 {algo.label || algo.algoName}
                 <Badge variant="outline" className="font-mono text-[10px]">{algo.algoCode}</Badge>
               </DialogTitle>
             </DialogHeader>
-            <AlgorithmTestPanel algo={algo} onClose={() => setTestDialogOpen(false)} />
+            <div className="flex-1 overflow-y-auto px-5 pb-5" style={{ minHeight: 0 }}>
+              <AlgorithmTestPanel algo={algo} onClose={() => setTestDialogOpen(false)} />
+            </div>
           </DialogContent>
         </Dialog>
       </div>
