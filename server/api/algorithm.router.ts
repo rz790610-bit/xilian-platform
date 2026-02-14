@@ -32,7 +32,7 @@ const listDefinitionsInput = z.object({
   implType: z.enum(['builtin', 'pipeline_node', 'plugin', 'external', 'kg_operator']).optional(),
   search: z.string().optional(),
   page: z.number().int().min(1).default(1),
-  pageSize: z.number().int().min(1).max(100).default(20),
+  pageSize: z.number().int().min(1).max(200).default(100),
   status: z.enum(['active', 'deprecated', 'experimental']).optional(),
 }).optional();
 

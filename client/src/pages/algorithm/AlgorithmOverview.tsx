@@ -42,6 +42,7 @@ export default function AlgorithmOverview() {
   const listQuery = trpc.algorithm.listDefinitions.useQuery({
     category: activeCategory === "all" ? undefined : activeCategory,
     search: search || undefined,
+    pageSize: 100,
   });
 
   const overview = overviewQuery.data;
