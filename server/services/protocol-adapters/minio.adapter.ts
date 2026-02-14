@@ -18,6 +18,9 @@ export class MinioAdapter extends BaseAdapter {
   readonly configSchema: ProtocolConfigSchema = {
     protocolType: 'minio',
     label: 'MinIO / S3 对象存储',
+    icon: '📦',
+    description: '文件/模型/快照存储',
+    category: 'storage',
     connectionFields: [
       { key: 'endPoint', label: '端点地址', type: 'string', required: true, placeholder: 'play.min.io', description: '对象存储服务端点（不含协议前缀）' },
       { key: 'port', label: '端口', type: 'number', required: false, defaultValue: 9000, description: 'MinIO 默认 9000，AWS S3 默认 443' },

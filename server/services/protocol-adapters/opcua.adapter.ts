@@ -29,6 +29,9 @@ export class OpcuaAdapter extends BaseAdapter {
   readonly configSchema: ProtocolConfigSchema = {
     protocolType: 'opcua',
     label: 'OPC-UA Server',
+    icon: '🏭',
+    description: 'PLC/DCS 工业控制数据',
+    category: 'industrial',
     connectionFields: [
       { key: 'endpointUrl', label: '端点 URL', type: 'string', required: true, placeholder: 'opc.tcp://192.168.1.100:4840', description: 'OPC-UA 服务器端点地址' },
       { key: 'securityMode', label: '安全模式', type: 'select', required: true, defaultValue: 'None', options: [

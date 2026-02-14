@@ -214,6 +214,9 @@ export interface ProtocolConfigField {
 export interface ProtocolConfigSchema {
   protocolType: ProtocolType;
   label: string;
+  icon: string;
+  description: string;
+  category: string;
   connectionFields: ProtocolConfigField[];
   authFields: ProtocolConfigField[];
   advancedFields?: ProtocolConfigField[];

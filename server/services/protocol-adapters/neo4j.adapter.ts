@@ -17,6 +17,9 @@ export class Neo4jAdapter extends BaseAdapter {
   readonly configSchema: ProtocolConfigSchema = {
     protocolType: 'neo4j',
     label: 'Neo4j 图数据库',
+    icon: '🕸️',
+    description: '图数据库',
+    category: 'database',
     connectionFields: [
       { key: 'uri', label: '连接 URI', type: 'string', required: true, placeholder: 'bolt://localhost:7687', description: '支持 bolt://, bolt+s://, bolt+ssc://, neo4j://, neo4j+s://, neo4j+ssc://' },
       { key: 'database', label: '数据库名', type: 'string', required: false, defaultValue: 'neo4j', description: '目标数据库（Neo4j 4.0+ 支持多数据库）' },

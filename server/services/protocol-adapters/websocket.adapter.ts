@@ -18,6 +18,9 @@ export class WebSocketAdapter extends BaseAdapter {
   readonly configSchema: ProtocolConfigSchema = {
     protocolType: 'websocket',
     label: 'WebSocket',
+    icon: '🔌',
+    description: '实时双向通信',
+    category: 'api',
     connectionFields: [
       { key: 'url', label: 'WebSocket URL', type: 'string', required: true, placeholder: 'ws://192.168.1.100:8080/ws', description: '完整的 WebSocket 端点 URL (ws:// 或 wss://)' },
       { key: 'protocols', label: '子协议', type: 'string', required: false, placeholder: 'graphql-ws,json', description: '逗号分隔的子协议列表（Sec-WebSocket-Protocol）' },

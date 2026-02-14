@@ -18,6 +18,9 @@ export class RedisAdapter extends BaseAdapter {
   readonly configSchema: ProtocolConfigSchema = {
     protocolType: 'redis',
     label: 'Redis',
+    icon: '🔴',
+    description: '缓存/实时状态',
+    category: 'database',
     connectionFields: [
       { key: 'host', label: '主机地址', type: 'string', required: true, placeholder: '192.168.1.100', description: 'Redis 服务器主机名或 IP' },
       { key: 'port', label: '端口', type: 'number', required: true, defaultValue: 6379 },

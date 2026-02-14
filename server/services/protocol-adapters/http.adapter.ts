@@ -18,6 +18,9 @@ export class HttpAdapter extends BaseAdapter {
   readonly configSchema: ProtocolConfigSchema = {
     protocolType: 'http',
     label: 'HTTP / REST API',
+    icon: '🌐',
+    description: '外部系统 REST API',
+    category: 'api',
     connectionFields: [
       { key: 'baseUrl', label: '基础 URL', type: 'string', required: true, placeholder: 'https://api.example.com/v1', description: 'API 基础地址（所有请求的前缀）' },
       { key: 'healthCheckPath', label: '健康检查路径', type: 'string', required: false, defaultValue: '/health', description: '用于测试连接和健康检查的端点路径' },

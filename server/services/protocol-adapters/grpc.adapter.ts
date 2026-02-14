@@ -20,6 +20,9 @@ export class GrpcAdapter extends BaseAdapter {
   readonly configSchema: ProtocolConfigSchema = {
     protocolType: 'grpc',
     label: 'gRPC 服务',
+    icon: '🚀',
+    description: '高性能服务间通信',
+    category: 'api',
     connectionFields: [
       { key: 'host', label: '主机地址', type: 'string', required: true, placeholder: 'localhost', description: 'gRPC 服务器主机名或 IP' },
       { key: 'port', label: '端口', type: 'number', required: true, defaultValue: 50051 },

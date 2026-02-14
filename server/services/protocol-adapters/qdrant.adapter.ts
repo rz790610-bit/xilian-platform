@@ -17,6 +17,9 @@ export class QdrantAdapter extends BaseAdapter {
   readonly configSchema: ProtocolConfigSchema = {
     protocolType: 'qdrant',
     label: 'Qdrant 向量数据库',
+    icon: '🔍',
+    description: '向量检索',
+    category: 'database',
     connectionFields: [
       { key: 'host', label: '主机地址', type: 'string', required: true, placeholder: 'localhost', description: 'Qdrant 服务器主机名或 IP' },
       { key: 'port', label: 'HTTP 端口', type: 'number', required: true, defaultValue: 6333 },

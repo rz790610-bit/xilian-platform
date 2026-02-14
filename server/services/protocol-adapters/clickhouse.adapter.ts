@@ -17,6 +17,9 @@ export class ClickhouseAdapter extends BaseAdapter {
   readonly configSchema: ProtocolConfigSchema = {
     protocolType: 'clickhouse',
     label: 'ClickHouse 数据库',
+    icon: '⚡',
+    description: '分析型列式数据库',
+    category: 'database',
     connectionFields: [
       { key: 'host', label: '主机地址', type: 'string', required: true, placeholder: 'http://192.168.1.100:8123', description: '完整 URL，含协议和端口（HTTP 8123 / HTTPS 8443 / Native 9000）' },
       { key: 'database', label: '数据库名', type: 'string', required: false, defaultValue: 'default', description: '留空则使用 default 数据库' },

@@ -18,6 +18,9 @@ export class ModbusAdapter extends BaseAdapter {
   readonly configSchema: ProtocolConfigSchema = {
     protocolType: 'modbus',
     label: 'Modbus 设备',
+    icon: '⚙️',
+    description: '传统工控设备寄存器',
+    category: 'industrial',
     connectionFields: [
       { key: 'host', label: '主机地址', type: 'string', required: true, placeholder: '192.168.1.100', description: 'Modbus TCP 网关或设备 IP' },
       { key: 'port', label: '端口', type: 'number', required: true, defaultValue: 502 },

@@ -50,7 +50,19 @@
 - [x] 后端：已注册到appRouter
 - [x] 前端：Infrastructure页面 DockerEnginePanel 面板（启用/禁用/重启/日志/统计）
 
-## 三、当前排查任务
+## 三、当前任务：协议注册中心自动同步机制
+
+### 核心问题
+适配器层更新后，上层 API/类型/前端未自动同步，导致前端只显示 MQTT
+
+### 待完成
+- [ ] 后端：适配器注册表新增 listProtocols / listCategories API，自动从注册表生成
+- [ ] 后端：protocolSchema API 直接从注册表读取，新增适配器自动可用
+- [ ] 前端：移除硬编码 PROTOCOL_META/PROTOCOL_CATEGORIES，改为从 API 动态获取
+- [ ] 前端：新建连接器对话框动态渲染协议列表和配置表单
+- [ ] 全链路验证：15个协议全部可见可配置
+
+## 四、已完成排查任务
 
 ### Pipeline 编排界面排查
 - [x] Pipeline 编排页面代码完整（PipelineEditor 679行 + 9个子组件 + Store + 共享类型 1005行）

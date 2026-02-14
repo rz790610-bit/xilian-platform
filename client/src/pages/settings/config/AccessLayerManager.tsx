@@ -2,6 +2,11 @@
  * 接入层管理页面
  * 系统设置 > 配置中心 > 接入层管理
  * 完整的 Connector → Endpoint → Binding 三级管理
+ * 
+ * 【自动同步机制】
+ * 协议列表、分类、配置 Schema 全部从后端 API 动态获取，
+ * 后端适配器注册表是唯一数据源（Single Source of Truth）。
+ * 新增适配器只需写 .adapter.ts 并注册，前端自动展示，零改动。
  */
 import { useState, useMemo } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
@@ -20,10 +25,9 @@ import {
   Server, Cpu, ChevronRight, ChevronDown, Eye, Unplug, PlugZap,
   Layers, ArrowRightLeft, FileSearch, BarChart3, Shield
 } from 'lucide-react';
-import {
-  PROTOCOL_META, PROTOCOL_CATEGORIES,
-  type ProtocolType, type ConnectorInfo, type EndpointInfo, type BindingInfo,
-  type ProtocolConfigField,
+import type {
+  ProtocolType, ConnectorInfo, EndpointInfo, BindingInfo,
+  ProtocolConfigField,
 } from '@shared/accessLayerTypes';
 
 // ============ 状态图标 ============
@@ -45,13 +49,6 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-// ============ 协议图标 ============
-function ProtocolIcon({ protocol, className = "w-4 h-4" }: { protocol: string; className?: string }) {
-  const meta = PROTOCOL_META[protocol as ProtocolType];
-  if (!meta) return <Database className={className} />;
-  return <span className={className}>{meta.icon}</span>;
-}
-
 // ============ 统计卡片 ============
 function StatsCard({ icon, label, value, color }: { icon: React.ReactNode; label: string; value: number | string; color: string }) {
   return (
@@ -65,7 +62,7 @@ function StatsCard({ icon, label, value, color }: { icon: React.ReactNode; label
   );
 }
 
-// ============ 连接器创建对话框 ============
+// ============ 连接器创建对话框（动态协议列表） ============
 function CreateConnectorDialog({
   open, onOpenChange, onCreated,
 }: {
@@ -83,6 +80,10 @@ function CreateConnectorDialog({
   const [advancedConfig, setAdvancedConfig] = useState<Record<string, unknown>>({});
   const [showAdvanced, setShowAdvanced] = useState(false);
 
+  // 【自动同步】从后端动态获取分类和协议列表
+  const categoriesQuery = trpc.accessLayer.listCategories.useQuery();
+
+  // 选中协议后获取完整配置 Schema
   const schemaQuery = trpc.accessLayer.protocolSchema.useQuery(
     { protocolType: selectedProtocol! },
     { enabled: !!selectedProtocol }
@@ -131,7 +132,6 @@ function CreateConnectorDialog({
       toast.error('请填写连接器名称');
       return;
     }
-    // 合并高级配置到连接参数中
     const mergedParams = { ...connectionParams, ...advancedConfig };
     createMutation.mutate({
       name: name.trim(),
@@ -231,41 +231,56 @@ function CreateConnectorDialog({
     );
   };
 
+  // 从 schema 中获取当前选中协议的元数据
+  const selectedMeta = schemaQuery.data ? {
+    label: schemaQuery.data.label,
+    icon: schemaQuery.data.icon,
+  } : null;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
-            {step === 'protocol' ? '选择协议类型' : `配置 ${PROTOCOL_META[selectedProtocol!]?.label} 连接器`}
+            {step === 'protocol' ? '选择协议类型' : `配置 ${selectedMeta?.label || selectedProtocol} 连接器`}
           </DialogTitle>
         </DialogHeader>
 
         {step === 'protocol' ? (
           <div className="space-y-4">
-            {Object.entries(PROTOCOL_CATEGORIES).map(([catKey, cat]) => (
-              <div key={catKey}>
-                <h4 className="text-xs font-medium text-gray-400 uppercase mb-2">{cat.label}</h4>
-                <div className="grid grid-cols-3 gap-2">
-                  {cat.protocols.map(p => {
-                    const meta = PROTOCOL_META[p];
-                    return (
+            {categoriesQuery.isLoading ? (
+              <div className="flex items-center justify-center p-8">
+                <Loader2 className="w-5 h-5 animate-spin text-gray-400 mr-2" />
+                <span className="text-sm text-gray-400">加载协议列表...</span>
+              </div>
+            ) : categoriesQuery.data ? (
+              Object.entries(categoriesQuery.data).map(([catKey, cat]) => (
+                <div key={catKey}>
+                  <h4 className="text-xs font-medium text-gray-400 uppercase mb-2">{(cat as any).label}</h4>
+                  <div className="grid grid-cols-3 gap-2">
+                    {((cat as any).protocols as Array<{ protocolType: string; label: string; icon: string; description: string }>).map(p => (
                       <button
-                        key={p}
-                        onClick={() => { setSelectedProtocol(p); setStep('config'); }}
+                        key={p.protocolType}
+                        onClick={() => { setSelectedProtocol(p.protocolType as ProtocolType); setStep('config'); }}
                         className={`flex items-center gap-2 p-3 rounded-lg border text-left transition-all hover:bg-white/5
-                          ${selectedProtocol === p ? 'border-blue-500 bg-blue-500/10' : 'border-white/10'}`}
+                          ${selectedProtocol === p.protocolType ? 'border-blue-500 bg-blue-500/10' : 'border-white/10'}`}
                       >
-                        <span className="text-lg">{meta.icon}</span>
+                        <span className="text-lg">{p.icon}</span>
                         <div>
-                          <p className="text-sm font-medium text-white">{meta.label}</p>
-                          <p className="text-xs text-gray-400 line-clamp-1">{meta.description}</p>
+                          <p className="text-sm font-medium text-white">{p.label}</p>
+                          <p className="text-xs text-gray-400 line-clamp-1">{p.description}</p>
                         </div>
                       </button>
-                    );
-                  })}
+                    ))}
+                  </div>
                 </div>
+              ))
+            ) : (
+              <div className="text-center p-8 text-gray-500">
+                <AlertCircle className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                <p className="text-sm">无法加载协议列表</p>
               </div>
-            ))}
+            )}
           </div>
         ) : (
           <div className="space-y-4">
@@ -286,12 +301,18 @@ function CreateConnectorDialog({
               </div>
             </div>
 
-            {/* 连接参数 */}
-            {schemaQuery.data && (
+            {/* 连接参数 - 从 API 动态渲染 */}
+            {schemaQuery.isLoading ? (
+              <div className="flex items-center justify-center p-6">
+                <Loader2 className="w-4 h-4 animate-spin text-gray-400 mr-2" />
+                <span className="text-sm text-gray-400">加载配置模板...</span>
+              </div>
+            ) : schemaQuery.data ? (
               <>
                 <div className="space-y-3">
                   <h4 className="text-sm font-medium text-gray-300 flex items-center gap-2">
                     <Link className="w-4 h-4" /> 连接参数
+                    <span className="text-xs text-gray-600">({schemaQuery.data.connectionFields.length} 项)</span>
                   </h4>
                   <div className="grid grid-cols-2 gap-3">
                     {schemaQuery.data.connectionFields.map(f => renderField(f, connectionParams, setConnectionParams))}
@@ -302,6 +323,7 @@ function CreateConnectorDialog({
                   <div className="space-y-3">
                     <h4 className="text-sm font-medium text-gray-300 flex items-center gap-2">
                       <Shield className="w-4 h-4" /> 认证配置
+                      <span className="text-xs text-gray-600">({schemaQuery.data.authFields.length} 项)</span>
                     </h4>
                     {renderFieldsByGroup(schemaQuery.data.authFields, authConfig, setAuthConfig)}
                   </div>
@@ -328,7 +350,7 @@ function CreateConnectorDialog({
                   </div>
                 )}
               </>
-            )}
+            ) : null}
 
             <DialogFooter className="flex gap-2">
               <Button variant="outline" onClick={() => setStep('protocol')} className="text-sm">
@@ -378,11 +400,15 @@ function ConnectorDetail({
     },
   });
 
+  // 【自动同步】从 API 获取协议元数据
+  const protocolsQuery = trpc.accessLayer.listProtocols.useQuery();
   const connector = connectorQuery.data;
+
   if (connectorQuery.isLoading) return <div className="flex items-center justify-center p-12"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div>;
   if (!connector) return <div className="text-center p-12 text-gray-400">连接器不存在</div>;
 
-  const meta = PROTOCOL_META[connector.protocolType as ProtocolType];
+  // 从动态协议列表中查找元数据
+  const meta = protocolsQuery.data?.find(p => p.protocolType === connector.protocolType);
 
   return (
     <div className="space-y-4">
@@ -395,7 +421,7 @@ function ConnectorDetail({
           <span className="text-xl">{meta?.icon || '📦'}</span>
           <div>
             <h2 className="text-lg font-semibold text-white">{connector.name}</h2>
-            <p className="text-xs text-gray-400">{meta?.label} · {connector.connectorId}</p>
+            <p className="text-xs text-gray-400">{meta?.label || connector.protocolType} · {connector.connectorId}</p>
           </div>
           <StatusBadge status={connector.status} />
         </div>
@@ -501,6 +527,10 @@ export default function AccessLayerManager() {
   });
   const bindingsQuery = trpc.accessLayer.listBindings.useQuery({}, { enabled: activeTab === 'bindings' });
 
+  // 【自动同步】从 API 动态获取协议列表和分类
+  const protocolsQuery = trpc.accessLayer.listProtocols.useQuery();
+  const categoriesQuery = trpc.accessLayer.listCategories.useQuery(undefined, { enabled: activeTab === 'protocols' });
+
   const deleteMutation = trpc.accessLayer.deleteConnector.useMutation({
     onSuccess: () => {
       toast.success('连接器已删除');
@@ -524,6 +554,17 @@ export default function AccessLayerManager() {
   });
 
   const stats = statsQuery.data;
+
+  // 构建协议元数据 Map（从 API 动态获取）
+  const protocolMetaMap = useMemo(() => {
+    const map: Record<string, { label: string; icon: string; description: string; category: string }> = {};
+    if (protocolsQuery.data) {
+      for (const p of protocolsQuery.data) {
+        map[p.protocolType] = { label: p.label, icon: p.icon, description: p.description, category: p.category };
+      }
+    }
+    return map;
+  }, [protocolsQuery.data]);
 
   // 如果选中了某个连接器，显示详情
   if (selectedConnectorId) {
@@ -580,7 +621,7 @@ export default function AccessLayerManager() {
 
           {/* 连接器列表 */}
           <TabsContent value="connectors" className="space-y-3">
-            {/* 过滤器 */}
+            {/* 过滤器 - 协议下拉从 API 动态获取 */}
             <div className="flex items-center gap-3">
               <div className="relative flex-1">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500" />
@@ -597,8 +638,8 @@ export default function AccessLayerManager() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">全部协议</SelectItem>
-                  {Object.entries(PROTOCOL_META).map(([k, v]) => (
-                    <SelectItem key={k} value={k}>{v.icon} {v.label}</SelectItem>
+                  {protocolsQuery.data?.map(p => (
+                    <SelectItem key={p.protocolType} value={p.protocolType}>{p.icon} {p.label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -625,7 +666,7 @@ export default function AccessLayerManager() {
             ) : connectorsQuery.data?.items && connectorsQuery.data.items.length > 0 ? (
               <div className="space-y-2">
                 {connectorsQuery.data.items.map((conn) => {
-                  const meta = PROTOCOL_META[conn.protocolType as ProtocolType];
+                  const meta = protocolMetaMap[conn.protocolType];
                   return (
                     <div
                       key={conn.connectorId}
@@ -640,7 +681,7 @@ export default function AccessLayerManager() {
                             <StatusBadge status={conn.status} />
                           </div>
                           <p className="text-xs text-gray-500 mt-0.5">
-                            {meta?.label} · {conn.endpointCount || 0} 端点 · {conn.sourceRef || 'manual'}
+                            {meta?.label || conn.protocolType} · {conn.endpointCount || 0} 端点 · {conn.sourceRef || 'manual'}
                           </p>
                           {conn.description && <p className="text-xs text-gray-400 mt-0.5">{conn.description}</p>}
                         </div>
@@ -705,29 +746,40 @@ export default function AccessLayerManager() {
             )}
           </TabsContent>
 
-          {/* 协议总览 */}
+          {/* 协议总览 - 从 API 动态渲染 */}
           <TabsContent value="protocols" className="space-y-4">
-            {Object.entries(PROTOCOL_CATEGORIES).map(([catKey, cat]) => (
-              <div key={catKey}>
-                <h4 className="text-xs font-medium text-gray-400 uppercase mb-2">{cat.label}</h4>
-                <div className="grid grid-cols-3 gap-3">
-                  {cat.protocols.map(p => {
-                    const meta = PROTOCOL_META[p];
-                    const count = stats?.protocolDistribution?.[p] || 0;
-                    return (
-                      <div key={p} className="flex items-center gap-3 p-3 rounded-xl border border-white/5 bg-white/[0.02]">
-                        <span className="text-2xl">{meta.icon}</span>
-                        <div className="flex-1">
-                          <p className="text-sm font-medium text-white">{meta.label}</p>
-                          <p className="text-xs text-gray-500">{meta.description}</p>
-                        </div>
-                        <span className="text-lg font-semibold text-gray-300">{count}</span>
-                      </div>
-                    );
-                  })}
-                </div>
+            {categoriesQuery.isLoading ? (
+              <div className="flex items-center justify-center p-12">
+                <Loader2 className="w-5 h-5 animate-spin text-gray-400 mr-2" />
+                <span className="text-sm text-gray-400">加载协议注册表...</span>
               </div>
-            ))}
+            ) : categoriesQuery.data ? (
+              Object.entries(categoriesQuery.data).map(([catKey, cat]) => (
+                <div key={catKey}>
+                  <h4 className="text-xs font-medium text-gray-400 uppercase mb-2">{(cat as any).label}</h4>
+                  <div className="grid grid-cols-3 gap-3">
+                    {((cat as any).protocols as Array<{ protocolType: string; label: string; icon: string; description: string }>).map(p => {
+                      const count = stats?.protocolDistribution?.[p.protocolType] || 0;
+                      return (
+                        <div key={p.protocolType} className="flex items-center gap-3 p-3 rounded-xl border border-white/5 bg-white/[0.02]">
+                          <span className="text-2xl">{p.icon}</span>
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-white">{p.label}</p>
+                            <p className="text-xs text-gray-500">{p.description}</p>
+                          </div>
+                          <span className="text-lg font-semibold text-gray-300">{count}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="text-center p-12 text-gray-500">
+                <Globe className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                <p className="text-sm">无法加载协议注册表</p>
+              </div>
+            )}
           </TabsContent>
         </Tabs>
       </div>

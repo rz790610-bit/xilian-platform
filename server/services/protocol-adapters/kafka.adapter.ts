@@ -18,6 +18,9 @@ export class KafkaAdapter extends BaseAdapter {
   readonly configSchema: ProtocolConfigSchema = {
     protocolType: 'kafka',
     label: 'Apache Kafka',
+    icon: '📨',
+    description: '事件流/日志聚合',
+    category: 'messaging',
     connectionFields: [
       { key: 'brokers', label: 'Broker 列表', type: 'string', required: true, placeholder: 'broker1:9092,broker2:9092,broker3:9092', description: '逗号分隔的 Kafka Broker 地址列表' },
       { key: 'clientId', label: '客户端 ID', type: 'string', required: false, defaultValue: 'xilian-platform', description: '在 Broker 日志中标识此客户端' },

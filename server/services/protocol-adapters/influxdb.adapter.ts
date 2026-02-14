@@ -18,6 +18,9 @@ export class InfluxdbAdapter extends BaseAdapter {
   readonly configSchema: ProtocolConfigSchema = {
     protocolType: 'influxdb',
     label: 'InfluxDB 时序数据库',
+    icon: '📈',
+    description: '时序数据存储',
+    category: 'database',
     connectionFields: [
       { key: 'url', label: '服务器 URL', type: 'string', required: true, placeholder: 'http://192.168.1.100:8086', description: 'InfluxDB 2.x HTTP API 地址' },
       { key: 'org', label: '组织 (Organization)', type: 'string', required: true, placeholder: 'my-org', description: 'InfluxDB 组织名称' },

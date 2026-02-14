@@ -593,7 +593,8 @@ export async function getStats(): Promise<AccessLayerStats> {
   };
 }
 
-// ============ 协议配置 Schema 查询 ============
+// ============ 协议配置 Schema 查询（自动同步机制） ============
+// 所有协议元数据均从适配器注册表自动生成，新增适配器零改动自动上线
 
 export function getProtocolConfigSchema(protocolType: ProtocolType) {
   const adapter = protocolAdapters[protocolType];
@@ -606,6 +607,59 @@ export function getAllProtocolSchemas() {
     ...adapter.configSchema,
     protocolType: type as ProtocolType,
   }));
+}
+
+/**
+ * 从注册表自动生成协议列表（含元数据）
+ * 前端应调用此 API 而非硬编码 PROTOCOL_META
+ */
+export function listProtocols() {
+  return Object.entries(protocolAdapters).map(([type, adapter]) => ({
+    protocolType: type as ProtocolType,
+    label: adapter.configSchema.label,
+    icon: adapter.configSchema.icon,
+    description: adapter.configSchema.description,
+    category: adapter.configSchema.category,
+    fieldCounts: {
+      connection: adapter.configSchema.connectionFields.length,
+      auth: adapter.configSchema.authFields.length,
+      advanced: adapter.configSchema.advancedFields?.length || 0,
+    },
+  }));
+}
+
+/**
+ * 从注册表自动生成分类列表
+ * 前端应调用此 API 而非硬编码 PROTOCOL_CATEGORIES
+ */
+export function listCategories() {
+  const categoryMap = new Map<string, { label: string; protocols: Array<{ protocolType: string; label: string; icon: string; description: string }> }>();
+  
+  const categoryLabels: Record<string, string> = {
+    industrial: '工业协议',
+    database: '数据库',
+    messaging: '消息队列',
+    storage: '对象存储',
+    api: 'API',
+  };
+
+  for (const [type, adapter] of Object.entries(protocolAdapters)) {
+    const cat = adapter.configSchema.category;
+    if (!categoryMap.has(cat)) {
+      categoryMap.set(cat, {
+        label: categoryLabels[cat] || cat,
+        protocols: [],
+      });
+    }
+    categoryMap.get(cat)!.protocols.push({
+      protocolType: type,
+      label: adapter.configSchema.label,
+      icon: adapter.configSchema.icon,
+      description: adapter.configSchema.description,
+    });
+  }
+
+  return Object.fromEntries(categoryMap.entries());
 }
 
 // ============ 演示数据种子（基于真实SHM传感器数据格式） ============

@@ -15,9 +15,14 @@ export const accessLayerRouter = router({
   // ============ 统计 ============
   stats: publicProcedure.query(() => alService.getStats()),
 
-  // ============ 协议 Schema ============
+  // ============ 协议注册中心（自动同步） ============
+  /** 从适配器注册表自动生成协议列表（含 icon/description/category） */
+  listProtocols: publicProcedure.query(() => alService.listProtocols()),
+  /** 从适配器注册表自动生成分类列表 */
+  listCategories: publicProcedure.query(() => alService.listCategories()),
+  /** 获取所有协议的完整配置 Schema */
   protocolSchemas: publicProcedure.query(() => alService.getAllProtocolSchemas()),
-
+  /** 获取单个协议的配置 Schema */
   protocolSchema: publicProcedure
     .input(z.object({ protocolType: protocolTypeEnum }))
     .query(({ input }) => alService.getProtocolConfigSchema(input.protocolType)),

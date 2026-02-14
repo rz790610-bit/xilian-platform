@@ -17,6 +17,9 @@ export class MysqlAdapter extends BaseAdapter {
   readonly configSchema: ProtocolConfigSchema = {
     protocolType: 'mysql',
     label: 'MySQL 数据库',
+    icon: '🐬',
+    description: '关系型数据库',
+    category: 'database',
     connectionFields: [
       { key: 'host', label: '主机地址', type: 'string', required: true, placeholder: '192.168.1.100' },
       { key: 'port', label: '端口', type: 'number', required: true, defaultValue: 3306 },

@@ -18,6 +18,9 @@ export class MqttAdapter extends BaseAdapter {
   readonly configSchema: ProtocolConfigSchema = {
     protocolType: 'mqtt',
     label: 'MQTT Broker',
+    icon: '📡',
+    description: 'IoT 传感器实时数据流',
+    category: 'industrial',
     connectionFields: [
       { key: 'host', label: '主机地址', type: 'string', required: true, placeholder: '192.168.1.100', description: 'MQTT Broker 主机名或 IP' },
       { key: 'port', label: '端口', type: 'number', required: true, defaultValue: 1883, description: '默认 1883 (TCP), 8883 (TLS), 8083 (WebSocket)' },
