@@ -56,7 +56,7 @@ function extractFields(schema: any): any[] {
 }
 
 /** 解析 CSV 文本为数值数组 */
-function parseCSV(text: string): { data: number[] | number[][]; headers: string[]; rowCount: number; colCount: number; preview: string[][] } {
+function parseCSV(text: string): { data: number[] | number[][]; headers: string[]; rowCount: number; colCount: number; preview: string[][]; stats?: { min: number; max: number; mean: number; std: number } } {
   const lines = text.trim().split(/\r?\n/).filter(l => l.trim());
   if (lines.length === 0) return { data: [], headers: [], rowCount: 0, colCount: 0, preview: [] };
 
@@ -65,7 +65,6 @@ function parseCSV(text: string): { data: number[] | number[][]; headers: string[
   const sep = firstLine.includes('\t') ? '\t' : firstLine.includes(';') ? ';' : ',';
 
   const rows = lines.map(l => l.split(sep).map(c => c.trim()));
-  // 判断第一行是否为表头（包含非数字内容）
   const firstRowIsHeader = rows[0].some(c => isNaN(Number(c)) && c !== '');
   const headers = firstRowIsHeader ? rows[0] : rows[0].map((_, i) => `col_${i}`);
   const dataRows = firstRowIsHeader ? rows.slice(1) : rows;
@@ -75,11 +74,19 @@ function parseCSV(text: string): { data: number[] | number[][]; headers: string[
   }));
 
   const colCount = headers.length;
-  const preview = [headers, ...dataRows.slice(0, 5)];
+  // 预览只取前 8 行
+  const preview = [headers, ...dataRows.slice(0, 8)];
 
-  // 单列 → 1D 数组；多列 → 2D 数组
+  // 单列 → 1D 数组 + 统计信息
   if (colCount === 1) {
-    return { data: numericRows.map(r => r[0]), headers, rowCount: numericRows.length, colCount, preview };
+    const flat = numericRows.map(r => r[0]);
+    const min = Math.min(...flat.slice(0, 10000));
+    const max = Math.max(...flat.slice(0, 10000));
+    const sum = flat.reduce((a, b) => a + b, 0);
+    const mean = sum / flat.length;
+    const variance = flat.slice(0, 10000).reduce((a, b) => a + (b - mean) ** 2, 0) / Math.min(flat.length, 10000);
+    const std = Math.sqrt(variance);
+    return { data: flat, headers, rowCount: flat.length, colCount, preview, stats: { min, max, mean, std } };
   }
   return { data: numericRows, headers, rowCount: numericRows.length, colCount, preview };
 }
@@ -187,6 +194,7 @@ interface ParsedData {
   inputData: Record<string, any>;
   summary: string;
   preview?: string[][];
+  stats?: { min: number; max: number; mean: number; std: number };
   fileName: string;
   fileSize: number;
 }
@@ -245,12 +253,23 @@ function AlgorithmTestPanel({ algo, onClose }: { algo: any; onClose: () => void 
           setParsedData({ inputData, summary, fileName: file.name, fileSize: file.size });
         } else {
           // CSV / TXT / TSV
-          const { data, headers, rowCount, colCount, preview } = parseCSV(text);
+          const { data, headers, rowCount, colCount, preview, stats } = parseCSV(text);
           const inputData: Record<string, any> = { data };
+          // 尝试从文件名提取采样率（格式如 ..._12800_51200_...）
+          const srMatch = file.name.match(/(\d{3,6})_(\d{3,6})_/);
+          if (srMatch) {
+            const possibleSr = Number(srMatch[1]);
+            if (possibleSr >= 100 && possibleSr <= 102400) {
+              inputData.sampleRate = possibleSr;
+              setSampleRate(String(possibleSr));
+            }
+          }
+          const sizeStr = file.size > 1024 * 1024 ? `${(file.size / 1024 / 1024).toFixed(1)} MB` : `${(file.size / 1024).toFixed(1)} KB`;
           setParsedData({
             inputData,
-            summary: `${rowCount} 行 × ${colCount} 列 (${headers.join(', ')})`,
+            summary: `${rowCount.toLocaleString()} 采样点 · ${colCount} 通道 · ${sizeStr}${stats ? ` · 范围 [${stats.min.toFixed(1)}, ${stats.max.toFixed(1)}]` : ''}`,
             preview,
+            stats,
             fileName: file.name,
             fileSize: file.size,
           });
@@ -335,22 +354,21 @@ function AlgorithmTestPanel({ algo, onClose }: { algo: any; onClose: () => void 
   // ── 上传阶段 ──
   if (phase === 'upload') {
     return (
-      <div className="space-y-6">
+      <div className="space-y-3">
         {/* 输入模式切换 */}
-        <div className="flex gap-2">
-          <Button variant={inputMode === 'file' ? 'default' : 'outline'} size="sm" onClick={() => setInputMode('file')}>
-            📁 上传文件
+        <div className="flex gap-1.5">
+          <Button variant={inputMode === 'file' ? 'default' : 'outline'} size="sm" className="text-xs h-7 px-2" onClick={() => setInputMode('file')}>
+            上传文件
           </Button>
-          <Button variant={inputMode === 'json' ? 'default' : 'outline'} size="sm" onClick={() => setInputMode('json')}>
-            {"{ }"} JSON 输入
+          <Button variant={inputMode === 'json' ? 'default' : 'outline'} size="sm" className="text-xs h-7 px-2" onClick={() => setInputMode('json')}>
+            JSON 输入
           </Button>
         </div>
 
         {inputMode === 'file' ? (
           <div
-            className="border-2 border-dashed rounded-lg p-8 text-center cursor-pointer hover:border-primary/50 hover:bg-muted/30 transition-colors"
+            className="border-2 border-dashed rounded-md p-5 text-center cursor-pointer hover:border-primary/50 hover:bg-muted/30 transition-colors"
             onClick={() => {
-              // 先重置 value 再触发点击，确保同一文件也能重新选择
               if (fileInputRef.current) fileInputRef.current.value = '';
               fileInputRef.current?.click();
             }}
@@ -365,74 +383,51 @@ function AlgorithmTestPanel({ algo, onClose }: { algo: any; onClose: () => void 
               className="hidden"
               onChange={handleFileInputChange}
             />
-            <div className="text-3xl mb-3">📄</div>
-            <p className="font-medium">点击或拖拽文件到此处</p>
-            <p className="text-sm text-muted-foreground mt-1">
-              支持 CSV、JSON、TXT、TSV 格式
+            <p className="text-sm font-medium">点击或拖拽文件到此处</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              支持 CSV / JSON / TXT / TSV
             </p>
-            <div className="flex gap-4 justify-center mt-4 text-xs text-muted-foreground">
-              <span>CSV: 每行一条数据，逗号分隔</span>
-              <span>JSON: AlgorithmInput 格式或纯数组</span>
-            </div>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-2">
             <Textarea
               value={jsonInput}
               onChange={(e) => setJsonInput(e.target.value)}
-              placeholder={`输入 JSON 格式数据，例如：
-{
-  "data": [1.2, 3.4, 5.6, 7.8, 9.0, ...],
-  "sampleRate": 1000,
-  "equipment": {
-    "type": "motor",
-    "ratedSpeed": 1500
-  }
-}`}
-              className="font-mono text-xs min-h-[200px]"
+              placeholder='{"data": [1.2, 3.4, ...], "sampleRate": 1000}'
+              className="font-mono text-[11px] min-h-[120px]"
             />
-            <Button onClick={handleJsonSubmit} className="w-full">
-              解析 JSON 数据
+            <Button onClick={handleJsonSubmit} size="sm" className="w-full text-xs h-7">
+              解析 JSON
             </Button>
           </div>
         )}
 
-        {/* 示例数据快速填充 */}
-        <div className="border rounded-lg p-4 bg-muted/20">
-          <p className="text-sm font-medium mb-2">💡 快速测试</p>
-          <p className="text-xs text-muted-foreground mb-3">
-            没有数据文件？点击下方按钮生成模拟振动信号数据进行测试
-          </p>
-          <Button variant="outline" size="sm" onClick={() => {
-            // 生成模拟正弦波 + 噪声
-            const sampleRateVal = 1000;
-            const duration = 1; // 1秒
-            const n = sampleRateVal * duration;
-            const data: number[] = [];
-            for (let i = 0; i < n; i++) {
-              const t = i / sampleRateVal;
-              // 50Hz 基频 + 150Hz 三倍频 + 随机噪声
-              data.push(
-                Math.sin(2 * Math.PI * 50 * t) * 2.0 +
-                Math.sin(2 * Math.PI * 150 * t) * 0.8 +
-                (Math.random() - 0.5) * 0.3
-              );
-            }
-            const inputData = { data, sampleRate: sampleRateVal };
-            setParsedData({
-              inputData,
-              summary: `模拟振动信号: ${n} 个采样点, ${sampleRateVal} Hz 采样率, 50Hz + 150Hz 正弦波 + 噪声`,
-              fileName: '模拟数据',
-              fileSize: 0,
-            });
-            setSampleRate(String(sampleRateVal));
-            initConfigDefaults();
-            setPhase('configure');
-            toast.success("已生成模拟振动信号数据");
-          }}>
-            🎲 生成模拟振动信号
-          </Button>
-        </div>
+        {/* 快速测试 */}
+        <Button variant="outline" size="sm" className="w-full text-xs h-7" onClick={() => {
+          const sampleRateVal = 1000;
+          const n = sampleRateVal;
+          const data: number[] = [];
+          for (let i = 0; i < n; i++) {
+            const t = i / sampleRateVal;
+            data.push(
+              Math.sin(2 * Math.PI * 50 * t) * 2.0 +
+              Math.sin(2 * Math.PI * 150 * t) * 0.8 +
+              (Math.random() - 0.5) * 0.3
+            );
+          }
+          setParsedData({
+            inputData: { data, sampleRate: sampleRateVal },
+            summary: `模拟信号: ${n} 点, ${sampleRateVal} Hz, 50Hz+150Hz`,
+            fileName: '模拟数据',
+            fileSize: 0,
+          });
+          setSampleRate(String(sampleRateVal));
+          initConfigDefaults();
+          setPhase('configure');
+          toast.success("已生成模拟数据");
+        }}>
+          生成模拟振动信号（快速测试）
+        </Button>
       </div>
     );
   }
@@ -440,74 +435,85 @@ function AlgorithmTestPanel({ algo, onClose }: { algo: any; onClose: () => void 
   // ── 配置阶段 ──
   if (phase === 'configure') {
     return (
-      <div className="space-y-5">
-        {/* 数据摘要 */}
-        <Card className="bg-muted/30">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <span className="text-lg">📊</span>
-                <div>
-                  <p className="text-sm font-medium">{parsedData?.fileName}</p>
-                  <p className="text-xs text-muted-foreground">{parsedData?.summary}</p>
-                </div>
-              </div>
-              <Button variant="ghost" size="sm" onClick={() => { setParsedData(null); setPhase('upload'); }}>
-                更换数据
-              </Button>
+      <div className="space-y-3">
+        {/* 数据摘要 - 紧凑版 */}
+        <div className="bg-muted/30 rounded-md p-3">
+          <div className="flex items-center justify-between">
+            <div className="min-w-0">
+              <p className="text-xs font-medium truncate">{parsedData?.fileName}</p>
+              <p className="text-[11px] text-muted-foreground">{parsedData?.summary}</p>
             </div>
-            {/* 数据预览表格 */}
-            {parsedData?.preview && parsedData.preview.length > 1 && (
-              <div className="mt-3 overflow-x-auto">
-                <table className="w-full text-xs border-collapse">
-                  <thead>
-                    <tr>
-                      {parsedData.preview[0].map((h, i) => (
-                        <th key={i} className="border border-border px-2 py-1 bg-muted text-left font-medium">{h}</th>
+            <Button variant="ghost" size="sm" className="text-xs h-6 px-2 shrink-0" onClick={() => { setParsedData(null); setPhase('upload'); }}>
+              更换
+            </Button>
+          </div>
+          {/* 统计信息（单列数值数据时显示） */}
+          {parsedData?.stats && (
+            <div className="grid grid-cols-4 gap-2 mt-2">
+              <div className="bg-background rounded px-2 py-1">
+                <p className="text-[10px] text-muted-foreground">最小值</p>
+                <p className="text-xs font-mono font-medium">{parsedData.stats.min.toFixed(1)}</p>
+              </div>
+              <div className="bg-background rounded px-2 py-1">
+                <p className="text-[10px] text-muted-foreground">最大值</p>
+                <p className="text-xs font-mono font-medium">{parsedData.stats.max.toFixed(1)}</p>
+              </div>
+              <div className="bg-background rounded px-2 py-1">
+                <p className="text-[10px] text-muted-foreground">均值</p>
+                <p className="text-xs font-mono font-medium">{parsedData.stats.mean.toFixed(2)}</p>
+              </div>
+              <div className="bg-background rounded px-2 py-1">
+                <p className="text-[10px] text-muted-foreground">标准差</p>
+                <p className="text-xs font-mono font-medium">{parsedData.stats.std.toFixed(2)}</p>
+              </div>
+            </div>
+          )}
+          {/* 数据预览 - 仅显示前几行 */}
+          {parsedData?.preview && parsedData.preview.length > 1 && !parsedData.stats && (
+            <div className="mt-2 overflow-x-auto max-h-[100px]">
+              <table className="w-full text-[11px] border-collapse">
+                <thead>
+                  <tr>
+                    {parsedData.preview[0].map((h, i) => (
+                      <th key={i} className="border border-border px-1.5 py-0.5 bg-muted text-left font-medium">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {parsedData.preview.slice(1, 6).map((row, ri) => (
+                    <tr key={ri}>
+                      {row.map((cell, ci) => (
+                        <td key={ci} className="border border-border px-1.5 py-0.5 font-mono">{cell}</td>
                       ))}
                     </tr>
-                  </thead>
-                  <tbody>
-                    {parsedData.preview.slice(1).map((row, ri) => (
-                      <tr key={ri}>
-                        {row.map((cell, ci) => (
-                          <td key={ci} className="border border-border px-2 py-1 font-mono">{cell}</td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {parsedData.preview.length > 6 && (
-                  <p className="text-xs text-muted-foreground mt-1 text-center">仅显示前 5 行...</p>
-                )}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
 
-        {/* 采样率（信号处理算法需要） */}
-        <div>
-          <Label className="text-sm font-medium">采样率 (Hz)</Label>
-          <p className="text-xs text-muted-foreground mb-1">信号处理类算法必需，其他算法可留空</p>
+        {/* 采样率 */}
+        <div className="flex items-center gap-2">
+          <Label className="text-xs shrink-0">采样率 (Hz)</Label>
           <Input
             value={sampleRate}
             onChange={(e) => setSampleRate(e.target.value)}
-            placeholder="例如: 1000"
-            className="w-48"
+            placeholder="1000"
+            className="w-28 h-7 text-xs"
           />
         </div>
 
         {/* 配置参数 */}
         {configFields.length > 0 && (
           <div>
-            <Label className="text-sm font-medium">算法配置参数</Label>
-            <p className="text-xs text-muted-foreground mb-2">留空将使用默认值</p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <Label className="text-xs font-medium">配置参数</Label>
+            <div className="grid grid-cols-2 gap-2 mt-1">
               {configFields.map((field: any) => {
                 const key = field.name || field.key;
                 return (
-                  <div key={key} className="space-y-1">
-                    <Label className="text-xs">
+                  <div key={key} className="space-y-0.5">
+                    <Label className="text-[11px]">
                       {field.label || key}
                       {field.required && <span className="text-red-500 ml-0.5">*</span>}
                     </Label>
@@ -516,12 +522,12 @@ function AlgorithmTestPanel({ algo, onClose }: { algo: any; onClose: () => void 
                         value={configValues[key] || (field.default !== undefined ? String(field.default) : '')}
                         onValueChange={(v) => setConfigValues(prev => ({ ...prev, [key]: v }))}
                       >
-                        <SelectTrigger className="text-sm">
+                        <SelectTrigger className="text-xs h-7">
                           <SelectValue placeholder="选择" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="true">是 (true)</SelectItem>
-                          <SelectItem value="false">否 (false)</SelectItem>
+                          <SelectItem value="true">是</SelectItem>
+                          <SelectItem value="false">否</SelectItem>
                         </SelectContent>
                       </Select>
                     ) : field.type === 'enum' && field.options ? (
@@ -529,7 +535,7 @@ function AlgorithmTestPanel({ algo, onClose }: { algo: any; onClose: () => void 
                         value={configValues[key] || (field.default !== undefined ? String(field.default) : '')}
                         onValueChange={(v) => setConfigValues(prev => ({ ...prev, [key]: v }))}
                       >
-                        <SelectTrigger className="text-sm">
+                        <SelectTrigger className="text-xs h-7">
                           <SelectValue placeholder="选择" />
                         </SelectTrigger>
                         <SelectContent>
@@ -542,12 +548,12 @@ function AlgorithmTestPanel({ algo, onClose }: { algo: any; onClose: () => void 
                       <Input
                         value={configValues[key] || ''}
                         onChange={(e) => setConfigValues(prev => ({ ...prev, [key]: e.target.value }))}
-                        placeholder={field.default !== undefined ? `默认: ${field.default}` : ''}
-                        className="text-sm"
+                        placeholder={field.default !== undefined ? `${field.default}` : ''}
+                        className="text-xs h-7"
                       />
                     )}
                     {field.description && (
-                      <p className="text-xs text-muted-foreground">{field.description}</p>
+                      <p className="text-[10px] text-muted-foreground leading-tight">{field.description}</p>
                     )}
                   </div>
                 );
@@ -556,14 +562,12 @@ function AlgorithmTestPanel({ algo, onClose }: { algo: any; onClose: () => void 
           </div>
         )}
 
-        <Separator />
-
         {/* 操作按钮 */}
-        <div className="flex justify-between">
-          <Button variant="outline" onClick={() => { setParsedData(null); setPhase('upload'); }}>
-            ← 返回上传
+        <div className="flex justify-between pt-2">
+          <Button variant="outline" size="sm" className="text-xs h-7" onClick={() => { setParsedData(null); setPhase('upload'); }}>
+            ← 返回
           </Button>
-          <Button onClick={handleExecute} disabled={!parsedData}>
+          <Button size="sm" className="text-xs h-7" onClick={handleExecute} disabled={!parsedData}>
             ▶ 执行算法
           </Button>
         </div>
@@ -1144,11 +1148,11 @@ export default function AlgorithmDetail() {
 
         {/* 算法测试对话框 */}
         <Dialog open={testDialogOpen} onOpenChange={setTestDialogOpen}>
-          <DialogContent className="max-w-3xl max-h-[85vh]">
+          <DialogContent className="max-w-lg max-h-[70vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle className="text-base flex items-center gap-2">
-                🧪 测试 {algo.label || algo.algoName}
-                <Badge variant="outline" className="font-mono text-xs">{algo.algoCode}</Badge>
+              <DialogTitle className="text-sm flex items-center gap-2">
+                测试 {algo.label || algo.algoName}
+                <Badge variant="outline" className="font-mono text-[10px]">{algo.algoCode}</Badge>
               </DialogTitle>
             </DialogHeader>
             <AlgorithmTestPanel algo={algo} onClose={() => setTestDialogOpen(false)} />
