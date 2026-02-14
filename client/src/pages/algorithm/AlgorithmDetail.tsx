@@ -563,13 +563,37 @@ function AlgorithmTestPanel({ algo, onClose }: { algo: any; onClose: () => void 
         )}
 
         {/* 操作按钮 */}
-        <div className="flex justify-between pt-2">
+        <div className="flex items-center justify-between pt-2">
           <Button variant="outline" size="sm" className="text-xs h-7" onClick={() => { setParsedData(null); setPhase('upload'); }}>
             ← 返回
           </Button>
-          <Button size="sm" className="text-xs h-7" onClick={handleExecute} disabled={!parsedData}>
-            ▶ 执行算法
-          </Button>
+          <div className="flex gap-1.5">
+            <Button variant="outline" size="sm" className="text-xs h-7" onClick={() => {
+              const sr = 1000;
+              const data: number[] = [];
+              for (let i = 0; i < sr; i++) {
+                const t = i / sr;
+                data.push(
+                  Math.sin(2 * Math.PI * 50 * t) * 2.0 +
+                  Math.sin(2 * Math.PI * 150 * t) * 0.8 +
+                  (Math.random() - 0.5) * 0.3
+                );
+              }
+              setParsedData({
+                inputData: { data, sampleRate: sr },
+                summary: `模拟信号: ${sr} 点, ${sr} Hz, 50Hz+150Hz`,
+                fileName: '模拟数据',
+                fileSize: 0,
+              });
+              setSampleRate(String(sr));
+              toast.success("已生成模拟数据");
+            }}>
+              模拟信号
+            </Button>
+            <Button size="sm" className="text-xs h-7" onClick={handleExecute} disabled={!parsedData}>
+              ▶ 执行算法
+            </Button>
+          </div>
         </div>
       </div>
     );
