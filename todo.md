@@ -73,3 +73,30 @@
 ### 页面修复
 - [x] 插件管理页面代码完整（tRPC 调用路径匹配，运行时需数据库支持）
 - [x] ClickHouse 监控页面代码完整（tRPC 调用路径匹配，运行时需 ClickHouse 连接）
+
+## 五、算法库底层平台搭建
+
+### Phase 1: 逻辑设计文档
+- [ ] 分析现有 BaseRegistry 架构 + Pipeline 节点类型系统 + model router 接口模式
+- [ ] 输出算法应用全流程设计文档（API + 数据接口 + 配置逻辑 + 执行引擎）
+
+### Phase 2: 算法注册中心
+- [ ] 创建 algorithm.registry.ts + 6 大分类内置算法定义
+
+### Phase 3: 算法服务层
+- [ ] 创建 algorithm.service.ts（CRUD + 执行引擎 + 基准测试 + 版本管理）
+
+### Phase 4: tRPC 路由
+- [ ] 创建 algorithm.router.ts（完整 API 接口）
+
+### Phase 5: 集成
+- [ ] Pipeline 节点自动注册
+- [ ] 模型中心联动
+- [ ] KG 算子对接
+
+### Phase 6: 注册 + 验证
+- [ ] 注册到 appRouter + RegistryManager
+- [ ] TypeScript 编译通过
+
+### Phase 7: 提交
+- [ ] git commit + push

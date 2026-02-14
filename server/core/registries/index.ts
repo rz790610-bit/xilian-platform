@@ -23,6 +23,7 @@ import { pluginTypeRegistry, type PluginTypeRegistryItem } from './plugin-type.r
 import { deviceTypeRegistry, type DeviceTypeRegistryItem } from './device-type.registry';
 import { kgOperatorRegistry, type KGOperatorRegistryItem } from './kg-operator.registry';
 import { metricTypeRegistry, type MetricTypeRegistryItem } from './metric-type.registry';
+import { algorithmRegistry, type AlgorithmRegistryItem } from './algorithm.registry';
 
 // ============ 注册中心管理器 ============
 
@@ -144,6 +145,11 @@ registryManager.register('metricType', metricTypeRegistry, {
   description: '平台监控指标类型（系统、数据库、Pipeline、设备、业务指标）',
 });
 
+registryManager.register('algorithm', algorithmRegistry, {
+  label: '算法库',
+  description: '工业智能算法（信号处理、特征工程、机器学习、深度学习、异常检测、预测性维护、统计分析、优化）',
+});
+
 // ============ 导出所有注册中心实例 ============
 
 export { pipelineNodeRegistry } from './pipeline-node.registry';
@@ -151,6 +157,7 @@ export { pluginTypeRegistry } from './plugin-type.registry';
 export { deviceTypeRegistry } from './device-type.registry';
 export { kgOperatorRegistry } from './kg-operator.registry';
 export { metricTypeRegistry } from './metric-type.registry';
+export { algorithmRegistry } from './algorithm.registry';
 
 // ============ 导出类型 ============
 
@@ -159,3 +166,4 @@ export type { PluginTypeRegistryItem, PluginCapability, PluginConfigField } from
 export type { DeviceTypeRegistryItem, DeviceProperty, DeviceCommand, TelemetryField } from './device-type.registry';
 export type { KGOperatorRegistryItem, KGOperatorParam } from './kg-operator.registry';
 export type { MetricTypeRegistryItem, MetricCollector, AlertRuleTemplate, AggregationType } from './metric-type.registry';
+export type { AlgorithmRegistryItem, AlgorithmConfigField, AlgorithmIOField } from './algorithm.registry';

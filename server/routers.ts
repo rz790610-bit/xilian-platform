@@ -46,6 +46,8 @@ import { kgOrchestratorRouter } from "./api/kgOrchestrator.router";
 import { accessLayerRouter } from "./api/accessLayer.router";
 // ============ 统一注册中心 ============
 import { registryRouter } from "./api/registry.router";
+// ============ 算法赋能模块 ============
+import { algorithmRouter } from "./api/algorithm.router";
 // ============ 设备/传感器 CRUD ============
 import { deviceCrudRouter } from "./api/deviceCrud.router";
 import { sensorCrudRouter } from "./api/sensorCrud.router";
@@ -167,6 +169,8 @@ export const appRouter = router({
 
   // ============ 统一注册中心（所有模块的类型/分类/配置自动同步） ============
   registry: registryRouter,
+  // ============ 算法赋能模块（元数据管理 + 智能推荐 + 组合编排 + 桥接执行） ============
+  algorithm: algorithmRouter,
   // ============ 设备/传感器 CRUD ============
   deviceCrud: deviceCrudRouter,
   sensorCrud: sensorCrudRouter,

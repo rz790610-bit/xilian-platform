@@ -77,6 +77,21 @@ export const navigationConfig: NavItem[] = [
     ]
   },
   {
+    id: 'algorithm-library',
+    label: '算法库',
+    icon: '⚙️',
+    children: [
+      { id: 'algo-overview', label: '算法总览', icon: '📊', path: '/algorithm/overview' },
+      { id: 'algo-signal', label: '信号处理', icon: '📉', path: '/algorithm/signal' },
+      { id: 'algo-feature', label: '特征工程', icon: '🔧', path: '/algorithm/feature' },
+      { id: 'algo-ml', label: '机器学习', icon: '🧠', path: '/algorithm/ml' },
+      { id: 'algo-anomaly', label: '异常检测', icon: '⚠️', path: '/algorithm/anomaly' },
+      { id: 'algo-predict', label: '预测性维护', icon: '🔮', path: '/algorithm/predict' },
+      { id: 'algo-compose', label: '算法编排', icon: '🔗', path: '/algorithm/compose' },
+      { id: 'algo-execution', label: '执行记录', icon: '📝', path: '/algorithm/execution' },
+    ]
+  },
+  {
     id: 'diagnosis',
     label: '智能诊断',
     icon: '🔬',

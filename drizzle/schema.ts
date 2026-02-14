@@ -2911,3 +2911,199 @@ export const dataBindings = mysqlTable("data_bindings", {
 ]);
 export type DataBinding = typeof dataBindings.$inferSelect;
 export type InsertDataBinding = typeof dataBindings.$inferInsert;
+
+// ============================================================================
+// 算法库模块 (Algorithm Library)
+// ============================================================================
+// 设计原则：
+//   1. 算法库是统一编排层，不重建执行引擎
+//   2. impl_type + impl_ref 桥接已有模块（Pipeline Engine / 插件引擎 / 内置 / 外部）
+//   3. kg_integration 打通算法库↔KG 双向闭环
+//   4. fleet_learning_config 支持 A/B 测试 + 跨设备参数优化
+//   5. algorithm_routing_rules 实现条件路由 + 级联触发
+// ============================================================================
+
+/**
+ * 算法定义表 — 算法库的核心表
+ * 管理算法的元数据，不存储算法实现（实现在 Pipeline Engine / 插件引擎中）
+ */
+export const algorithmDefinitions = mysqlTable("algorithm_definitions", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  algoCode: varchar("algo_code", { length: 64 }).notNull().unique(),
+  algoName: varchar("algo_name", { length: 200 }).notNull(),
+  category: varchar("category", { length: 64 }).notNull(),
+  subcategory: varchar("subcategory", { length: 64 }),
+  description: text("description"),
+  implType: mysqlEnum("impl_type", ["pipeline_node", "plugin", "builtin", "external", "kg_operator"]).notNull(),
+  implRef: varchar("impl_ref", { length: 200 }),
+  inputSchema: json("input_schema").$type<Record<string, unknown>>().notNull(),
+  outputSchema: json("output_schema").$type<Record<string, unknown>>().notNull(),
+  configSchema: json("config_schema").$type<Record<string, unknown>>().notNull(),
+  applicableDeviceTypes: json("applicable_device_types").$type<string[]>(),
+  applicableMeasurementTypes: json("applicable_measurement_types").$type<string[]>(),
+  applicableScenarios: json("applicable_scenarios").$type<string[]>(),
+  kgIntegration: json("kg_integration").$type<{
+    writes_to_kg?: boolean;
+    node_type?: string;
+    edge_type?: string;
+    kg_schema_mapping?: Record<string, string>;
+    reads_from_kg?: boolean;
+    kg_query?: string;
+  }>(),
+  version: varchar("version", { length: 32 }).notNull().default("v1.0.0"),
+  benchmark: json("benchmark").$type<{
+    latency_ms?: number;
+    throughput_rps?: number;
+    memory_mb?: number;
+    accuracy?: number;
+    f1_score?: number;
+    test_dataset?: string;
+    test_date?: string;
+  }>(),
+  compatibleInputVersions: json("compatible_input_versions").$type<string[]>(),
+  breakingChange: tinyint("breaking_change").default(0),
+  fleetLearningConfig: json("fleet_learning_config").$type<{
+    enable_ab_test?: boolean;
+    ab_split_ratio?: number;
+    quality_metrics?: string[];
+    auto_rollback_threshold?: Record<string, number>;
+    fleet_aggregation?: { enabled?: boolean; update_freq?: string; min_samples?: number };
+    previous_version?: string;
+  }>(),
+  license: mysqlEnum("license", ["builtin", "community", "enterprise"]).default("builtin"),
+  author: varchar("author", { length: 128 }),
+  documentationUrl: varchar("documentation_url", { length: 500 }),
+  tags: json("tags").$type<string[]>(),
+  status: mysqlEnum("status", ["active", "deprecated", "experimental"]).default("active"),
+  createdAt: timestamp("created_at", { fsp: 3 }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { fsp: 3 }).defaultNow().notNull(),
+}, (table) => [
+  index("idx_ad_cat").on(table.category),
+  index("idx_ad_impl").on(table.implType),
+  index("idx_ad_status").on(table.status),
+  index("idx_ad_subcategory").on(table.subcategory),
+]);
+export type AlgorithmDefinition = typeof algorithmDefinitions.$inferSelect;
+export type InsertAlgorithmDefinition = typeof algorithmDefinitions.$inferInsert;
+
+/**
+ * 算法组合表 — 将多个原子算法编排为场景化方案（DAG 结构）
+ */
+export const algorithmCompositions = mysqlTable("algorithm_compositions", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  compCode: varchar("comp_code", { length: 64 }).notNull().unique(),
+  compName: varchar("comp_name", { length: 200 }).notNull(),
+  description: text("description"),
+  steps: json("steps").$type<{
+    nodes: Array<{
+      id: string;
+      order: number;
+      algo_code: string;
+      config_overrides?: Record<string, unknown>;
+      kg_integration?: { writes_to_kg?: boolean; node_type?: string; properties?: string[]; creates_edge?: { from: string; to: string; type: string; condition?: string } };
+      input_from_kg?: boolean;
+      impl_type_override?: string;
+      impl_ref_override?: string;
+    }>;
+    edges: Array<{ from: string; to: string; condition?: string; data_mapping?: Record<string, string> }>;
+  }>().notNull(),
+  applicableDeviceTypes: json("applicable_device_types").$type<string[]>(),
+  applicableScenarios: json("applicable_scenarios").$type<string[]>(),
+  version: varchar("version", { length: 32 }).notNull().default("v1.0.0"),
+  isTemplate: tinyint("is_template").default(0),
+  status: mysqlEnum("status", ["active", "deprecated", "draft"]).default("active"),
+  createdBy: varchar("created_by", { length: 64 }),
+  createdAt: timestamp("created_at", { fsp: 3 }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { fsp: 3 }).defaultNow().notNull(),
+}, (table) => [
+  index("idx_ac_status").on(table.status),
+  index("idx_ac_template").on(table.isTemplate),
+]);
+export type AlgorithmComposition = typeof algorithmCompositions.$inferSelect;
+export type InsertAlgorithmComposition = typeof algorithmCompositions.$inferInsert;
+
+/**
+ * 算法-设备绑定表 — 记录具体设备实例与算法的绑定关系
+ */
+export const algorithmDeviceBindings = mysqlTable("algorithm_device_bindings", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  deviceCode: varchar("device_code", { length: 64 }).notNull(),
+  sensorCode: varchar("sensor_code", { length: 64 }),
+  algoCode: varchar("algo_code", { length: 64 }).notNull(),
+  bindingType: mysqlEnum("binding_type", ["algorithm", "composition"]).notNull(),
+  configOverrides: json("config_overrides").$type<Record<string, unknown>>(),
+  schedule: json("schedule").$type<{ type: "cron" | "interval" | "event" | "manual"; value?: string; timezone?: string }>(),
+  outputRouting: json("output_routing").$type<Array<{ target: string; mapping: Record<string, string>; condition?: string; transform?: string }>>(),
+  status: mysqlEnum("status", ["active", "paused", "error"]).default("active"),
+  lastRunAt: timestamp("last_run_at", { fsp: 3 }),
+  lastRunStatus: varchar("last_run_status", { length: 32 }),
+  errorMessage: text("error_message"),
+  createdAt: timestamp("created_at", { fsp: 3 }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { fsp: 3 }).defaultNow().notNull(),
+}, (table) => [
+  index("idx_adb_device").on(table.deviceCode),
+  index("idx_adb_algo").on(table.algoCode),
+  index("idx_adb_status").on(table.status),
+  uniqueIndex("idx_adb_unique").on(table.deviceCode, table.sensorCode, table.algoCode),
+]);
+export type AlgorithmDeviceBinding = typeof algorithmDeviceBindings.$inferSelect;
+export type InsertAlgorithmDeviceBinding = typeof algorithmDeviceBindings.$inferInsert;
+
+/**
+ * 算法执行记录表 — 审计、性能分析、Fleet Learning 数据采集
+ */
+export const algorithmExecutions = mysqlTable("algorithm_executions", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  executionId: varchar("execution_id", { length: 64 }).notNull().unique(),
+  bindingId: bigint("binding_id", { mode: "number" }),
+  algoCode: varchar("algo_code", { length: 64 }).notNull(),
+  deviceCode: varchar("device_code", { length: 64 }),
+  inputSummary: json("input_summary").$type<{ record_count?: number; fields?: string[]; sample_rate_hz?: number; data_range?: [number, number] }>(),
+  configUsed: json("config_used").$type<Record<string, unknown>>(),
+  outputSummary: json("output_summary").$type<Record<string, unknown>>(),
+  startedAt: timestamp("started_at", { fsp: 3 }),
+  completedAt: timestamp("completed_at", { fsp: 3 }),
+  durationMs: int("duration_ms"),
+  recordsProcessed: int("records_processed"),
+  memoryUsedMb: double("memory_used_mb"),
+  status: mysqlEnum("status", ["running", "success", "failed", "timeout"]).notNull(),
+  errorMessage: text("error_message"),
+  routingStatus: json("routing_status").$type<Array<{ target: string; records_written: number; success: boolean; error?: string }>>(),
+  abGroup: varchar("ab_group", { length: 16 }),
+  algoVersion: varchar("algo_version", { length: 32 }),
+  qualityMetrics: json("quality_metrics").$type<Record<string, number>>(),
+  createdAt: timestamp("created_at", { fsp: 3 }).defaultNow().notNull(),
+}, (table) => [
+  index("idx_ae_algo").on(table.algoCode),
+  index("idx_ae_device").on(table.deviceCode),
+  index("idx_ae_status").on(table.status),
+  index("idx_ae_time").on(table.startedAt),
+  index("idx_ae_binding").on(table.bindingId),
+  index("idx_ae_ab").on(table.abGroup),
+]);
+export type AlgorithmExecution = typeof algorithmExecutions.$inferSelect;
+export type InsertAlgorithmExecution = typeof algorithmExecutions.$inferInsert;
+
+/**
+ * 算法路由规则表 — 条件路由 + 级联触发（动态路由引擎）
+ */
+export const algorithmRoutingRules = mysqlTable("algorithm_routing_rules", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  bindingId: bigint("binding_id", { mode: "number" }).notNull(),
+  ruleName: varchar("rule_name", { length: 200 }).notNull(),
+  description: text("description"),
+  priority: int("priority").notNull().default(100),
+  condition: text("condition").notNull(),
+  targets: json("targets").$type<Array<{ target: string; action: "create" | "update" | "upsert"; mapping?: Record<string, string>; params?: Record<string, unknown>; severity?: string }>>().notNull(),
+  cascadeAlgos: json("cascade_algos").$type<Array<{ algo_code: string; delay_ms?: number; config_overrides?: Record<string, unknown>; condition?: string }>>(),
+  stopOnMatch: tinyint("stop_on_match").default(1),
+  status: mysqlEnum("status", ["active", "disabled"]).default("active"),
+  createdAt: timestamp("created_at", { fsp: 3 }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { fsp: 3 }).defaultNow().notNull(),
+}, (table) => [
+  index("idx_arr_binding").on(table.bindingId),
+  index("idx_arr_priority").on(table.priority),
+  index("idx_arr_status").on(table.status),
+]);
+export type AlgorithmRoutingRule = typeof algorithmRoutingRules.$inferSelect;
+export type InsertAlgorithmRoutingRule = typeof algorithmRoutingRules.$inferInsert;

@@ -34,6 +34,8 @@ import VectorAdmin from "./pages/VectorAdmin";
 // 新增模块页面
 import DeviceList from "./pages/device/DeviceList";
 import EdgeNodes from "./pages/edge/EdgeNodes";
+// 算法库
+import { AlgorithmOverview, AlgorithmDetail, AlgorithmCategory } from "./pages/algorithm";
 
 // v1.5 数据库模块页面
 import {
@@ -151,6 +153,17 @@ function Router() {
       <Route path="/model/finetune" component={ModelFinetune} />
       <Route path="/model/eval" component={ModelEval} />
       <Route path="/model/repo" component={ModelRepo} />
+      
+      {/* 算法库 */}
+      <Route path="/algorithm/overview" component={AlgorithmOverview} />
+      <Route path="/algorithm/detail/:id" component={AlgorithmDetail} />
+      <Route path="/algorithm/signal" component={AlgorithmCategory} />
+      <Route path="/algorithm/feature" component={AlgorithmCategory} />
+      <Route path="/algorithm/ml" component={AlgorithmCategory} />
+      <Route path="/algorithm/anomaly" component={AlgorithmCategory} />
+      <Route path="/algorithm/predict" component={AlgorithmCategory} />
+      <Route path="/algorithm/compose" component={AlgorithmCategory} />
+      <Route path="/algorithm/execution" component={AlgorithmCategory} />
       
       {/* 智能诊断 */}
       <Route path="/diagnosis/analysis" component={DiagAnalysis} />
