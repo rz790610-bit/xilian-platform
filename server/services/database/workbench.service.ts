@@ -13,6 +13,7 @@
  */
 
 import { sql } from "drizzle-orm";
+import { config } from '../../core/config';
 import { getDb } from "../../lib/db";
 
 // ============ 类型定义 ============
@@ -1067,31 +1068,31 @@ await fetch('/api/rest/${tableName}/1', {
       python: `import requests
 
 # 查询数据
-res = requests.get('http://localhost:3000/api/rest/${tableName}', params={'page': 1, 'pageSize': 20})
+res = requests.get('${config.app.baseUrl}/api/rest/${tableName}', params={'page': 1, 'pageSize': 20})
 data = res.json()
 print(data['rows'])
 
 # 插入记录
-res = requests.post('http://localhost:3000/api/rest/${tableName}', json={...})
+res = requests.post('${config.app.baseUrl}/api/rest/${tableName}', json={...})
 
 # 更新记录
-res = requests.put('http://localhost:3000/api/rest/${tableName}/1', json={...})
+res = requests.put('${config.app.baseUrl}/api/rest/${tableName}/1', json={...})
 
 # 删除记录
-res = requests.delete('http://localhost:3000/api/rest/${tableName}/1')`,
+res = requests.delete('${config.app.baseUrl}/api/rest/${tableName}/1')`,
       curl: `# 查询数据
-curl -s 'http://localhost:3000/api/rest/${tableName}?page=1&pageSize=20' | jq
+curl -s '${config.app.baseUrl}/api/rest/${tableName}?page=1&pageSize=20' | jq
 
 # 获取单条记录
-curl -s 'http://localhost:3000/api/rest/${tableName}/1' | jq
+curl -s '${config.app.baseUrl}/api/rest/${tableName}/1' | jq
 
 # 插入记录
-curl -X POST 'http://localhost:3000/api/rest/${tableName}' \\
+curl -X POST '${config.app.baseUrl}/api/rest/${tableName}' \\
   -H 'Content-Type: application/json' \\
   -d '{"key": "value"}'
 
 # 导出 CSV
-curl -s 'http://localhost:3000/api/rest/${tableName}/export?format=csv' -o ${tableName}.csv`,
+curl -s '${config.app.baseUrl}/api/rest/${tableName}/export?format=csv' -o ${tableName}.csv`,
     };
 
     return {

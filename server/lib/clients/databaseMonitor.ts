@@ -375,7 +375,7 @@ export async function getAllDatabaseStatus(): Promise<DatabaseStatus[]> {
       type: types[index],
       status: 'offline' as const,
       version: 'unknown',
-      host: 'localhost',
+      host: 'unknown',
       port: 0,
       connections: { active: 0, idle: 0, max: 0 },
       performance: { queryLatencyMs: 0, throughputQps: 0, errorRate: 100 },

@@ -4,6 +4,7 @@
  */
 
 import { createTopoNode, getTopoNodes, createTopoEdge, getTopoEdges, deleteTopoNode, deleteTopoEdge } from './topology.service';
+import { config } from '../core/config';
 
 // 可发现的服务定义
 interface DiscoverableService {
@@ -41,7 +42,7 @@ const DISCOVERABLE_SERVICES: DiscoverableService[] = [
     type: 'output',
     icon: '🖥️',
     description: 'PortAI NexusWeb界面',
-    detection: { type: 'http', url: 'http://localhost:3000', method: 'GET' },
+    detection: { type: 'http', url: `${config.app.baseUrl}`, method: 'GET' },
     dependsOn: ['api_server'],
   },
   {
@@ -50,7 +51,7 @@ const DISCOVERABLE_SERVICES: DiscoverableService[] = [
     type: 'service',
     icon: '🌐',
     description: 'PortAI Nexus后端API',
-    detection: { type: 'tcp', host: 'localhost', port: 3000 },
+    detection: { type: 'tcp', host: config.app.host === '0.0.0.0' ? '127.0.0.1' : config.app.host, port: config.app.port },
     dependsOn: ['mysql_db', 'ollama', 'qdrant'],
   },
   
@@ -61,7 +62,7 @@ const DISCOVERABLE_SERVICES: DiscoverableService[] = [
     type: 'engine',
     icon: '🦙',
     description: '本地大模型推理服务',
-    detection: { type: 'http', url: 'http://localhost:11434/api/tags', method: 'GET' },
+    detection: { type: 'http', url: `http://${config.externalApis.openaiBaseUrl.includes('localhost') ? 'localhost' : config.externalApis.openaiBaseUrl.split('//')[1]?.split('/')[0] || 'localhost'}:11434/api/tags`, method: 'GET' },
     dependedBy: ['api_server', 'ai_chat'],
   },
   {
@@ -70,7 +71,7 @@ const DISCOVERABLE_SERVICES: DiscoverableService[] = [
     type: 'agent',
     icon: '💬',
     description: 'AI智能对话模块',
-    detection: { type: 'http', url: 'http://localhost:3000/chat', method: 'GET' },
+    detection: { type: 'http', url: `${config.app.baseUrl}/chat`, method: 'GET' },
     dependsOn: ['ollama', 'qdrant'],
   },
   
@@ -81,7 +82,7 @@ const DISCOVERABLE_SERVICES: DiscoverableService[] = [
     type: 'database',
     icon: '🔴',
     description: '向量数据库',
-    detection: { type: 'http', url: 'http://localhost:6333/collections', method: 'GET' },
+    detection: { type: 'http', url: `${config.qdrant.url}/collections`, method: 'GET' },
     dependedBy: ['api_server', 'knowledge_base'],
   },
   {
@@ -90,7 +91,7 @@ const DISCOVERABLE_SERVICES: DiscoverableService[] = [
     type: 'database',
     icon: '🐬',
     description: '关系型数据库',
-    detection: { type: 'tcp', host: 'localhost', port: 3306 },
+    detection: { type: 'tcp', host: config.mysql.host, port: config.mysql.port },
     dependedBy: ['api_server'],
   },
   {
@@ -99,8 +100,8 @@ const DISCOVERABLE_SERVICES: DiscoverableService[] = [
     type: 'database',
     icon: '🔶',
     description: '缓存服务',
-    detection: { type: 'tcp', host: 'localhost', port: 6379 },
-    dependedBy: ['api_server'],
+     detection: { type: 'tcp', host: config.redis.host, port: config.redis.port },
+    dependsOn: ['api_server'],
   },
   
   // ============ 知识库模块 ============
@@ -110,7 +111,7 @@ const DISCOVERABLE_SERVICES: DiscoverableService[] = [
     type: 'plugin',
     icon: '📚',
     description: '知识库管理模块',
-    detection: { type: 'http', url: 'http://localhost:3000/knowledge/manager', method: 'GET' },
+    detection: { type: 'http', url: `${config.app.baseUrl}/knowledge/manager`, method: 'GET' },
     dependsOn: ['qdrant', 'ollama'],
   },
   {
@@ -119,7 +120,7 @@ const DISCOVERABLE_SERVICES: DiscoverableService[] = [
     type: 'plugin',
     icon: '🕸️',
     description: '知识图谱可视化',
-    detection: { type: 'http', url: 'http://localhost:3000/knowledge/graph', method: 'GET' },
+    detection: { type: 'http', url: `${config.app.baseUrl}/knowledge/graph`, method: 'GET' },
     dependsOn: ['mysql_db'],
   },
   
@@ -130,7 +131,7 @@ const DISCOVERABLE_SERVICES: DiscoverableService[] = [
     type: 'source',
     icon: '📡',
     description: '外部数据接入',
-    detection: { type: 'http', url: 'http://localhost:3000/data/access', method: 'GET' },
+    detection: { type: 'http', url: `${config.app.baseUrl}/data/access`, method: 'GET' },
     dependedBy: ['data_processor'],
   },
   {
@@ -139,7 +140,7 @@ const DISCOVERABLE_SERVICES: DiscoverableService[] = [
     type: 'engine',
     icon: '⚙️',
     description: '数据清洗和转换',
-    detection: { type: 'http', url: 'http://localhost:3000/data/manage', method: 'GET' },
+    detection: { type: 'http', url: `${config.app.baseUrl}/data/manage`, method: 'GET' },
     dependsOn: ['data_source'],
     dependedBy: ['ai_chat', 'knowledge_base'],
   },
@@ -151,7 +152,7 @@ const DISCOVERABLE_SERVICES: DiscoverableService[] = [
     type: 'agent',
     icon: '🤖',
     description: '智能诊断分析',
-    detection: { type: 'http', url: 'http://localhost:3000/agents', method: 'GET' },
+    detection: { type: 'http', url: `${config.app.baseUrl}/agents`, method: 'GET' },
     dependsOn: ['ollama', 'knowledge_base'],
   },
 

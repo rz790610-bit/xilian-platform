@@ -6,6 +6,7 @@
 import { updateTopoNodeStatus, updateTopoNodeMetrics, getTopoNodes, createTopoNode, getTopoNodeById } from '../services/topology.service';
 import { redisClient } from '../lib/clients/redis.client';
 import { kafkaClient } from '../lib/clients/kafka.client';
+import { config } from '../core/config';
 
 // 服务配置类型
 interface ServiceConfig {
@@ -31,7 +32,7 @@ const SYSTEM_SERVICES: ServiceConfig[] = [
     type: 'service',
     icon: '🦙',
     description: '本地大模型服务',
-    checkUrl: 'http://localhost:11434/api/tags',
+    checkUrl: `http://${process.env.OLLAMA_HOST || 'localhost'}:${process.env.OLLAMA_PORT || 11434}/api/tags`,
     checkMethod: 'GET',
     checkTimeout: 5000,
     parseResponse: (data) => ({
@@ -45,7 +46,7 @@ const SYSTEM_SERVICES: ServiceConfig[] = [
     type: 'database',
     icon: '🔴',
     description: '向量数据库',
-    checkUrl: 'http://localhost:6333/collections',
+    checkUrl: `${config.qdrant.url}/collections`,
     checkMethod: 'GET',
     checkTimeout: 5000,
     parseResponse: (data) => ({

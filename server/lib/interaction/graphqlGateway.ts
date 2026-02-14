@@ -9,6 +9,9 @@
  */
 
 import { EventEmitter } from 'events';
+import { config } from '../../core/config';
+
+const GQL_HOST = config.app.host === '0.0.0.0' ? 'localhost' : config.app.host;
 import { GatewayStats } from "../../core/types/domain";
 export { GatewayStats };
 
@@ -107,8 +110,8 @@ const DEFAULT_CONFIG: GraphQLGatewayConfig = {
 export const XILIAN_SUBGRAPHS: SubgraphConfig[] = [
   {
     name: 'devices',
-    url: 'http://localhost:4001/graphql',
-    healthCheckUrl: 'http://localhost:4001/health',
+    url: `http://${GQL_HOST}:${process.env.GQL_DEVICE_PORT || 4001}/graphql`,
+    healthCheckUrl: `http://${GQL_HOST}:${process.env.GQL_DEVICE_PORT || 4001}/health`,
     enabled: true,
     schema: `
       type Device @key(fields: "id") {
@@ -244,8 +247,8 @@ export const XILIAN_SUBGRAPHS: SubgraphConfig[] = [
   },
   {
     name: 'knowledge',
-    url: 'http://localhost:4002/graphql',
-    healthCheckUrl: 'http://localhost:4002/health',
+    url: `http://${GQL_HOST}:${process.env.GQL_TELEMETRY_PORT || 4002}/graphql`,
+    healthCheckUrl: `http://${GQL_HOST}:${process.env.GQL_TELEMETRY_PORT || 4002}/health`,
     enabled: true,
     schema: `
       type KnowledgeNode @key(fields: "id") {
@@ -355,8 +358,8 @@ export const XILIAN_SUBGRAPHS: SubgraphConfig[] = [
   },
   {
     name: 'analytics',
-    url: 'http://localhost:4003/graphql',
-    healthCheckUrl: 'http://localhost:4003/health',
+    url: `http://${GQL_HOST}:${process.env.GQL_KNOWLEDGE_PORT || 4003}/graphql`,
+    healthCheckUrl: `http://${GQL_HOST}:${process.env.GQL_KNOWLEDGE_PORT || 4003}/health`,
     enabled: true,
     schema: `
       type TimeSeriesData {
@@ -443,8 +446,8 @@ export const XILIAN_SUBGRAPHS: SubgraphConfig[] = [
   },
   {
     name: 'users',
-    url: 'http://localhost:4004/graphql',
-    healthCheckUrl: 'http://localhost:4004/health',
+    url: `http://${GQL_HOST}:${process.env.GQL_ANALYTICS_PORT || 4004}/graphql`,
+    healthCheckUrl: `http://${GQL_HOST}:${process.env.GQL_ANALYTICS_PORT || 4004}/health`,
     enabled: true,
     schema: `
       type User @key(fields: "id") {

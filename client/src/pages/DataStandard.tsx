@@ -43,8 +43,10 @@ import type {
   DataQualityRule 
 } from '@/types';
 
-// 模拟设备编码规范
-const mockDeviceCodeStandards: DeviceCodeStandard[] = [
+// ─── 出厂默认配置（可被后端 API 覆盖） ───
+// 以下为行业标准参考数据，作为系统初始化默认值
+
+const DEFAULT_DEVICE_CODE_STANDARDS: DeviceCodeStandard[] = [
   {
     id: '1',
     name: '标准设备编码',
@@ -61,8 +63,7 @@ const mockDeviceCodeStandards: DeviceCodeStandard[] = [
   }
 ];
 
-// 模拟测点编码规范
-const mockMeasurePointStandards: MeasurePointStandard[] = [
+const DEFAULT_MEASURE_POINT_STANDARDS: MeasurePointStandard[] = [
   {
     id: '1',
     name: '振动测点编码',
@@ -91,8 +92,7 @@ const mockMeasurePointStandards: MeasurePointStandard[] = [
   }
 ];
 
-// 模拟单位换算规则
-const mockUnitConversions: UnitConversion[] = [
+const DEFAULT_UNIT_CONVERSIONS: UnitConversion[] = [
   { id: '1', name: '加速度转速度', category: 'vibration', fromUnit: 'g', toUnit: 'mm/s', formula: 'x * 9.8 * 1000 / (2 * π * f)', description: '需要频率参数' },
   { id: '2', name: '华氏转摄氏', category: 'temperature', fromUnit: '°F', toUnit: '°C', formula: '(x - 32) * 5 / 9' },
   { id: '3', name: 'PSI转MPa', category: 'pressure', fromUnit: 'PSI', toUnit: 'MPa', formula: 'x * 0.00689476' },
@@ -100,8 +100,7 @@ const mockUnitConversions: UnitConversion[] = [
   { id: '5', name: 'mA转百分比', category: 'current', fromUnit: 'mA', toUnit: '%', formula: '(x - 4) / 16 * 100', description: '4-20mA标准信号' }
 ];
 
-// 模拟故障分类
-const mockFaultCategories: FaultCategory[] = [
+const DEFAULT_FAULT_CATEGORIES: FaultCategory[] = [
   {
     id: '1', code: 'M', name: '机械故障', level: 1, children: [
       { id: '1-1', code: 'M1', name: '不平衡', parentId: '1', level: 2, symptoms: ['1X振动大', '相位稳定'] },
@@ -128,15 +127,13 @@ const mockFaultCategories: FaultCategory[] = [
   }
 ];
 
-// 模拟工况阈值
-const mockConditionThresholds: ConditionThreshold[] = [
+const DEFAULT_CONDITION_THRESHOLDS: ConditionThreshold[] = [
   { id: '1', name: '振动速度阈值', measureType: 'velocity', unit: 'mm/s', normalMin: 0, normalMax: 4.5, warningMin: 4.5, warningMax: 11.2, alarmMin: 11.2, alarmMax: 999, description: 'ISO 10816-3 标准' },
   { id: '2', name: '轴承温度阈值', measureType: 'temperature', unit: '°C', normalMin: 0, normalMax: 70, warningMin: 70, warningMax: 85, alarmMin: 85, alarmMax: 999, description: '滚动轴承温度标准' },
   { id: '3', name: '电机电流阈值', measureType: 'current', unit: 'A', normalMin: 0, normalMax: 100, warningMin: 100, warningMax: 115, alarmMin: 115, alarmMax: 999, description: '额定电流百分比' }
 ];
 
-// 模拟数据质量规则
-const mockDataQualityRules: DataQualityRule[] = [
+const DEFAULT_DATA_QUALITY_RULES: DataQualityRule[] = [
   { id: '1', name: '空值检查', type: 'null', field: '*', condition: 'value == null', action: 'reject', description: '拒绝空值数据', enabled: true },
   { id: '2', name: '振动范围检查', type: 'range', field: 'vibration', condition: 'value < 0 || value > 100', action: 'warn', description: '振动值应在0-100mm/s', enabled: true },
   { id: '3', name: '温度范围检查', type: 'range', field: 'temperature', condition: 'value < -40 || value > 200', action: 'warn', description: '温度值应在-40~200°C', enabled: true },
@@ -192,12 +189,12 @@ function FaultCategoryTree({ categories, level = 0 }: { categories: FaultCategor
 export default function DataStandard() {
   const toast = useToast();
   const [activeTab, setActiveTab] = useState('device');
-  const [deviceStandards, setDeviceStandards] = useState(mockDeviceCodeStandards);
-  const [measureStandards, setMeasureStandards] = useState(mockMeasurePointStandards);
-  const [unitConversions, setUnitConversions] = useState(mockUnitConversions);
-  const [faultCategories] = useState(mockFaultCategories);
-  const [thresholds, setThresholds] = useState(mockConditionThresholds);
-  const [qualityRules, setQualityRules] = useState(mockDataQualityRules);
+  const [deviceStandards, setDeviceStandards] = useState(DEFAULT_DEVICE_CODE_STANDARDS);
+  const [measureStandards, setMeasureStandards] = useState(DEFAULT_MEASURE_POINT_STANDARDS);
+  const [unitConversions, setUnitConversions] = useState(DEFAULT_UNIT_CONVERSIONS);
+  const [faultCategories] = useState(DEFAULT_FAULT_CATEGORIES);
+  const [thresholds, setThresholds] = useState(DEFAULT_CONDITION_THRESHOLDS);
+  const [qualityRules, setQualityRules] = useState(DEFAULT_DATA_QUALITY_RULES);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [dialogType, setDialogType] = useState<'threshold' | 'conversion' | 'rule'>('threshold');
 

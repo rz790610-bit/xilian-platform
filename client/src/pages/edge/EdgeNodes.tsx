@@ -1,18 +1,16 @@
 /**
  * PortAI Nexus - 边缘计算管理
- * 
+ *
  * 支持 4 个路由 Tab 切换:
  *   /edge/nodes     → 边缘节点管理
  *   /edge/inference → 边缘推理管理
  *   /edge/gateway   → 边缘网关管理
  *   /edge/tsn       → 5G TSN 管理
- * 
- * 数据源: 纯前端 Mock（原 EdgeNodes 为 Mock）
- * 后端依赖: 无（ops.listEdgeNodes 等已在 OpsDashboard 中使用）
- * 数据库依赖: 无
+ *
+ * 数据源: tRPC (ops.listEdgeNodes / listEdgeModels / listEdgeGateways / listTSNConfigs)
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useLocation } from 'wouter';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -21,10 +19,12 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Progress } from '@/components/ui/progress';
+import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
-import { 
-  Server, 
-  Cpu, 
+import { trpc } from '@/lib/trpc';
+import {
+  Server,
+  Cpu,
   HardDrive,
   Wifi,
   MapPin,
@@ -46,42 +46,8 @@ import {
   Play,
   Square,
   Download,
+  Database,
 } from 'lucide-react';
-
-// ━━━ Mock 数据 ━━━
-
-const mockNodes = [
-  { id: 'edge-001', name: '车间A边缘节点', location: '上海工厂-车间A', status: 'online', cpu: 45, memory: 62, disk: 38, models: 3, lastSeen: '2026-02-04 12:30:00' },
-  { id: 'edge-002', name: '车间B边缘节点', location: '上海工厂-车间B', status: 'online', cpu: 72, memory: 85, disk: 55, models: 5, lastSeen: '2026-02-04 12:29:00' },
-  { id: 'edge-003', name: '仓库边缘节点', location: '上海工厂-仓库', status: 'warning', cpu: 92, memory: 88, disk: 75, models: 2, lastSeen: '2026-02-04 12:25:00' },
-  { id: 'edge-004', name: '北京分厂节点', location: '北京工厂-主车间', status: 'offline', cpu: 0, memory: 0, disk: 0, models: 4, lastSeen: '2026-02-04 10:00:00' },
-  { id: 'edge-005', name: '深圳分厂节点', location: '深圳工厂-生产线', status: 'online', cpu: 35, memory: 48, disk: 22, models: 6, lastSeen: '2026-02-04 12:30:00' },
-];
-
-const mockInferenceModels = [
-  { id: 'model-001', name: '设备异常检测 v2.1', type: 'anomaly-detection', framework: 'ONNX', node: 'edge-001', status: 'running', qps: 120, latency: 8.5, accuracy: 96.2, gpuUsage: 45 },
-  { id: 'model-002', name: '振动频谱分析 v1.8', type: 'signal-processing', framework: 'TensorRT', node: 'edge-002', status: 'running', qps: 85, latency: 12.3, accuracy: 94.8, gpuUsage: 62 },
-  { id: 'model-003', name: '视觉质检 v3.0', type: 'image-classification', framework: 'ONNX', node: 'edge-002', status: 'running', qps: 30, latency: 35.2, accuracy: 98.1, gpuUsage: 78 },
-  { id: 'model-004', name: '温度预测 v1.2', type: 'regression', framework: 'TFLite', node: 'edge-003', status: 'warning', qps: 200, latency: 3.1, accuracy: 91.5, gpuUsage: 15 },
-  { id: 'model-005', name: '语音指令识别 v2.0', type: 'speech-recognition', framework: 'ONNX', node: 'edge-005', status: 'running', qps: 50, latency: 22.8, accuracy: 95.3, gpuUsage: 55 },
-  { id: 'model-006', name: '预测性维护 v1.5', type: 'predictive', framework: 'TensorRT', node: 'edge-001', status: 'stopped', qps: 0, latency: 0, accuracy: 93.7, gpuUsage: 0 },
-];
-
-const mockGateways = [
-  { id: 'gw-001', name: 'MQTT 主网关', type: 'MQTT', endpoint: 'mqtt://10.0.1.100:1883', status: 'online', devices: 128, msgIn: 15200, msgOut: 8400, bandwidth: '12.5 MB/s', uptime: '45天 12小时' },
-  { id: 'gw-002', name: 'OPC-UA 网关', type: 'OPC-UA', endpoint: 'opc.tcp://10.0.1.101:4840', status: 'online', devices: 64, msgIn: 8500, msgOut: 3200, bandwidth: '5.8 MB/s', uptime: '30天 8小时' },
-  { id: 'gw-003', name: 'Modbus 网关', type: 'Modbus', endpoint: 'tcp://10.0.1.102:502', status: 'online', devices: 256, msgIn: 25000, msgOut: 12000, bandwidth: '8.2 MB/s', uptime: '60天 3小时' },
-  { id: 'gw-004', name: 'HTTP REST 网关', type: 'HTTP', endpoint: 'https://10.0.1.103:8443', status: 'warning', devices: 32, msgIn: 4200, msgOut: 4100, bandwidth: '3.1 MB/s', uptime: '15天 6小时' },
-  { id: 'gw-005', name: 'CoAP 网关', type: 'CoAP', endpoint: 'coap://10.0.1.104:5683', status: 'offline', devices: 0, msgIn: 0, msgOut: 0, bandwidth: '0 MB/s', uptime: '-' },
-];
-
-const mockTsnConfig = [
-  { id: 'tsn-001', name: '5G 基站 A', type: '5G NR', frequency: '3.5 GHz', status: 'online', latency: 1.2, bandwidth: '1.2 Gbps', devices: 45, slicing: 'URLLC', reliability: 99.999 },
-  { id: 'tsn-002', name: '5G 基站 B', type: '5G NR', frequency: '3.5 GHz', status: 'online', latency: 1.5, bandwidth: '800 Mbps', devices: 32, slicing: 'eMBB', reliability: 99.99 },
-  { id: 'tsn-003', name: 'TSN 交换机 1', type: 'TSN 802.1Qbv', frequency: '-', status: 'online', latency: 0.05, bandwidth: '10 Gbps', devices: 24, slicing: 'Time-Aware', reliability: 99.9999 },
-  { id: 'tsn-004', name: 'TSN 交换机 2', type: 'TSN 802.1CB', frequency: '-', status: 'online', latency: 0.03, bandwidth: '10 Gbps', devices: 16, slicing: 'Redundancy', reliability: 99.9999 },
-  { id: 'tsn-005', name: '5G 小基站', type: '5G mmWave', frequency: '28 GHz', status: 'warning', latency: 0.8, bandwidth: '4 Gbps', devices: 12, slicing: 'URLLC', reliability: 99.9 },
-];
 
 const statusConfig: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
   online: { label: '在线', color: 'bg-green-500', icon: <CheckCircle className="h-4 w-4 text-green-500" /> },
@@ -106,9 +72,55 @@ const tabToRoute: Record<string, string> = {
   tsn: '/edge/tsn',
 };
 
+// ─── 空状态组件 ───
+function EmptyState({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-16 text-center">
+      <div className="text-muted-foreground mb-4">{icon}</div>
+      <h3 className="text-sm font-medium mb-1">{title}</h3>
+      <p className="text-xs text-muted-foreground max-w-sm">{description}</p>
+    </div>
+  );
+}
+
+// ─── 加载骨架 ───
+function TableSkeleton({ rows = 5, cols = 8 }: { rows?: number; cols?: number }) {
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          {Array.from({ length: cols }).map((_, i) => (
+            <TableHead key={i}><Skeleton className="h-4 w-20" /></TableHead>
+          ))}
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {Array.from({ length: rows }).map((_, r) => (
+          <TableRow key={r}>
+            {Array.from({ length: cols }).map((_, c) => (
+              <TableCell key={c}><Skeleton className="h-4 w-full" /></TableCell>
+            ))}
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  );
+}
+
 export default function EdgeNodes() {
   const [location, setLocation] = useLocation();
   const [activeTab, setActiveTab] = useState(() => routeToTab[location] || 'nodes');
+
+  // ─── tRPC 数据查询 ───
+  const { data: edgeNodes, isLoading: nodesLoading, refetch: refetchNodes } = trpc.ops.listEdgeNodes.useQuery();
+  const { data: edgeModels, isLoading: modelsLoading, refetch: refetchModels } = trpc.ops.listEdgeModels.useQuery();
+  const { data: edgeGateways, isLoading: gatewaysLoading, refetch: refetchGateways } = trpc.ops.listEdgeGateways.useQuery();
+  const { data: tsnConfigs, isLoading: tsnLoading, refetch: refetchTsn } = trpc.ops.listTSNConfigs.useQuery();
+
+  const nodes = useMemo(() => edgeNodes ?? [], [edgeNodes]);
+  const models = useMemo(() => edgeModels ?? [], [edgeModels]);
+  const gateways = useMemo(() => edgeGateways ?? [], [edgeGateways]);
+  const tsnList = useMemo(() => tsnConfigs ?? [], [tsnConfigs]);
 
   // 路由变化时同步 Tab
   useEffect(() => {
@@ -127,16 +139,27 @@ export default function EdgeNodes() {
     }
   };
 
+  const handleRefreshAll = () => {
+    refetchNodes();
+    refetchModels();
+    refetchGateways();
+    refetchTsn();
+    toast.info('正在刷新数据...');
+  };
+
   const getResourceColor = (value: number) => {
     if (value >= 90) return 'text-red-500';
     if (value >= 70) return 'text-yellow-500';
     return 'text-green-500';
   };
 
-  const onlineNodes = mockNodes.filter(n => n.status === 'online').length;
-  const runningModels = mockInferenceModels.filter(m => m.status === 'running').length;
-  const onlineGateways = mockGateways.filter(g => g.status === 'online').length;
-  const totalDevices = mockGateways.reduce((sum, g) => sum + g.devices, 0);
+  // ─── 统计计算 ───
+  const onlineNodes = nodes.filter((n: any) => n.status === 'online').length;
+  const runningModels = models.filter((m: any) => m.status === 'running').length;
+  const onlineGateways = gateways.filter((g: any) => g.status === 'online').length;
+  const totalDevices = gateways.reduce((sum: number, g: any) => sum + (g.devices || g.deviceCount || 0), 0);
+  const onlineTsn = tsnList.filter((t: any) => t.status === 'online').length;
+  const warningCount = nodes.filter((n: any) => n.status === 'warning').length + gateways.filter((g: any) => g.status === 'warning').length;
 
   return (
     <MainLayout title="边缘计算">
@@ -151,7 +174,7 @@ export default function EdgeNodes() {
             <p className="text-sm text-muted-foreground">管理边缘节点、推理模型、协议网关和 5G/TSN 网络</p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => toast.info('刷新数据')}>
+            <Button variant="outline" size="sm" onClick={handleRefreshAll}>
               <RefreshCw className="h-4 w-4 mr-1" />
               刷新
             </Button>
@@ -171,7 +194,7 @@ export default function EdgeNodes() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{onlineNodes}/{mockNodes.length}</div>
+              <div className="text-2xl font-bold">{nodesLoading ? '—' : `${onlineNodes}/${nodes.length}`}</div>
               <p className="text-xs text-muted-foreground">在线</p>
             </CardContent>
           </Card>
@@ -182,7 +205,7 @@ export default function EdgeNodes() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{runningModels}/{mockInferenceModels.length}</div>
+              <div className="text-2xl font-bold">{modelsLoading ? '—' : `${runningModels}/${models.length}`}</div>
               <p className="text-xs text-muted-foreground">运行中</p>
             </CardContent>
           </Card>
@@ -193,7 +216,7 @@ export default function EdgeNodes() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{onlineGateways}/{mockGateways.length}</div>
+              <div className="text-2xl font-bold">{gatewaysLoading ? '—' : `${onlineGateways}/${gateways.length}`}</div>
               <p className="text-xs text-muted-foreground">在线</p>
             </CardContent>
           </Card>
@@ -204,7 +227,7 @@ export default function EdgeNodes() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{totalDevices}</div>
+              <div className="text-2xl font-bold">{gatewaysLoading ? '—' : totalDevices}</div>
               <p className="text-xs text-muted-foreground">已连接</p>
             </CardContent>
           </Card>
@@ -215,7 +238,7 @@ export default function EdgeNodes() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{mockTsnConfig.filter(t => t.status === 'online').length}/{mockTsnConfig.length}</div>
+              <div className="text-2xl font-bold">{tsnLoading ? '—' : `${onlineTsn}/${tsnList.length}`}</div>
               <p className="text-xs text-muted-foreground">在线</p>
             </CardContent>
           </Card>
@@ -227,7 +250,7 @@ export default function EdgeNodes() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-yellow-500">
-                {mockNodes.filter(n => n.status === 'warning').length + mockGateways.filter(g => g.status === 'warning').length}
+                {nodesLoading || gatewaysLoading ? '—' : warningCount}
               </div>
               <p className="text-xs text-muted-foreground">待处理</p>
             </CardContent>
@@ -263,69 +286,79 @@ export default function EdgeNodes() {
                 <CardDescription>所有注册的边缘计算节点</CardDescription>
               </CardHeader>
               <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>节点ID</TableHead>
-                      <TableHead>名称</TableHead>
-                      <TableHead>位置</TableHead>
-                      <TableHead>状态</TableHead>
-                      <TableHead>CPU</TableHead>
-                      <TableHead>内存</TableHead>
-                      <TableHead>磁盘</TableHead>
-                      <TableHead>模型数</TableHead>
-                      <TableHead>最后心跳</TableHead>
-                      <TableHead className="text-right">操作</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {mockNodes.map(node => (
-                      <TableRow key={node.id}>
-                        <TableCell className="font-mono text-sm">{node.id}</TableCell>
-                        <TableCell className="font-medium">{node.name}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1">
-                            <MapPin className="h-3 w-3 text-muted-foreground" />
-                            <span className="text-sm">{node.location}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            {statusConfig[node.status]?.icon}
-                            <Badge className={statusConfig[node.status]?.color}>
-                              {statusConfig[node.status]?.label}
-                            </Badge>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <Progress value={node.cpu} className="w-16 h-2" />
-                            <span className={`text-sm ${getResourceColor(node.cpu)}`}>{node.cpu}%</span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <Progress value={node.memory} className="w-16 h-2" />
-                            <span className={`text-sm ${getResourceColor(node.memory)}`}>{node.memory}%</span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <Progress value={node.disk} className="w-16 h-2" />
-                            <span className={`text-sm ${getResourceColor(node.disk)}`}>{node.disk}%</span>
-                          </div>
-                        </TableCell>
-                        <TableCell><Badge variant="outline">{node.models}</Badge></TableCell>
-                        <TableCell className="text-sm text-muted-foreground">{node.lastSeen}</TableCell>
-                        <TableCell className="text-right">
-                          <Button variant="ghost" size="icon" onClick={() => toast.info('节点配置')}>
-                            <Settings className="h-4 w-4" />
-                          </Button>
-                        </TableCell>
+                {nodesLoading ? (
+                  <TableSkeleton rows={5} cols={10} />
+                ) : nodes.length === 0 ? (
+                  <EmptyState
+                    icon={<Server className="h-12 w-12" />}
+                    title="暂无边缘节点"
+                    description="请通过「添加」按钮注册新的边缘计算节点，或检查后端服务连接状态"
+                  />
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>节点ID</TableHead>
+                        <TableHead>名称</TableHead>
+                        <TableHead>位置</TableHead>
+                        <TableHead>状态</TableHead>
+                        <TableHead>CPU</TableHead>
+                        <TableHead>内存</TableHead>
+                        <TableHead>磁盘</TableHead>
+                        <TableHead>模型数</TableHead>
+                        <TableHead>最后心跳</TableHead>
+                        <TableHead className="text-right">操作</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {nodes.map((node: any) => (
+                        <TableRow key={node.id}>
+                          <TableCell className="font-mono text-sm">{node.id}</TableCell>
+                          <TableCell className="font-medium">{node.name}</TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-1">
+                              <MapPin className="h-3 w-3 text-muted-foreground" />
+                              <span className="text-sm">{node.location}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              {statusConfig[node.status]?.icon}
+                              <Badge className={statusConfig[node.status]?.color}>
+                                {statusConfig[node.status]?.label || node.status}
+                              </Badge>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Progress value={node.cpu ?? 0} className="w-16 h-2" />
+                              <span className={`text-sm ${getResourceColor(node.cpu ?? 0)}`}>{node.cpu ?? 0}%</span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Progress value={node.memory ?? 0} className="w-16 h-2" />
+                              <span className={`text-sm ${getResourceColor(node.memory ?? 0)}`}>{node.memory ?? 0}%</span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Progress value={node.disk ?? 0} className="w-16 h-2" />
+                              <span className={`text-sm ${getResourceColor(node.disk ?? 0)}`}>{node.disk ?? 0}%</span>
+                            </div>
+                          </TableCell>
+                          <TableCell><Badge variant="outline">{node.models ?? node.modelCount ?? 0}</Badge></TableCell>
+                          <TableCell className="text-sm text-muted-foreground">{node.lastSeen ?? node.lastHeartbeat ?? '—'}</TableCell>
+                          <TableCell className="text-right">
+                            <Button variant="ghost" size="icon" onClick={() => toast.info('节点配置')}>
+                              <Settings className="h-4 w-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -338,73 +371,83 @@ export default function EdgeNodes() {
                 <CardDescription>部署在边缘节点上的 AI 推理模型</CardDescription>
               </CardHeader>
               <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>模型名称</TableHead>
-                      <TableHead>类型</TableHead>
-                      <TableHead>框架</TableHead>
-                      <TableHead>部署节点</TableHead>
-                      <TableHead>状态</TableHead>
-                      <TableHead>QPS</TableHead>
-                      <TableHead>延迟</TableHead>
-                      <TableHead>准确率</TableHead>
-                      <TableHead>GPU</TableHead>
-                      <TableHead className="text-right">操作</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {mockInferenceModels.map(model => (
-                      <TableRow key={model.id}>
-                        <TableCell className="font-medium">{model.name}</TableCell>
-                        <TableCell><Badge variant="outline">{model.type}</Badge></TableCell>
-                        <TableCell><Badge variant="secondary">{model.framework}</Badge></TableCell>
-                        <TableCell className="font-mono text-xs">{model.node}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            {statusConfig[model.status]?.icon}
-                            <Badge className={statusConfig[model.status]?.color}>
-                              {statusConfig[model.status]?.label}
-                            </Badge>
-                          </div>
-                        </TableCell>
-                        <TableCell className="font-medium">{model.qps}</TableCell>
-                        <TableCell>
-                          <span className={model.latency > 20 ? 'text-yellow-500' : 'text-green-500'}>
-                            {model.latency}ms
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          <span className={model.accuracy >= 95 ? 'text-green-500' : 'text-yellow-500'}>
-                            {model.accuracy}%
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <Progress value={model.gpuUsage} className="w-12 h-2" />
-                            <span className="text-sm">{model.gpuUsage}%</span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-1">
-                            {model.status === 'running' ? (
-                              <Button variant="ghost" size="icon" onClick={() => toast.info('停止模型')}>
-                                <Square className="h-4 w-4" />
-                              </Button>
-                            ) : (
-                              <Button variant="ghost" size="icon" onClick={() => toast.info('启动模型')}>
-                                <Play className="h-4 w-4" />
-                              </Button>
-                            )}
-                            <Button variant="ghost" size="icon" onClick={() => toast.info('模型配置')}>
-                              <Settings className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
+                {modelsLoading ? (
+                  <TableSkeleton rows={5} cols={10} />
+                ) : models.length === 0 ? (
+                  <EmptyState
+                    icon={<Brain className="h-12 w-12" />}
+                    title="暂无推理模型"
+                    description="请部署 AI 推理模型到边缘节点，支持 ONNX / TensorRT / TFLite 框架"
+                  />
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>模型名称</TableHead>
+                        <TableHead>类型</TableHead>
+                        <TableHead>框架</TableHead>
+                        <TableHead>部署节点</TableHead>
+                        <TableHead>状态</TableHead>
+                        <TableHead>QPS</TableHead>
+                        <TableHead>延迟</TableHead>
+                        <TableHead>准确率</TableHead>
+                        <TableHead>GPU</TableHead>
+                        <TableHead className="text-right">操作</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {models.map((model: any) => (
+                        <TableRow key={model.id}>
+                          <TableCell className="font-medium">{model.name}</TableCell>
+                          <TableCell><Badge variant="outline">{model.type}</Badge></TableCell>
+                          <TableCell><Badge variant="secondary">{model.framework}</Badge></TableCell>
+                          <TableCell className="font-mono text-xs">{model.node ?? model.nodeId}</TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              {statusConfig[model.status]?.icon}
+                              <Badge className={statusConfig[model.status]?.color}>
+                                {statusConfig[model.status]?.label || model.status}
+                              </Badge>
+                            </div>
+                          </TableCell>
+                          <TableCell className="font-medium">{model.qps ?? 0}</TableCell>
+                          <TableCell>
+                            <span className={(model.latency ?? 0) > 20 ? 'text-yellow-500' : 'text-green-500'}>
+                              {model.latency ?? 0}ms
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            <span className={(model.accuracy ?? 0) >= 95 ? 'text-green-500' : 'text-yellow-500'}>
+                              {model.accuracy ?? 0}%
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Progress value={model.gpuUsage ?? 0} className="w-12 h-2" />
+                              <span className="text-sm">{model.gpuUsage ?? 0}%</span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex justify-end gap-1">
+                              {model.status === 'running' ? (
+                                <Button variant="ghost" size="icon" onClick={() => toast.info('停止模型')}>
+                                  <Square className="h-4 w-4" />
+                                </Button>
+                              ) : (
+                                <Button variant="ghost" size="icon" onClick={() => toast.info('启动模型')}>
+                                  <Play className="h-4 w-4" />
+                                </Button>
+                              )}
+                              <Button variant="ghost" size="icon" onClick={() => toast.info('模型配置')}>
+                                <Settings className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -419,56 +462,66 @@ export default function EdgeNodes() {
                     <CardDescription>边缘协议转换网关（MQTT / OPC-UA / Modbus / HTTP / CoAP）</CardDescription>
                   </div>
                   <a href="/settings/config/access-layer" className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1">
-                    \uD83D\uDD0C 接入层管理 \u2192
+                    🔌 接入层管理 →
                   </a>
                 </div>
               </CardHeader>
               <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>名称</TableHead>
-                      <TableHead>协议</TableHead>
-                      <TableHead>端点</TableHead>
-                      <TableHead>状态</TableHead>
-                      <TableHead>设备数</TableHead>
-                      <TableHead>消息收/发</TableHead>
-                      <TableHead>带宽</TableHead>
-                      <TableHead>运行时间</TableHead>
-                      <TableHead className="text-right">操作</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {mockGateways.map(gw => (
-                      <TableRow key={gw.id}>
-                        <TableCell className="font-medium">{gw.name}</TableCell>
-                        <TableCell><Badge variant="outline">{gw.type}</Badge></TableCell>
-                        <TableCell className="font-mono text-xs">{gw.endpoint}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            {statusConfig[gw.status]?.icon}
-                            <Badge className={statusConfig[gw.status]?.color}>
-                              {statusConfig[gw.status]?.label}
-                            </Badge>
-                          </div>
-                        </TableCell>
-                        <TableCell className="font-medium">{gw.devices}</TableCell>
-                        <TableCell>
-                          <span className="text-green-500">{gw.msgIn.toLocaleString()}</span>
-                          {' / '}
-                          <span className="text-blue-500">{gw.msgOut.toLocaleString()}</span>
-                        </TableCell>
-                        <TableCell>{gw.bandwidth}</TableCell>
-                        <TableCell className="text-sm text-muted-foreground">{gw.uptime}</TableCell>
-                        <TableCell className="text-right">
-                          <Button variant="ghost" size="icon" onClick={() => toast.info('网关配置')}>
-                            <Settings className="h-4 w-4" />
-                          </Button>
-                        </TableCell>
+                {gatewaysLoading ? (
+                  <TableSkeleton rows={5} cols={9} />
+                ) : gateways.length === 0 ? (
+                  <EmptyState
+                    icon={<Network className="h-12 w-12" />}
+                    title="暂无协议网关"
+                    description="请创建边缘协议网关以连接工业设备，支持 MQTT / OPC-UA / Modbus 等协议"
+                  />
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>名称</TableHead>
+                        <TableHead>协议</TableHead>
+                        <TableHead>端点</TableHead>
+                        <TableHead>状态</TableHead>
+                        <TableHead>设备数</TableHead>
+                        <TableHead>消息收/发</TableHead>
+                        <TableHead>带宽</TableHead>
+                        <TableHead>运行时间</TableHead>
+                        <TableHead className="text-right">操作</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {gateways.map((gw: any) => (
+                        <TableRow key={gw.id}>
+                          <TableCell className="font-medium">{gw.name}</TableCell>
+                          <TableCell><Badge variant="outline">{gw.type ?? gw.protocol}</Badge></TableCell>
+                          <TableCell className="font-mono text-xs">{gw.endpoint}</TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              {statusConfig[gw.status]?.icon}
+                              <Badge className={statusConfig[gw.status]?.color}>
+                                {statusConfig[gw.status]?.label || gw.status}
+                              </Badge>
+                            </div>
+                          </TableCell>
+                          <TableCell className="font-medium">{gw.devices ?? gw.deviceCount ?? 0}</TableCell>
+                          <TableCell>
+                            <span className="text-green-500">{(gw.msgIn ?? gw.messagesIn ?? 0).toLocaleString()}</span>
+                            {' / '}
+                            <span className="text-blue-500">{(gw.msgOut ?? gw.messagesOut ?? 0).toLocaleString()}</span>
+                          </TableCell>
+                          <TableCell>{gw.bandwidth ?? '—'}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground">{gw.uptime ?? '—'}</TableCell>
+                          <TableCell className="text-right">
+                            <Button variant="ghost" size="icon" onClick={() => toast.info('网关配置')}>
+                              <Settings className="h-4 w-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -481,57 +534,67 @@ export default function EdgeNodes() {
                 <CardDescription>5G NR 基站和 TSN 时间敏感网络交换机</CardDescription>
               </CardHeader>
               <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>名称</TableHead>
-                      <TableHead>类型</TableHead>
-                      <TableHead>频段</TableHead>
-                      <TableHead>状态</TableHead>
-                      <TableHead>延迟</TableHead>
-                      <TableHead>带宽</TableHead>
-                      <TableHead>设备数</TableHead>
-                      <TableHead>切片/模式</TableHead>
-                      <TableHead>可靠性</TableHead>
-                      <TableHead className="text-right">操作</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {mockTsnConfig.map(item => (
-                      <TableRow key={item.id}>
-                        <TableCell className="font-medium">{item.name}</TableCell>
-                        <TableCell><Badge variant="outline">{item.type}</Badge></TableCell>
-                        <TableCell>{item.frequency}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            {statusConfig[item.status]?.icon}
-                            <Badge className={statusConfig[item.status]?.color}>
-                              {statusConfig[item.status]?.label}
-                            </Badge>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <span className={item.latency <= 1 ? 'text-green-500 font-medium' : ''}>
-                            {item.latency}ms
-                          </span>
-                        </TableCell>
-                        <TableCell>{item.bandwidth}</TableCell>
-                        <TableCell>{item.devices}</TableCell>
-                        <TableCell><Badge variant="secondary">{item.slicing}</Badge></TableCell>
-                        <TableCell>
-                          <span className={item.reliability >= 99.999 ? 'text-green-500 font-medium' : ''}>
-                            {item.reliability}%
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Button variant="ghost" size="icon" onClick={() => toast.info('配置')}>
-                            <Settings className="h-4 w-4" />
-                          </Button>
-                        </TableCell>
+                {tsnLoading ? (
+                  <TableSkeleton rows={5} cols={10} />
+                ) : tsnList.length === 0 ? (
+                  <EmptyState
+                    icon={<Radio className="h-12 w-12" />}
+                    title="暂无 5G/TSN 配置"
+                    description="请配置 5G NR 基站或 TSN 时间敏感网络交换机"
+                  />
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>名称</TableHead>
+                        <TableHead>类型</TableHead>
+                        <TableHead>频段</TableHead>
+                        <TableHead>状态</TableHead>
+                        <TableHead>延迟</TableHead>
+                        <TableHead>带宽</TableHead>
+                        <TableHead>设备数</TableHead>
+                        <TableHead>切片/模式</TableHead>
+                        <TableHead>可靠性</TableHead>
+                        <TableHead className="text-right">操作</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {tsnList.map((item: any) => (
+                        <TableRow key={item.id}>
+                          <TableCell className="font-medium">{item.name}</TableCell>
+                          <TableCell><Badge variant="outline">{item.type}</Badge></TableCell>
+                          <TableCell>{item.frequency ?? '—'}</TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              {statusConfig[item.status]?.icon}
+                              <Badge className={statusConfig[item.status]?.color}>
+                                {statusConfig[item.status]?.label || item.status}
+                              </Badge>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <span className={(item.latency ?? 999) <= 1 ? 'text-green-500 font-medium' : ''}>
+                              {item.latency ?? '—'}ms
+                            </span>
+                          </TableCell>
+                          <TableCell>{item.bandwidth ?? '—'}</TableCell>
+                          <TableCell>{item.devices ?? item.deviceCount ?? 0}</TableCell>
+                          <TableCell><Badge variant="secondary">{item.slicing ?? item.mode ?? '—'}</Badge></TableCell>
+                          <TableCell>
+                            <span className={(item.reliability ?? 0) >= 99.999 ? 'text-green-500 font-medium' : ''}>
+                              {item.reliability ?? '—'}%
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button variant="ghost" size="icon" onClick={() => toast.info('配置')}>
+                              <Settings className="h-4 w-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
               </CardContent>
             </Card>
           </TabsContent>

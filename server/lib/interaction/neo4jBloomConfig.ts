@@ -431,10 +431,10 @@ export class Neo4jBloomConfigService extends EventEmitter {
     super();
     this.config = {
       connection: {
-        host: 'localhost',
-        port: 7687,
-        database: 'neo4j',
-        username: 'neo4j',
+        host: process.env.NEO4J_HOST || 'localhost',
+        port: parseInt(process.env.NEO4J_PORT || '7687'),
+        database: process.env.NEO4J_DATABASE || 'neo4j',
+        username: process.env.NEO4J_USER || 'neo4j',
         encrypted: true,
         maxConnectionPoolSize: 50,
         ...config?.connection,

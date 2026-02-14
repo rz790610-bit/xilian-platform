@@ -46,6 +46,9 @@ import { kgOrchestratorRouter } from "./api/kgOrchestrator.router";
 import { accessLayerRouter } from "./api/accessLayer.router";
 // ============ 统一注册中心 ============
 import { registryRouter } from "./api/registry.router";
+// ============ 设备/传感器 CRUD ============
+import { deviceCrudRouter } from "./api/deviceCrud.router";
+import { sensorCrudRouter } from "./api/sensorCrud.router";
 
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/core/index.ts, all api should start with '/api/' so that the gateway can route correctly
@@ -164,6 +167,9 @@ export const appRouter = router({
 
   // ============ 统一注册中心（所有模块的类型/分类/配置自动同步） ============
   registry: registryRouter,
+  // ============ 设备/传感器 CRUD ============
+  deviceCrud: deviceCrudRouter,
+  sensorCrud: sensorCrudRouter,
 });
 
 export type AppRouter = typeof appRouter;
