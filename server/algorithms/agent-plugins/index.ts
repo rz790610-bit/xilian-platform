@@ -88,7 +88,7 @@ export class TimeSeriesPatternExpert implements IAlgorithmExecutor {
         `趋势斜率=${trend.slope.toFixed(6)}, R²=${trend.rSquared.toFixed(3)}`,
       severity: changePoints.length > 3 || spikes.length > 5 ? 'warning' : 'normal',
       urgency: Math.abs(trend.slope) > 0.01 ? 'attention' : 'monitoring',
-      confidence: 0.85,
+      confidence: (() => { const s = getSignalData(input); const lenS = Math.min(1, s.length / 2000); const trendS = trend.rSquared > 0.5 ? 0.25 : 0.1; return Math.min(0.96, Math.max(0.4, 0.35 + lenS * 0.3 + trendS)); })(),
       referenceStandard: 'Page 1954 (CUSUM) / Killick et al. 2012 (PELT)',
     }, {
       trend,
@@ -376,7 +376,7 @@ export class PhysicalConstraintExpert implements IAlgorithmExecutor {
         (violations.length > 0 ? violations.map(v => `${v.constraint}(${v.severity})`).join(', ') : '所有约束满足'),
       severity: violations.some(v => v.severity === 'critical') ? 'critical' : violations.length > 0 ? 'warning' : 'normal',
       urgency: violations.some(v => v.severity === 'critical') ? 'immediate' : 'monitoring',
-      confidence: 0.95,
+      confidence: (() => { const cS = Math.min(1, allConstraints.length / 10); const vS = violations.length === 0 ? 0.3 : 0.15; return Math.min(0.98, Math.max(0.5, 0.45 + cS * 0.25 + vS)); })(),
       referenceStandard: 'Physics-Informed ML / Domain Knowledge',
     }, {
       violations,
@@ -478,7 +478,7 @@ export class SpatialAnomalyExpert implements IAlgorithmExecutor {
         (anomalies.length > 0 ? anomalies.map(a => `${a.sensor}(${a.type})`).join(', ') : '无空间异常'),
       severity: anomalies.some(a => a.type === 'propagated_anomaly') ? 'warning' : anomalies.length > 0 ? 'attention' : 'normal',
       urgency: anomalies.some(a => a.type === 'propagated_anomaly') ? 'attention' : 'monitoring',
-      confidence: 0.82,
+      confidence: (() => { const sensorS = Math.min(1, sensors.length / 10); const corrS = anomalies.length > 0 ? 0.2 : 0.1; return Math.min(0.95, Math.max(0.4, 0.35 + sensorS * 0.3 + corrS + 0.1)); })(),
       referenceStandard: 'Spatial Statistics / Sensor Fusion',
     }, {
       anomalies,

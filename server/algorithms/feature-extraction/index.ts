@@ -1,26 +1,40 @@
 /**
- * 特征提取算法模块 — 5个完整实现
- * 
- * 1. 时域特征提取 — 统计特征 + AR系数 + 波形因子
- * 2. 频域特征提取 — 频谱特征 + 频带能量比 + 重心频率
- * 3. 时频域特征提取 — STFT + 小波系数 + 瞬时频率
- * 4. 统计特征提取 — 高阶统计量 + 信息熵 + 分形维数
- * 5. 深度特征提取 — 自编码器/1D-CNN + PCA/t-SNE降维
+ * 特征提取算法模块 — 5个工业级实现
+ *
+ * 1. 时域特征提取 — 统计特征 + Burg AR + 波形因子（ISO 10816）
+ * 2. 频域特征提取 — FFT频谱 + 频带能量比 + 谱熵/谱峭度
+ * 3. 时频域特征提取 — STFT + 瞬时频率 + 谱通量
+ * 4. 统计特征提取 — 高阶统计量 + 样本熵/近似熵 + Higuchi分形 + Hurst + 排列熵
+ * 5. 深度特征提取 — PCA(幂迭代) / 线性自编码器(梯度下降)
+ *
+ * confidence全部基于数据质量计算（非硬编码）
+ * 所有随机初始化使用确定性种子
  */
 
 import type { IAlgorithmExecutor, AlgorithmInput, AlgorithmOutput, AlgorithmRegistration } from '../../algorithms/_core/types';
 import * as dsp from '../../algorithms/_core/dsp';
 
+class PRNG {
+  private s: number;
+  constructor(seed: number) { this.s = seed & 0x7fffffff; }
+  next(): number { this.s = (this.s * 1103515245 + 12345) & 0x7fffffff; return this.s / 0x7fffffff; }
+}
+
 function createOutput(
-  algorithmId: string, version: string, input: AlgorithmInput,
+  algorithmId: string, version: string, _input: AlgorithmInput,
   config: Record<string, any>, startTime: number,
   diagnosis: AlgorithmOutput['diagnosis'], results: Record<string, any>,
   visualizations?: AlgorithmOutput['visualizations']
 ): AlgorithmOutput {
-  return { algorithmId, status: 'completed', diagnosis, results, visualizations, metadata: {
-    executionTimeMs: Date.now() - startTime, inputDataPoints: 0,
-    algorithmVersion: version, parameters: config,
-  }};
+  return {
+    algorithmId, status: 'completed', diagnosis, results, visualizations,
+    metadata: {
+      executionTimeMs: Date.now() - startTime,
+      inputDataPoints: results._n || 0,
+      algorithmVersion: version,
+      parameters: config,
+    },
+  };
 }
 
 function getSignalData(input: AlgorithmInput): number[] {
@@ -31,6 +45,23 @@ function getSignalData(input: AlgorithmInput): number[] {
   return keys.length > 0 ? (input.data as Record<string, number[]>)[keys[0]] : [];
 }
 
+// 信号质量评估 → confidence
+function signalQuality(sig: number[]): number {
+  if (sig.length < 10) return 0.3;
+  const mu = dsp.mean(sig), sd = dsp.standardDeviation(sig);
+  // SNR估计: 信号功率 / 高频噪声功率
+  const diff = sig.slice(1).map((v, i) => v - sig[i]);
+  const noisePower = diff.reduce((s, d) => s + d * d, 0) / diff.length;
+  const sigPower = sd * sd;
+  const snr = sigPower / (noisePower + 1e-15);
+  // 数据量充足度
+  const lenScore = Math.min(1, sig.length / 1000);
+  // 动态范围
+  const range = Math.max(...sig) - Math.min(...sig);
+  const dynScore = range > 1e-10 ? Math.min(1, Math.log10(range / (sd + 1e-15) + 1) / 2) : 0.3;
+  return Math.min(0.99, Math.max(0.3, 0.3 + snr / (snr + 1) * 0.3 + lenScore * 0.2 + dynScore * 0.2));
+}
+
 // ============================================================
 // 1. 时域特征提取
 // ============================================================
@@ -38,116 +69,77 @@ function getSignalData(input: AlgorithmInput): number[] {
 export class TimeDomainFeatureExtractor implements IAlgorithmExecutor {
   readonly id = 'time_domain_features';
   readonly name = '时域特征提取';
-  readonly version = '2.0.0';
+  readonly version = '2.1.0';
   readonly category = 'feature_extraction';
 
   getDefaultConfig() {
-    return {
-      arOrder: 10,        // AR模型阶数
-      segmentLength: 0,   // 分段长度(0=不分段)
-      overlap: 0.5,       // 分段重叠率
-    };
+    return { arOrder: 10, segmentLength: 0, overlap: 0.5 };
   }
 
-  validateInput(input: AlgorithmInput, _config: Record<string, any>) {
-    const signal = getSignalData(input);
-    if (signal.length < 32) return { valid: false, errors: ['信号长度至少32个采样点'] };
+  validateInput(input: AlgorithmInput, _c: Record<string, any>) {
+    const s = getSignalData(input);
+    if (s.length < 32) return { valid: false, errors: ['信号至少32点'] };
     return { valid: true };
   }
 
   async execute(input: AlgorithmInput, config: Record<string, any>): Promise<AlgorithmOutput> {
-    const startTime = Date.now();
+    const t0 = Date.now();
     const cfg = { ...this.getDefaultConfig(), ...config };
-    const signal = getSignalData(input);
-    const n = signal.length;
+    const sig = getSignalData(input);
+    const n = sig.length;
 
-    // 基本统计特征
-    const meanVal = dsp.mean(signal);
-    const stdVal = dsp.standardDeviation(signal);
-    const rmsVal = dsp.rms(signal);
-    const maxVal = Math.max(...signal);
-    const minVal = Math.min(...signal);
-    const peakToPeak = maxVal - minVal;
-    const absSignal = signal.map(Math.abs);
-    const absMean = dsp.mean(absSignal);
+    const mu = dsp.mean(sig), sd = dsp.standardDeviation(sig), r = dsp.rms(sig);
+    const mx = Math.max(...sig), mn = Math.min(...sig), pp = mx - mn;
+    const absSig = sig.map(Math.abs), absMu = dsp.mean(absSig);
 
     // 波形指标
-    const shapeFactor = rmsVal / (absMean || 1e-10);       // 波形因子
-    const crestFactor = maxVal / (rmsVal || 1e-10);         // 峰值因子
-    const impulseFactor = maxVal / (absMean || 1e-10);      // 脉冲因子
-    const clearanceFactor = maxVal / (Math.pow(dsp.mean(absSignal.map(Math.sqrt)), 2) || 1e-10); // 裕度因子
+    const shapeFactor = r / (absMu || 1e-10);
+    const crestFactor = mx / (r || 1e-10);
+    const impulseFactor = mx / (absMu || 1e-10);
+    const sqrtMean = dsp.mean(absSig.map(Math.sqrt));
+    const clearanceFactor = mx / (sqrtMean * sqrtMean || 1e-10);
 
     // 高阶统计量
-    const skewness = this.calcSkewness(signal, meanVal, stdVal);
-    const kurtosis = this.calcKurtosis(signal, meanVal, stdVal);
+    const skewness = sd > 1e-10 ? sig.reduce((s, x) => s + Math.pow((x - mu) / sd, 3), 0) / n : 0;
+    const kurtosis = sd > 1e-10 ? sig.reduce((s, x) => s + Math.pow((x - mu) / sd, 4), 0) / n : 0;
 
-    // AR系数 (Burg方法简化)
-    const arCoeffs = this.burgAR(signal, cfg.arOrder);
+    // Burg AR
+    const arCoeffs = this.burgAR(sig, cfg.arOrder);
 
     // 过零率
-    let zeroCrossings = 0;
-    for (let i = 1; i < n; i++) {
-      if ((signal[i] >= 0 && signal[i - 1] < 0) || (signal[i] < 0 && signal[i - 1] >= 0)) {
-        zeroCrossings++;
-      }
-    }
-    const zeroCrossingRate = zeroCrossings / (n - 1);
+    let zc = 0;
+    for (let i = 1; i < n; i++) if ((sig[i] >= 0) !== (sig[i - 1] >= 0)) zc++;
+    const zcr = zc / (n - 1);
 
-    const features = {
-      mean: meanVal, std: stdVal, rms: rmsVal,
-      max: maxVal, min: minVal, peakToPeak,
-      absMean, shapeFactor, crestFactor,
-      impulseFactor, clearanceFactor,
-      skewness, kurtosis, zeroCrossingRate,
-      arCoefficients: arCoeffs,
+    const confidence = signalQuality(sig);
+
+    const features: Record<string, any> = {
+      _n: n, mean: mu, std: sd, rms: r, max: mx, min: mn, peakToPeak: pp,
+      absMean: absMu, shapeFactor, crestFactor, impulseFactor, clearanceFactor,
+      skewness, kurtosis, zeroCrossingRate: zcr, arCoefficients: arCoeffs,
     };
 
-    return createOutput(this.id, this.version, input, cfg, startTime, {
-      summary: `时域特征提取完成: ${Object.keys(features).length - 1}个特征。` +
-        `RMS=${rmsVal.toFixed(4)}, 峰值因子=${crestFactor.toFixed(2)}, ` +
-        `峭度=${kurtosis.toFixed(2)}, 波形因子=${shapeFactor.toFixed(2)}`,
-      severity: kurtosis > 6 ? 'warning' : 'normal',
+    return createOutput(this.id, this.version, input, cfg, t0, {
+      summary: `时域特征: RMS=${r.toFixed(4)}, 峰值因子=${crestFactor.toFixed(2)}, 峭度=${kurtosis.toFixed(2)}, 波形因子=${shapeFactor.toFixed(2)}, AR阶=${cfg.arOrder}`,
+      severity: kurtosis > 6 ? 'warning' : kurtosis > 4 ? 'attention' : 'normal',
       urgency: 'monitoring',
-      confidence: 0.95,
+      confidence,
       referenceStandard: 'ISO 10816 / ISO 13373',
     }, features);
   }
 
-  private calcSkewness(x: number[], mean: number, std: number): number {
-    if (std < 1e-10) return 0;
-    const n = x.length;
-    return x.reduce((s, xi) => s + Math.pow((xi - mean) / std, 3), 0) / n;
-  }
-
-  private calcKurtosis(x: number[], mean: number, std: number): number {
-    if (std < 1e-10) return 0;
-    const n = x.length;
-    return x.reduce((s, xi) => s + Math.pow((xi - mean) / std, 4), 0) / n;
-  }
-
-  private burgAR(signal: number[], order: number): number[] {
-    const n = signal.length;
+  private burgAR(sig: number[], order: number): number[] {
+    const n = sig.length;
     const coeffs = new Array(order).fill(0);
-    let ef = [...signal];
-    let eb = [...signal];
-
+    let ef = [...sig], eb = [...sig];
     for (let k = 0; k < order; k++) {
       let num = 0, den = 0;
-      for (let i = k + 1; i < n; i++) {
-        num += ef[i] * eb[i - 1];
-        den += ef[i] * ef[i] + eb[i - 1] * eb[i - 1];
-      }
+      for (let i = k + 1; i < n; i++) { num += ef[i] * eb[i - 1]; den += ef[i] * ef[i] + eb[i - 1] * eb[i - 1]; }
       const ak = -2 * num / (den || 1e-10);
       coeffs[k] = ak;
-
-      const newEf = new Array(n).fill(0);
-      const newEb = new Array(n).fill(0);
-      for (let i = k + 1; i < n; i++) {
-        newEf[i] = ef[i] + ak * eb[i - 1];
-        newEb[i] = eb[i - 1] + ak * ef[i];
-      }
-      ef = newEf;
-      eb = newEb;
+      const nef = new Array(n).fill(0), neb = new Array(n).fill(0);
+      for (let i = k + 1; i < n; i++) { nef[i] = ef[i] + ak * eb[i - 1]; neb[i] = eb[i - 1] + ak * ef[i]; }
+      ef = nef; eb = neb;
     }
     return coeffs;
   }
@@ -160,98 +152,70 @@ export class TimeDomainFeatureExtractor implements IAlgorithmExecutor {
 export class FrequencyDomainFeatureExtractor implements IAlgorithmExecutor {
   readonly id = 'frequency_domain_features';
   readonly name = '频域特征提取';
-  readonly version = '2.0.0';
+  readonly version = '2.1.0';
   readonly category = 'feature_extraction';
 
   getDefaultConfig() {
-    return {
-      sampleRate: 1000,
-      nfft: 0,           // 0=自动
-      windowType: 'hanning',
-      frequencyBands: [] as number[][], // [[f1,f2], [f3,f4], ...] 自定义频带
-    };
+    return { sampleRate: 1000, nfft: 0, windowType: 'hanning', frequencyBands: [] as number[][] };
   }
 
-  validateInput(input: AlgorithmInput, _config: Record<string, any>) {
-    const signal = getSignalData(input);
-    if (signal.length < 64) return { valid: false, errors: ['信号长度至少64个采样点'] };
+  validateInput(input: AlgorithmInput, _c: Record<string, any>) {
+    const s = getSignalData(input);
+    if (s.length < 64) return { valid: false, errors: ['信号至少64点'] };
     return { valid: true };
   }
 
   async execute(input: AlgorithmInput, config: Record<string, any>): Promise<AlgorithmOutput> {
-    const startTime = Date.now();
+    const t0 = Date.now();
     const cfg = { ...this.getDefaultConfig(), ...config };
-    const signal = getSignalData(input);
+    const sig = getSignalData(input);
     const fs = cfg.sampleRate;
 
-    // FFT
-    const nfft = cfg.nfft || dsp.nextPowerOf2(signal.length);
-    const windowed = dsp.applyWindow(signal, cfg.windowType as dsp.WindowFunction);
+    const nfft = cfg.nfft || dsp.nextPowerOf2(sig.length);
+    const windowed = dsp.applyWindow(sig, cfg.windowType as dsp.WindowFunction);
     const padded = new Array(nfft).fill(0);
     for (let i = 0; i < windowed.length; i++) padded[i] = windowed[i];
 
-    const fftResult = dsp.fft(padded);
+    const fftR = dsp.fft(padded);
     const halfN = Math.floor(nfft / 2);
-    const magnitude = new Array(halfN);
-    const freqs = new Array(halfN);
+    const mag = new Array(halfN), freqs = new Array(halfN);
     for (let i = 0; i < halfN; i++) {
-      magnitude[i] = Math.sqrt(fftResult[i].re ** 2 + fftResult[i].im ** 2) / nfft;
+      mag[i] = Math.sqrt(fftR[i].re ** 2 + fftR[i].im ** 2) / nfft;
       freqs[i] = i * fs / nfft;
     }
 
-    const psd = magnitude.map(m => m * m);
-    const totalPower = psd.reduce((s, p) => s + p, 0);
+    const psd = mag.map((m: number) => m * m);
+    const tp = psd.reduce((s: number, p: number) => s + p, 0);
 
-    // 频谱特征
-    const fc = psd.reduce((s, p, i) => s + p * freqs[i], 0) / (totalPower || 1e-10); // 重心频率
-    const rmsf = Math.sqrt(psd.reduce((s, p, i) => s + p * freqs[i] * freqs[i], 0) / (totalPower || 1e-10)); // 均方根频率
-    const vf = psd.reduce((s, p, i) => s + p * (freqs[i] - fc) ** 2, 0) / (totalPower || 1e-10); // 频率方差
+    const fc = psd.reduce((s: number, p: number, i: number) => s + p * freqs[i], 0) / (tp || 1e-10);
+    const rmsf = Math.sqrt(psd.reduce((s: number, p: number, i: number) => s + p * freqs[i] * freqs[i], 0) / (tp || 1e-10));
+    const vf = psd.reduce((s: number, p: number, i: number) => s + p * (freqs[i] - fc) ** 2, 0) / (tp || 1e-10);
     const spectralStd = Math.sqrt(vf);
 
-    // 频带能量比
-    const defaultBands = cfg.frequencyBands.length > 0 ? cfg.frequencyBands : [
-      [0, fs / 8], [fs / 8, fs / 4], [fs / 4, 3 * fs / 8], [3 * fs / 8, fs / 2],
-    ];
-    const bandEnergies = defaultBands.map(([fLow, fHigh]: number[]) => {
-      let energy = 0;
-      for (let i = 0; i < halfN; i++) {
-        if (freqs[i] >= fLow && freqs[i] < fHigh) energy += psd[i];
-      }
-      return { band: `${fLow.toFixed(0)}-${fHigh.toFixed(0)}Hz`, energy, ratio: energy / (totalPower || 1e-10) };
+    const bands = cfg.frequencyBands.length > 0 ? cfg.frequencyBands
+      : [[0, fs / 8], [fs / 8, fs / 4], [fs / 4, 3 * fs / 8], [3 * fs / 8, fs / 2]];
+    const bandEnergies = bands.map(([fL, fH]: number[]) => {
+      let e = 0;
+      for (let i = 0; i < halfN; i++) if (freqs[i] >= fL && freqs[i] < fH) e += psd[i];
+      return { band: `${fL.toFixed(0)}-${fH.toFixed(0)}Hz`, energy: e, ratio: e / (tp || 1e-10) };
     });
 
-    // 谱峭度
-    const spectralKurtosis = psd.reduce((s, p, i) => s + p * Math.pow(freqs[i] - fc, 4), 0) /
-      (totalPower * vf * vf || 1e-10);
-
-    // 谱熵
-    const psdNorm = psd.map(p => p / (totalPower || 1e-10));
-    const spectralEntropy = -psdNorm.reduce((s, p) => p > 0 ? s + p * Math.log2(p) : s, 0);
-
-    // 峰值频率
+    const spectralKurtosis = psd.reduce((s: number, p: number, i: number) => s + p * Math.pow(freqs[i] - fc, 4), 0) / (tp * vf * vf || 1e-10);
+    const psdN = psd.map((p: number) => p / (tp || 1e-10));
+    const spectralEntropy = -psdN.reduce((s: number, p: number) => p > 0 ? s + p * Math.log2(p) : s, 0);
     const peakIdx = psd.indexOf(Math.max(...psd));
-    const peakFrequency = freqs[peakIdx];
+    const peakFreq = freqs[peakIdx];
 
-    const features = {
-      centroidFrequency: fc,
-      rmsFrequency: rmsf,
-      spectralStd,
-      spectralKurtosis,
-      spectralEntropy,
-      peakFrequency,
-      totalPower,
-      bandEnergies,
-    };
+    const confidence = signalQuality(sig);
 
-    return createOutput(this.id, this.version, input, cfg, startTime, {
-      summary: `频域特征提取完成: 重心频率=${fc.toFixed(1)}Hz, ` +
-        `峰值频率=${peakFrequency.toFixed(1)}Hz, ` +
-        `谱熵=${spectralEntropy.toFixed(2)}, 谱峭度=${spectralKurtosis.toFixed(2)}`,
-      severity: 'normal',
-      urgency: 'monitoring',
-      confidence: 0.93,
+    return createOutput(this.id, this.version, input, cfg, t0, {
+      summary: `频域特征: 重心=${fc.toFixed(1)}Hz, 峰值=${peakFreq.toFixed(1)}Hz, 谱熵=${spectralEntropy.toFixed(2)}, 谱峭度=${spectralKurtosis.toFixed(2)}`,
+      severity: 'normal', urgency: 'monitoring', confidence,
       referenceStandard: 'ISO 13373 / ISO 7919',
-    }, features);
+    }, {
+      _n: sig.length, centroidFrequency: fc, rmsFrequency: rmsf, spectralStd,
+      spectralKurtosis, spectralEntropy, peakFrequency: peakFreq, totalPower: tp, bandEnergies,
+    });
   }
 }
 
@@ -262,101 +226,72 @@ export class FrequencyDomainFeatureExtractor implements IAlgorithmExecutor {
 export class TimeFrequencyFeatureExtractor implements IAlgorithmExecutor {
   readonly id = 'time_frequency_features';
   readonly name = '时频域特征提取';
-  readonly version = '1.5.0';
+  readonly version = '2.1.0';
   readonly category = 'feature_extraction';
 
   getDefaultConfig() {
-    return {
-      sampleRate: 1000,
-      stftWindowSize: 256,
-      stftOverlap: 0.75,
-      waveletType: 'morlet',
-      waveletScales: 32,
-    };
+    return { sampleRate: 1000, stftWindowSize: 256, stftOverlap: 0.75, waveletScales: 32 };
   }
 
-  validateInput(input: AlgorithmInput, _config: Record<string, any>) {
-    const signal = getSignalData(input);
-    if (signal.length < 256) return { valid: false, errors: ['信号长度至少256个采样点'] };
+  validateInput(input: AlgorithmInput, _c: Record<string, any>) {
+    const s = getSignalData(input);
+    if (s.length < 256) return { valid: false, errors: ['信号至少256点'] };
     return { valid: true };
   }
 
   async execute(input: AlgorithmInput, config: Record<string, any>): Promise<AlgorithmOutput> {
-    const startTime = Date.now();
+    const t0 = Date.now();
     const cfg = { ...this.getDefaultConfig(), ...config };
-    const signal = getSignalData(input);
+    const sig = getSignalData(input);
     const fs = cfg.sampleRate;
-
-    // STFT
-    const windowSize = cfg.stftWindowSize;
-    const hopSize = Math.floor(windowSize * (1 - cfg.stftOverlap));
-    const nFrames = Math.floor((signal.length - windowSize) / hopSize) + 1;
-    const nfft = dsp.nextPowerOf2(windowSize);
+    const ws = cfg.stftWindowSize;
+    const hop = Math.floor(ws * (1 - cfg.stftOverlap));
+    const nFrames = Math.floor((sig.length - ws) / hop) + 1;
+    const nfft = dsp.nextPowerOf2(ws);
     const halfN = Math.floor(nfft / 2);
 
-    const stftMagnitude: number[][] = [];
-    const instantFrequencies: number[] = [];
-    const spectralFlux: number[] = [];
-
-    let prevFrame: number[] | null = null;
+    const instFreqs: number[] = [], spectralFlux: number[] = [];
+    let prevMag: number[] | null = null;
 
     for (let f = 0; f < nFrames; f++) {
-      const start = f * hopSize;
-      const frame = signal.slice(start, start + windowSize);
-      const windowed = dsp.applyWindow(frame, 'hanning');
+      const start = f * hop;
+      const frame = sig.slice(start, start + ws);
+      const w = dsp.applyWindow(frame, 'hanning');
       const padded = new Array(nfft).fill(0);
-      for (let i = 0; i < windowed.length; i++) padded[i] = windowed[i];
+      for (let i = 0; i < w.length; i++) padded[i] = w[i];
+      const fftR = dsp.fft(padded);
+      const m = new Array(halfN);
+      for (let i = 0; i < halfN; i++) m[i] = Math.sqrt(fftR[i].re ** 2 + fftR[i].im ** 2);
 
-      const fftResult = dsp.fft(padded);
-      const mag = new Array(halfN);
-      for (let i = 0; i < halfN; i++) {
-        mag[i] = Math.sqrt(fftResult[i].re ** 2 + fftResult[i].im ** 2);
+      const tp = m.reduce((s: number, v: number) => s + v * v, 0);
+      instFreqs.push(m.reduce((s: number, v: number, i: number) => s + v * v * i * fs / nfft, 0) / (tp || 1e-10));
+
+      if (prevMag) {
+        spectralFlux.push(Math.sqrt(m.reduce((s: number, v: number, i: number) => s + Math.max(0, v - prevMag![i]) ** 2, 0)));
       }
-      stftMagnitude.push(mag);
-
-      // 瞬时频率 (频谱重心)
-      const totalPower = mag.reduce((s, m) => s + m * m, 0);
-      const instFreq = mag.reduce((s, m, i) => s + m * m * i * fs / nfft, 0) / (totalPower || 1e-10);
-      instantFrequencies.push(instFreq);
-
-      // 谱通量
-      if (prevFrame) {
-        const flux = mag.reduce((s, m, i) => s + Math.max(0, m - prevFrame![i]) ** 2, 0);
-        spectralFlux.push(Math.sqrt(flux));
-      }
-      prevFrame = mag;
+      prevMag = m;
     }
 
-    // 时频特征
-    const meanInstFreq = dsp.mean(instantFrequencies);
-    const stdInstFreq = dsp.standardDeviation(instantFrequencies);
-    const meanFlux = spectralFlux.length > 0 ? dsp.mean(spectralFlux) : 0;
+    const muIF = dsp.mean(instFreqs), sdIF = dsp.standardDeviation(instFreqs);
+    const muFlux = spectralFlux.length > 0 ? dsp.mean(spectralFlux) : 0;
+    const frameE = instFreqs.map((_, i) => {
+      const start = i * hop;
+      const frame = sig.slice(start, start + ws);
+      return frame.reduce((s, v) => s + v * v, 0) / ws;
+    });
+    const eVar = dsp.standardDeviation(frameE) / (dsp.mean(frameE) || 1e-10);
 
-    // 能量时变特征
-    const frameEnergies = stftMagnitude.map(mag => mag.reduce((s, m) => s + m * m, 0));
-    const energyVariation = dsp.standardDeviation(frameEnergies) / (dsp.mean(frameEnergies) || 1e-10);
+    const confidence = signalQuality(sig);
 
-    const features = {
-      instantFrequencies,
-      meanInstantFrequency: meanInstFreq,
-      stdInstantFrequency: stdInstFreq,
-      spectralFlux,
-      meanSpectralFlux: meanFlux,
-      energyVariation,
-      frameEnergies,
-      nFrames,
-    };
-
-    return createOutput(this.id, this.version, input, cfg, startTime, {
-      summary: `时频域特征提取完成: ${nFrames}帧。` +
-        `平均瞬时频率=${meanInstFreq.toFixed(1)}Hz, ` +
-        `频率变化=${stdInstFreq.toFixed(1)}Hz, ` +
-        `能量变异系数=${energyVariation.toFixed(3)}`,
-      severity: energyVariation > 0.5 ? 'warning' : 'normal',
-      urgency: 'monitoring',
-      confidence: 0.90,
+    return createOutput(this.id, this.version, input, cfg, t0, {
+      summary: `时频域: ${nFrames}帧, 平均瞬时频率=${muIF.toFixed(1)}Hz, 频率变化=${sdIF.toFixed(1)}Hz, 能量变异=${eVar.toFixed(3)}`,
+      severity: eVar > 0.5 ? 'warning' : 'normal', urgency: 'monitoring', confidence,
       referenceStandard: 'Cohen 1995 / Mallat 2008',
-    }, features);
+    }, {
+      _n: sig.length, instantFrequencies: instFreqs, meanInstantFrequency: muIF,
+      stdInstantFrequency: sdIF, spectralFlux, meanSpectralFlux: muFlux,
+      energyVariation: eVar, nFrames,
+    });
   }
 }
 
@@ -367,242 +302,165 @@ export class TimeFrequencyFeatureExtractor implements IAlgorithmExecutor {
 export class StatisticalFeatureExtractor implements IAlgorithmExecutor {
   readonly id = 'statistical_features';
   readonly name = '统计特征提取';
-  readonly version = '1.8.0';
+  readonly version = '2.1.0';
   readonly category = 'feature_extraction';
 
   getDefaultConfig() {
-    return {
-      embeddingDimension: 5,  // 分形维数嵌入维度
-      embeddingDelay: 1,
-    };
+    return { embeddingDimension: 5, embeddingDelay: 1 };
   }
 
-  validateInput(input: AlgorithmInput, _config: Record<string, any>) {
-    const signal = getSignalData(input);
-    if (signal.length < 100) return { valid: false, errors: ['信号长度至少100个采样点'] };
+  validateInput(input: AlgorithmInput, _c: Record<string, any>) {
+    const s = getSignalData(input);
+    if (s.length < 100) return { valid: false, errors: ['信号至少100点'] };
     return { valid: true };
   }
 
   async execute(input: AlgorithmInput, config: Record<string, any>): Promise<AlgorithmOutput> {
-    const startTime = Date.now();
+    const t0 = Date.now();
     const cfg = { ...this.getDefaultConfig(), ...config };
-    const signal = getSignalData(input);
-    const n = signal.length;
-    const meanVal = dsp.mean(signal);
-    const stdVal = dsp.standardDeviation(signal);
+    const sig = getSignalData(input);
+    const n = sig.length, mu = dsp.mean(sig), sd = dsp.standardDeviation(sig);
 
-    // 高阶统计量
-    const skewness = signal.reduce((s, x) => s + Math.pow((x - meanVal) / (stdVal || 1e-10), 3), 0) / n;
-    const kurtosis = signal.reduce((s, x) => s + Math.pow((x - meanVal) / (stdVal || 1e-10), 4), 0) / n;
-    const moment5 = signal.reduce((s, x) => s + Math.pow((x - meanVal) / (stdVal || 1e-10), 5), 0) / n;
-    const moment6 = signal.reduce((s, x) => s + Math.pow((x - meanVal) / (stdVal || 1e-10), 6), 0) / n;
+    const skewness = sd > 1e-10 ? sig.reduce((s, x) => s + Math.pow((x - mu) / sd, 3), 0) / n : 0;
+    const kurtosis = sd > 1e-10 ? sig.reduce((s, x) => s + Math.pow((x - mu) / sd, 4), 0) / n : 0;
+    const moment5 = sd > 1e-10 ? sig.reduce((s, x) => s + Math.pow((x - mu) / sd, 5), 0) / n : 0;
+    const moment6 = sd > 1e-10 ? sig.reduce((s, x) => s + Math.pow((x - mu) / sd, 6), 0) / n : 0;
 
     // Shannon熵
-    const bins = 50;
-    const minVal = Math.min(...signal);
-    const maxVal = Math.max(...signal);
-    const binWidth = (maxVal - minVal) / bins || 1;
-    const histogram = new Array(bins).fill(0);
-    for (const x of signal) {
-      const idx = Math.min(bins - 1, Math.floor((x - minVal) / binWidth));
-      histogram[idx]++;
-    }
-    const shannonEntropy = -histogram.reduce((s, count) => {
-      const p = count / n;
-      return p > 0 ? s + p * Math.log2(p) : s;
-    }, 0);
+    const bins = 50, mnV = Math.min(...sig), mxV = Math.max(...sig), bw = (mxV - mnV) / bins || 1;
+    const hist = new Array(bins).fill(0);
+    for (const x of sig) hist[Math.min(bins - 1, Math.floor((x - mnV) / bw))]++;
+    const shannonEntropy = -hist.reduce((s, c) => { const p = c / n; return p > 0 ? s + p * Math.log2(p) : s; }, 0);
 
-    // 样本熵 (Sample Entropy)
-    const sampleEntropy = this.calcSampleEntropy(signal, 2, 0.2 * stdVal);
+    const sampleEntropy = this.sampleEntropy(sig, 2, 0.2 * sd);
+    const approxEntropy = this.approxEntropy(sig, 2, 0.2 * sd);
+    const higuchiFD = this.higuchiFD(sig, 10);
+    const hurst = this.hurst(sig);
+    const permEntropy = this.permEntropy(sig, 3, 1);
 
-    // 近似熵 (Approximate Entropy)
-    const approxEntropy = this.calcApproxEntropy(signal, 2, 0.2 * stdVal);
+    const confidence = signalQuality(sig);
 
-    // Higuchi分形维数
-    const higuchiFD = this.higuchiFractalDimension(signal, 10);
-
-    // Hurst指数
-    const hurstExponent = this.calcHurst(signal);
-
-    // 排列熵
-    const permEntropy = this.permutationEntropy(signal, 3, 1);
-
-    const features = {
-      skewness, kurtosis, moment5, moment6,
-      shannonEntropy, sampleEntropy, approxEntropy,
-      higuchiFractalDimension: higuchiFD,
-      hurstExponent,
-      permutationEntropy: permEntropy,
-    };
-
-    return createOutput(this.id, this.version, input, cfg, startTime, {
-      summary: `统计特征提取完成: 峭度=${kurtosis.toFixed(2)}, ` +
-        `Shannon熵=${shannonEntropy.toFixed(3)}, 样本熵=${sampleEntropy.toFixed(3)}, ` +
-        `分形维数=${higuchiFD.toFixed(3)}, Hurst=${hurstExponent.toFixed(3)}`,
-      severity: kurtosis > 6 ? 'warning' : 'normal',
-      urgency: 'monitoring',
-      confidence: 0.92,
+    return createOutput(this.id, this.version, input, cfg, t0, {
+      summary: `统计特征: 峭度=${kurtosis.toFixed(2)}, Shannon熵=${shannonEntropy.toFixed(3)}, 样本熵=${sampleEntropy.toFixed(3)}, 分形维数=${higuchiFD.toFixed(3)}, Hurst=${hurst.toFixed(3)}`,
+      severity: kurtosis > 6 ? 'warning' : 'normal', urgency: 'monitoring', confidence,
       referenceStandard: 'Richman & Moorman 2000 / Higuchi 1988',
-    }, features);
+    }, {
+      _n: n, skewness, kurtosis, moment5, moment6, shannonEntropy, sampleEntropy,
+      approxEntropy, higuchiFractalDimension: higuchiFD, hurstExponent: hurst,
+      permutationEntropy: permEntropy,
+    });
   }
 
-  private calcSampleEntropy(x: number[], m: number, r: number): number {
-    const n = x.length;
-    const maxN = Math.min(n, 1000); // 限制计算量
+  private sampleEntropy(x: number[], m: number, r: number): number {
+    const n = Math.min(x.length, 1000);
     let A = 0, B = 0;
-
-    for (let i = 0; i < maxN - m; i++) {
-      for (let j = i + 1; j < maxN - m; j++) {
-        let matchM = true, matchM1 = true;
-        for (let k = 0; k < m; k++) {
-          if (Math.abs(x[i + k] - x[j + k]) > r) { matchM = false; matchM1 = false; break; }
-        }
-        if (matchM) {
-          B++;
-          if (i + m < maxN && j + m < maxN && Math.abs(x[i + m] - x[j + m]) <= r) A++;
-        }
+    for (let i = 0; i < n - m; i++) {
+      for (let j = i + 1; j < n - m; j++) {
+        let ok = true;
+        for (let k = 0; k < m; k++) if (Math.abs(x[i + k] - x[j + k]) > r) { ok = false; break; }
+        if (ok) { B++; if (i + m < n && j + m < n && Math.abs(x[i + m] - x[j + m]) <= r) A++; }
       }
     }
     return B > 0 ? -Math.log((A || 1) / B) : 0;
   }
 
-  private calcApproxEntropy(x: number[], m: number, r: number): number {
+  private approxEntropy(x: number[], m: number, r: number): number {
     const n = Math.min(x.length, 1000);
     const phi = (dim: number) => {
-      let count = 0;
+      let cnt = 0;
       for (let i = 0; i <= n - dim; i++) {
         let ci = 0;
         for (let j = 0; j <= n - dim; j++) {
-          let match = true;
-          for (let k = 0; k < dim; k++) {
-            if (Math.abs(x[i + k] - x[j + k]) > r) { match = false; break; }
-          }
-          if (match) ci++;
+          let ok = true;
+          for (let k = 0; k < dim; k++) if (Math.abs(x[i + k] - x[j + k]) > r) { ok = false; break; }
+          if (ok) ci++;
         }
-        count += Math.log(ci / (n - dim + 1));
+        cnt += Math.log(ci / (n - dim + 1));
       }
-      return count / (n - dim + 1);
+      return cnt / (n - dim + 1);
     };
     return phi(m) - phi(m + 1);
   }
 
-  private higuchiFractalDimension(x: number[], kMax: number): number {
-    const n = x.length;
-    const lnK: number[] = [];
-    const lnL: number[] = [];
-
+  private higuchiFD(x: number[], kMax: number): number {
+    const n = x.length, lnK: number[] = [], lnL: number[] = [];
     for (let k = 1; k <= kMax; k++) {
-      let sumL = 0;
+      let sL = 0;
       for (let m = 1; m <= k; m++) {
-        let length = 0;
+        let len = 0;
         const maxI = Math.floor((n - m) / k);
-        for (let i = 1; i <= maxI; i++) {
-          length += Math.abs(x[m - 1 + i * k] - x[m - 1 + (i - 1) * k]);
-        }
-        length = length * (n - 1) / (k * maxI * k);
-        sumL += length;
+        for (let i = 1; i <= maxI; i++) len += Math.abs(x[m - 1 + i * k] - x[m - 1 + (i - 1) * k]);
+        len = len * (n - 1) / (k * maxI * k);
+        sL += len;
       }
-      lnK.push(Math.log(1 / k));
-      lnL.push(Math.log(sumL / k));
+      lnK.push(Math.log(1 / k)); lnL.push(Math.log(sL / k));
     }
-
-    // 线性回归斜率
-    const meanX = dsp.mean(lnK);
-    const meanY = dsp.mean(lnL);
+    const mX = dsp.mean(lnK), mY = dsp.mean(lnL);
     let num = 0, den = 0;
-    for (let i = 0; i < lnK.length; i++) {
-      num += (lnK[i] - meanX) * (lnL[i] - meanY);
-      den += (lnK[i] - meanX) ** 2;
-    }
+    for (let i = 0; i < lnK.length; i++) { num += (lnK[i] - mX) * (lnL[i] - mY); den += (lnK[i] - mX) ** 2; }
     return den > 0 ? num / den : 1;
   }
 
-  private calcHurst(x: number[]): number {
-    const n = x.length;
-    const sizes = [];
+  private hurst(x: number[]): number {
+    const n = x.length, sizes: number[] = [];
     for (let s = 10; s <= n / 2; s = Math.floor(s * 1.5)) sizes.push(s);
     if (sizes.length < 3) return 0.5;
-
-    const lnN: number[] = [];
-    const lnRS: number[] = [];
-
-    for (const size of sizes) {
-      const nBlocks = Math.floor(n / size);
-      let totalRS = 0;
-      for (let b = 0; b < nBlocks; b++) {
-        const block = x.slice(b * size, (b + 1) * size);
-        const mean = dsp.mean(block);
-        const cumDev = block.map((v, i) => block.slice(0, i + 1).reduce((s, vi) => s + (vi - mean), 0));
-        const R = Math.max(...cumDev) - Math.min(...cumDev);
-        const S = dsp.standardDeviation(block);
-        if (S > 0) totalRS += R / S;
+    const lnN: number[] = [], lnRS: number[] = [];
+    for (const sz of sizes) {
+      const nb = Math.floor(n / sz);
+      let tRS = 0;
+      for (let b = 0; b < nb; b++) {
+        const blk = x.slice(b * sz, (b + 1) * sz);
+        const m = dsp.mean(blk);
+        const cd = blk.map((_, i) => blk.slice(0, i + 1).reduce((s, v) => s + (v - m), 0));
+        const R = Math.max(...cd) - Math.min(...cd), S = dsp.standardDeviation(blk);
+        if (S > 0) tRS += R / S;
       }
-      if (nBlocks > 0) {
-        lnN.push(Math.log(size));
-        lnRS.push(Math.log(totalRS / nBlocks));
-      }
+      if (nb > 0) { lnN.push(Math.log(sz)); lnRS.push(Math.log(tRS / nb)); }
     }
-
-    const meanX = dsp.mean(lnN);
-    const meanY = dsp.mean(lnRS);
+    const mX = dsp.mean(lnN), mY = dsp.mean(lnRS);
     let num = 0, den = 0;
-    for (let i = 0; i < lnN.length; i++) {
-      num += (lnN[i] - meanX) * (lnRS[i] - meanY);
-      den += (lnN[i] - meanX) ** 2;
-    }
+    for (let i = 0; i < lnN.length; i++) { num += (lnN[i] - mX) * (lnRS[i] - mY); den += (lnN[i] - mX) ** 2; }
     return den > 0 ? num / den : 0.5;
   }
 
-  private permutationEntropy(x: number[], order: number, delay: number): number {
-    const n = x.length;
-    const patterns = new Map<string, number>();
-    const total = n - (order - 1) * delay;
-
+  private permEntropy(x: number[], order: number, delay: number): number {
+    const n = x.length, pats = new Map<string, number>(), total = n - (order - 1) * delay;
     for (let i = 0; i < total; i++) {
-      const indices = Array.from({ length: order }, (_, k) => k);
-      indices.sort((a, b) => x[i + a * delay] - x[i + b * delay]);
-      const key = indices.join(',');
-      patterns.set(key, (patterns.get(key) || 0) + 1);
+      const idx = Array.from({ length: order }, (_, k) => k);
+      idx.sort((a, b) => x[i + a * delay] - x[i + b * delay]);
+      const key = idx.join(',');
+      pats.set(key, (pats.get(key) || 0) + 1);
     }
-
-    let entropy = 0;
-    for (const count of Array.from(patterns.values())) {
-      const p = count / total;
-      if (p > 0) entropy -= p * Math.log2(p);
-    }
-    return entropy;
+    let ent = 0;
+    for (const c of Array.from(pats.values())) { const p = c / total; if (p > 0) ent -= p * Math.log2(p); }
+    return ent;
   }
 }
 
 // ============================================================
-// 5. 深度特征提取
+// 5. 深度特征提取 — PCA / 线性自编码器
 // ============================================================
 
 export class DeepFeatureExtractor implements IAlgorithmExecutor {
   readonly id = 'deep_features';
   readonly name = '深度特征提取';
-  readonly version = '1.3.0';
+  readonly version = '2.1.0';
   readonly category = 'feature_extraction';
 
   getDefaultConfig() {
-    return {
-      method: 'autoencoder', // autoencoder | pca
-      latentDim: 16,
-      epochs: 50,
-      pcaComponents: 10,
-    };
+    return { method: 'pca', latentDim: 16, epochs: 50, pcaComponents: 10, seed: 42 };
   }
 
-  validateInput(input: AlgorithmInput, _config: Record<string, any>) {
-    if (typeof input.data !== 'object') return { valid: false, errors: ['需要特征矩阵数据'] };
+  validateInput(input: AlgorithmInput, _c: Record<string, any>) {
+    if (typeof input.data !== 'object') return { valid: false, errors: ['需要特征矩阵'] };
     return { valid: true };
   }
 
   async execute(input: AlgorithmInput, config: Record<string, any>): Promise<AlgorithmOutput> {
-    const startTime = Date.now();
+    const t0 = Date.now();
     const cfg = { ...this.getDefaultConfig(), ...config };
 
-    // 获取特征矩阵
     let matrix: number[][];
     if (Array.isArray(input.data) && Array.isArray(input.data[0])) {
       matrix = input.data as number[][];
@@ -614,184 +472,111 @@ export class DeepFeatureExtractor implements IAlgorithmExecutor {
       matrix = [getSignalData(input)];
     }
 
-    if (cfg.method === 'pca') {
-      return this.executePCA(matrix, cfg, input, startTime);
-    }
-
-    // 自编码器 (简化实现: 线性自编码器 ≈ PCA)
-    return this.executeAutoencoder(matrix, cfg, input, startTime);
+    return cfg.method === 'pca' ? this.pca(matrix, cfg, input, t0) : this.autoencoder(matrix, cfg, input, t0);
   }
 
-  private executePCA(matrix: number[][], cfg: any, input: AlgorithmInput, startTime: number): AlgorithmOutput {
-    const n = matrix.length;
-    const d = matrix[0]?.length || 0;
-    const k = Math.min(cfg.pcaComponents, d);
+  private pca(matrix: number[][], cfg: any, input: AlgorithmInput, t0: number): AlgorithmOutput {
+    const n = matrix.length, d = matrix[0]?.length || 0, k = Math.min(cfg.pcaComponents, d);
+    const rng = new PRNG(cfg.seed);
 
-    // 标准化
-    const means = Array.from({ length: d }, (_, j) => dsp.mean(matrix.map(row => row[j])));
-    const stds = Array.from({ length: d }, (_, j) => dsp.standardDeviation(matrix.map(row => row[j])));
-    const normalized = matrix.map(row => row.map((v, j) => (v - means[j]) / (stds[j] || 1)));
+    const means = Array.from({ length: d }, (_, j) => dsp.mean(matrix.map(r => r[j])));
+    const stds = Array.from({ length: d }, (_, j) => dsp.standardDeviation(matrix.map(r => r[j])));
+    const norm = matrix.map(r => r.map((v, j) => (v - means[j]) / (stds[j] || 1)));
 
     // 协方差矩阵
     const cov: number[][] = Array.from({ length: d }, () => new Array(d).fill(0));
-    for (let i = 0; i < d; i++) {
-      for (let j = i; j < d; j++) {
-        let sum = 0;
-        for (let s = 0; s < n; s++) sum += normalized[s][i] * normalized[s][j];
-        cov[i][j] = sum / (n - 1);
-        cov[j][i] = cov[i][j];
-      }
+    for (let i = 0; i < d; i++) for (let j = i; j < d; j++) {
+      let s = 0; for (let r = 0; r < n; r++) s += norm[r][i] * norm[r][j];
+      cov[i][j] = s / (n - 1); cov[j][i] = cov[i][j];
     }
 
-    // 幂迭代法求前k个特征值/特征向量
-    const eigenvalues: number[] = [];
-    const eigenvectors: number[][] = [];
-    let covCopy = cov.map(row => [...row]);
-
+    // 幂迭代 + deflation
+    const eigenvalues: number[] = [], eigenvectors: number[][] = [];
+    const cc = cov.map(r => [...r]);
     for (let comp = 0; comp < k; comp++) {
-      let v = Array.from({ length: d }, () => Math.random());
-      let eigenvalue = 0;
-
-      for (let iter = 0; iter < 100; iter++) {
-        const newV = new Array(d).fill(0);
-        for (let i = 0; i < d; i++) {
-          for (let j = 0; j < d; j++) newV[i] += covCopy[i][j] * v[j];
-        }
-        eigenvalue = Math.sqrt(newV.reduce((s, vi) => s + vi * vi, 0));
-        if (eigenvalue > 0) v = newV.map(vi => vi / eigenvalue);
+      let v = Array.from({ length: d }, () => rng.next() * 2 - 1);
+      let ev = 0;
+      for (let iter = 0; iter < 200; iter++) {
+        const nv = new Array(d).fill(0);
+        for (let i = 0; i < d; i++) for (let j = 0; j < d; j++) nv[i] += cc[i][j] * v[j];
+        ev = Math.sqrt(nv.reduce((s, vi) => s + vi * vi, 0));
+        if (ev > 0) v = nv.map(vi => vi / ev);
       }
-
-      eigenvalues.push(eigenvalue);
-      eigenvectors.push(v);
-
-      // Deflation
-      for (let i = 0; i < d; i++) {
-        for (let j = 0; j < d; j++) {
-          covCopy[i][j] -= eigenvalue * v[i] * v[j];
-        }
-      }
+      eigenvalues.push(ev); eigenvectors.push(v);
+      for (let i = 0; i < d; i++) for (let j = 0; j < d; j++) cc[i][j] -= ev * v[i] * v[j];
     }
 
-    // 投影
-    const projected = normalized.map(row =>
-      eigenvectors.map(ev => row.reduce((s, v, j) => s + v * ev[j], 0))
-    );
+    const projected = norm.map(r => eigenvectors.map(ev => r.reduce((s, v, j) => s + v * ev[j], 0)));
+    const totalVar = eigenvalues.reduce((s, v) => s + v, 0);
+    const explRatio = eigenvalues.map(v => v / (totalVar || 1));
+    const cumRatio: number[] = [];
+    explRatio.reduce((a, r) => { const c = a + r; cumRatio.push(c); return c; }, 0);
 
-    const totalVariance = eigenvalues.reduce((s, v) => s + v, 0);
-    const explainedRatio = eigenvalues.map(v => v / (totalVariance || 1));
-    const cumulativeRatio = explainedRatio.reduce((acc: number[], r) => {
-      acc.push((acc.length > 0 ? acc[acc.length - 1] : 0) + r);
-      return acc;
-    }, [] as number[]);
+    const confidence = cumRatio[k - 1] || 0.5;
 
-    return createOutput(this.id, this.version, input, cfg, startTime, {
-      summary: `PCA降维完成: ${d}维→${k}维，` +
-        `累计解释方差=${(cumulativeRatio[k - 1] * 100).toFixed(1)}%。` +
-        `前3主成分: ${explainedRatio.slice(0, 3).map(r => (r * 100).toFixed(1) + '%').join(', ')}`,
-      severity: 'normal',
-      urgency: 'monitoring',
-      confidence: cumulativeRatio[k - 1],
+    return createOutput(this.id, this.version, input, cfg, t0, {
+      summary: `PCA: ${d}维→${k}维, 累计方差=${(confidence * 100).toFixed(1)}%, 前3: ${explRatio.slice(0, 3).map(r => (r * 100).toFixed(1) + '%').join(', ')}`,
+      severity: 'normal', urgency: 'monitoring', confidence,
       referenceStandard: 'Pearson 1901 / Hotelling 1933',
     }, {
-      projected: projected.slice(0, 1000),
-      eigenvalues,
-      explainedVarianceRatio: explainedRatio,
-      cumulativeVarianceRatio: cumulativeRatio,
-      components: k,
-      originalDimensions: d,
+      _n: n, projected: projected.slice(0, 1000), eigenvalues, explainedVarianceRatio: explRatio,
+      cumulativeVarianceRatio: cumRatio, components: k, originalDimensions: d,
     });
   }
 
-  private executeAutoencoder(matrix: number[][], cfg: any, input: AlgorithmInput, startTime: number): AlgorithmOutput {
-    // 线性自编码器 (等价于PCA但通过梯度下降)
-    const n = matrix.length;
-    const d = matrix[0]?.length || 1;
-    const latent = Math.min(cfg.latentDim, d);
+  private autoencoder(matrix: number[][], cfg: any, input: AlgorithmInput, t0: number): AlgorithmOutput {
+    const n = matrix.length, d = matrix[0]?.length || 1, lat = Math.min(cfg.latentDim, d);
+    const rng = new PRNG(cfg.seed);
+    const sc = Math.sqrt(2.0 / (d + lat));
 
-    // 标准化
-    const means = Array.from({ length: d }, (_, j) => dsp.mean(matrix.map(row => row[j] || 0)));
-    const stds = Array.from({ length: d }, (_, j) => dsp.standardDeviation(matrix.map(row => row[j] || 0)));
-    const normalized = matrix.map(row => row.map((v, j) => (v - means[j]) / (stds[j] || 1)));
+    const means = Array.from({ length: d }, (_, j) => dsp.mean(matrix.map(r => r[j] || 0)));
+    const stds = Array.from({ length: d }, (_, j) => dsp.standardDeviation(matrix.map(r => r[j] || 0)));
+    const norm = matrix.map(r => r.map((v, j) => (v - means[j]) / (stds[j] || 1)));
 
-    // 编码器权重 (随机初始化)
-    const W_enc: number[][] = Array.from({ length: d }, () =>
-      Array.from({ length: latent }, () => (Math.random() - 0.5) * 0.1)
-    );
-    const W_dec: number[][] = Array.from({ length: latent }, () =>
-      Array.from({ length: d }, () => (Math.random() - 0.5) * 0.1)
-    );
+    const We: number[][] = Array.from({ length: d }, () => Array.from({ length: lat }, () => (rng.next() * 2 - 1) * sc));
+    const Wd: number[][] = Array.from({ length: lat }, () => Array.from({ length: d }, () => (rng.next() * 2 - 1) * sc));
 
-    const lr = 0.001;
-    const lossHistory: number[] = [];
-    const batchSize = Math.min(32, n);
-
-    for (let epoch = 0; epoch < cfg.epochs; epoch++) {
-      let totalLoss = 0;
-      for (let b = 0; b < n; b += batchSize) {
-        const batch = normalized.slice(b, b + batchSize);
-        for (const x of batch) {
-          // Forward: encode
-          const z = new Array(latent).fill(0);
-          for (let j = 0; j < latent; j++) {
-            for (let i = 0; i < d; i++) z[j] += x[i] * W_enc[i][j];
-          }
-          // Forward: decode
-          const xHat = new Array(d).fill(0);
-          for (let i = 0; i < d; i++) {
-            for (let j = 0; j < latent; j++) xHat[i] += z[j] * W_dec[j][i];
-          }
-          // Loss
-          const error = x.map((xi, i) => xi - xHat[i]);
-          totalLoss += error.reduce((s, e) => s + e * e, 0) / d;
-
-          // Backward (gradient descent)
-          for (let j = 0; j < latent; j++) {
-            for (let i = 0; i < d; i++) {
-              const gradDec = -2 * error[i] * z[j] / d;
-              W_dec[j][i] -= lr * gradDec;
-              const gradEnc = -2 * error.reduce((s, e, k) => s + e * W_dec[j][k], 0) * x[i] / d;
-              W_enc[i][j] -= lr * gradEnc;
-            }
-          }
+    const lr = 0.001, lH: number[] = [];
+    for (let ep = 0; ep < cfg.epochs; ep++) {
+      let tl = 0;
+      for (const x of norm) {
+        const z = new Array(lat).fill(0);
+        for (let j = 0; j < lat; j++) for (let i = 0; i < d; i++) z[j] += x[i] * We[i][j];
+        const xH = new Array(d).fill(0);
+        for (let i = 0; i < d; i++) for (let j = 0; j < lat; j++) xH[i] += z[j] * Wd[j][i];
+        const err = x.map((xi, i) => xi - xH[i]);
+        tl += err.reduce((s, e) => s + e * e, 0) / d;
+        for (let j = 0; j < lat; j++) for (let i = 0; i < d; i++) {
+          Wd[j][i] -= lr * (-2 * err[i] * z[j] / d);
+          We[i][j] -= lr * (-2 * err.reduce((s, e, k) => s + e * Wd[j][k], 0) * x[i] / d);
         }
       }
-      lossHistory.push(totalLoss / n);
+      lH.push(tl / n);
     }
 
-    // 编码所有数据
-    const encoded = normalized.map(x => {
-      const z = new Array(latent).fill(0);
-      for (let j = 0; j < latent; j++) {
-        for (let i = 0; i < d; i++) z[j] += x[i] * W_enc[i][j];
-      }
+    const encoded = norm.map(x => {
+      const z = new Array(lat).fill(0);
+      for (let j = 0; j < lat; j++) for (let i = 0; i < d; i++) z[j] += x[i] * We[i][j];
       return z;
     });
 
-    // 计算重构误差
-    const reconErrors = normalized.map((x, idx) => {
+    const reErr = norm.map((x, idx) => {
       const z = encoded[idx];
-      const xHat = new Array(d).fill(0);
-      for (let i = 0; i < d; i++) {
-        for (let j = 0; j < latent; j++) xHat[i] += z[j] * W_dec[j][i];
-      }
-      return Math.sqrt(x.reduce((s, xi, i) => s + (xi - xHat[i]) ** 2, 0) / d);
+      const xH = new Array(d).fill(0);
+      for (let i = 0; i < d; i++) for (let j = 0; j < lat; j++) xH[i] += z[j] * Wd[j][i];
+      return Math.sqrt(x.reduce((s, xi, i) => s + (xi - xH[i]) ** 2, 0) / d);
     });
 
-    return createOutput(this.id, this.version, input, cfg, startTime, {
-      summary: `自编码器特征提取完成: ${d}维→${latent}维，` +
-        `最终损失=${lossHistory[lossHistory.length - 1]?.toFixed(4)}，` +
-        `平均重构误差=${dsp.mean(reconErrors).toFixed(4)}`,
-      severity: 'normal',
-      urgency: 'monitoring',
-      confidence: 0.85,
+    const convergence = lH.length > 1 ? Math.min(1, 1 - lH[lH.length - 1] / Math.max(lH[0], 1e-10)) : 0.5;
+    const confidence = Math.min(0.99, Math.max(0.3, convergence));
+
+    return createOutput(this.id, this.version, input, cfg, t0, {
+      summary: `自编码器: ${d}维→${lat}维, 最终损失=${lH[lH.length - 1]?.toFixed(4)}, 收敛=${(convergence * 100).toFixed(1)}%`,
+      severity: 'normal', urgency: 'monitoring', confidence,
       referenceStandard: 'Hinton & Salakhutdinov 2006',
     }, {
-      encoded: encoded.slice(0, 1000),
-      reconstructionErrors: reconErrors.slice(0, 1000),
-      lossHistory,
-      latentDimension: latent,
-      originalDimensions: d,
-      epochs: cfg.epochs,
+      _n: n, encoded: encoded.slice(0, 1000), reconstructionErrors: reErr.slice(0, 1000),
+      lossHistory: lH, latentDimension: lat, originalDimensions: d,
     });
   }
 }
@@ -805,7 +590,7 @@ export function getFeatureExtractionAlgorithms(): AlgorithmRegistration[] {
     {
       executor: new TimeDomainFeatureExtractor(),
       metadata: {
-        description: '时域特征提取：统计特征、波形因子、AR系数、过零率等',
+        description: '时域特征提取：RMS、波形因子、峰值因子、峭度、Burg AR系数',
         tags: ['时域', '特征提取', 'RMS', '峭度', 'AR'],
         inputFields: [{ name: 'data', type: 'number[]', description: '时域信号', required: true }],
         outputFields: [
@@ -814,21 +599,18 @@ export function getFeatureExtractionAlgorithms(): AlgorithmRegistration[] {
           { name: 'crestFactor', type: 'number', description: '峰值因子' },
           { name: 'arCoefficients', type: 'number[]', description: 'AR系数' },
         ],
-        configFields: [
-          { name: 'arOrder', type: 'number', default: 10, description: 'AR模型阶数' },
-        ],
+        configFields: [{ name: 'arOrder', type: 'number', default: 10, description: 'AR阶数' }],
         applicableDeviceTypes: ['*'],
         applicableScenarios: ['振动分析', '状态监测', '故障诊断'],
-        complexity: 'O(N)',
-        edgeDeployable: true,
+        complexity: 'O(N)', edgeDeployable: true,
         referenceStandards: ['ISO 10816', 'ISO 13373'],
       },
     },
     {
       executor: new FrequencyDomainFeatureExtractor(),
       metadata: {
-        description: '频域特征提取：频谱特征、频带能量比、重心频率、谱熵',
-        tags: ['频域', '特征提取', 'FFT', '频谱'],
+        description: '频域特征提取：重心频率、谱熵、谱峭度、频带能量比',
+        tags: ['频域', 'FFT', '频谱', '特征提取'],
         inputFields: [{ name: 'data', type: 'number[]', description: '时域信号', required: true }],
         outputFields: [
           { name: 'centroidFrequency', type: 'number', description: '重心频率' },
@@ -836,13 +618,12 @@ export function getFeatureExtractionAlgorithms(): AlgorithmRegistration[] {
           { name: 'bandEnergies', type: 'object[]', description: '频带能量' },
         ],
         configFields: [
-          { name: 'sampleRate', type: 'number', default: 1000, description: '采样率(Hz)' },
-          { name: 'frequencyBands', type: 'number[][]', description: '自定义频带' },
+          { name: 'sampleRate', type: 'number', default: 1000, description: '采样率Hz' },
+          { name: 'frequencyBands', type: 'json', default: [], description: '自定义频带' },
         ],
         applicableDeviceTypes: ['*'],
         applicableScenarios: ['频谱分析', '故障特征提取'],
-        complexity: 'O(NlogN)',
-        edgeDeployable: true,
+        complexity: 'O(NlogN)', edgeDeployable: true,
         referenceStandards: ['ISO 13373', 'ISO 7919'],
       },
     },
@@ -850,27 +631,26 @@ export function getFeatureExtractionAlgorithms(): AlgorithmRegistration[] {
       executor: new TimeFrequencyFeatureExtractor(),
       metadata: {
         description: '时频域特征提取：STFT、瞬时频率、谱通量、能量时变',
-        tags: ['时频', 'STFT', '瞬时频率', '特征提取'],
+        tags: ['时频', 'STFT', '瞬时频率'],
         inputFields: [{ name: 'data', type: 'number[]', description: '时域信号', required: true }],
         outputFields: [
           { name: 'meanInstantFrequency', type: 'number', description: '平均瞬时频率' },
           { name: 'energyVariation', type: 'number', description: '能量变异系数' },
         ],
         configFields: [
-          { name: 'sampleRate', type: 'number', default: 1000, description: '采样率(Hz)' },
+          { name: 'sampleRate', type: 'number', default: 1000, description: '采样率Hz' },
           { name: 'stftWindowSize', type: 'number', default: 256, description: 'STFT窗长' },
         ],
         applicableDeviceTypes: ['*'],
-        applicableScenarios: ['非平稳信号分析', '变速工况'],
-        complexity: 'O(N*W*logW)',
-        edgeDeployable: true,
+        applicableScenarios: ['非平稳信号', '变速工况'],
+        complexity: 'O(N*W*logW)', edgeDeployable: true,
         referenceStandards: ['Cohen 1995', 'Mallat 2008'],
       },
     },
     {
       executor: new StatisticalFeatureExtractor(),
       metadata: {
-        description: '统计特征提取：高阶统计量、信息熵、分形维数、Hurst指数',
+        description: '统计特征提取：高阶统计量、Shannon/样本/近似/排列熵、Higuchi分形、Hurst指数',
         tags: ['统计', '熵', '分形', 'Hurst'],
         inputFields: [{ name: 'data', type: 'number[]', description: '时域信号', required: true }],
         outputFields: [
@@ -881,32 +661,31 @@ export function getFeatureExtractionAlgorithms(): AlgorithmRegistration[] {
         ],
         configFields: [],
         applicableDeviceTypes: ['*'],
-        applicableScenarios: ['复杂度分析', '非线性分析', '早期故障检测'],
-        complexity: 'O(N^2)',
-        edgeDeployable: true,
+        applicableScenarios: ['复杂度分析', '非线性分析', '早期故障'],
+        complexity: 'O(N^2)', edgeDeployable: true,
         referenceStandards: ['Richman & Moorman 2000', 'Higuchi 1988'],
       },
     },
     {
       executor: new DeepFeatureExtractor(),
       metadata: {
-        description: '深度特征提取：自编码器/PCA降维，高维特征压缩',
-        tags: ['自编码器', 'PCA', '降维', '深度学习'],
+        description: '深度特征提取：PCA(幂迭代)/线性自编码器(梯度下降)降维',
+        tags: ['PCA', '自编码器', '降维'],
         inputFields: [{ name: 'data', type: 'number[][]', description: '特征矩阵', required: true }],
         outputFields: [
-          { name: 'encoded', type: 'number[][]', description: '降维后特征' },
+          { name: 'encoded', type: 'number[][]', description: '降维特征' },
           { name: 'reconstructionErrors', type: 'number[]', description: '重构误差' },
         ],
         configFields: [
-          { name: 'method', type: 'select', options: ['autoencoder', 'pca'], default: 'pca' },
-          { name: 'latentDim', type: 'number', default: 16, description: '潜在维度' },
+          { name: 'method', type: 'select', options: ['pca', 'autoencoder'], default: 'pca', description: '方法' },
           { name: 'pcaComponents', type: 'number', default: 10, description: 'PCA主成分数' },
+          { name: 'latentDim', type: 'number', default: 16, description: '自编码器潜在维度' },
+          { name: 'seed', type: 'number', default: 42, description: '随机种子' },
         ],
         applicableDeviceTypes: ['*'],
-        applicableScenarios: ['高维特征压缩', '异常检测', '可视化'],
-        complexity: 'O(N*D*K)',
-        edgeDeployable: false,
-        referenceStandards: ['Hinton & Salakhutdinov 2006', 'Pearson 1901'],
+        applicableScenarios: ['高维压缩', '异常检测', '可视化'],
+        complexity: 'O(N*D*K)', edgeDeployable: false,
+        referenceStandards: ['Pearson 1901', 'Hinton & Salakhutdinov 2006'],
       },
     },
   ];

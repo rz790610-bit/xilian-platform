@@ -119,7 +119,7 @@ export class PSOOptimizer implements IAlgorithmExecutor {
         `${cfg.maxIterations}次迭代，${n}个粒子`,
       severity: 'normal',
       urgency: 'monitoring',
-      confidence: 0.85,
+      confidence: (() => { const convLen = convergence.length; const improvement = convLen > 1 ? Math.abs(convergence[0] - convergence[convLen - 1]) / (Math.abs(convergence[0]) + 1e-10) : 0; const iterS = Math.min(1, convLen / 200); return Math.min(0.96, Math.max(0.4, 0.35 + iterS * 0.3 + Math.min(0.3, improvement))); })(),
       referenceStandard: 'Kennedy & Eberhart 1995 / Shi & Eberhart 1998',
     }, {
       bestSolution: gBest,
@@ -249,7 +249,7 @@ export class GeneticAlgorithm implements IAlgorithmExecutor {
         `${cfg.maxGenerations}代，种群${n}`,
       severity: 'normal',
       urgency: 'monitoring',
-      confidence: 0.83,
+      confidence: (() => { const convLen = convergence.length; const improvement = convLen > 1 ? Math.abs(convergence[0] - convergence[convLen - 1]) / (Math.abs(convergence[0]) + 1e-10) : 0; const iterS = Math.min(1, convLen / 200); return Math.min(0.95, Math.max(0.4, 0.35 + iterS * 0.3 + Math.min(0.25, improvement))); })(),
       referenceStandard: 'Deb & Agrawal 1995 (SBX) / Holland 1975',
     }, {
       bestSolution,
@@ -376,7 +376,7 @@ export class BayesianOptimizer implements IAlgorithmExecutor {
         `${cfg.maxIterations}次迭代，采集函数=${cfg.acquisitionFunction.toUpperCase()}`,
       severity: 'normal',
       urgency: 'monitoring',
-      confidence: 0.87,
+      confidence: (() => { const convLen = convergence.length; const improvement = convLen > 1 ? Math.abs(convergence[0] - convergence[convLen - 1]) / (Math.abs(convergence[0]) + 1e-10) : 0; const iterS = Math.min(1, convLen / 100); return Math.min(0.96, Math.max(0.45, 0.4 + iterS * 0.3 + Math.min(0.25, improvement))); })(),
       referenceStandard: 'Snoek et al. 2012 / Jones et al. 1998 (EGO)',
     }, {
       bestSolution: bestX,
@@ -541,7 +541,7 @@ export class SimulatedAnnealing implements IAlgorithmExecutor {
         `接受率=${(acceptanceRate * 100).toFixed(1)}%`,
       severity: 'normal',
       urgency: 'monitoring',
-      confidence: 0.82,
+      confidence: (() => { const convLen = convergence.length; const improvement = convLen > 1 ? Math.abs(convergence[0] - convergence[convLen - 1]) / (Math.abs(convergence[0]) + 1e-10) : 0; const iterS = Math.min(1, convLen / 200); const accS = acceptanceRate > 0.1 ? 0.1 : 0.2; return Math.min(0.95, Math.max(0.4, 0.35 + iterS * 0.25 + Math.min(0.25, improvement) + accS)); })(),
       referenceStandard: 'Kirkpatrick et al. 1983 / Metropolis et al. 1953',
     }, {
       bestSolution: best,

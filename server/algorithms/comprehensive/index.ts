@@ -255,7 +255,7 @@ export class AssociationRuleMiner implements IAlgorithmExecutor {
         (rules.length > 0 ? `最强规则: {${rules[0].antecedent.join(',')}}→{${rules[0].consequent.join(',')}} (置信度${(rules[0].confidence * 100).toFixed(1)}%, 提升度${rules[0].lift.toFixed(2)})` : ''),
       severity: 'normal',
       urgency: 'monitoring',
-      confidence: 0.85,
+      confidence: (() => { const txS = Math.min(1, n / 200); const ruleS = Math.min(1, rules.length / 20); return Math.min(0.96, Math.max(0.4, 0.4 + txS * 0.3 + ruleS * 0.25)); })(),
       referenceStandard: 'Agrawal et al. 1993 (Apriori)',
     }, {
       frequentItemsets: frequentItemsets.slice(0, 100),
@@ -361,7 +361,7 @@ export class CausalInference implements IAlgorithmExecutor {
           : '未发现显著因果关系'),
       severity: 'normal',
       urgency: 'monitoring',
-      confidence: 0.80,
+      confidence: (() => { const nS = Math.min(1, n / 200); const varS = Math.min(1, varNames.length / 5); const linkS = significantLinks.length > 0 ? 0.15 : 0; return Math.min(0.95, Math.max(0.35, 0.35 + nS * 0.25 + varS * 0.15 + linkS)); })(),
       referenceStandard: 'Granger 1969 / Spirtes et al. 2000 (PC)',
     }, {
       causalLinks,

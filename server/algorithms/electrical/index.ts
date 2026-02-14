@@ -125,7 +125,7 @@ export class MCSAAnalyzer implements IAlgorithmExecutor {
         : `MCSA分析正常，供电频率${actualF1.toFixed(2)}Hz，滑差${(slip * 100).toFixed(2)}%，未检测到显著故障特征`,
       severity,
       urgency: severity === 'critical' ? 'immediate' : severity === 'warning' ? 'scheduled' : 'monitoring',
-      confidence: 0.82,
+      confidence: (() => { const lenS = Math.min(1, signal.length / (fs * 10)); const snrS = fundAmp > -20 ? Math.min(1, (fundAmp + 120) / 100) : 0.3; return Math.min(0.96, Math.max(0.4, 0.35 + lenS * 0.3 + snrS * 0.3)); })(),
       faultType: faults.join(', ') || undefined,
       referenceStandard: 'IEEE Std 1415 / IEC 60034-26',
       recommendations: faults.length > 0
@@ -284,7 +284,7 @@ export class PartialDischargeAnalyzer implements IAlgorithmExecutor {
         : `未检测到显著局部放电活动（脉冲数${pulses.length}<${cfg.minPulseCount}）`,
       severity: hasPD ? (maxPD > 1 ? 'warning' : 'attention') : 'normal',
       urgency: maxPD > 1 ? 'scheduled' : 'monitoring',
-      confidence: hasPD ? 0.78 : 0.85,
+      confidence: (() => { const lenS = Math.min(1, signal.length / (fs * 5)); const pulseS = Math.min(1, pulses.length / 100); return Math.min(0.95, Math.max(0.35, 0.3 + lenS * 0.3 + pulseS * 0.3 + (hasPD ? 0.05 : 0.1))); })(),
       faultType: hasPD ? defectType : undefined,
       referenceStandard: 'IEC 60270 / IEEE Std 400.3',
       recommendations: hasPD
@@ -404,7 +404,7 @@ export class VFDAnalyzer implements IAlgorithmExecutor {
         : `变频器运行正常，THD=${thd.toFixed(2)}%，PWM载波${fc}Hz正常`,
       severity: issues.length > 1 ? 'warning' : issues.length > 0 ? 'attention' : 'normal',
       urgency: issues.length > 1 ? 'scheduled' : 'monitoring',
-      confidence: 0.80,
+      confidence: (() => { const lenS = Math.min(1, signal.length / (fs * 5)); const fundS = fundAmp > 0 ? 0.3 : 0.1; return Math.min(0.95, Math.max(0.4, 0.35 + lenS * 0.3 + fundS)); })(),
       referenceStandard: 'IEEE 519 / IEC 61800-3',
       recommendations: issues.length > 0
         ? ['检查输入滤波器', '检查电容器组状态', '调整PWM参数']
@@ -525,7 +525,7 @@ export class PowerQualityAnalyzer implements IAlgorithmExecutor {
         : `电能质量正常。THD=${maxTHD.toFixed(1)}%，不平衡度${unbalance.toFixed(1)}%`,
       severity: issues.length > 1 ? 'warning' : issues.length > 0 ? 'attention' : 'normal',
       urgency: issues.length > 0 ? 'scheduled' : 'monitoring',
-      confidence: 0.88,
+      confidence: (() => { const lenS = Math.min(1, phases[0].length / (fs * 5)); const phS = Math.min(1, phases.length / 3); return Math.min(0.97, Math.max(0.4, 0.35 + lenS * 0.3 + phS * 0.3)); })(),
       referenceStandard: 'IEEE 519-2014 / IEC 61000-4-30 / GB/T 14549',
       recommendations: issues.length > 0
         ? ['检查谐波源设备', '评估是否需要滤波器', '检查三相负载平衡']

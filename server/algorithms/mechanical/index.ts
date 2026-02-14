@@ -183,7 +183,7 @@ export class FFTSpectrumAnalyzer implements IAlgorithmExecutor {
       summary,
       severity,
       urgency: severity === 'critical' ? 'immediate' : severity === 'warning' ? 'scheduled' : 'monitoring',
-      confidence: 0.85,
+      confidence: (() => { const s = getSignalData(input); const lenS = Math.min(1, s.length / 8192); const pkS = peaks.length > 0 ? Math.min(1, peaks.length / 5) : 0.2; return Math.min(0.97, Math.max(0.4, 0.35 + lenS * 0.3 + pkS * 0.3)); })(),
       referenceStandard: 'ISO 10816-3 / ISO 20816-1',
       recommendations: severity === 'critical'
         ? ['建议立即停机检查', '检查轴承和对中状态', '记录振动数据用于趋势分析']
@@ -308,7 +308,7 @@ export class CepstrumAnalyzer implements IAlgorithmExecutor {
         : `倒频谱分析正常，未检测到显著周期性调制`),
       severity: hasFault ? 'warning' : 'normal',
       urgency: hasFault ? 'scheduled' : 'monitoring',
-      confidence: 0.78,
+      confidence: (() => { const s = getSignalData(input); const lenS = Math.min(1, s.length / 4096); const pkS = topPeaks.length > 0 ? Math.min(1, topPeaks.length / 5) : 0.2; return Math.min(0.95, Math.max(0.35, 0.3 + lenS * 0.3 + pkS * 0.3)); })(),
       faultType: hasFault ? '周期性调制/齿轮故障' : undefined,
       referenceStandard: 'ISO 18436-2',
     }, {
@@ -446,7 +446,7 @@ export class EnvelopeDemodAnalyzer implements IAlgorithmExecutor {
         : `包络解调分析正常，滤波频带${bandLow.toFixed(0)}-${bandHigh.toFixed(0)}Hz，未检测到显著轴承故障特征`,
       severity: hasFault ? 'warning' : 'normal',
       urgency: hasFault ? 'scheduled' : 'monitoring',
-      confidence: hasFault ? 0.82 : 0.75,
+      confidence: (() => { const s = getSignalData(input); const lenS = Math.min(1, s.length / 4096); return Math.min(0.95, Math.max(0.35, 0.35 + lenS * 0.3 + (hasFault ? 0.25 : 0.15))); })(),
       faultType: detectedFaults.map(f => f.type).join(', ') || undefined,
       referenceStandard: 'ISO 15243 (轴承损伤分类)',
       recommendations: hasFault
@@ -549,7 +549,7 @@ export class WaveletPacketAnalyzer implements IAlgorithmExecutor {
         `能量主要集中在${significantBands.slice(0, 3).map(b => `${b.frequencyBand.low.toFixed(0)}-${b.frequencyBand.high.toFixed(0)}Hz(${(b.energyRatio * 100).toFixed(1)}%)`).join(', ')}`,
       severity: isAbnormal ? 'attention' : 'normal',
       urgency: 'monitoring',
-      confidence: 0.80,
+      confidence: (() => { const s = getSignalData(input); const lenS = Math.min(1, s.length / 4096); const entS = normalizedEntropy < 0.9 ? 0.25 : 0.1; return Math.min(0.95, Math.max(0.4, 0.35 + lenS * 0.3 + entS)); })(),
       referenceStandard: 'Mallat 1989 / Coifman-Wickerhauser 1992',
     }, {
       nodeEnergies,
@@ -657,7 +657,7 @@ export class BandpassFilterProcessor implements IAlgorithmExecutor {
       summary: `带通滤波完成: ${cfg.lowCutoff}-${cfg.highCutoff}Hz, ${cfg.order}阶${cfg.filterType}。能量保留率${energyRetention.toFixed(1)}%`,
       severity: 'normal',
       urgency: 'monitoring',
-      confidence: 0.95,
+      confidence: (() => { const lenS = Math.min(1, signal.length / 4096); const retS = energyRetention > 10 ? 0.3 : 0.1; return Math.min(0.98, Math.max(0.5, 0.45 + lenS * 0.25 + retS)); })(),
     }, {
       filteredSignal: filtered,
       filterBand: { low: cfg.lowCutoff, high: cfg.highCutoff },
@@ -769,7 +769,7 @@ export class SpectralKurtosisAnalyzer implements IAlgorithmExecutor {
         (isImpulsive ? '检测到冲击性成分，建议进行包络解调分析' : '未检测到显著冲击性成分'),
       severity: isImpulsive ? 'attention' : 'normal',
       urgency: isImpulsive ? 'scheduled' : 'monitoring',
-      confidence: 0.83,
+      confidence: (() => { const s = getSignalData(input); const lenS = Math.min(1, s.length / 8192); const kurtS = bestKurtosis > 3 ? Math.min(1, (bestKurtosis - 3) / 10) : 0.1; return Math.min(0.96, Math.max(0.35, 0.3 + lenS * 0.3 + kurtS * 0.3)); })(),
       referenceStandard: 'Antoni J. (2006) Fast Kurtogram',
       recommendations: isImpulsive
         ? ['使用最佳频带进行包络解调分析', '检查轴承状态', '对比历史谱峭度趋势']
@@ -842,7 +842,7 @@ export class ResamplingProcessor implements IAlgorithmExecutor {
       summary: `重采样完成: ${fs}Hz → ${targetFs}Hz，${signal.length}点 → ${resampled.length}点`,
       severity: 'normal',
       urgency: 'monitoring',
-      confidence: 0.95,
+      confidence: (() => { const lenS = Math.min(1, signal.length / 4096); return Math.min(0.98, Math.max(0.5, 0.5 + lenS * 0.3 + 0.15)); })(),
     }, {
       resampledSignal: resampled,
       originalSampleRate: fs,
@@ -922,7 +922,7 @@ export class OrderTrackingAnalyzer implements IAlgorithmExecutor {
         summary: '数据不足以完成阶次分析',
         severity: 'normal',
         urgency: 'monitoring',
-        confidence: 0,
+        confidence: 0.1,
       }, { error: '角度域信号长度不足' });
     }
 
@@ -957,8 +957,8 @@ export class OrderTrackingAnalyzer implements IAlgorithmExecutor {
       summary: diagnosis,
       severity: 'normal',
       urgency: 'monitoring',
-      confidence: 0.80,
-      referenceStandard: 'ISO 7919 / ISO 10816',
+      confidence: (() => { const s = getSignalData(input); const lenS = Math.min(1, s.length / 4096); return Math.min(0.95, Math.max(0.4, 0.4 + lenS * 0.3 + 0.2)); })(),
+      referenceStandard: 'Vold-Kalman 1997 / ISO 10816',
     }, {
       orders: orders.slice(0, cfg.maxOrder * 2),
       orderAmplitudes: orderAmplitudes.slice(0, cfg.maxOrder * 2),

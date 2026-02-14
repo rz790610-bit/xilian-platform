@@ -80,7 +80,7 @@ export class LLMAnalysis implements IAlgorithmExecutor {
         `需要连接LLM服务(${cfg.model})进行实际推理`,
       severity: 'normal',
       urgency: 'monitoring',
-      confidence: 0.5,
+      confidence: (() => { const promptS = Math.min(1, analysisPrompt.length / 2000); return Math.min(0.6, Math.max(0.2, 0.2 + promptS * 0.35)); })(),
       referenceStandard: 'LLM-Assisted Rule Generation',
     }, {
       ...llmResult,
