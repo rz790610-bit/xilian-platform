@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
+import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -46,6 +47,7 @@ export default function AlgorithmOverview() {
   const algorithms = listQuery.data?.items;
 
   return (
+    <MainLayout title="算法库">
     <div className="space-y-6">
       {/* 页面标题 */}
       <div className="flex items-center justify-between">
@@ -221,5 +223,6 @@ export default function AlgorithmOverview() {
         </div>
       )}
     </div>
+    </MainLayout>
   );
 }

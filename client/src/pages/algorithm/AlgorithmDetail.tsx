@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useLocation, useRoute } from "wouter";
 import { trpc } from "@/lib/trpc";
+import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -56,16 +57,19 @@ export default function AlgorithmDetail() {
 
   if (detailQuery.isLoading) {
     return (
-      <div className="space-y-6">
-        <Skeleton className="h-8 w-64" />
+      <MainLayout title="算法详情">
+      <div className="space-y-4">
+        <Skeleton className="h-8 w-48" />
         <Skeleton className="h-48 w-full" />
         <Skeleton className="h-64 w-full" />
       </div>
+      </MainLayout>
     );
   }
 
   if (!algo) {
     return (
+      <MainLayout title="算法不存在">
       <Card>
         <CardContent className="p-12 text-center">
           <div className="text-4xl mb-4">❌</div>
@@ -76,10 +80,12 @@ export default function AlgorithmDetail() {
           </Button>
         </CardContent>
       </Card>
+      </MainLayout>
     );
   }
 
   return (
+    <MainLayout title={algo.algoName || "算法详情"}>
     <div className="space-y-6">
       {/* 面包屑 + 返回 */}
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -432,5 +438,6 @@ export default function AlgorithmDetail() {
         </DialogContent>
       </Dialog>
     </div>
+    </MainLayout>
   );
 }

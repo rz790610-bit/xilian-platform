@@ -1,5 +1,6 @@
 import { useLocation, useRoute } from "wouter";
 import { trpc } from "@/lib/trpc";
+import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -46,15 +47,16 @@ export default function AlgorithmCategory() {
 
   // 特殊页面：编排和执行记录
   if (category === "compose") {
-    return <AlgorithmComposePage />;
+    return <MainLayout title="算法编排"><AlgorithmComposePage /></MainLayout>;
   }
   if (category === "execution") {
-    return <AlgorithmExecutionPage />;
+    return <MainLayout title="执行记录"><AlgorithmExecutionPage /></MainLayout>;
   }
 
   const algorithms = listQuery.data?.items;
 
   return (
+    <MainLayout title={meta?.label || "算法分类"}>
     <div className="space-y-6">
       {/* 面包屑 */}
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -116,6 +118,7 @@ export default function AlgorithmCategory() {
         </Card>
       )}
     </div>
+    </MainLayout>
   );
 }
 
