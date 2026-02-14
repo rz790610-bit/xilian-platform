@@ -195,6 +195,7 @@ export async function createConnector(data: {
 }) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
+  await ensureAccessLayerTables(db);
 
   const connectorId = `conn_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   await db.insert(dataConnectors).values({
@@ -227,6 +228,7 @@ export async function updateConnector(connectorId: string, data: Partial<{
 }>) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
+  await ensureAccessLayerTables(db);
 
   await db.update(dataConnectors).set({
     ...data,
@@ -241,6 +243,7 @@ export async function updateConnector(connectorId: string, data: Partial<{
 export async function deleteConnector(connectorId: string) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
+  await ensureAccessLayerTables(db);
 
   // 级联删除：先删 bindings → endpoints → connector
   const endpoints = await db.select({ endpointId: dataEndpoints.endpointId })
@@ -260,6 +263,7 @@ export async function deleteConnector(connectorId: string) {
 export async function listEndpoints(connectorId: string) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
+  await ensureAccessLayerTables(db);
 
   return db.select().from(dataEndpoints)
     .where(eq(dataEndpoints.connectorId, connectorId))
@@ -281,6 +285,7 @@ export async function createEndpoint(data: {
 }) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
+  await ensureAccessLayerTables(db);
 
   const endpointId = `ep_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   await db.insert(dataEndpoints).values({
@@ -315,6 +320,7 @@ export async function createEndpointsBatch(endpoints: Array<{
 }>) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
+  await ensureAccessLayerTables(db);
   if (endpoints.length === 0) return [];
 
   const values = endpoints.map(ep => ({
@@ -347,6 +353,7 @@ export async function updateEndpoint(endpointId: string, data: Partial<{
 }>) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
+  await ensureAccessLayerTables(db);
 
   await db.update(dataEndpoints).set({
     ...data,
@@ -361,6 +368,7 @@ export async function updateEndpoint(endpointId: string, data: Partial<{
 export async function deleteEndpoint(endpointId: string) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
+  await ensureAccessLayerTables(db);
 
   await db.delete(dataBindings).where(eq(dataBindings.endpointId, endpointId));
   await db.delete(dataEndpoints).where(eq(dataEndpoints.endpointId, endpointId));
@@ -376,6 +384,7 @@ export async function listBindings(opts: {
 } = {}) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
+  await ensureAccessLayerTables(db);
 
   const conditions = [];
   if (opts.endpointId) conditions.push(eq(dataBindings.endpointId, opts.endpointId));
@@ -425,6 +434,7 @@ export async function createBinding(data: {
 }) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
+  await ensureAccessLayerTables(db);
 
   const bindingId = `bind_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   await db.insert(dataBindings).values({
@@ -451,6 +461,7 @@ export async function updateBinding(bindingId: string, data: Partial<{
 }>) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
+  await ensureAccessLayerTables(db);
 
   await db.update(dataBindings).set({
     ...data,
@@ -465,6 +476,7 @@ export async function updateBinding(bindingId: string, data: Partial<{
 export async function deleteBinding(bindingId: string) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
+  await ensureAccessLayerTables(db);
 
   await db.delete(dataBindings).where(eq(dataBindings.bindingId, bindingId));
   return { deleted: true, bindingId };
@@ -491,6 +503,7 @@ export async function discoverEndpoints(
 ): Promise<DiscoveredEndpoint[]> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
+  await ensureAccessLayerTables(db);
 
   const [connector] = await db.select().from(dataConnectors)
     .where(eq(dataConnectors.connectorId, connectorId)).limit(1);
@@ -512,6 +525,7 @@ export async function discoverEndpoints(
 export async function healthCheck(connectorId: string): Promise<HealthCheckResult> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
+  await ensureAccessLayerTables(db);
 
   const [connector] = await db.select().from(dataConnectors)
     .where(eq(dataConnectors.connectorId, connectorId)).limit(1);
@@ -998,15 +1012,32 @@ export async function seedDemoData() {
     });
   }
 
-  // ─── 批量插入 ───
-  for (const c of connectors) {
-    await db.insert(dataConnectors).values(c as any);
-  }
-  for (const e of endpoints) {
-    await db.insert(dataEndpoints).values(e as any);
-  }
-  for (const b of bindings) {
-    await db.insert(dataBindings).values(b as any);
+  // ─── 批量插入（带错误回滚） ───
+  try {
+    for (const c of connectors) {
+      await db.insert(dataConnectors).values(c as any);
+    }
+    for (const e of endpoints) {
+      await db.insert(dataEndpoints).values(e as any);
+    }
+    for (const b of bindings) {
+      await db.insert(dataBindings).values(b as any);
+    }
+  } catch (err) {
+    // 回滚：删除已插入的数据
+    const insertedConnIds = connectors.map(c => c.connectorId);
+    try {
+      await db.delete(dataBindings).where(
+        inArray(dataBindings.endpointId, endpoints.map(e => e.endpointId))
+      );
+      await db.delete(dataEndpoints).where(
+        inArray(dataEndpoints.connectorId, insertedConnIds)
+      );
+      await db.delete(dataConnectors).where(
+        inArray(dataConnectors.connectorId, insertedConnIds)
+      );
+    } catch (_) { /* best-effort cleanup */ }
+    throw new Error(`演示数据加载失败: ${err instanceof Error ? err.message : String(err)}`);
   }
 
   return {

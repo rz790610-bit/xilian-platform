@@ -82,7 +82,7 @@ function CreateConnectorDialog({
   const [authConfig, setAuthConfig] = useState<Record<string, unknown>>({});
 
   const schemaQuery = trpc.accessLayer.protocolSchema.useQuery(
-    { protocolType: selectedProtocol || '' },
+    { protocolType: selectedProtocol! },
     { enabled: !!selectedProtocol }
   );
 
@@ -374,7 +374,7 @@ function ConnectorDetail({
       <PageCard title={`数据端点 (${connector.endpoints?.length || 0})`} icon={<Layers className="w-4 h-4" />}>
         {connector.endpoints && connector.endpoints.length > 0 ? (
           <div className="space-y-2">
-            {connector.endpoints.map((ep: any) => (
+            {connector.endpoints.map((ep: { endpointId: string; name: string; resourcePath: string; resourceType: string; dataFormat: string | null; status: string; bindingCount?: number }) => (
               <div key={ep.endpointId} className="flex items-center justify-between p-3 rounded-lg bg-white/[0.02] border border-white/5 hover:bg-white/[0.04] transition-colors">
                 <div className="flex items-center gap-3">
                   <span className="text-xs px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-400 font-mono">{ep.resourceType}</span>
@@ -385,7 +385,7 @@ function ConnectorDetail({
                 </div>
                 <div className="flex items-center gap-2">
                   <StatusBadge status={ep.status} />
-                  {ep.bindingCount > 0 && (
+                  {(ep.bindingCount ?? 0) > 0 && (
                     <span className="text-xs px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-400">
                       {ep.bindingCount} 绑定
                     </span>
@@ -488,7 +488,7 @@ export default function AccessLayerManager() {
               </TabsTrigger>
             </TabsList>
             <div className="flex items-center gap-2">
-              {(stats?.totalConnectors || 0) === 0 && (
+              {(!stats || stats.totalConnectors === 0) && (
                 <Button size="sm" variant="outline" onClick={() => seedMutation.mutate()} disabled={seedMutation.isPending}>
                   {seedMutation.isPending ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Database className="w-3.5 h-3.5 mr-1" />}
                   加载SHM演示数据
@@ -551,7 +551,7 @@ export default function AccessLayerManager() {
               <div className="flex items-center justify-center p-12"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div>
             ) : connectorsQuery.data?.items && connectorsQuery.data.items.length > 0 ? (
               <div className="space-y-2">
-                {connectorsQuery.data.items.map((conn: any) => {
+                {connectorsQuery.data.items.map((conn) => {
                   const meta = PROTOCOL_META[conn.protocolType as ProtocolType];
                   return (
                     <div
@@ -604,9 +604,9 @@ export default function AccessLayerManager() {
           <TabsContent value="bindings" className="space-y-3">
             {bindingsQuery.isLoading ? (
               <div className="flex items-center justify-center p-12"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div>
-            ) : bindingsQuery.data && (bindingsQuery.data as any[]).length > 0 ? (
+            ) : bindingsQuery.data && Array.isArray(bindingsQuery.data) && bindingsQuery.data.length > 0 ? (
               <div className="space-y-2">
-                {(bindingsQuery.data as any[]).map((bind: any) => (
+                {(bindingsQuery.data as Array<{ bindingId: string; endpointId: string; targetType: string; targetId: string; direction: string; status: string; endpointName?: string; connectorName?: string }>).map((bind) => (
                   <div key={bind.bindingId} className="flex items-center justify-between p-3 rounded-xl border border-white/5 bg-white/[0.02]">
                     <div className="flex items-center gap-3">
                       <ArrowRightLeft className="w-4 h-4 text-cyan-400" />

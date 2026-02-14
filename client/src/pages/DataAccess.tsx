@@ -58,7 +58,7 @@ function QuickCreateDialog({
   const [authConfig, setAuthConfig] = useState<Record<string, unknown>>({});
 
   const schemaQuery = trpc.accessLayer.protocolSchema.useQuery(
-    { protocolType: selectedProtocol || '' },
+    { protocolType: selectedProtocol! },
     { enabled: !!selectedProtocol }
   );
 

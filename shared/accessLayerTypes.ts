@@ -96,6 +96,8 @@ export interface PreprocessConfig {
   filterRules?: Array<{ field: string; operator: string; value: unknown }>;
 }
 
+export type EndpointStatus = 'active' | 'inactive' | 'error' | 'discovered';
+
 export interface EndpointInfo {
   id: number;
   endpointId: string;
@@ -109,7 +111,7 @@ export interface EndpointInfo {
   preprocessConfig: PreprocessConfig | null;
   protocolConfigId: string | null;
   sensorId: string | null;
-  status: string;
+  status: EndpointStatus;
   discoveredAt: string | null;
   metadata: Record<string, unknown> | null;
   createdAt: string;
@@ -155,6 +157,8 @@ export interface SyncStats {
   lastMessageAt: string | null;
 }
 
+export type BindingStatus = 'active' | 'inactive' | 'error' | 'paused';
+
 export interface BindingInfo {
   id: number;
   bindingId: string;
@@ -164,7 +168,7 @@ export interface BindingInfo {
   direction: BindingDirection;
   transformConfig: TransformConfig | null;
   bufferConfig: BufferConfig | null;
-  status: string;
+  status: BindingStatus;
   lastSyncAt: string | null;
   syncStats: SyncStats | null;
   createdAt: string;

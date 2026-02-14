@@ -5,6 +5,9 @@
 import { z } from "zod";
 import { publicProcedure, router } from "../core/trpc";
 import * as alService from "../services/access-layer.service";
+import { PROTOCOL_TYPES } from "../../shared/accessLayerTypes";
+
+const protocolTypeEnum = z.enum(PROTOCOL_TYPES);
 
 export const accessLayerRouter = router({
   // ============ 演示数据种子 ============
@@ -16,8 +19,8 @@ export const accessLayerRouter = router({
   protocolSchemas: publicProcedure.query(() => alService.getAllProtocolSchemas()),
 
   protocolSchema: publicProcedure
-    .input(z.object({ protocolType: z.string() }))
-    .query(({ input }) => alService.getProtocolConfigSchema(input.protocolType as any)),
+    .input(z.object({ protocolType: protocolTypeEnum }))
+    .query(({ input }) => alService.getProtocolConfigSchema(input.protocolType)),
 
   // ============ Connector CRUD ============
   listConnectors: publicProcedure.input(z.object({
@@ -34,7 +37,7 @@ export const accessLayerRouter = router({
 
   createConnector: publicProcedure.input(z.object({
     name: z.string(),
-    protocolType: z.string(),
+    protocolType: protocolTypeEnum,
     description: z.string().optional(),
     connectionParams: z.record(z.string(), z.unknown()),
     authConfig: z.record(z.string(), z.unknown()).optional(),
@@ -62,11 +65,11 @@ export const accessLayerRouter = router({
 
   // ============ 连接测试 ============
   testConnection: publicProcedure.input(z.object({
-    protocolType: z.string(),
+    protocolType: protocolTypeEnum,
     connectionParams: z.record(z.string(), z.unknown()),
     authConfig: z.record(z.string(), z.unknown()).optional(),
   })).mutation(({ input }) => alService.testConnection(
-    input.protocolType as any,
+    input.protocolType,
     input.connectionParams,
     input.authConfig,
   )),
