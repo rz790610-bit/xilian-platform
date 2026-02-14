@@ -382,23 +382,24 @@ export class CausalInference implements IAlgorithmExecutor {
       // 非受限模型: y[t] = a0 + a1*y[t-1] + ... + aL*y[t-L] + b1*x[t-1] + ... + bL*x[t-L]
       const yTarget = y.slice(lag);
 
-      // 受限模型残差
-      let rssRestricted = 0;
-      const yMean = dsp.mean(yTarget);
-      for (const val of yTarget) rssRestricted += (val - yMean) ** 2;
-
-      // 非受限模型 (简化: 线性回归)
-      let rssUnrestricted = 0;
+      // 构建受限模型特征矩阵 (AR: 只用 y 的滞后值)
+      const XRestricted: number[][] = [];
       for (let t = 0; t < n; t++) {
-        let pred = yMean;
-        for (let l = 1; l <= lag; l++) {
-          if (t + lag - l >= 0) {
-            pred += 0.1 * (y[t + lag - l] - yMean); // 简化权重
-            pred += 0.1 * (x[t + lag - l] - dsp.mean(x)); // x的贡献
-          }
-        }
-        rssUnrestricted += (yTarget[t] - pred) ** 2;
+        const row = [1]; // 截距
+        for (let l = 1; l <= lag; l++) row.push(y[t + lag - l]);
+        XRestricted.push(row);
       }
+      const rssRestricted = this.olsRSS(XRestricted, yTarget);
+
+      // 构建非受限模型特征矩阵 (AR + x 的滞后值)
+      const XUnrestricted: number[][] = [];
+      for (let t = 0; t < n; t++) {
+        const row = [1]; // 截距
+        for (let l = 1; l <= lag; l++) row.push(y[t + lag - l]);
+        for (let l = 1; l <= lag; l++) row.push(x[t + lag - l]);
+        XUnrestricted.push(row);
+      }
+      const rssUnrestricted = this.olsRSS(XUnrestricted, yTarget);
 
       // F统计量
       const df1 = lag;
@@ -406,8 +407,8 @@ export class CausalInference implements IAlgorithmExecutor {
       if (df2 <= 0) continue;
 
       const fStat = ((rssRestricted - rssUnrestricted) / df1) / (rssUnrestricted / df2);
-      // 近似p值 (F分布)
-      const pValue = Math.exp(-fStat * 0.5); // 简化近似
+      // F分布 p 值近似 (Abramowitz & Stegun 近似)
+      const pValue = this.fDistPValue(fStat, df1, df2);
 
       if (fStat > bestF) {
         bestF = fStat;
@@ -417,6 +418,55 @@ export class CausalInference implements IAlgorithmExecutor {
     }
 
     return { pValue: bestP, fStatistic: bestF, bestLag };
+  }
+
+  /** OLS 最小二乘法计算残差平方和 (RSS) — 梯度下降法 */
+  private olsRSS(X: number[][], y: number[]): number {
+    const nFeatures = X[0].length;
+    const n = X.length;
+    const coeffs = new Array(nFeatures).fill(0);
+    const lr = 0.001;
+    // 梯度下降 500 次
+    for (let iter = 0; iter < 500; iter++) {
+      const grad = new Array(nFeatures).fill(0);
+      for (let i = 0; i < n; i++) {
+        const pred = X[i].reduce((s, xij, j) => s + xij * coeffs[j], 0);
+        const error = pred - y[i];
+        for (let j = 0; j < nFeatures; j++) grad[j] += error * X[i][j] / n;
+      }
+      for (let j = 0; j < nFeatures; j++) coeffs[j] -= lr * grad[j];
+    }
+    // 计算 RSS
+    let rss = 0;
+    for (let i = 0; i < n; i++) {
+      const pred = X[i].reduce((s, xij, j) => s + xij * coeffs[j], 0);
+      rss += (y[i] - pred) ** 2;
+    }
+    return rss;
+  }
+
+  /** F 分布 p 值近似 — 基于正态近似 (Abramowitz & Stegun 26.7.8) */
+  private fDistPValue(f: number, d1: number, d2: number): number {
+    if (f <= 0) return 1;
+    // 将 F 转换为近似正态变量
+    const a = d1 * f;
+    const b = d2;
+    // Wilson-Hilferty 近似: X ~ chi2(d) ≈ d*(1 - 2/(9d) + Z*sqrt(2/(9d)))^3
+    // 对于 F = (chi2_1/d1) / (chi2_2/d2), 使用对数近似
+    const lnF = Math.log(f);
+    const z = ((1 - 2 / (9 * d2)) * Math.pow(a / (a + b), 1 / 3) - (1 - 2 / (9 * d1))) /
+              Math.sqrt(2 / (9 * d1) + 2 / (9 * d2) * Math.pow(a / (a + b), 2 / 3));
+    // 正态 CDF 补函数
+    return 1 - this.normalCDF(z);
+  }
+
+  /** 正态分布 CDF (Abramowitz & Stegun 26.2.17) */
+  private normalCDF(x: number): number {
+    const t = 1 / (1 + 0.2316419 * Math.abs(x));
+    const d = 0.3989422804014327;
+    const p = d * Math.exp(-x * x / 2) * t *
+      (0.3193815 + t * (-0.3565638 + t * (1.781478 + t * (-1.821256 + t * 1.330274))));
+    return x > 0 ? 1 - p : p;
   }
 }
 

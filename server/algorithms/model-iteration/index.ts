@@ -497,18 +497,43 @@ export class ModelDistillation implements IAlgorithmExecutor {
     const tAcc = calcAccuracy(predict(teacher, vX), vY);
     const tP = countParams(teacher);
 
-    // 蒸馏训练学生
+    // 蒸馏训练学生: L = alpha * T^2 * KL(teacher_soft || student_soft) + (1-alpha) * CE(hard_label)
     const student = buildMLP([d, ...cfg.studentLayers, nc]);
     const sLH: number[] = [], dLH: number[] = [];
     for (let e = 0; e < cfg.studentEpochs; e++) {
       let tDistill = 0;
+      const T = cfg.temperature;
+      const T2 = T * T;
+      // 蒸馏梯度更新: 对每个样本计算 soft target 梯度并更新权重
+      const distillLr = cfg.learningRate * cfg.alpha;
       for (let s = 0; s < trX.length; s++) {
         const tLog = forward(teacher, trX[s]).logits;
-        const sLog = forward(student, trX[s]).logits;
-        const tSoft = softmax(tLog.map(l => l / cfg.temperature));
-        const sSoft = softmax(sLog.map(l => l / cfg.temperature));
+        const { acts, logits: sLog } = forward(student, trX[s]);
+        const tSoft = softmax(tLog.map(l => l / T));
+        const sSoft = softmax(sLog.map(l => l / T));
         tDistill += klDiv(tSoft, sSoft);
+        // 蒸馏梯度: d(KL)/d(logits) = (sSoft - tSoft) / T, 乘以 T^2 缩放
+        let delta = sSoft.map((p, c) => (p - tSoft[c]) * T);
+        // 反向传播蒸馏梯度
+        for (let li = student.layers.length - 1; li >= 0; li--) {
+          const a = acts[li];
+          for (let i = 0; i < delta.length; i++) {
+            for (let j = 0; j < a.length; j++) {
+              student.layers[li].W[i][j] -= distillLr * delta[i] * a[j] / trX.length;
+            }
+            student.layers[li].b[i] -= distillLr * delta[i] / trX.length;
+          }
+          if (li > 0) {
+            const pd = new Array(a.length).fill(0);
+            for (let j = 0; j < a.length; j++) {
+              for (let i = 0; i < delta.length; i++) pd[j] += student.layers[li].W[i][j] * delta[i];
+              if (student.layers[li - 1].act === 'relu') pd[j] *= acts[li][j] > 0 ? 1 : 0;
+            }
+            delta = pd;
+          }
+        }
       }
+      // 硬标签损失梯度更新
       const hl = trainStep(student, trX, trY, cfg.learningRate * (1 - cfg.alpha));
       sLH.push(hl);
       dLH.push(tDistill / trX.length);

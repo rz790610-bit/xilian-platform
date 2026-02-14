@@ -178,7 +178,7 @@ export function amplitudeSpectrum(signal: number[], sampleRate: number): {
 
   for (let i = 0; i < halfN; i++) {
     frequencies[i] = i * df;
-    amplitudes[i] = (2 * complexAbs(spectrum[i])) / signal.length;
+    amplitudes[i] = (2 * complexAbs(spectrum[i])) / N;
   }
   // DC分量不乘2
   amplitudes[0] /= 2;
@@ -204,7 +204,7 @@ export function powerSpectralDensity(
   const halfN = Math.floor(N / 2);
 
   // 窗函数功率校正
-  const winPower = win.reduce((s, w) => s + w * w, 0) / win.length;
+  const winPower = win.reduce((s, w) => s + w * w, 0);
   const df = sampleRate / N;
 
   const frequencies = new Array(halfN);
@@ -213,7 +213,7 @@ export function powerSpectralDensity(
   for (let i = 0; i < halfN; i++) {
     frequencies[i] = i * df;
     const mag = complexAbs(spectrum[i]);
-    psd[i] = (2 * mag * mag) / (signal.length * sampleRate * winPower);
+    psd[i] = (2 * mag * mag) / (sampleRate * winPower);
   }
   psd[0] /= 2;
 
@@ -229,14 +229,20 @@ export function rmsVelocity(
   fLow: number = 10,
   fHigh: number = 1000
 ): number {
+  // 输入假设为加速度信号
+  // 加速度→速度频域转换: V(f) = A(f) / (2πf)
+  // 输出单位: mm/s (假设输入加速度单位为 m/s²，乘 1000 转 mm/s)
   const { frequencies, amplitudes } = amplitudeSpectrum(signal, sampleRate);
   let sumSq = 0;
   for (let i = 0; i < frequencies.length; i++) {
-    if (frequencies[i] >= fLow && frequencies[i] <= fHigh) {
-      sumSq += amplitudes[i] * amplitudes[i];
+    if (frequencies[i] >= fLow && frequencies[i] <= fHigh && frequencies[i] > 0) {
+      // 加速度幅值(peak) → 速度幅值(peak): V = A / (2πf)
+      const velAmp = amplitudes[i] / (2 * Math.PI * frequencies[i]) * 1000;
+      sumSq += velAmp * velAmp;
     }
   }
-  return Math.sqrt(sumSq / 2); // RMS = peak / sqrt(2)
+  // RMS from peak amplitudes: Vrms = sqrt(Σ(Vpeak²/2))
+  return Math.sqrt(sumSq / 2);
 }
 
 // ============================================================
@@ -287,6 +293,24 @@ function besselI0(x: number): number {
     if (term < 1e-12 * sum) break;
   }
   return sum;
+}
+
+/**
+ * 窗函数相干增益 (Coherent Gain)
+ * 用于补偿加窗后幅值谱的幅值衰减
+ * coherentGain = mean(window) = sum(w[i]) / N
+ * 加窗后幅值需除以 coherentGain 才能恢复真实幅值
+ */
+export function windowCoherentGain(windowType: WindowFunction): number {
+  switch (windowType) {
+    case 'hanning': return 0.5;
+    case 'hamming': return 0.54;
+    case 'blackman': return 0.42;
+    case 'flat-top': return 0.21557895;
+    case 'rectangular': return 1.0;
+    case 'kaiser': return 0.4; // beta=5 近似值
+    default: return 0.5;
+  }
 }
 
 export type WindowFunction = 'hanning' | 'hamming' | 'blackman' | 'flat-top' | 'rectangular' | 'kaiser';
@@ -621,7 +645,7 @@ export function stft(
 
     timeAxis.push((start + windowSize / 2) / sampleRate);
     magnitude.push(
-      spectrum.slice(0, halfNfft).map(c => complexAbs(c))
+      spectrum.slice(0, halfNfft).map(c => (2 * complexAbs(c)) / nfft)
     );
   }
 
@@ -657,13 +681,14 @@ export function peakToPeak(data: number[]): number {
   return Math.max(...data) - Math.min(...data);
 }
 
-/** 峭度 (Kurtosis) — 四阶中心矩 / σ⁴ */
+/** 峭度 (Kurtosis) — 超额峭度 (excess kurtosis)，正态分布为0 */
 export function kurtosis(data: number[]): number {
   const m = mean(data);
   const s = std(data);
   if (s === 0) return 0;
   const n = data.length;
-  return data.reduce((sum, v) => sum + ((v - m) / s) ** 4, 0) / n;
+  const rawKurt = data.reduce((sum, v) => sum + ((v - m) / s) ** 4, 0) / n;
+  return rawKurt - 3; // excess kurtosis: 正态分布 = 0
 }
 
 /** 偏度 (Skewness) — 三阶中心矩 / σ³ */
@@ -1064,23 +1089,25 @@ function jacobiEigen(A: Matrix, maxIter: number = 100): { eigenvalues: number[];
     const theta = 0.5 * Math.atan2(2 * D[p][q], D[p][p] - D[q][q]);
     const c = Math.cos(theta), s = Math.sin(theta);
 
-    const newD = D.map(row => [...row]);
+    // 旋转 D 的行
     for (let i = 0; i < n; i++) {
-      newD[i][p] = c * D[i][p] + s * D[i][q];
-      newD[i][q] = -s * D[i][p] + c * D[i][q];
+      const dp = D[i][p], dq = D[i][q];
+      D[i][p] = c * dp + s * dq;
+      D[i][q] = -s * dp + c * dq;
     }
+    // 旋转 D 的列
     for (let j = 0; j < n; j++) {
-      D[p][j] = c * newD[p][j] + s * newD[q][j];
-      D[q][j] = -s * newD[p][j] + c * newD[q][j];
+      const dp = D[p][j], dq = D[q][j];
+      D[p][j] = c * dp + s * dq;
+      D[q][j] = -s * dp + c * dq;
     }
 
     // 更新特征向量
-    const newV = V.map(row => [...row]);
     for (let i = 0; i < n; i++) {
-      newV[i][p] = c * V[i][p] + s * V[i][q];
-      newV[i][q] = -s * V[i][p] + c * V[i][q];
+      const vp = V[i][p], vq = V[i][q];
+      V[i][p] = c * vp + s * vq;
+      V[i][q] = -s * vp + c * vq;
     }
-    V = newV;
   }
 
   const eigenvalues = Array.from({ length: n }, (_, i) => D[i][i]);

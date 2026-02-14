@@ -109,8 +109,10 @@ export class FFTSpectrumAnalyzer implements IAlgorithmExecutor {
     const win = winFn(signal.length);
     const windowed = signal.map((v, i) => v * win[i]);
 
-    // FFT
-    const { frequencies, amplitudes } = dsp.amplitudeSpectrum(windowed, fs);
+    // FFT + 窗函数幅值补偿
+    const { frequencies, amplitudes: rawAmps } = dsp.amplitudeSpectrum(windowed, fs);
+    const coherentGain = dsp.windowCoherentGain(cfg.windowFunction);
+    const amplitudes = rawAmps.map(a => a / coherentGain);
 
     // 频率范围截取
     let fLow = cfg.frequencyRange[0] || 0;

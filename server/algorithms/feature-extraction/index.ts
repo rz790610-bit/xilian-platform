@@ -91,17 +91,18 @@ export class TimeDomainFeatureExtractor implements IAlgorithmExecutor {
     const mu = dsp.mean(sig), sd = dsp.standardDeviation(sig), r = dsp.rms(sig);
     const mx = Math.max(...sig), mn = Math.min(...sig), pp = mx - mn;
     const absSig = sig.map(Math.abs), absMu = dsp.mean(absSig);
+    const peakAbs = Math.max(...absSig); // 峰值因子应使用绝对值最大值
 
     // 波形指标
     const shapeFactor = r / (absMu || 1e-10);
-    const crestFactor = mx / (r || 1e-10);
-    const impulseFactor = mx / (absMu || 1e-10);
+    const crestFactor = peakAbs / (r || 1e-10); // 修复: 用 |peak| / RMS
+    const impulseFactor = peakAbs / (absMu || 1e-10); // 修复: 用 |peak| / |mean|
     const sqrtMean = dsp.mean(absSig.map(Math.sqrt));
-    const clearanceFactor = mx / (sqrtMean * sqrtMean || 1e-10);
+    const clearanceFactor = peakAbs / (sqrtMean * sqrtMean || 1e-10); // 修复: 用 |peak|
 
     // 高阶统计量
     const skewness = sd > 1e-10 ? sig.reduce((s, x) => s + Math.pow((x - mu) / sd, 3), 0) / n : 0;
-    const kurtosis = sd > 1e-10 ? sig.reduce((s, x) => s + Math.pow((x - mu) / sd, 4), 0) / n : 0;
+    const kurtosis = sd > 1e-10 ? sig.reduce((s, x) => s + Math.pow((x - mu) / sd, 4), 0) / n - 3 : 0; // 修复: excess kurtosis 需减3
 
     // Burg AR
     const arCoeffs = this.burgAR(sig, cfg.arOrder);
@@ -178,9 +179,10 @@ export class FrequencyDomainFeatureExtractor implements IAlgorithmExecutor {
 
     const fftR = dsp.fft(padded);
     const halfN = Math.floor(nfft / 2);
+    const coherentGain = dsp.windowCoherentGain(cfg.windowType as dsp.WindowFunction);
     const mag = new Array(halfN), freqs = new Array(halfN);
     for (let i = 0; i < halfN; i++) {
-      mag[i] = Math.sqrt(fftR[i].re ** 2 + fftR[i].im ** 2) / nfft;
+      mag[i] = (2 * Math.sqrt(fftR[i].re ** 2 + fftR[i].im ** 2)) / (nfft * coherentGain);
       freqs[i] = i * fs / nfft;
     }
 
@@ -200,7 +202,7 @@ export class FrequencyDomainFeatureExtractor implements IAlgorithmExecutor {
       return { band: `${fL.toFixed(0)}-${fH.toFixed(0)}Hz`, energy: e, ratio: e / (tp || 1e-10) };
     });
 
-    const spectralKurtosis = psd.reduce((s: number, p: number, i: number) => s + p * Math.pow(freqs[i] - fc, 4), 0) / (tp * vf * vf || 1e-10);
+    const spectralKurtosis = psd.reduce((s: number, p: number, i: number) => s + p * Math.pow(freqs[i] - fc, 4), 0) / (tp * vf * vf || 1e-10) - 3; // excess kurtosis
     const psdN = psd.map((p: number) => p / (tp || 1e-10));
     const spectralEntropy = -psdN.reduce((s: number, p: number) => p > 0 ? s + p * Math.log2(p) : s, 0);
     const peakIdx = psd.indexOf(Math.max(...psd));
@@ -322,7 +324,7 @@ export class StatisticalFeatureExtractor implements IAlgorithmExecutor {
     const n = sig.length, mu = dsp.mean(sig), sd = dsp.standardDeviation(sig);
 
     const skewness = sd > 1e-10 ? sig.reduce((s, x) => s + Math.pow((x - mu) / sd, 3), 0) / n : 0;
-    const kurtosis = sd > 1e-10 ? sig.reduce((s, x) => s + Math.pow((x - mu) / sd, 4), 0) / n : 0;
+    const kurtosis = sd > 1e-10 ? sig.reduce((s, x) => s + Math.pow((x - mu) / sd, 4), 0) / n - 3 : 0; // excess kurtosis
     const moment5 = sd > 1e-10 ? sig.reduce((s, x) => s + Math.pow((x - mu) / sd, 5), 0) / n : 0;
     const moment6 = sd > 1e-10 ? sig.reduce((s, x) => s + Math.pow((x - mu) / sd, 6), 0) / n : 0;
 

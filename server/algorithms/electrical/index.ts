@@ -65,10 +65,11 @@ export class MCSAAnalyzer implements IAlgorithmExecutor {
     const signal = getSignalData(input);
     const fs = input.sampleRate!;
 
-    // FFT
+    // FFT + 窗函数幅值补偿
     const win = dsp.getWindowFunction('hanning')(signal.length);
     const windowed = signal.map((v, i) => v * win[i]);
-    const { frequencies, amplitudes } = dsp.amplitudeSpectrum(windowed, fs);
+    const { frequencies, amplitudes: rawAmps } = dsp.amplitudeSpectrum(windowed, fs);
+    const amplitudes = rawAmps.map(a => a / dsp.windowCoherentGain('hanning'));
 
     // 转换为dB
     const maxAmp = Math.max(...amplitudes);

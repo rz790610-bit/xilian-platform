@@ -413,16 +413,57 @@ export class BayesianOptimizer implements IAlgorithmExecutor {
   }
 
   private gpPredict(x: number[], X: number[][], Y: number[], noise: number): { mu: number; sigma: number } {
-    // 简化GP预测: RBF核加权
+    // GP后验预测: 基于 RBF 核
+    // mu = k*^T (K + sigma_n^2 I)^{-1} y
+    // sigma^2 = k(x,x) - k*^T (K + sigma_n^2 I)^{-1} k*
+    const n = X.length;
+    if (n === 0) return { mu: 0, sigma: 1 };
     const lengthScale = 1.0;
-    const weights = X.map(xi => {
+    const signalVar = 1.0;
+    // 核向量 k*
+    const kStar = X.map(xi => {
       const dist = x.reduce((s, xj, j) => s + (xj - xi[j]) ** 2, 0);
-      return Math.exp(-dist / (2 * lengthScale * lengthScale));
+      return signalVar * Math.exp(-dist / (2 * lengthScale * lengthScale));
     });
-    const totalWeight = weights.reduce((s, w) => s + w, 0) + 1e-10;
-    const mu = weights.reduce((s, w, i) => s + w * Y[i], 0) / totalWeight;
-    const variance = weights.reduce((s, w, i) => s + w * (Y[i] - mu) ** 2, 0) / totalWeight + noise;
-    return { mu, sigma: Math.sqrt(variance) };
+    // 核矩阵 K + noise*I
+    const K: number[][] = [];
+    for (let i = 0; i < n; i++) {
+      K[i] = [];
+      for (let j = 0; j < n; j++) {
+        const dist = X[i].reduce((s, v, d) => s + (v - X[j][d]) ** 2, 0);
+        K[i][j] = signalVar * Math.exp(-dist / (2 * lengthScale * lengthScale));
+        if (i === j) K[i][j] += noise * noise + 1e-6;
+      }
+    }
+    // 共轭梯度法求解 K*alpha=Y 和 K*v=kStar
+    const alpha = this.solveLinear(K, Y);
+    const v = this.solveLinear(K, kStar);
+    const mu = kStar.reduce((s, k, i) => s + k * alpha[i], 0);
+    const kxx = signalVar;
+    const sigma2 = Math.max(0, kxx - kStar.reduce((s, k, i) => s + k * v[i], 0));
+    return { mu, sigma: Math.sqrt(sigma2 + 1e-10) };
+  }
+
+  /** 共轭梯度法求解 Ax=b */
+  private solveLinear(A: number[][], b: number[]): number[] {
+    const n = A.length;
+    const x = new Array(n).fill(0);
+    let r = b.map((bi, i) => bi - A[i].reduce((s, aij, j) => s + aij * x[j], 0));
+    let p = [...r];
+    let rsOld = r.reduce((s, ri) => s + ri * ri, 0);
+    for (let iter = 0; iter < Math.min(n * 2, 100); iter++) {
+      const Ap = A.map(row => row.reduce((s, aij, j) => s + aij * p[j], 0));
+      const pAp = p.reduce((s, pi, i) => s + pi * Ap[i], 0);
+      if (Math.abs(pAp) < 1e-15) break;
+      const al = rsOld / pAp;
+      for (let i = 0; i < n; i++) { x[i] += al * p[i]; r[i] -= al * Ap[i]; }
+      const rsNew = r.reduce((s, ri) => s + ri * ri, 0);
+      if (rsNew < 1e-12) break;
+      const beta = rsNew / rsOld;
+      p = r.map((ri, i) => ri + beta * p[i]);
+      rsOld = rsNew;
+    }
+    return x;
   }
 
   private acquisitionValue(mu: number, sigma: number, yBest: number, cfg: any): number {
