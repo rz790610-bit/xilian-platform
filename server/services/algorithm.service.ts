@@ -123,7 +123,13 @@ class AlgorithmService {
     return {
       ...item,
       label: item.algoName,
-      measurementTypes: item.applicableMeasurementTypes,
+      measurementTypes: item.applicableMeasurementTypes || [],
+      applicableDeviceTypes: item.applicableDeviceTypes || [],
+      applicableScenarios: item.applicableScenarios || [],
+      tags: item.tags || [],
+      configSchema: item.configSchema || { fields: [] },
+      inputSchema: item.inputSchema || { fields: [] },
+      outputSchema: item.outputSchema || { fields: [] },
     };
   }
 

@@ -12,11 +12,24 @@ export async function createTopoNode(data: InsertTopoNode): Promise<TopoNode | n
   if (!db) return null;
   
   try {
-    await db.insert(topoNodes).values(data);
+    // upsert: 如果 node_id 已存在则更新，避免 ER_DUP_ENTRY
+    await db.insert(topoNodes).values(data).onDuplicateKeyUpdate({
+      set: {
+        name: data.name,
+        type: data.type,
+        icon: data.icon,
+        description: data.description,
+        status: data.status,
+        x: data.x,
+        y: data.y,
+        config: data.config,
+        metrics: data.metrics,
+      },
+    });
     const result = await db.select().from(topoNodes).where(eq(topoNodes.nodeId, data.nodeId)).limit(1);
     return result[0] || null;
   } catch (error) {
-    console.error("[Topology] Failed to create node:", error);
+    console.error("[Topology] Failed to create/upsert node:", error);
     return null;
   }
 }
@@ -121,11 +134,21 @@ export async function createTopoEdge(data: InsertTopoEdge): Promise<TopoEdge | n
   if (!db) return null;
   
   try {
-    await db.insert(topoEdges).values(data);
+    // upsert: 如果 edge_id 已存在则更新，避免 ER_DUP_ENTRY
+    await db.insert(topoEdges).values(data).onDuplicateKeyUpdate({
+      set: {
+        sourceNodeId: data.sourceNodeId,
+        targetNodeId: data.targetNodeId,
+        type: data.type,
+        label: data.label,
+        status: data.status,
+        config: data.config,
+      },
+    });
     const result = await db.select().from(topoEdges).where(eq(topoEdges.edgeId, data.edgeId)).limit(1);
     return result[0] || null;
   } catch (error) {
-    console.error("[Topology] Failed to create edge:", error);
+    console.error("[Topology] Failed to create/upsert edge:", error);
     return null;
   }
 }
