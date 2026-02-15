@@ -1102,7 +1102,7 @@ export default function AlgorithmDetail() {
                     <TableBody>
                       {executionsQuery.data.items.map((exec: any) => (
                         <TableRow key={exec.id}>
-                          <TableCell className="font-mono text-xs">{exec.id.slice(0, 8)}...</TableCell>
+                          <TableCell className="font-mono text-xs">{String(exec.id).slice(0, 8)}{String(exec.id).length > 8 ? '...' : ''}</TableCell>
                           <TableCell>
                             <Badge variant={
                               exec.status === "success" ? "default" :
