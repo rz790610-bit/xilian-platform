@@ -479,6 +479,69 @@ function AlgorithmComposePage() {
                 />
               </div>
             </div>
+          ) : showAddStep ? (
+            /* ── 内嵌的算法选择面板（替代嵌套 Dialog） ── */
+            <div className="flex-1 overflow-hidden flex flex-col gap-3 py-2">
+              <div className="flex items-center gap-2">
+                <Button variant="ghost" size="sm" onClick={() => setShowAddStep(false)}>← 返回步骤列表</Button>
+                <span className="text-sm text-muted-foreground">选择算法添加为步骤</span>
+              </div>
+              {/* 分类筛选 */}
+              <div className="flex items-center gap-2">
+                <Label className="shrink-0 text-sm">分类:</Label>
+                <Select value={stepFilterCategory} onValueChange={setStepFilterCategory}>
+                  <SelectTrigger className="w-40">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">全部分类</SelectItem>
+                    {Object.entries(CATEGORY_LABELS).map(([key, label]) => (
+                      <SelectItem key={key} value={key}>{label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <span className="text-xs text-muted-foreground ml-auto">{filteredAlgos.length} 个算法</span>
+              </div>
+              {/* 算法列表 */}
+              <ScrollArea className="flex-1 max-h-[350px]">
+                <div className="space-y-1 pr-3">
+                  {filteredAlgos.map((algo: any) => {
+                    const isSelected = selectedAlgoCode === algo.algoCode;
+                    const isAlreadyAdded = nodes.some(n => n.algo_code === algo.algoCode);
+                    return (
+                      <div
+                        key={algo.algoCode}
+                        className={`flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-colors ${
+                          isSelected
+                            ? "bg-primary/10 border border-primary/30"
+                            : isAlreadyAdded
+                            ? "bg-muted/30 opacity-60"
+                            : "hover:bg-muted/50 border border-transparent"
+                        }`}
+                        onClick={() => setSelectedAlgoCode(algo.algoCode)}
+                      >
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium">{algo.label || algo.algoName}</span>
+                            <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                              {CATEGORY_LABELS[algo.category] || algo.category}
+                            </Badge>
+                            {isAlreadyAdded && (
+                              <Badge variant="secondary" className="text-[10px] px-1.5 py-0">已添加</Badge>
+                            )}
+                          </div>
+                          <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{algo.description}</p>
+                        </div>
+                        <span className="text-xs font-mono text-muted-foreground shrink-0">{algo.algoCode}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </ScrollArea>
+              <Button disabled={!selectedAlgoCode} onClick={addStep} className="w-full">
+                添加: {selectedAlgoCode ? getAlgoLabel(selectedAlgoCode) : "请选择算法"}
+              </Button>
+            </div>
           ) : (
             <div className="flex-1 overflow-hidden flex flex-col gap-3 py-2">
               {/* 步骤列表 */}
@@ -551,8 +614,8 @@ function AlgorithmComposePage() {
             </div>
           )}
 
-          <DialogFooter className="flex justify-between">
-            {createStep === "steps" && (
+          <DialogFooter className={`flex justify-between ${showAddStep && createStep === "steps" ? "hidden" : ""}`}>
+            {createStep === "steps" && !showAddStep && (
               <Button variant="ghost" onClick={() => setCreateStep("info")}>← 返回基本信息</Button>
             )}
             <div className="flex gap-2 ml-auto">
@@ -577,76 +640,7 @@ function AlgorithmComposePage() {
         </DialogContent>
       </Dialog>
 
-      {/* ━━━━━━━━━━ 添加步骤对话框 ━━━━━━━━━━ */}
-      <Dialog open={showAddStep} onOpenChange={setShowAddStep}>
-        <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
-          <DialogHeader>
-            <DialogTitle>选择算法</DialogTitle>
-            <DialogDescription>从算法库中选择一个算法添加为编排步骤</DialogDescription>
-          </DialogHeader>
-
-          {/* 分类筛选 */}
-          <div className="flex items-center gap-2">
-            <Label className="shrink-0 text-sm">分类:</Label>
-            <Select value={stepFilterCategory} onValueChange={setStepFilterCategory}>
-              <SelectTrigger className="w-40">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">全部分类</SelectItem>
-                {Object.entries(CATEGORY_LABELS).map(([key, label]) => (
-                  <SelectItem key={key} value={key}>{label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <span className="text-xs text-muted-foreground ml-auto">{filteredAlgos.length} 个算法</span>
-          </div>
-
-          {/* 算法列表 */}
-          <ScrollArea className="flex-1 max-h-[400px]">
-            <div className="space-y-1 pr-3">
-              {filteredAlgos.map((algo: any) => {
-                const isSelected = selectedAlgoCode === algo.algoCode;
-                const isAlreadyAdded = nodes.some(n => n.algo_code === algo.algoCode);
-                return (
-                  <div
-                    key={algo.algoCode}
-                    className={`flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-colors ${
-                      isSelected
-                        ? "bg-primary/10 border border-primary/30"
-                        : isAlreadyAdded
-                        ? "bg-muted/30 opacity-60"
-                        : "hover:bg-muted/50 border border-transparent"
-                    }`}
-                    onClick={() => setSelectedAlgoCode(algo.algoCode)}
-                  >
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium">{algo.label || algo.algoName}</span>
-                        <Badge variant="outline" className="text-[10px] px-1.5 py-0">
-                          {CATEGORY_LABELS[algo.category] || algo.category}
-                        </Badge>
-                        {isAlreadyAdded && (
-                          <Badge variant="secondary" className="text-[10px] px-1.5 py-0">已添加</Badge>
-                        )}
-                      </div>
-                      <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{algo.description}</p>
-                    </div>
-                    <span className="text-xs font-mono text-muted-foreground shrink-0">{algo.algoCode}</span>
-                  </div>
-                );
-              })}
-            </div>
-          </ScrollArea>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAddStep(false)}>取消</Button>
-            <Button disabled={!selectedAlgoCode} onClick={addStep}>
-              添加: {selectedAlgoCode ? getAlgoLabel(selectedAlgoCode) : "请选择算法"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* 添加步骤对话框已内嵌到新建编排对话框中，不再使用独立 Dialog */}
 
       {/* ━━━━━━━━━━ 查看编排详情对话框 ━━━━━━━━━━ */}
       <Dialog open={!!viewCompCode} onOpenChange={(open) => { if (!open) setViewCompCode(null); }}>
