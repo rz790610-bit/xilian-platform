@@ -245,25 +245,34 @@ function AlgorithmComposePage() {
     setEdges([]);
   }, []);
 
-  // 添加步骤
-  const addStep = useCallback(() => {
-    if (!selectedAlgoCode) return;
-    const newId = `step_${nodes.length + 1}`;
-    setNodes(prev => [...prev, {
-      id: newId,
-      order: prev.length + 1,
-      algo_code: selectedAlgoCode,
-      config_overrides: {},
-    }]);
-    // 自动添加边（串联上一个步骤）
-    if (nodes.length > 0) {
-      const prevNode = nodes[nodes.length - 1];
-      setEdges(prev => [...prev, { from: prevNode.id, to: newId }]);
+  // 添加步骤（不使用 useCallback，避免闭包捕获过时状态）
+  const addStep = () => {
+    console.log('[addStep] called, selectedAlgoCode =', selectedAlgoCode);
+    if (!selectedAlgoCode) {
+      console.warn('[addStep] selectedAlgoCode is empty, returning');
+      return;
     }
+    const newId = `step_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    setNodes(prev => {
+      const updated = [...prev, {
+        id: newId,
+        order: prev.length + 1,
+        algo_code: selectedAlgoCode,
+        config_overrides: {},
+      }];
+      // 自动添加边（串联上一个步骤）— 使用 prev 而非外部 nodes
+      if (prev.length > 0) {
+        const prevNode = prev[prev.length - 1];
+        setEdges(oldEdges => [...oldEdges, { from: prevNode.id, to: newId }]);
+      }
+      return updated;
+    });
+    const label = getAlgoLabel(selectedAlgoCode);
     setSelectedAlgoCode("");
     setShowAddStep(false);
-    toast.success(`已添加步骤: ${getAlgoLabel(selectedAlgoCode)}`);
-  }, [selectedAlgoCode, nodes, getAlgoLabel]);
+    toast.success(`已添加步骤: ${label}`);
+    console.log('[addStep] step added successfully');
+  };
 
   // 删除步骤
   const removeStep = useCallback((nodeId: string) => {
@@ -429,7 +438,7 @@ function AlgorithmComposePage() {
 
       {/* ━━━━━━━━━━ 新建编排对话框 ━━━━━━━━━━ */}
       <Dialog open={showCreate} onOpenChange={(open) => { if (!open) resetForm(); else setShowCreate(true); }}>
-        <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col">
+        <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col overflow-hidden">
           <DialogHeader>
             <DialogTitle>
               {createStep === "info" ? "新建算法编排 — 基本信息" : "新建算法编排 — 配置步骤"}
@@ -481,7 +490,7 @@ function AlgorithmComposePage() {
             </div>
           ) : showAddStep ? (
             /* ── 内嵌的算法选择面板（替代嵌套 Dialog） ── */
-            <div className="flex-1 overflow-hidden flex flex-col gap-3 py-2">
+            <div className="flex-1 min-h-0 flex flex-col gap-3 py-2">
               <div className="flex items-center gap-2">
                 <Button variant="ghost" size="sm" onClick={() => setShowAddStep(false)}>← 返回步骤列表</Button>
                 <span className="text-sm text-muted-foreground">选择算法添加为步骤</span>
@@ -538,7 +547,17 @@ function AlgorithmComposePage() {
                   })}
                 </div>
               </ScrollArea>
-              <Button disabled={!selectedAlgoCode} onClick={addStep} className="w-full">
+              <Button
+                type="button"
+                disabled={!selectedAlgoCode}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  console.log('[Button onClick] fired');
+                  addStep();
+                }}
+                className="w-full relative z-10 shrink-0"
+              >
                 添加: {selectedAlgoCode ? getAlgoLabel(selectedAlgoCode) : "请选择算法"}
               </Button>
             </div>

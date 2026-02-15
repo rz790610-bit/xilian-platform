@@ -4,6 +4,7 @@ import { Route, Switch, Redirect } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { ToastProvider } from "./components/common/Toast";
+import { Toaster as SonnerToaster } from "@/components/ui/sonner";
 
 // Pages
 import Dashboard from "./pages/Dashboard";
@@ -343,6 +344,7 @@ function App() {
         <ToastProvider>
           <TooltipProvider>
             <Router />
+            <SonnerToaster position="top-right" richColors />
           </TooltipProvider>
         </ToastProvider>
       </ThemeProvider>
