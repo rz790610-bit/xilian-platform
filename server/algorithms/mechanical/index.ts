@@ -3,7 +3,7 @@
  * 
  * 1. FFT频谱分析 — Cooley-Tukey FFT + ISO 10816/20816评估
  * 2. 倒频谱分析 — 功率/复倒频谱 + 齿轮箱故障检测
- * 3. 包络解调分析 — Hilbert变换 + 自适应带通 + 轴承故障频率匹配
+ * 3. 包络解调分析 v3.0 — 快速峭度图 + Hilbert包络 + 多方法故障检测 + 谐波分析 + D5推理链路
  * 4. 小波包分解 — 多层分解 + 能量分布 + Shannon熵
  * 5. 带通滤波 — Butterworth/Chebyshev IIR + 零相位滤波
  * 6. 谱峭度SK — Fast Kurtogram (Antoni 2006)
@@ -329,30 +329,414 @@ export class CepstrumAnalyzer implements IAlgorithmExecutor {
 }
 
 // ============================================================
-// 3. 包络解调分析
+// 3. 包络解调分析 — 生产级实现 v3.0.0
+//    快速峭度图 + Hilbert包络 + 多方法故障检测 + 谐波分析
+//    合规: D1鲁棒/D2准确/D3时效/D4可配/D5可追溯
 // ============================================================
+
+// ── 包络解调内部类型 ──
+
+interface EnvDemodConfig {
+  detrend: boolean;
+  detrendMethod: 'linear' | 'mean';
+  kurtogramLevelMax: number;
+  kurtogramFilterOrder: number;
+  autoBandSelect: boolean;
+  manualBandLow: number | null;
+  manualBandHigh: number | null;
+  envelopeDcRemove: boolean;
+  faultDetectionMethod: 'adaptive_threshold' | 'fixed_threshold' | 'snr';
+  fixedThresholdMultiplier: number;
+  snrThresholdDb: number;
+  frequencyTolerancePercent: number;
+  harmonicCount: number;
+  severityLevels: { normal: number; attention: number; warning: number };
+  maxSignalLength: number;
+  // 平台适配
+  shaftRPM: number;
+  bearingModel: string;
+}
+
+interface KurtogramBand {
+  level: number;
+  fCenter: number;
+  bandwidth: number;
+  fLow: number;
+  fHigh: number;
+  kurtosis: number;
+}
+
+interface EnvFaultDetection {
+  detected: boolean;
+  faultType: 'BPFO' | 'BPFI' | 'BSF' | 'FTF';
+  faultName: string;
+  expectedFreq: number;
+  detectedFreq: number;
+  amplitude: number;
+  snrDb: number;
+  harmonics: Array<{ order: number; freq: number; amplitude: number; detected: boolean }>;
+  severity: 'normal' | 'attention' | 'warning' | 'critical';
+  confidence: number;
+}
+
+interface EnvTraceStep {
+  step: number;
+  operation: string;
+  finding: string;
+  evidence: Record<string, unknown>;
+  durationMs: number;
+}
+
+const ENV_FAULT_NAME_MAP: Record<string, string> = {
+  BPFO: '外圈故障', BPFI: '内圈故障', BSF: '滚动体故障', FTF: '保持架故障',
+};
+
+const ENV_DEFAULT_CONFIG: EnvDemodConfig = {
+  detrend: true,
+  detrendMethod: 'linear',
+  kurtogramLevelMax: 6,
+  kurtogramFilterOrder: 4,
+  autoBandSelect: true,
+  manualBandLow: null,
+  manualBandHigh: null,
+  envelopeDcRemove: true,
+  faultDetectionMethod: 'adaptive_threshold',
+  fixedThresholdMultiplier: 3.0,
+  snrThresholdDb: 6.0,
+  frequencyTolerancePercent: 3.0,
+  harmonicCount: 3,
+  severityLevels: { normal: 0.15, attention: 0.35, warning: 0.6 },
+  maxSignalLength: 10_000_000,
+  shaftRPM: 0,
+  bearingModel: '',
+};
+
+// ── 港机轴承参数库 (扩展) ──
+const CRANE_BEARING_DB: Record<string, dsp.BearingGeometry> = {
+  '22320':  { numberOfBalls: 17, ballDiameter: 32, pitchDiameter: 145, contactAngle: 0 },
+  '6320':   { numberOfBalls: 8,  ballDiameter: 36, pitchDiameter: 138, contactAngle: 0 },
+  '23140':  { numberOfBalls: 18, ballDiameter: 40, pitchDiameter: 240, contactAngle: 0 },
+  '22228':  { numberOfBalls: 17, ballDiameter: 28, pitchDiameter: 184, contactAngle: 0 },
+  '6316':   { numberOfBalls: 8,  ballDiameter: 31, pitchDiameter: 116, contactAngle: 0 },
+  '32222':  { numberOfBalls: 19, ballDiameter: 22, pitchDiameter: 152, contactAngle: 12.5 },
+};
+
+// ── 内部 DSP 函数 (自包含, 不依赖外部 dsp.ts 的 FFT/Hilbert) ──
+
+function envFft(real: Float64Array, imag?: Float64Array): { re: Float64Array; im: Float64Array } {
+  const origLen = real.length;
+  let n = 1;
+  while (n < origLen) n <<= 1;
+  const re = new Float64Array(n);
+  const im = new Float64Array(n);
+  re.set(real);
+  if (imag) im.set(imag);
+  for (let i = 0, j = 0; i < n; i++) {
+    if (i < j) {
+      [re[i], re[j]] = [re[j], re[i]];
+      [im[i], im[j]] = [im[j], im[i]];
+    }
+    let m = n >> 1;
+    while (m >= 1 && j >= m) { j -= m; m >>= 1; }
+    j += m;
+  }
+  for (let size = 2; size <= n; size <<= 1) {
+    const half = size >> 1;
+    const angle = (-2 * Math.PI) / size;
+    const wRe = Math.cos(angle);
+    const wIm = Math.sin(angle);
+    for (let i = 0; i < n; i += size) {
+      let curRe = 1, curIm = 0;
+      for (let j = 0; j < half; j++) {
+        const a = i + j;
+        const b = a + half;
+        const tRe = curRe * re[b] - curIm * im[b];
+        const tIm = curRe * im[b] + curIm * re[b];
+        re[b] = re[a] - tRe;
+        im[b] = im[a] - tIm;
+        re[a] += tRe;
+        im[a] += tIm;
+        const newCurRe = curRe * wRe - curIm * wIm;
+        curIm = curRe * wIm + curIm * wRe;
+        curRe = newCurRe;
+      }
+    }
+  }
+  return { re, im };
+}
+
+function envIfft(re: Float64Array, im: Float64Array): { re: Float64Array; im: Float64Array } {
+  const n = re.length;
+  const conjIm = new Float64Array(n);
+  for (let i = 0; i < n; i++) conjIm[i] = -im[i];
+  const result = envFft(re, conjIm);
+  for (let i = 0; i < result.re.length; i++) {
+    result.re[i] /= n;
+    result.im[i] = -result.im[i] / n;
+  }
+  return result;
+}
+
+function envHilbertEnvelope(signal: Float64Array): Float64Array {
+  const n = signal.length;
+  const { re, im } = envFft(signal);
+  const fftLen = re.length;
+  const half = fftLen >> 1;
+  for (let i = 1; i < half; i++) { re[i] *= 2; im[i] *= 2; }
+  for (let i = half + 1; i < fftLen; i++) { re[i] = 0; im[i] = 0; }
+  const analytic = envIfft(re, im);
+  const envelope = new Float64Array(n);
+  for (let i = 0; i < n; i++) {
+    envelope[i] = Math.sqrt(analytic.re[i] * analytic.re[i] + analytic.im[i] * analytic.im[i]);
+  }
+  return envelope;
+}
+
+function envApplyBiquad(
+  signal: Float64Array, b0: number, b1: number, b2: number, a1: number, a2: number
+): Float64Array {
+  const n = signal.length;
+  const out = new Float64Array(n);
+  let x1 = 0, x2 = 0, y1 = 0, y2 = 0;
+  for (let i = 0; i < n; i++) {
+    const x0 = signal[i];
+    const y0 = b0 * x0 + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
+    out[i] = Number.isFinite(y0) ? y0 : 0;
+    x2 = x1; x1 = x0;
+    y2 = y1; y1 = out[i];
+  }
+  return out;
+}
+
+function envReverse(arr: Float64Array): void {
+  for (let i = 0, j = arr.length - 1; i < j; i++, j--) {
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+}
+
+function envButterworthBandpass(
+  signal: Float64Array, fs: number, fLow: number, fHigh: number, order: number = 4
+): Float64Array {
+  const nyq = fs / 2;
+  if (fLow <= 0 || fHigh >= nyq || fLow >= fHigh) return new Float64Array(signal);
+  const f0 = Math.sqrt(fLow * fHigh);
+  const bw = fHigh - fLow;
+  const Q = f0 / bw;
+  const w0 = (2 * Math.PI * f0) / fs;
+  const alpha = Math.sin(w0) / (2 * Q);
+  const b0 = alpha, b1 = 0, b2 = -alpha;
+  const a0 = 1 + alpha, a1 = -2 * Math.cos(w0), a2 = 1 - alpha;
+  const nb0 = b0 / a0, nb1 = b1 / a0, nb2 = b2 / a0;
+  const na1 = a1 / a0, na2 = a2 / a0;
+  const halfOrder = Math.max(1, Math.floor(order / 2));
+  let data = new Float64Array(signal);
+  for (let stage = 0; stage < halfOrder; stage++) {
+    const forward = envApplyBiquad(data, nb0, nb1, nb2, na1, na2);
+    envReverse(forward);
+    const backward = envApplyBiquad(forward, nb0, nb1, nb2, na1, na2);
+    envReverse(backward);
+    data = backward;
+  }
+  return data;
+}
+
+function envDetrend(signal: Float64Array, method: 'linear' | 'mean'): Float64Array {
+  const n = signal.length;
+  const result = new Float64Array(n);
+  if (method === 'mean') {
+    let sum = 0;
+    for (let i = 0; i < n; i++) sum += signal[i];
+    const mean = sum / n;
+    for (let i = 0; i < n; i++) result[i] = signal[i] - mean;
+    return result;
+  }
+  let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
+  for (let i = 0; i < n; i++) {
+    sumX += i; sumY += signal[i]; sumXY += i * signal[i]; sumX2 += i * i;
+  }
+  const denom = n * sumX2 - sumX * sumX;
+  if (Math.abs(denom) < 1e-15) {
+    const mean = sumY / n;
+    for (let i = 0; i < n; i++) result[i] = signal[i] - mean;
+    return result;
+  }
+  const a = (n * sumXY - sumX * sumY) / denom;
+  const b = (sumY - a * sumX) / n;
+  for (let i = 0; i < n; i++) result[i] = signal[i] - (a * i + b);
+  return result;
+}
+
+function envFisherKurtosis(data: Float64Array): number {
+  const n = data.length;
+  if (n < 4) return 0;
+  let sum = 0;
+  for (let i = 0; i < n; i++) sum += data[i];
+  const mean = sum / n;
+  let m2 = 0, m4 = 0;
+  for (let i = 0; i < n; i++) {
+    const d = data[i] - mean;
+    const d2 = d * d;
+    m2 += d2;
+    m4 += d2 * d2;
+  }
+  m2 /= n;
+  m4 /= n;
+  if (m2 < 1e-15) return 0;
+  return m4 / (m2 * m2) - 3;
+}
+
+function envRms(data: Float64Array): number {
+  let sum2 = 0;
+  for (let i = 0; i < data.length; i++) sum2 += data[i] * data[i];
+  return Math.sqrt(sum2 / data.length);
+}
+
+function envMean(data: Float64Array): number {
+  let sum = 0;
+  for (let i = 0; i < data.length; i++) sum += data[i];
+  return sum / data.length;
+}
+
+function envStd(data: Float64Array): number {
+  const m = envMean(data);
+  let sum2 = 0;
+  for (let i = 0; i < data.length; i++) {
+    const d = data[i] - m;
+    sum2 += d * d;
+  }
+  return Math.sqrt(sum2 / data.length);
+}
+
+function envIsSignalValid(sig: Float64Array): boolean {
+  for (let i = 0; i < sig.length; i++) {
+    if (!Number.isFinite(sig[i])) return false;
+  }
+  return true;
+}
+
+function envFindPeak(
+  spectrum: Float64Array, freqAxis: Float64Array, targetFreq: number, tolHz: number
+): { peakAmp: number; peakFreq: number } {
+  let peakAmp = 0, peakFreq = targetFreq;
+  for (let i = 0; i < spectrum.length; i++) {
+    if (Math.abs(freqAxis[i] - targetFreq) <= tolHz) {
+      if (spectrum[i] > peakAmp) {
+        peakAmp = spectrum[i];
+        peakFreq = freqAxis[i];
+      }
+    }
+  }
+  return { peakAmp, peakFreq };
+}
+
+function envIsDetected(
+  peakAmp: number, specMean: number, specStd: number, cfg: EnvDemodConfig
+): boolean {
+  if (cfg.faultDetectionMethod === 'fixed_threshold') {
+    return peakAmp > specMean + cfg.fixedThresholdMultiplier * specStd;
+  }
+  if (cfg.faultDetectionMethod === 'snr') {
+    const snr = specMean > 0 ? 20 * Math.log10(peakAmp / specMean) : 0;
+    return snr >= cfg.snrThresholdDb;
+  }
+  return peakAmp > specMean + 3 * specStd;
+}
+
+function envAssessSeverity(
+  amplitude: number, levels: EnvDemodConfig['severityLevels']
+): 'normal' | 'attention' | 'warning' | 'critical' {
+  if (amplitude < levels.normal) return 'normal';
+  if (amplitude < levels.attention) return 'attention';
+  if (amplitude < levels.warning) return 'warning';
+  return 'critical';
+}
+
+function envDetermineOverallStatus(faults: EnvFaultDetection[]): 'normal' | 'attention' | 'warning' | 'critical' {
+  const detected = faults.filter(f => f.detected);
+  if (detected.length === 0) return 'normal';
+  const severityOrder = { normal: 0, attention: 1, warning: 2, critical: 3 };
+  let maxSev = 0;
+  for (const f of detected) {
+    const s = severityOrder[f.severity] || 0;
+    if (s > maxSev) maxSev = s;
+  }
+  return (['normal', 'attention', 'warning', 'critical'] as const)[maxSev];
+}
+
+function envComputeKurtogram(
+  signal: Float64Array, fs: number, levelMax: number, filterOrder: number,
+  trace: EnvTraceStep[], stepCounter: { v: number }
+): KurtogramBand[] {
+  const t0 = Date.now();
+  const bands: KurtogramBand[] = [];
+  const nyq = fs / 2;
+  for (let level = 1; level <= levelMax; level++) {
+    const nBands = 1 << level;
+    const bw = nyq / nBands;
+    for (let i = 0; i < nBands; i++) {
+      const fLow = i * bw;
+      const fHigh = (i + 1) * bw;
+      const fCenter = (fLow + fHigh) / 2;
+      if (fLow < 1 || fHigh >= nyq - 1) continue;
+      const filtered = envButterworthBandpass(signal, fs, fLow, fHigh, filterOrder);
+      const kurt = envFisherKurtosis(filtered);
+      if (Number.isFinite(kurt)) {
+        bands.push({ level, fCenter, bandwidth: bw, fLow, fHigh, kurtosis: kurt });
+      }
+    }
+  }
+  bands.sort((a, b) => b.kurtosis - a.kurtosis);
+  trace.push({
+    step: stepCounter.v++,
+    operation: 'fast_kurtogram',
+    finding: bands.length > 0
+      ? `分析 ${bands.length} 个频带, 最佳频带中心 ${bands[0]?.fCenter.toFixed(1)}Hz, 峭度 ${bands[0]?.kurtosis.toFixed(2)}`
+      : '未找到有效频带',
+    evidence: { totalBands: bands.length, levelMax, topBand: bands[0] || null },
+    durationMs: Date.now() - t0,
+  });
+  return bands;
+}
 
 export class EnvelopeDemodAnalyzer implements IAlgorithmExecutor {
   readonly id = 'envelope_demod';
   readonly name = '包络解调分析';
-  readonly version = '2.0.0';
+  readonly version = '3.0.0';
   readonly category = 'mechanical';
 
   getDefaultConfig() {
     return {
-      bandpassLow: 0, // 0 = 自动 (基于谱峭度)
-      bandpassHigh: 0,
-      filterOrder: 4,
+      // 预处理
+      detrend: true,
+      detrendMethod: 'linear',
+      // 谱峭度 / 快速峭度图
+      kurtogramLevelMax: 6,
+      kurtogramFilterOrder: 4,
+      autoBandSelect: true,
+      manualBandLow: null as number | null,
+      manualBandHigh: null as number | null,
+      // 包络
+      envelopeDcRemove: true,
+      // 故障检测
+      faultDetectionMethod: 'adaptive_threshold' as 'adaptive_threshold' | 'fixed_threshold' | 'snr',
+      fixedThresholdMultiplier: 3.0,
+      snrThresholdDb: 6.0,
+      frequencyTolerancePercent: 3.0,
+      harmonicCount: 3,
+      // 严重度
+      severityLevels: { normal: 0.15, attention: 0.35, warning: 0.6 },
+      // 性能
+      maxSignalLength: 10_000_000,
+      // 平台适配
       shaftRPM: 0,
       bearingModel: '',
-      frequencyMatchTolerance: 0.05, // 5%容差
     };
   }
 
   validateInput(input: AlgorithmInput, _config: Record<string, any>) {
     const signal = getSignalData(input);
-    if (!signal || signal.length < 512) {
-      return { valid: false, errors: ['包络分析至少需要512个采样点'] };
+    if (!signal || signal.length < 64) {
+      return { valid: false, errors: ['包络分析至少需要64个采样点'] };
     }
     if (!input.sampleRate) {
       return { valid: false, errors: ['必须提供采样率'] };
@@ -362,119 +746,327 @@ export class EnvelopeDemodAnalyzer implements IAlgorithmExecutor {
 
   async execute(input: AlgorithmInput, config: Record<string, any>): Promise<AlgorithmOutput> {
     const startTime = Date.now();
-    const cfg = { ...this.getDefaultConfig(), ...config };
+    const cfg: EnvDemodConfig = { ...ENV_DEFAULT_CONFIG, ...config };
     const signal = getSignalData(input);
     const fs = input.sampleRate!;
-
-    // 自适应带通滤波 (如果未指定频带)
-    let bandLow = cfg.bandpassLow;
-    let bandHigh = cfg.bandpassHigh;
-    if (bandLow === 0 || bandHigh === 0) {
-      // 简化的谱峭度选频
-      const { frequencies, amplitudes } = dsp.amplitudeSpectrum(signal, fs);
-      const bandWidth = fs / 16;
-      let bestKurt = 0;
-      let bestCenter = fs / 4;
-      for (let center = bandWidth; center < fs / 2 - bandWidth; center += bandWidth / 2) {
-        const low = center - bandWidth / 2;
-        const high = center + bandWidth / 2;
-        const bandAmps = amplitudes.filter((_, i) => frequencies[i] >= low && frequencies[i] <= high);
-        if (bandAmps.length > 4) {
-          const kurt = dsp.kurtosis(bandAmps);
-          if (kurt > bestKurt) {
-            bestKurt = kurt;
-            bestCenter = center;
-          }
-        }
-      }
-      bandLow = Math.max(100, bestCenter - bandWidth / 2);
-      bandHigh = Math.min(fs / 2 - 10, bestCenter + bandWidth / 2);
-    }
-
-    // 带通滤波
-    const bpCoeffs = dsp.butterworthBandpass(cfg.filterOrder, bandLow, bandHigh, fs);
-    const filtered = dsp.filtfilt(signal, bpCoeffs);
-
-    // Hilbert变换提取包络
-    const env = dsp.envelope(filtered);
-
-    // 包络谱
-    const { frequencies: envFreqs, amplitudes: envAmps } = dsp.amplitudeSpectrum(env, fs);
-
-    // 轴承故障频率匹配
     const rpm = cfg.shaftRPM || input.operatingCondition?.speed || input.equipment?.ratedSpeed || 0;
-    const faultMatches: Array<{ type: string; expected: number; detected: number; amplitude: number; match: boolean }> = [];
 
-    if (rpm > 0 && cfg.bearingModel) {
-      const bearing = getDefaultBearing(cfg.bearingModel);
-      if (bearing) {
-        const bf = dsp.bearingFaultFrequencies(bearing, rpm);
-        const faultTypes = [
-          { type: 'BPFO (外圈故障)', freq: bf.BPFO },
-          { type: 'BPFI (内圈故障)', freq: bf.BPFI },
-          { type: 'BSF (滚动体故障)', freq: bf.BSF },
-          { type: 'FTF (保持架故障)', freq: bf.FTF },
-        ];
+    const trace: EnvTraceStep[] = [];
+    const warnings: string[] = [];
+    const errors: string[] = [];
+    const stepCounter = { v: 1 };
+    const perf = {
+      preprocessMs: 0, kurtogramMs: 0, hilbertMs: 0,
+      fftMs: 0, detectionMs: 0, totalMs: 0, memoryEstimateMb: 0,
+    };
 
-        for (const ft of faultTypes) {
-          // 在包络谱中查找匹配
-          let bestMatch = { freq: 0, amp: 0 };
-          for (let i = 0; i < envFreqs.length; i++) {
-            if (Math.abs(envFreqs[i] - ft.freq) / ft.freq < cfg.frequencyMatchTolerance) {
-              if (envAmps[i] > bestMatch.amp) {
-                bestMatch = { freq: envFreqs[i], amp: envAmps[i] };
-              }
-            }
-          }
-          // 也检查2X和3X谐波
-          const isMatch = bestMatch.amp > dsp.mean(envAmps) * 3;
-          faultMatches.push({
-            type: ft.type,
-            expected: ft.freq,
-            detected: bestMatch.freq,
-            amplitude: bestMatch.amp,
-            match: isMatch,
-          });
-        }
-      }
+    // ── D1 鲁棒性: 输入校验与转换 ──
+    let sig: Float64Array;
+    if (signal instanceof Float64Array) {
+      sig = signal;
+    } else {
+      sig = Float64Array.from(signal);
+    }
+    if (sig.length > cfg.maxSignalLength) {
+      warnings.push(`信号长度 ${sig.length} 超过限制 ${cfg.maxSignalLength}, 截断处理`);
+      sig = sig.slice(0, cfg.maxSignalLength);
+    }
+    // NaN/Infinity 清洗
+    let nanCount = 0;
+    for (let i = 0; i < sig.length; i++) {
+      if (!Number.isFinite(sig[i])) { sig[i] = 0; nanCount++; }
+    }
+    if (nanCount > 0) warnings.push(`清洗 ${nanCount} 个 NaN/Infinity 值`);
+    if (nanCount > sig.length * 0.5) errors.push(`超过 50% 数据无效 (${nanCount}/${sig.length})`);
+
+    const inputSummary = {
+      signalLength: sig.length,
+      sampleRate: fs,
+      rpm,
+      durationSeconds: sig.length / fs,
+      rms: envRms(sig),
+      peakToPeak: (() => { let min = Infinity, max = -Infinity; for (let i = 0; i < sig.length; i++) { if (sig[i] < min) min = sig[i]; if (sig[i] > max) max = sig[i]; } return max - min; })(),
+    };
+
+    trace.push({
+      step: stepCounter.v++,
+      operation: 'input_validation',
+      finding: `信号长度 ${sig.length} 点, 采样率 ${fs}Hz, 转速 ${rpm}rpm, 时长 ${inputSummary.durationSeconds.toFixed(2)}s`,
+      evidence: inputSummary,
+      durationMs: Date.now() - startTime,
+    });
+
+    // ── Step 1: 预处理 (去趋势) ──
+    let tStep = Date.now();
+    let processed = sig;
+    if (cfg.detrend) {
+      processed = envDetrend(sig, cfg.detrendMethod);
+    }
+    if (!envIsSignalValid(processed)) {
+      warnings.push('预处理后信号含无效值, 回退到原始信号');
+      processed = sig;
+    }
+    perf.preprocessMs = Date.now() - tStep;
+    trace.push({
+      step: stepCounter.v++,
+      operation: 'preprocess',
+      finding: `去趋势(${cfg.detrendMethod}), 预处理后 RMS=${envRms(processed).toFixed(4)}`,
+      evidence: { method: cfg.detrendMethod, rmsAfter: envRms(processed) },
+      durationMs: perf.preprocessMs,
+    });
+
+    // ── Step 2: 计算轴承特征频率 ──
+    let faultFreqs: dsp.BearingFaultFrequencies | null = null;
+    const bearing = cfg.bearingModel ? (getDefaultBearing(cfg.bearingModel) || CRANE_BEARING_DB[cfg.bearingModel] && {
+      numberOfBalls: CRANE_BEARING_DB[cfg.bearingModel].numberOfBalls,
+      ballDiameter: CRANE_BEARING_DB[cfg.bearingModel].ballDiameter,
+      pitchDiameter: CRANE_BEARING_DB[cfg.bearingModel].pitchDiameter,
+      contactAngle: CRANE_BEARING_DB[cfg.bearingModel].contactAngle,
+    }) : null;
+
+    if (bearing && rpm > 0) {
+      faultFreqs = dsp.bearingFaultFrequencies(bearing, rpm);
+      trace.push({
+        step: stepCounter.v++,
+        operation: 'bearing_frequencies',
+        finding: `BPFO=${faultFreqs.BPFO.toFixed(2)}Hz, BPFI=${faultFreqs.BPFI.toFixed(2)}Hz, BSF=${faultFreqs.BSF.toFixed(2)}Hz, FTF=${faultFreqs.FTF.toFixed(2)}Hz`,
+        evidence: faultFreqs,
+        durationMs: 0,
+      });
     }
 
-    const detectedFaults = faultMatches.filter(f => f.match);
+    // ── Step 3: 最佳解调频带选择 (快速峭度图) ──
+    tStep = Date.now();
+    let optimalBand: KurtogramBand | null = null;
+    let kurtogramTop5: KurtogramBand[] = [];
+    let bandLow: number | null = null;
+    let bandHigh: number | null = null;
+
+    if (cfg.autoBandSelect) {
+      const bands = envComputeKurtogram(processed, fs, cfg.kurtogramLevelMax, cfg.kurtogramFilterOrder, trace, stepCounter);
+      kurtogramTop5 = bands.slice(0, 5);
+      if (bands.length > 0 && bands[0].kurtosis > 0) {
+        optimalBand = bands[0];
+        bandLow = optimalBand.fLow;
+        bandHigh = optimalBand.fHigh;
+      } else {
+        warnings.push('谱峭度未找到明显冲击频带, 使用全频带分析');
+      }
+    } else if (cfg.manualBandLow !== null && cfg.manualBandHigh !== null) {
+      bandLow = cfg.manualBandLow;
+      bandHigh = cfg.manualBandHigh;
+      trace.push({
+        step: stepCounter.v++,
+        operation: 'manual_band',
+        finding: `使用手动频带 [${bandLow}, ${bandHigh}] Hz`,
+        evidence: { fLow: bandLow, fHigh: bandHigh },
+        durationMs: 0,
+      });
+    }
+    perf.kurtogramMs = Date.now() - tStep;
+
+    // ── Step 4: 带通滤波 ──
+    let filtered = processed;
+    if (bandLow !== null && bandHigh !== null) {
+      tStep = Date.now();
+      filtered = envButterworthBandpass(processed, fs, bandLow, bandHigh, cfg.kurtogramFilterOrder);
+      if (!envIsSignalValid(filtered) || envRms(filtered) < 1e-12) {
+        warnings.push('带通滤波后信号过弱, 回退到预处理信号');
+        filtered = processed;
+      }
+      trace.push({
+        step: stepCounter.v++,
+        operation: 'bandpass_filter',
+        finding: `带通滤波 [${bandLow.toFixed(1)}, ${bandHigh.toFixed(1)}] Hz, 滤波后 RMS=${envRms(filtered).toFixed(6)}`,
+        evidence: { fLow: bandLow, fHigh: bandHigh, rmsAfter: envRms(filtered) },
+        durationMs: Date.now() - tStep,
+      });
+    }
+
+    // ── Step 5: Hilbert 变换 → 包络提取 ──
+    tStep = Date.now();
+    let envSignal = envHilbertEnvelope(filtered);
+    if (cfg.envelopeDcRemove) {
+      let sum = 0;
+      for (let i = 0; i < envSignal.length; i++) sum += envSignal[i];
+      const mean = sum / envSignal.length;
+      for (let i = 0; i < envSignal.length; i++) envSignal[i] -= mean;
+    }
+    perf.hilbertMs = Date.now() - tStep;
+    trace.push({
+      step: stepCounter.v++,
+      operation: 'hilbert_envelope',
+      finding: `Hilbert变换完成, 包络 RMS=${envRms(envSignal).toFixed(6)}, DC已${cfg.envelopeDcRemove ? '移除' : '保留'}`,
+      evidence: { envelopeRms: envRms(envSignal), dcRemoved: cfg.envelopeDcRemove },
+      durationMs: perf.hilbertMs,
+    });
+
+    // ── Step 6: 包络谱 (FFT) ──
+    tStep = Date.now();
+    const n = envSignal.length;
+    const { re: envRe, im: envIm } = envFft(envSignal);
+    const fftLen = envRe.length;
+    const halfLen = fftLen >> 1;
+    const envelopeSpectrum = new Float64Array(halfLen);
+    for (let i = 0; i < halfLen; i++) {
+      envelopeSpectrum[i] = (2 / n) * Math.sqrt(envRe[i] * envRe[i] + envIm[i] * envIm[i]);
+    }
+    const frequencyAxis = new Float64Array(halfLen);
+    for (let i = 0; i < halfLen; i++) {
+      frequencyAxis[i] = (i * fs) / fftLen;
+    }
+    perf.fftMs = Date.now() - tStep;
+    trace.push({
+      step: stepCounter.v++,
+      operation: 'envelope_spectrum',
+      finding: `包络谱计算完成, 频率分辨率 ${(fs / fftLen).toFixed(3)}Hz, 频谱长度 ${halfLen}`,
+      evidence: { freqResolution: fs / fftLen, spectrumLength: halfLen },
+      durationMs: perf.fftMs,
+    });
+
+    // ── Step 7: 故障特征频率检测 ──
+    tStep = Date.now();
+    const faults: EnvFaultDetection[] = [];
+    if (faultFreqs) {
+      const faultTypes: Array<'BPFO' | 'BPFI' | 'BSF' | 'FTF'> = ['BPFO', 'BPFI', 'BSF', 'FTF'];
+      const specMean = envMean(envelopeSpectrum);
+      const specStd = envStd(envelopeSpectrum);
+      for (const ft of faultTypes) {
+        const targetFreq = faultFreqs[ft];
+        if (targetFreq <= 0 || targetFreq > fs / 2) continue;
+        const tolHz = targetFreq * (cfg.frequencyTolerancePercent / 100);
+        const { peakAmp, peakFreq } = envFindPeak(envelopeSpectrum, frequencyAxis, targetFreq, tolHz);
+        const snrDb = peakAmp > 0 && specMean > 0 ? 20 * Math.log10(peakAmp / specMean) : 0;
+        const harmonics: EnvFaultDetection['harmonics'] = [];
+        let harmonicScore = 0;
+        for (let h = 1; h <= cfg.harmonicCount; h++) {
+          const hFreq = targetFreq * h;
+          if (hFreq > fs / 2) break;
+          const hTol = hFreq * (cfg.frequencyTolerancePercent / 100);
+          const hPeak = envFindPeak(envelopeSpectrum, frequencyAxis, hFreq, hTol);
+          const hDetected = envIsDetected(hPeak.peakAmp, specMean, specStd, cfg);
+          if (hDetected) harmonicScore += 1 / h;
+          harmonics.push({ order: h, freq: hPeak.peakFreq, amplitude: hPeak.peakAmp, detected: hDetected });
+        }
+        const detected = envIsDetected(peakAmp, specMean, specStd, cfg);
+        const baseConf = detected ? Math.min(snrDb / 20, 1.0) : 0;
+        const harmonicConf = harmonicScore / cfg.harmonicCount;
+        const confidence = Math.min(0.7 * baseConf + 0.3 * harmonicConf, 1.0);
+        const severity = envAssessSeverity(peakAmp, cfg.severityLevels);
+        faults.push({
+          detected, faultType: ft, faultName: ENV_FAULT_NAME_MAP[ft] || ft,
+          expectedFreq: targetFreq, detectedFreq: peakFreq, amplitude: peakAmp,
+          snrDb, harmonics, severity, confidence,
+        });
+      }
+    }
+    perf.detectionMs = Date.now() - tStep;
+    const detectedFaults = faults.filter(f => f.detected);
+    trace.push({
+      step: stepCounter.v++,
+      operation: 'fault_detection',
+      finding: detectedFaults.length > 0
+        ? `检测到 ${detectedFaults.length} 种故障: ${detectedFaults.map(f => `${f.faultName}(${f.expectedFreq.toFixed(1)}Hz, SNR=${f.snrDb.toFixed(1)}dB, ${f.severity})`).join(', ')}`
+        : '未检测到故障特征频率',
+      evidence: {
+        method: cfg.faultDetectionMethod,
+        tolerance: cfg.frequencyTolerancePercent,
+        faults: faults.map(f => ({ type: f.faultType, detected: f.detected, amplitude: f.amplitude, snrDb: f.snrDb, confidence: f.confidence })),
+      },
+      durationMs: perf.detectionMs,
+    });
+
+    // ── 综合结论 ──
+    const overallStatus = envDetermineOverallStatus(faults);
+    const overallConfidence = detectedFaults.length > 0
+      ? detectedFaults.reduce((sum, f) => sum + f.confidence, 0) / detectedFaults.length
+      : 1.0;
+    perf.totalMs = Date.now() - startTime;
+    perf.memoryEstimateMb = (sig.length * 5 + fftLen * 4) * 8 / (1024 * 1024);
+
+    trace.push({
+      step: stepCounter.v++,
+      operation: 'conclusion',
+      finding: `综合诊断: ${overallStatus}, 置信度 ${(overallConfidence * 100).toFixed(1)}%, 总耗时 ${perf.totalMs}ms`,
+      evidence: { overallStatus, overallConfidence, performance: perf },
+      durationMs: 0,
+    });
+
+    // ── 构建平台标准输出 ──
     const hasFault = detectedFaults.length > 0;
+    const envFreqs = Array.from(frequencyAxis);
+    const envAmps = Array.from(envelopeSpectrum);
+    const envArr = Array.from(envSignal);
+
+    // 限制输出大小
+    const maxSpecLen = Math.min(envFreqs.length, Math.floor(envFreqs.length / 4));
+    const maxEnvLen = Math.min(envArr.length, 4096);
 
     return createOutput(this.id, this.version, input, cfg, startTime, {
       summary: hasFault
-        ? `包络解调检测到轴承故障特征: ${detectedFaults.map(f => f.type).join(', ')}。滤波频带: ${bandLow.toFixed(0)}-${bandHigh.toFixed(0)}Hz`
-        : `包络解调分析正常，滤波频带${bandLow.toFixed(0)}-${bandHigh.toFixed(0)}Hz，未检测到显著轴承故障特征`,
-      severity: hasFault ? 'warning' : 'normal',
+        ? `包络解调检测到轴承故障特征: ${detectedFaults.map(f => `${f.faultName}(${f.expectedFreq.toFixed(1)}Hz, SNR=${f.snrDb.toFixed(1)}dB, ${f.severity})`).join(', ')}。${optimalBand ? `最佳解调频带: ${optimalBand.fLow.toFixed(0)}-${optimalBand.fHigh.toFixed(0)}Hz` : '全频带分析'}`
+        : `包络解调分析正常，${optimalBand ? `最佳解调频带 ${optimalBand.fLow.toFixed(0)}-${optimalBand.fHigh.toFixed(0)}Hz` : '全频带分析'}，未检测到显著轴承故障特征`,
+      severity: overallStatus === 'critical' ? 'critical' : overallStatus === 'warning' ? 'warning' : overallStatus === 'attention' ? 'warning' : 'normal',
       urgency: hasFault ? 'scheduled' : 'monitoring',
-      confidence: (() => { const s = getSignalData(input); const lenS = Math.min(1, s.length / 4096); return Math.min(0.95, Math.max(0.35, 0.35 + lenS * 0.3 + (hasFault ? 0.25 : 0.15))); })(),
-      faultType: detectedFaults.map(f => f.type).join(', ') || undefined,
+      confidence: Math.max(0.35, Math.min(0.98, overallConfidence)),
+      faultType: detectedFaults.map(f => f.faultName).join(', ') || undefined,
       referenceStandard: 'ISO 15243 (轴承损伤分类)',
       recommendations: hasFault
-        ? ['确认轴承型号和转速参数', '安排轴承更换计划', '检查润滑状态', '记录趋势数据']
+        ? ['确认轴承型号和转速参数', '安排轴承更换计划', '检查润滑状态', '记录趋势数据', '缩短监测周期']
         : ['继续定期监测'],
     }, {
-      filterBand: { low: bandLow, high: bandHigh },
-      envelopeSignal: env.slice(0, 2048), // 限制输出大小
+      // 完整结果数据
+      filterBand: optimalBand ? { low: optimalBand.fLow, high: optimalBand.fHigh } : null,
+      optimalBand,
+      kurtogramTop5,
+      envelopeSignal: envArr.slice(0, maxEnvLen),
       envelopeSpectrum: { frequencies: envFreqs, amplitudes: envAmps },
-      faultMatches,
+      faults,
       detectedFaults,
+      overallStatus,
+      overallConfidence,
+      reasoningTrace: trace,
+      performance: perf,
+      inputSummary,
+      warnings,
+      errors,
     }, [
       {
         type: 'spectrum',
         title: '包络谱',
-        xAxis: { label: '频率', unit: 'Hz', data: envFreqs.slice(0, Math.floor(envFreqs.length / 4)) },
+        xAxis: { label: '频率', unit: 'Hz', data: envFreqs.slice(0, maxSpecLen) },
         yAxis: { label: '包络幅值' },
-        series: [{ name: '包络谱', data: envAmps.slice(0, Math.floor(envAmps.length / 4)), color: '#f59e0b' }],
+        series: [
+          { name: '包络谱', data: envAmps.slice(0, maxSpecLen), color: '#f59e0b' },
+          // 标注检测到的故障频率
+          ...detectedFaults.map(f => ({
+            name: f.faultName,
+            data: envFreqs.slice(0, maxSpecLen).map((freq: number) =>
+              Math.abs(freq - f.detectedFreq) < (fs / fftLen * 2) ? f.amplitude : 0
+            ),
+            color: f.severity === 'critical' ? '#ef4444' : f.severity === 'warning' ? '#f97316' : '#eab308',
+          })),
+        ],
       },
       {
         type: 'line',
         title: '包络信号',
         xAxis: { label: '时间', unit: 's' },
         yAxis: { label: '幅值' },
-        series: [{ name: '包络', data: env.slice(0, 2048), color: '#ef4444' }],
+        series: [{ name: '包络', data: envArr.slice(0, maxEnvLen), color: '#ef4444' }],
       },
+      ...(kurtogramTop5.length > 0 ? [{
+        type: 'bar' as const,
+        title: '峭度图 Top5 频带',
+        xAxis: { label: '频带', unit: 'Hz' },
+        yAxis: { label: '峭度值' },
+        series: [{
+          name: '峭度',
+          data: kurtogramTop5.map(b => b.kurtosis),
+          color: '#8b5cf6',
+          labels: kurtogramTop5.map(b => `${b.fLow.toFixed(0)}-${b.fHigh.toFixed(0)}Hz`),
+        }],
+      }] : []),
     ]);
   }
 }
@@ -1060,28 +1652,45 @@ export function getMechanicalAlgorithms(): AlgorithmRegistration[] {
     {
       executor: new EnvelopeDemodAnalyzer(),
       metadata: {
-        description: 'Hilbert变换包络解调分析，自适应带通滤波，轴承故障特征频率(BPFO/BPFI/BSF/FTF)自动匹配',
-        tags: ['包络', '解调', '轴承', 'Hilbert', '故障诊断'],
+        description: '生产级包络解调分析 v3.0 — 快速峭度图自动选频 + Hilbert变换包络提取 + 多方法故障检测(自适应阈值/固定阈值/SNR) + 谐波分析 + 严重度分级 + D5推理链路',
+        tags: ['包络', '解调', '轴承', 'Hilbert', '故障诊断', '峭度图', '谐波分析', 'D5合规'],
         inputFields: [
-          { name: 'data', type: 'number[]', description: '振动时域信号', required: true },
+          { name: 'data', type: 'number[]', description: '振动时域信号(加速度)', required: true },
           { name: 'sampleRate', type: 'number', description: '采样率(Hz)', required: true },
         ],
         outputFields: [
-          { name: 'envelopeSpectrum', type: 'object', description: '包络谱' },
-          { name: 'faultMatches', type: 'object[]', description: '故障频率匹配结果' },
-          { name: 'filterBand', type: 'object', description: '滤波频带' },
+          { name: 'envelopeSpectrum', type: 'object', description: '包络谱(频率+幅值)' },
+          { name: 'envelopeSignal', type: 'number[]', description: '包络时域信号' },
+          { name: 'faults', type: 'object[]', description: '故障检测结果(含谐波、SNR、置信度、严重度)' },
+          { name: 'optimalBand', type: 'object', description: '峭度图最佳频带' },
+          { name: 'kurtogramTop5', type: 'object[]', description: '峭度图Top5频带' },
+          { name: 'reasoningTrace', type: 'object[]', description: 'D5推理链路' },
+          { name: 'performance', type: 'object', description: '各阶段耗时统计' },
+          { name: 'overallStatus', type: 'string', description: '综合状态(normal/attention/warning/critical)' },
+          { name: 'overallConfidence', type: 'number', description: '综合置信度' },
         ],
         configFields: [
-          { name: 'bandpassLow', type: 'number', default: 0, description: '带通低频(Hz)，0=自动' },
-          { name: 'bandpassHigh', type: 'number', default: 0, description: '带通高频(Hz)，0=自动' },
-          { name: 'bearingModel', type: 'string', default: '', description: '轴承型号' },
-          { name: 'shaftRPM', type: 'number', default: 0 },
+          { name: 'detrend', type: 'boolean', default: true, description: '去趋势开关' },
+          { name: 'detrendMethod', type: 'select', options: ['linear', 'mean'], default: 'linear', description: '去趋势方法' },
+          { name: 'autoBandSelect', type: 'boolean', default: true, description: '自动选择最佳解调频带(快速峭度图)' },
+          { name: 'kurtogramLevelMax', type: 'number', default: 6, min: 1, max: 8, description: '峭度图最大分解层数' },
+          { name: 'kurtogramFilterOrder', type: 'number', default: 4, min: 2, max: 8, description: '峭度图滤波器阶数' },
+          { name: 'manualBandLow', type: 'number', default: null, description: '手动频带下限(Hz)，autoBandSelect=false时生效' },
+          { name: 'manualBandHigh', type: 'number', default: null, description: '手动频带上限(Hz)，autoBandSelect=false时生效' },
+          { name: 'envelopeDcRemove', type: 'boolean', default: true, description: '去除包络直流分量' },
+          { name: 'faultDetectionMethod', type: 'select', options: ['adaptive_threshold', 'fixed_threshold', 'snr'], default: 'adaptive_threshold', description: '故障检测方法' },
+          { name: 'fixedThresholdMultiplier', type: 'number', default: 3.0, description: '固定阈值倍数(mean+N×std)' },
+          { name: 'snrThresholdDb', type: 'number', default: 6.0, description: 'SNR检测阈值(dB)' },
+          { name: 'frequencyTolerancePercent', type: 'number', default: 3.0, min: 0.5, max: 10, description: '频率匹配容差(%)' },
+          { name: 'harmonicCount', type: 'number', default: 3, min: 1, max: 5, description: '检测谐波数量' },
+          { name: 'bearingModel', type: 'string', default: '', description: '轴承型号(支持: 6205/6206/6208/6210/6305/6306/6308/22320/6320/23140/22228/6316/32222)' },
+          { name: 'shaftRPM', type: 'number', default: 0, description: '转轴转速(rpm)' },
         ],
-        applicableDeviceTypes: ['motor', 'pump', 'compressor', 'fan', '*'],
-        applicableScenarios: ['轴承诊断', '早期故障检测'],
-        complexity: 'O(NlogN)',
+        applicableDeviceTypes: ['motor', 'pump', 'compressor', 'fan', 'crane', 'gantry_crane', '*'],
+        applicableScenarios: ['轴承诊断', '早期故障检测', '港机设备监测', '旋转机械诊断'],
+        complexity: 'O(L×2^L×NlogN)',
         edgeDeployable: true,
-        referenceStandards: ['ISO 15243', 'ISO 281'],
+        referenceStandards: ['ISO 15243', 'ISO 281', 'ISO 18436-2'],
       },
     },
     {
