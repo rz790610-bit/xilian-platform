@@ -689,19 +689,20 @@ services:
       - "${FLINK_JOBMANAGER_PORT:-8081}:8081"   # Web UI
       - "${FLINK_RPC_PORT:-6123}:6123"           # RPC
     environment:
-      - FLINK_PROPERTIES=
-          jobmanager.rpc.address: flink-jobmanager
-          jobmanager.rpc.port: 6123
-          jobmanager.memory.process.size: 1600m
-          state.backend: rocksdb
-          state.checkpoints.dir: file:///opt/flink/checkpoints
-          state.savepoints.dir: file:///opt/flink/savepoints
-          execution.checkpointing.interval: 60000
-          execution.checkpointing.mode: EXACTLY_ONCE
-          rest.flamegraph.enabled: true
-          metrics.reporters: prom
-          metrics.reporter.prom.factory.class: org.apache.flink.metrics.prometheus.PrometheusReporterFactory
-          metrics.reporter.prom.port: 9249
+      - |
+        FLINK_PROPERTIES=
+        jobmanager.rpc.address: flink-jobmanager
+        jobmanager.rpc.port: 6123
+        jobmanager.memory.process.size: 1600m
+        state.backend: rocksdb
+        state.checkpoints.dir: file:///opt/flink/checkpoints
+        state.savepoints.dir: file:///opt/flink/savepoints
+        execution.checkpointing.interval: 60000
+        execution.checkpointing.mode: EXACTLY_ONCE
+        rest.flamegraph.enabled: true
+        metrics.reporters: prom
+        metrics.reporter.prom.factory.class: org.apache.flink.metrics.prometheus.PrometheusReporterFactory
+        metrics.reporter.prom.port: 9249
     volumes:
       - flink_checkpoints:/opt/flink/checkpoints
       - flink_savepoints:/opt/flink/savepoints
@@ -724,14 +725,15 @@ services:
       flink-jobmanager:
         condition: service_healthy
     environment:
-      - FLINK_PROPERTIES=
-          jobmanager.rpc.address: flink-jobmanager
-          taskmanager.numberOfTaskSlots: 4
-          taskmanager.memory.process.size: 2048m
-          taskmanager.memory.managed.fraction: 0.4
-          metrics.reporters: prom
-          metrics.reporter.prom.factory.class: org.apache.flink.metrics.prometheus.PrometheusReporterFactory
-          metrics.reporter.prom.port: 9249
+      - |
+        FLINK_PROPERTIES=
+        jobmanager.rpc.address: flink-jobmanager
+        taskmanager.numberOfTaskSlots: 4
+        taskmanager.memory.process.size: 2048m
+        taskmanager.memory.managed.fraction: 0.4
+        metrics.reporters: prom
+        metrics.reporter.prom.factory.class: org.apache.flink.metrics.prometheus.PrometheusReporterFactory
+        metrics.reporter.prom.port: 9249
     volumes:
       - flink_checkpoints:/opt/flink/checkpoints
       - ./docker/flink/jobs:/opt/flink/usrlib
