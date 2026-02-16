@@ -1,4 +1,4 @@
-CREATE TABLE `anomaly_detections` (
+CREATE TABLE IF NOT EXISTS `anomaly_detections` (
 	`id` int AUTO_INCREMENT NOT NULL,
 	`detectionId` varchar(64) NOT NULL,
 	`sensorId` varchar(64) NOT NULL,
@@ -22,7 +22,7 @@ CREATE TABLE `anomaly_detections` (
 	CONSTRAINT `anomaly_detections_detectionId_unique` UNIQUE(`detectionId`)
 );
 --> statement-breakpoint
-CREATE TABLE `data_aggregations` (
+CREATE TABLE IF NOT EXISTS `data_aggregations` (
 	`id` int AUTO_INCREMENT NOT NULL,
 	`deviceId` varchar(64) NOT NULL,
 	`sensorId` varchar(64) NOT NULL,
@@ -39,7 +39,7 @@ CREATE TABLE `data_aggregations` (
 	CONSTRAINT `data_aggregations_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
-CREATE TABLE `device_alerts` (
+CREATE TABLE IF NOT EXISTS `device_alerts` (
 	`id` int AUTO_INCREMENT NOT NULL,
 	`alertId` varchar(64) NOT NULL,
 	`deviceId` varchar(64) NOT NULL,
@@ -65,7 +65,7 @@ CREATE TABLE `device_alerts` (
 	CONSTRAINT `device_alerts_alertId_unique` UNIQUE(`alertId`)
 );
 --> statement-breakpoint
-CREATE TABLE `device_kpis` (
+CREATE TABLE IF NOT EXISTS `device_kpis` (
 	`id` int AUTO_INCREMENT NOT NULL,
 	`deviceId` varchar(64) NOT NULL,
 	`periodType` enum('hourly','daily','weekly','monthly') NOT NULL,
@@ -91,7 +91,7 @@ CREATE TABLE `device_kpis` (
 	CONSTRAINT `device_kpis_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
-CREATE TABLE `device_maintenance_records` (
+CREATE TABLE IF NOT EXISTS `device_maintenance_records` (
 	`id` int AUTO_INCREMENT NOT NULL,
 	`recordId` varchar(64) NOT NULL,
 	`deviceId` varchar(64) NOT NULL,
@@ -118,7 +118,7 @@ CREATE TABLE `device_maintenance_records` (
 	CONSTRAINT `device_maintenance_records_recordId_unique` UNIQUE(`recordId`)
 );
 --> statement-breakpoint
-CREATE TABLE `device_operation_logs` (
+CREATE TABLE IF NOT EXISTS `device_operation_logs` (
 	`id` int AUTO_INCREMENT NOT NULL,
 	`logId` varchar(64) NOT NULL,
 	`deviceId` varchar(64) NOT NULL,
@@ -137,7 +137,7 @@ CREATE TABLE `device_operation_logs` (
 	CONSTRAINT `device_operation_logs_logId_unique` UNIQUE(`logId`)
 );
 --> statement-breakpoint
-CREATE TABLE `device_spare_parts` (
+CREATE TABLE IF NOT EXISTS `device_spare_parts` (
 	`id` int AUTO_INCREMENT NOT NULL,
 	`partId` varchar(64) NOT NULL,
 	`name` varchar(200) NOT NULL,
@@ -162,7 +162,7 @@ CREATE TABLE `device_spare_parts` (
 	CONSTRAINT `device_spare_parts_partId_unique` UNIQUE(`partId`)
 );
 --> statement-breakpoint
-CREATE TABLE `devices` (
+CREATE TABLE IF NOT EXISTS `devices` (
 	`id` int AUTO_INCREMENT NOT NULL,
 	`deviceId` varchar(64) NOT NULL,
 	`name` varchar(100) NOT NULL,
@@ -183,7 +183,7 @@ CREATE TABLE `devices` (
 	CONSTRAINT `devices_deviceId_unique` UNIQUE(`deviceId`)
 );
 --> statement-breakpoint
-CREATE TABLE `diagnosis_rules` (
+CREATE TABLE IF NOT EXISTS `diagnosis_rules` (
 	`id` int AUTO_INCREMENT NOT NULL,
 	`ruleId` varchar(64) NOT NULL,
 	`name` varchar(200) NOT NULL,
@@ -205,7 +205,7 @@ CREATE TABLE `diagnosis_rules` (
 	CONSTRAINT `diagnosis_rules_ruleId_unique` UNIQUE(`ruleId`)
 );
 --> statement-breakpoint
-CREATE TABLE `diagnosis_tasks` (
+CREATE TABLE IF NOT EXISTS `diagnosis_tasks` (
 	`id` int AUTO_INCREMENT NOT NULL,
 	`taskId` varchar(64) NOT NULL,
 	`deviceId` varchar(64),
@@ -226,7 +226,7 @@ CREATE TABLE `diagnosis_tasks` (
 	CONSTRAINT `diagnosis_tasks_taskId_unique` UNIQUE(`taskId`)
 );
 --> statement-breakpoint
-CREATE TABLE `event_logs` (
+CREATE TABLE IF NOT EXISTS `event_logs` (
 	`id` int AUTO_INCREMENT NOT NULL,
 	`eventId` varchar(64) NOT NULL,
 	`topic` varchar(100) NOT NULL,
@@ -244,7 +244,7 @@ CREATE TABLE `event_logs` (
 	CONSTRAINT `event_logs_eventId_unique` UNIQUE(`eventId`)
 );
 --> statement-breakpoint
-CREATE TABLE `kb_collections` (
+CREATE TABLE IF NOT EXISTS `kb_collections` (
 	`id` int AUTO_INCREMENT NOT NULL,
 	`name` varchar(100) NOT NULL,
 	`description` text,
@@ -256,7 +256,7 @@ CREATE TABLE `kb_collections` (
 	CONSTRAINT `kb_collections_name_unique` UNIQUE(`name`)
 );
 --> statement-breakpoint
-CREATE TABLE `kb_documents` (
+CREATE TABLE IF NOT EXISTS `kb_documents` (
 	`id` int AUTO_INCREMENT NOT NULL,
 	`collectionId` int NOT NULL,
 	`filename` varchar(255) NOT NULL,
@@ -272,7 +272,7 @@ CREATE TABLE `kb_documents` (
 	CONSTRAINT `kb_documents_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
-CREATE TABLE `kb_points` (
+CREATE TABLE IF NOT EXISTS `kb_points` (
 	`id` int AUTO_INCREMENT NOT NULL,
 	`collectionId` int NOT NULL,
 	`title` varchar(255) NOT NULL,
@@ -288,7 +288,7 @@ CREATE TABLE `kb_points` (
 	CONSTRAINT `kb_points_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
-CREATE TABLE `kg_edges` (
+CREATE TABLE IF NOT EXISTS `kg_edges` (
 	`id` int AUTO_INCREMENT NOT NULL,
 	`collectionId` int NOT NULL,
 	`edgeId` varchar(100) NOT NULL,
@@ -302,7 +302,7 @@ CREATE TABLE `kg_edges` (
 	CONSTRAINT `kg_edges_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
-CREATE TABLE `kg_nodes` (
+CREATE TABLE IF NOT EXISTS `kg_nodes` (
 	`id` int AUTO_INCREMENT NOT NULL,
 	`collectionId` int NOT NULL,
 	`nodeId` varchar(100) NOT NULL,
@@ -316,7 +316,7 @@ CREATE TABLE `kg_nodes` (
 	CONSTRAINT `kg_nodes_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
-CREATE TABLE `model_conversations` (
+CREATE TABLE IF NOT EXISTS `model_conversations` (
 	`id` int AUTO_INCREMENT NOT NULL,
 	`conversationId` varchar(64) NOT NULL,
 	`userId` int,
@@ -332,7 +332,7 @@ CREATE TABLE `model_conversations` (
 	CONSTRAINT `model_conversations_conversationId_unique` UNIQUE(`conversationId`)
 );
 --> statement-breakpoint
-CREATE TABLE `model_evaluations` (
+CREATE TABLE IF NOT EXISTS `model_evaluations` (
 	`id` int AUTO_INCREMENT NOT NULL,
 	`evaluationId` varchar(64) NOT NULL,
 	`userId` int,
@@ -354,7 +354,7 @@ CREATE TABLE `model_evaluations` (
 	CONSTRAINT `model_evaluations_evaluationId_unique` UNIQUE(`evaluationId`)
 );
 --> statement-breakpoint
-CREATE TABLE `model_fine_tune_tasks` (
+CREATE TABLE IF NOT EXISTS `model_fine_tune_tasks` (
 	`id` int AUTO_INCREMENT NOT NULL,
 	`taskId` varchar(64) NOT NULL,
 	`userId` int,
@@ -377,7 +377,7 @@ CREATE TABLE `model_fine_tune_tasks` (
 	CONSTRAINT `model_fine_tune_tasks_taskId_unique` UNIQUE(`taskId`)
 );
 --> statement-breakpoint
-CREATE TABLE `model_messages` (
+CREATE TABLE IF NOT EXISTS `model_messages` (
 	`id` int AUTO_INCREMENT NOT NULL,
 	`messageId` varchar(64) NOT NULL,
 	`conversationId` varchar(64) NOT NULL,
@@ -393,7 +393,7 @@ CREATE TABLE `model_messages` (
 	CONSTRAINT `model_messages_messageId_unique` UNIQUE(`messageId`)
 );
 --> statement-breakpoint
-CREATE TABLE `model_usage_logs` (
+CREATE TABLE IF NOT EXISTS `model_usage_logs` (
 	`id` int AUTO_INCREMENT NOT NULL,
 	`logId` varchar(64) NOT NULL,
 	`userId` int,
@@ -411,7 +411,7 @@ CREATE TABLE `model_usage_logs` (
 	CONSTRAINT `model_usage_logs_logId_unique` UNIQUE(`logId`)
 );
 --> statement-breakpoint
-CREATE TABLE `models` (
+CREATE TABLE IF NOT EXISTS `models` (
 	`id` int AUTO_INCREMENT NOT NULL,
 	`modelId` varchar(100) NOT NULL,
 	`name` varchar(100) NOT NULL,
@@ -434,7 +434,7 @@ CREATE TABLE `models` (
 	CONSTRAINT `models_modelId_unique` UNIQUE(`modelId`)
 );
 --> statement-breakpoint
-CREATE TABLE `sensor_aggregates` (
+CREATE TABLE IF NOT EXISTS `sensor_aggregates` (
 	`id` int AUTO_INCREMENT NOT NULL,
 	`sensorId` varchar(64) NOT NULL,
 	`deviceId` varchar(64) NOT NULL,
@@ -450,7 +450,7 @@ CREATE TABLE `sensor_aggregates` (
 	CONSTRAINT `sensor_aggregates_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
-CREATE TABLE `sensor_readings` (
+CREATE TABLE IF NOT EXISTS `sensor_readings` (
 	`id` int AUTO_INCREMENT NOT NULL,
 	`sensorId` varchar(64) NOT NULL,
 	`deviceId` varchar(64) NOT NULL,
@@ -462,7 +462,7 @@ CREATE TABLE `sensor_readings` (
 	CONSTRAINT `sensor_readings_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
-CREATE TABLE `sensors` (
+CREATE TABLE IF NOT EXISTS `sensors` (
 	`id` int AUTO_INCREMENT NOT NULL,
 	`sensorId` varchar(64) NOT NULL,
 	`deviceId` varchar(64) NOT NULL,
@@ -484,7 +484,7 @@ CREATE TABLE `sensors` (
 	CONSTRAINT `sensors_sensorId_unique` UNIQUE(`sensorId`)
 );
 --> statement-breakpoint
-CREATE TABLE `telemetry_data` (
+CREATE TABLE IF NOT EXISTS `telemetry_data` (
 	`id` int AUTO_INCREMENT NOT NULL,
 	`deviceId` varchar(64) NOT NULL,
 	`sensorId` varchar(64) NOT NULL,
@@ -497,7 +497,7 @@ CREATE TABLE `telemetry_data` (
 	CONSTRAINT `telemetry_data_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
-CREATE TABLE `topo_edges` (
+CREATE TABLE IF NOT EXISTS `topo_edges` (
 	`id` int AUTO_INCREMENT NOT NULL,
 	`edgeId` varchar(64) NOT NULL,
 	`sourceNodeId` varchar(64) NOT NULL,
@@ -512,7 +512,7 @@ CREATE TABLE `topo_edges` (
 	CONSTRAINT `topo_edges_edgeId_unique` UNIQUE(`edgeId`)
 );
 --> statement-breakpoint
-CREATE TABLE `topo_layouts` (
+CREATE TABLE IF NOT EXISTS `topo_layouts` (
 	`id` int AUTO_INCREMENT NOT NULL,
 	`name` varchar(100) NOT NULL,
 	`description` text,
@@ -524,7 +524,7 @@ CREATE TABLE `topo_layouts` (
 	CONSTRAINT `topo_layouts_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
-CREATE TABLE `topo_nodes` (
+CREATE TABLE IF NOT EXISTS `topo_nodes` (
 	`id` int AUTO_INCREMENT NOT NULL,
 	`nodeId` varchar(64) NOT NULL,
 	`name` varchar(100) NOT NULL,
@@ -543,7 +543,7 @@ CREATE TABLE `topo_nodes` (
 	CONSTRAINT `topo_nodes_nodeId_unique` UNIQUE(`nodeId`)
 );
 --> statement-breakpoint
-CREATE TABLE `users` (
+CREATE TABLE IF NOT EXISTS `users` (
 	`id` int AUTO_INCREMENT NOT NULL,
 	`openId` varchar(64) NOT NULL,
 	`name` text,
