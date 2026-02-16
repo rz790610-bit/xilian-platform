@@ -271,24 +271,22 @@ function ServicesOverviewTab({ services }: { services: MicroService[] }) {
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// Tab 2: 服务拓扑图
+// Tab 2: 服务拓扑图 — HTML div 绝对定位 + SVG 连线混合方案（解决 SVG 交互兼容性问题）
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function ServiceTopologyTab({ services }: { services: MicroService[] }) {
   const [hoveredNode, setHoveredNode] = useState<string | null>(null);
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
 
-  const nodePositions = useMemo(() => {
-    const positions: Record<string, { x: number; y: number }> = {};
-    const cx = 450, cy = 280;
-    positions['api-gateway'] = { x: cx, y: cy - 120 };
-    const biz = ['device-service', 'algorithm-service', 'data-pipeline', 'knowledge-service', 'monitoring-service'];
-    biz.forEach((id, i) => {
-      const angle = (Math.PI * 2 * i / biz.length) - Math.PI / 2;
-      positions[id] = { x: cx + Math.cos(angle) * 200, y: cy + 40 + Math.sin(angle) * 150 };
-    });
-    positions['infra-service'] = { x: cx, y: cy + 220 };
-    return positions;
-  }, []);
+  // 使用百分比定位，让节点在容器内自适应
+  const nodeLayout: Record<string, { left: string; top: string }> = useMemo(() => ({
+    'api-gateway':        { left: '50%', top: '8%' },
+    'monitoring-service':  { left: '20%', top: '28%' },
+    'device-service':     { left: '80%', top: '28%' },
+    'knowledge-service':  { left: '20%', top: '55%' },
+    'algorithm-service':  { left: '80%', top: '55%' },
+    'data-pipeline':      { left: '60%', top: '72%' },
+    'infra-service':      { left: '50%', top: '90%' },
+  }), []);
 
   const edges = useMemo(() => {
     const result: { from: string; to: string; status: 'active' | 'degraded' }[] = [];
@@ -301,11 +299,12 @@ function ServiceTopologyTab({ services }: { services: MicroService[] }) {
     return result;
   }, [services]);
 
-  const R = 32;
   const emojis: Record<string, string> = {
     'api-gateway': '🌐', 'device-service': '🔧', 'algorithm-service': '🧮',
     'data-pipeline': '🔄', 'knowledge-service': '📚', 'monitoring-service': '📡', 'infra-service': '🏗️'
   };
+
+  const pctVal = (s: string) => parseFloat(s);
 
   return (
     <div className="space-y-3">
@@ -319,101 +318,149 @@ function ServiceTopologyTab({ services }: { services: MicroService[] }) {
         </span>
       </div>
 
-      <PageCard noPadding>
-        <div className="relative rounded-lg" style={{ height: 560, overflow: 'visible' }}>
-          <svg width="100%" height="100%" viewBox="0 0 900 560" style={{ cursor: 'default' }}>
-            <defs>
-              <filter id="glow-green"><feGaussianBlur stdDeviation="4" result="blur" /><feComposite in="SourceGraphic" in2="blur" operator="over" /></filter>
-              <filter id="glow-amber"><feGaussianBlur stdDeviation="4" result="blur" /><feComposite in="SourceGraphic" in2="blur" operator="over" /></filter>
-              <marker id="arrow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="oklch(0.6 0.1 240 / 0.5)" /></marker>
-              <marker id="arrow-deg" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="oklch(0.7 0.15 60 / 0.5)" /></marker>
-              <radialGradient id="nbg-h" cx="50%" cy="30%"><stop offset="0%" stopColor="oklch(0.35 0.08 145)" /><stop offset="100%" stopColor="oklch(0.2 0.04 145)" /></radialGradient>
-              <radialGradient id="nbg-d" cx="50%" cy="30%"><stop offset="0%" stopColor="oklch(0.35 0.08 60)" /><stop offset="100%" stopColor="oklch(0.2 0.04 60)" /></radialGradient>
-            </defs>
-            <pattern id="grid" width="30" height="30" patternUnits="userSpaceOnUse"><path d="M 30 0 L 0 0 0 30" fill="none" stroke="oklch(0.3 0 0 / 0.15)" strokeWidth="0.5" /></pattern>
-            <rect width="100%" height="100%" fill="url(#grid)" style={{ pointerEvents: 'none' }} />
-            {/* 点击背景取消选中 */}
-            <rect width="100%" height="100%" fill="transparent" onClick={() => setSelectedNode(null)} style={{ cursor: 'default' }} />
-
-            {edges.map((edge, i) => {
-              const from = nodePositions[edge.from], to = nodePositions[edge.to];
-              if (!from || !to) return null;
-              const hl = hoveredNode === edge.from || hoveredNode === edge.to;
-              const deg = edge.status === 'degraded';
-              const dx = to.x - from.x, dy = to.y - from.y, len = Math.sqrt(dx * dx + dy * dy);
-              const ux = dx / len, uy = dy / len;
-              return (
-                <line key={i}
-                  x1={from.x + ux * (R + 4)} y1={from.y + uy * (R + 4)}
-                  x2={to.x - ux * (R + 8)} y2={to.y - uy * (R + 8)}
-                  stroke={deg ? 'oklch(0.7 0.15 60 / 0.5)' : 'oklch(0.6 0.1 240 / 0.35)'}
-                  strokeWidth={hl ? 2 : 1} strokeDasharray={deg ? '6,4' : '4,3'}
-                  markerEnd={deg ? 'url(#arrow-deg)' : 'url(#arrow)'}
-                  opacity={hoveredNode && !hl ? 0.15 : 1}
-                  style={{ pointerEvents: 'none', transition: 'all 0.3s' }}
-                />
-              );
-            })}
-
-            {services.map(svc => {
-              const pos = nodePositions[svc.id];
-              if (!pos) return null;
-              const hov = hoveredNode === svc.id, sel = selectedNode === svc.id;
-              const deg = svc.status === 'degraded';
-              const sc = deg ? 'oklch(0.75 0.15 60)' : 'oklch(0.7 0.15 145)';
-              return (
-                <g key={svc.id}
-                  onMouseEnter={() => setHoveredNode(svc.id)}
-                  onMouseLeave={() => setHoveredNode(null)}
-                  onClick={(e) => { e.stopPropagation(); setSelectedNode(sel ? null : svc.id); }}
-                  style={{ cursor: 'pointer', opacity: hoveredNode && !hov ? 0.4 : 1, transition: 'opacity 0.3s' }}
-                >
-                  {/* 透明点击热区 */}
-                  <circle cx={pos.x} cy={pos.y} r={R + 12} fill="transparent" stroke="none" style={{ pointerEvents: 'all' }} />
-                  {(hov || sel) && <circle cx={pos.x} cy={pos.y} r={R + 8} fill="none" stroke={sc} strokeWidth="1" opacity="0.4" filter={deg ? 'url(#glow-amber)' : 'url(#glow-green)'} style={{ pointerEvents: 'none' }} />}
-                  <circle cx={pos.x} cy={pos.y} r={R} fill={deg ? 'url(#nbg-d)' : 'url(#nbg-h)'} stroke={sc} strokeWidth={hov || sel ? 2 : 1} style={{ pointerEvents: 'none' }} />
-                  <text x={pos.x} y={pos.y - 2} textAnchor="middle" dominantBaseline="middle" fontSize="18" style={{ pointerEvents: 'none', userSelect: 'none' }}>{emojis[svc.id] || '📦'}</text>
-                  <text x={pos.x} y={pos.y + R + 16} textAnchor="middle" fill="oklch(0.8 0 0)" fontSize="11" fontWeight="500" style={{ pointerEvents: 'none', userSelect: 'none' }}>{svc.name}</text>
-                  <text x={pos.x} y={pos.y + R + 30} textAnchor="middle" fill="oklch(0.6 0 0)" fontSize="9" fontFamily="monospace" style={{ pointerEvents: 'none', userSelect: 'none' }}>{formatNumber(svc.metrics.requestRate)} req/s</text>
-                  {Array.from({ length: svc.replicas.total }).map((_, ri) => (
-                    <circle key={ri} cx={pos.x - (svc.replicas.total - 1) * 4 + ri * 8} cy={pos.y + R + 42} r={2.5} fill={ri < svc.replicas.ready ? sc : 'oklch(0.4 0 0)'} style={{ pointerEvents: 'none' }} />
-                  ))}
-                </g>
-              );
-            })}
-          </svg>
-
-          {selectedNode && (() => {
-            const s = services.find(sv => sv.id === selectedNode);
-            if (!s) return null;
-            const cfg = serviceStatusConfig[s.status];
+      {/* 拓扑容器：HTML 节点 + SVG 连线 */}
+      <div
+        className="relative rounded-lg border border-border/50"
+        style={{
+          height: 560,
+          background: 'repeating-conic-gradient(oklch(0.18 0 0) 0% 25%, oklch(0.16 0 0) 0% 50%) 0 0 / 30px 30px',
+        }}
+        onClick={() => setSelectedNode(null)}
+      >
+        {/* SVG 连线层 — 仅绘制线条，不处理交互 */}
+        <svg
+          className="absolute inset-0 w-full h-full"
+          viewBox="0 0 100 100"
+          preserveAspectRatio="none"
+          style={{ pointerEvents: 'none', zIndex: 1 }}
+        >
+          <defs>
+            <marker id="arr-n" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="oklch(0.5 0.08 240 / 0.6)" />
+            </marker>
+            <marker id="arr-d" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="oklch(0.65 0.12 60 / 0.6)" />
+            </marker>
+          </defs>
+          {edges.map((edge, i) => {
+            const fp = nodeLayout[edge.from], tp = nodeLayout[edge.to];
+            if (!fp || !tp) return null;
+            const x1 = pctVal(fp.left), y1 = pctVal(fp.top);
+            const x2 = pctVal(tp.left), y2 = pctVal(tp.top);
+            const hl = hoveredNode === edge.from || hoveredNode === edge.to;
+            const deg = edge.status === 'degraded';
             return (
-              <div className="absolute top-3 right-3 w-64 bg-card/95 backdrop-blur-sm border border-border rounded-lg p-3 shadow-xl">
-                <div className="flex items-center justify-between mb-2">
-                  <h4 className="text-sm font-semibold">{s.name}</h4>
-                  <Badge variant={cfg.badgeVariant}>{cfg.label}</Badge>
+              <line key={i}
+                x1={x1} y1={y1} x2={x2} y2={y2}
+                stroke={deg ? 'oklch(0.65 0.12 60 / 0.4)' : 'oklch(0.5 0.08 240 / 0.3)'}
+                strokeWidth={hl ? 0.5 : 0.25}
+                strokeDasharray={deg ? '1.2,0.8' : '0.8,0.6'}
+                markerEnd={deg ? 'url(#arr-d)' : 'url(#arr-n)'}
+                opacity={hoveredNode && !hl ? 0.15 : 1}
+                style={{ transition: 'all 0.3s' }}
+                vectorEffect="non-scaling-stroke"
+              />
+            );
+          })}
+        </svg>
+
+        {/* HTML 节点层 — 标准 button 元素，交互完全可靠 */}
+        {services.map(svc => {
+          const pos = nodeLayout[svc.id];
+          if (!pos) return null;
+          const hov = hoveredNode === svc.id;
+          const sel = selectedNode === svc.id;
+          const deg = svc.status === 'degraded';
+          const dotColor = deg ? 'bg-amber-500' : 'bg-emerald-500';
+          return (
+            <button
+              key={svc.id}
+              type="button"
+              className={cn(
+                'absolute flex flex-col items-center gap-0.5 cursor-pointer',
+                'transition-all duration-300 ease-out outline-none',
+                hoveredNode && !hov ? 'opacity-30' : 'opacity-100'
+              )}
+              style={{
+                left: pos.left,
+                top: pos.top,
+                transform: 'translate(-50%, -50%)',
+                zIndex: sel ? 20 : hov ? 15 : 10,
+              }}
+              onMouseEnter={() => setHoveredNode(svc.id)}
+              onMouseLeave={() => setHoveredNode(null)}
+              onClick={(e) => { e.stopPropagation(); setSelectedNode(sel ? null : svc.id); }}
+            >
+              {/* 节点圆形 */}
+              <div
+                className={cn(
+                  'w-16 h-16 rounded-full flex items-center justify-center text-2xl',
+                  'border-2 transition-all duration-300',
+                  deg ? 'border-amber-500/60' : 'border-emerald-500/60',
+                  (hov || sel) && (deg ? 'shadow-lg shadow-amber-500/30 scale-110' : 'shadow-lg shadow-emerald-500/30 scale-110'),
+                  deg
+                    ? 'bg-gradient-to-br from-amber-950/80 to-amber-900/40'
+                    : 'bg-gradient-to-br from-emerald-950/80 to-emerald-900/40'
+                )}
+              >
+                {emojis[svc.id] || '📦'}
+              </div>
+              {/* 服务名 */}
+              <span className="text-[11px] font-medium text-foreground/90 whitespace-nowrap mt-0.5">
+                {svc.name}
+              </span>
+              {/* 请求率 */}
+              <span className="text-[9px] font-mono text-muted-foreground">
+                {formatNumber(svc.metrics.requestRate)} req/s
+              </span>
+              {/* 副本指示点 */}
+              <div className="flex gap-1 mt-0.5">
+                {Array.from({ length: svc.replicas.total }).map((_, ri) => (
+                  <span
+                    key={ri}
+                    className={cn('w-1.5 h-1.5 rounded-full', ri < svc.replicas.ready ? dotColor : 'bg-muted-foreground/30')}
+                  />
+                ))}
+              </div>
+            </button>
+          );
+        })}
+
+        {/* 选中节点的详情面板 */}
+        {selectedNode && (() => {
+          const s = services.find(sv => sv.id === selectedNode);
+          if (!s) return null;
+          const cfg = serviceStatusConfig[s.status];
+          return (
+            <div
+              className="absolute top-3 right-3 w-64 bg-card/95 backdrop-blur-sm border border-border rounded-lg p-3 shadow-xl"
+              style={{ zIndex: 30 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="text-sm font-semibold">{s.name}</h4>
+                <Badge variant={cfg.badgeVariant}>{cfg.label}</Badge>
+              </div>
+              <div className="space-y-2 text-xs">
+                <div className="grid grid-cols-2 gap-2">
+                  <div><span className="text-muted-foreground">版本</span><div className="font-mono">{s.version}</div></div>
+                  <div><span className="text-muted-foreground">运行时间</span><div className="font-mono">{s.uptime}</div></div>
+                  <div><span className="text-muted-foreground">请求/秒</span><div className="font-mono">{formatNumber(s.metrics.requestRate)}</div></div>
+                  <div><span className="text-muted-foreground">P99 延迟</span><div className="font-mono">{formatLatency(s.metrics.latencyP99)}</div></div>
+                  <div><span className="text-muted-foreground">错误率</span><div className={cn('font-mono', s.metrics.errorRate > 0.1 ? 'text-red-400' : 'text-emerald-400')}>{s.metrics.errorRate}%</div></div>
+                  <div><span className="text-muted-foreground">连接数</span><div className="font-mono">{s.metrics.activeConnections}</div></div>
                 </div>
-                <div className="space-y-2 text-xs">
-                  <div className="grid grid-cols-2 gap-2">
-                    <div><span className="text-muted-foreground">版本</span><div className="font-mono">{s.version}</div></div>
-                    <div><span className="text-muted-foreground">运行时间</span><div className="font-mono">{s.uptime}</div></div>
-                    <div><span className="text-muted-foreground">请求/秒</span><div className="font-mono">{formatNumber(s.metrics.requestRate)}</div></div>
-                    <div><span className="text-muted-foreground">P99 延迟</span><div className="font-mono">{formatLatency(s.metrics.latencyP99)}</div></div>
-                    <div><span className="text-muted-foreground">错误率</span><div className={cn('font-mono', s.metrics.errorRate > 0.1 ? 'text-red-400' : 'text-emerald-400')}>{s.metrics.errorRate}%</div></div>
-                    <div><span className="text-muted-foreground">连接数</span><div className="font-mono">{s.metrics.activeConnections}</div></div>
-                  </div>
-                  <div className="pt-1 border-t border-border/50">
-                    <span className="text-muted-foreground">gRPC</span> <span className="font-mono">{s.endpoints.grpc}</span>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">依赖</span> <span className="font-mono">{s.dependencies.length > 0 ? s.dependencies.join(', ') : '无'}</span>
-                  </div>
+                <div className="pt-1 border-t border-border/50">
+                  <span className="text-muted-foreground">gRPC</span> <span className="font-mono">{s.endpoints.grpc}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">依赖</span> <span className="font-mono">{s.dependencies.length > 0 ? s.dependencies.join(', ') : '无'}</span>
                 </div>
               </div>
-            );
-          })()}
-        </div>
-      </PageCard>
+            </div>
+          );
+        })()}
+      </div>
     </div>
   );
 }
