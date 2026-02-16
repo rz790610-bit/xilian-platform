@@ -72,6 +72,20 @@ scrape_configs:
       - targets: ['cadvisor:8080']
     metrics_path: '/metrics'
 
+  # Elasticsearch（按需启用，需 bigdata profile）
+  - job_name: 'elasticsearch'
+    static_configs:
+      - targets: ['elasticsearch:9200']
+    metrics_path: '/_prometheus/metrics'
+    scrape_interval: 30s
+
+  # Kafka Connect（按需启用，需 bigdata profile）
+  - job_name: 'kafka-connect'
+    static_configs:
+      - targets: ['kafka-connect:8083']
+    metrics_path: '/'
+    scrape_interval: 30s
+
   # Jaeger（追踪系统自身指标）
   - job_name: 'jaeger'
     static_configs:

@@ -1,14 +1,18 @@
 # ============================================================
-# PortAI Nexus - 全栈一键部署 Docker Compose
+# 西联智能平台 - 全栈一键部署 Docker Compose
 # 包含: MySQL + Redis + ClickHouse + MinIO + Qdrant + Kafka + Neo4j
+#        + Elasticsearch + Kafka Connect (bigdata profile)
+#        + Prometheus + Grafana + Jaeger (monitoring)
 # ============================================================
 # 启动方式:
-#   全部启动:   docker-compose up -d
-#   最小启动:   docker-compose up -d mysql redis
-#   核心数据库: docker-compose up -d mysql redis clickhouse qdrant
-#   停止全部:   docker-compose down
-#   查看日志:   docker-compose logs -f <service>
-#   查看状态:   docker-compose ps
+#   最小启动:      docker-compose up -d mysql redis
+#   核心服务:      docker-compose up -d mysql redis clickhouse kafka qdrant neo4j
+#   全部启动:      docker-compose up -d
+#   大数据服务:    docker-compose --profile bigdata up -d
+#   全部+大数据:   docker-compose --profile full up -d
+#   停止全部:      docker-compose down
+#   查看日志:      docker-compose logs -f <service>
+#   查看状态:      docker-compose ps
 # ============================================================
 
 services:
@@ -45,6 +49,14 @@ services:
       - NEO4J_BOLT_PORT=7687
       - NEO4J_USER=${NEO4J_USER:-neo4j}
       - NEO4J_PASSWORD=${NEO4J_PASSWORD:-portai123}
+      - ELASTICSEARCH_HOST=elasticsearch
+      - ELASTICSEARCH_PORT=9200
+      - KAFKA_CONNECT_HOST=kafka-connect
+      - KAFKA_CONNECT_PORT=8083
+      - FEATURE_ELASTICSEARCH_ENABLED=${FEATURE_ELASTICSEARCH_ENABLED:-false}
+      - FEATURE_KAFKA_CONNECT_ENABLED=${FEATURE_KAFKA_CONNECT_ENABLED:-false}
+      - FEATURE_AIRFLOW_ENABLED=${FEATURE_AIRFLOW_ENABLED:-false}
+      - FEATURE_FLINK_ENABLED=${FEATURE_FLINK_ENABLED:-false}
       - LOG_LEVEL=${LOG_LEVEL:-info}
     depends_on:
       mysql:
@@ -253,6 +265,123 @@ services:
       timeout: 10s
       retries: 5
       start_period: 30s
+
+  # ==================== Search & Analytics: Elasticsearch ====================
+  # 全文搜索 + 日志分析 — 告警事件检索、审计日志、诊断结果全文搜索
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.13.0
+    container_name: xilian-elasticsearch
+    restart: unless-stopped
+    profiles: ["bigdata", "full"]
+    ports:
+      - "${ELASTICSEARCH_PORT:-9200}:9200"
+      - "${ELASTICSEARCH_TRANSPORT_PORT:-9300}:9300"
+    environment:
+      - discovery.type=single-node
+      - cluster.name=xilian-cluster
+      - node.name=xilian-es-01
+      - xpack.security.enabled=false
+      - xpack.security.enrollment.enabled=false
+      - xpack.security.http.ssl.enabled=false
+      - xpack.security.transport.ssl.enabled=false
+      - xpack.ilm.enabled=true
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+      - bootstrap.memory_lock=true
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    networks:
+      - portai-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+  # Elasticsearch 初始化：索引模板 + ILM 策略
+  elasticsearch-init:
+    image: curlimages/curl:8.5.0
+    container_name: xilian-elasticsearch-init
+    profiles: ["bigdata", "full"]
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    volumes:
+      - ./docker/elasticsearch/init-es.sh:/init-es.sh:ro
+    entrypoint: ["/bin/sh", "/init-es.sh"]
+    environment:
+      - ELASTICSEARCH_URL=http://elasticsearch:9200
+    networks:
+      - portai-network
+
+  # ==================== Data Integration: Kafka Connect ====================
+  # 数据集成 — CDC (Debezium) + ES Sink + JDBC Sink
+  kafka-connect:
+    build:
+      context: ./docker/kafka-connect
+      dockerfile: Dockerfile
+    container_name: xilian-kafka-connect
+    restart: unless-stopped
+    profiles: ["bigdata", "full"]
+    ports:
+      - "${KAFKA_CONNECT_PORT:-8083}:8083"
+    environment:
+      KAFKA_CONNECT_BOOTSTRAP_SERVERS: kafka:29092
+      KAFKA_CONNECT_GROUP_ID: xilian-connect-cluster
+      KAFKA_CONNECT_CONFIG_STORAGE_TOPIC: _connect-configs
+      KAFKA_CONNECT_OFFSET_STORAGE_TOPIC: _connect-offsets
+      KAFKA_CONNECT_STATUS_STORAGE_TOPIC: _connect-status
+      KAFKA_CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: 1
+      KAFKA_CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: 1
+      KAFKA_CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: 1
+      KAFKA_CONNECT_KEY_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      KAFKA_CONNECT_VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      KAFKA_CONNECT_KEY_CONVERTER_SCHEMAS_ENABLE: "false"
+      KAFKA_CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE: "false"
+      KAFKA_CONNECT_REST_PORT: 8083
+      KAFKA_CONNECT_REST_ADVERTISED_HOST_NAME: kafka-connect
+      KAFKA_CONNECT_PLUGIN_PATH: /opt/kafka/connect-plugins
+    command: >
+      /opt/kafka/bin/connect-distributed.sh
+      /opt/kafka/config/connect-distributed.properties
+    volumes:
+      - ./docker/kafka-connect/connect-distributed.properties:/opt/kafka/config/connect-distributed.properties:ro
+    depends_on:
+      kafka:
+        condition: service_healthy
+    networks:
+      - portai-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8083/ || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+  # Kafka Connect 初始化：自动注册连接器
+  kafka-connect-init:
+    image: curlimages/curl:8.5.0
+    container_name: xilian-kafka-connect-init
+    profiles: ["bigdata", "full"]
+    depends_on:
+      kafka-connect:
+        condition: service_healthy
+      mysql:
+        condition: service_healthy
+    volumes:
+      - ./docker/kafka-connect/init-connectors.sh:/init-connectors.sh:ro
+    entrypoint: ["/bin/sh", "/init-connectors.sh"]
+    environment:
+      - KAFKA_CONNECT_URL=http://kafka-connect:8083
+    networks:
+      - portai-network
 
   # ==================== Graph DB: Neo4j ====================
   # 图数据库 — 知识图谱和设备关系拓扑（替代 NebulaGraph，原生支持 ARM64）
@@ -523,3 +652,5 @@ volumes:
     name: portai-grafana-data
   jaeger_data:
     name: xilian-jaeger-data
+  elasticsearch_data:
+    name: xilian-elasticsearch-data

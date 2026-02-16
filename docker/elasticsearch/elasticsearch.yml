@@ -1,0 +1,30 @@
+# ============================================================
+# Elasticsearch 8.x 单节点配置
+# 适用于开发/测试环境
+# ============================================================
+
+cluster.name: xilian-cluster
+node.name: xilian-es-01
+
+# 单节点模式
+discovery.type: single-node
+
+# 网络
+network.host: 0.0.0.0
+http.port: 9200
+
+# 安全（开发环境关闭，生产环境必须开启）
+xpack.security.enabled: false
+xpack.security.enrollment.enabled: false
+xpack.security.http.ssl.enabled: false
+xpack.security.transport.ssl.enabled: false
+
+# ILM
+xpack.ilm.enabled: true
+
+# 内存
+indices.memory.index_buffer_size: 20%
+
+# 日志
+logger.level: WARN
+logger.org.elasticsearch.discovery: INFO
