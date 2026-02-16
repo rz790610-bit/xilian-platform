@@ -131,26 +131,17 @@ export const navigationConfig: NavItem[] = [
     ]
   },
   {
-    id: 'config-center',
-    label: '配置中心',
-    icon: '⚙️',
-    children: [
-      { id: 'config-infrastructure', label: '基础设施', icon: '🏛️', path: '/settings/config/infrastructure' },
-      { id: 'config-kafka', label: 'Kafka 监控', icon: '📡', path: '/settings/config/kafka' }
-    ]
-  },
-  {
     id: 'status-monitor',
     label: '状态监控',
     icon: '📡',
     children: [
+      { id: 'status-infrastructure', label: '基础设施', icon: '🏛️', path: '/settings/config/infrastructure' },
       { id: 'status-topology', label: '系统拓扑', icon: '📊', path: '/settings/status/topology' },
       { id: 'status-microservices', label: '微服务监控', icon: '🔗', path: '/settings/status/microservices' },
       { id: 'status-performance', label: '性能总览', icon: '🚀', path: '/settings/status/performance' },
+      { id: 'status-kafka', label: 'Kafka 监控', icon: '📡', path: '/settings/config/kafka' },
       { id: 'status-clickhouse', label: 'ClickHouse 监控', icon: '📊', path: '/monitoring/clickhouse' },
-      { id: 'status-datastream', label: '数据流监控', icon: '⚡', path: '/settings/design/datastream' },
-      { id: 'status-graph-query', label: '图查询优化', icon: '🗂️', path: '/settings/design/graph-query' },
-      { id: 'status-mysql', label: 'MySQL 状态', icon: '🐬', path: '/settings/status/mysql' }
+      { id: 'status-datastream', label: '数据流监控', icon: '⚡', path: '/settings/design/datastream' }
     ]
   },
   {

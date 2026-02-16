@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { PageCard } from '@/components/common/PageCard';
 import { StatCard } from '@/components/common/StatCard';
@@ -16,7 +16,8 @@ import {
   RefreshCw, Plus, Activity, Database, Lock,
   AlertTriangle, CheckCircle, XCircle,
   Box, Container, Key, Trash2,
-  RotateCcw, StopCircle, PlayCircle, Loader2, Terminal
+  RotateCcw, StopCircle, PlayCircle, Loader2, Terminal,
+  Rocket, Zap
 } from 'lucide-react';
 
 // 格式化字节
@@ -27,6 +28,229 @@ function formatBytes(bytes: number, decimals = 2): string {
   const sizes = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+}
+
+// ============ 一键启动核心环境对话框 ============
+function BootstrapAllDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
+  const [running, setRunning] = useState(false);
+  const [result, setResult] = useState<any>(null);
+
+  const bootstrapMut = trpc.docker.bootstrapAll.useMutation({
+    onSuccess: (data) => { setResult(data); setRunning(false); },
+    onError: (e) => { setResult({ success: false, error: e.message }); setRunning(false); },
+  });
+
+  const handleStart = () => {
+    setRunning(true);
+    setResult(null);
+    bootstrapMut.mutate();
+  };
+
+  const handleClose = () => {
+    if (!running) {
+      onOpenChange(false);
+      // 延迟清理结果，避免闪烁
+      setTimeout(() => setResult(null), 300);
+    }
+  };
+
+  const statusIcon = (status: string) => {
+    if (status === 'ok') return <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />;
+    if (status === 'skip') return <CheckCircle className="w-4 h-4 text-blue-400 shrink-0" />;
+    return <XCircle className="w-4 h-4 text-red-500 shrink-0" />;
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={handleClose}>
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Rocket className="w-5 h-5 text-blue-500" />
+            一键启动核心环境
+          </DialogTitle>
+        </DialogHeader>
+
+        {/* 启动前说明 */}
+        {!running && !result && (
+          <div className="space-y-4 py-2">
+            <p className="text-sm text-muted-foreground">
+              将按顺序启动以下核心服务，并自动配置环境变量、运行数据库迁移：
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              {[
+                { icon: '🐬', name: 'MySQL 数据库', desc: '主数据库 + 迁移建表' },
+                { icon: '🔴', name: 'Redis 缓存', desc: '缓存 + 消息队列' },
+                { icon: '📨', name: 'Kafka 消息队列', desc: '事件总线 + 流处理' },
+                { icon: '🏠', name: 'ClickHouse 时序库', desc: '时序数据存储' },
+                { icon: '🔮', name: 'Qdrant 向量库', desc: '向量检索引擎' },
+                { icon: '📦', name: 'MinIO 对象存储', desc: '文件存储服务' },
+              ].map(s => (
+                <div key={s.name} className="flex items-center gap-3 p-3 rounded-lg border bg-card">
+                  <span className="text-xl">{s.icon}</span>
+                  <div>
+                    <div className="text-sm font-medium">{s.name}</div>
+                    <div className="text-xs text-muted-foreground">{s.desc}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="text-xs text-muted-foreground bg-muted/50 rounded-lg p-3">
+              ⚡ 每个服务将依次执行：启动容器 → 配置环境变量 → 等待就绪 → 初始化（如有）
+            </div>
+          </div>
+        )}
+
+        {/* 启动中 */}
+        {running && !result && (
+          <div className="flex flex-col items-center py-12 gap-4">
+            <div className="relative">
+              <Loader2 className="w-12 h-12 text-blue-500 animate-spin" />
+              <Rocket className="w-5 h-5 text-blue-500 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+            </div>
+            <div className="text-center">
+              <p className="font-medium">正在启动核心环境...</p>
+              <p className="text-sm text-muted-foreground mt-1">依次启动 6 个服务，请稍候（约 30-60 秒）</p>
+            </div>
+            <Progress value={undefined} className="w-64 h-2" />
+          </div>
+        )}
+
+        {/* 启动结果 */}
+        {result && (
+          <div className="space-y-4 py-2">
+            {/* 总体状态 */}
+            <div className={cn(
+              "flex items-center gap-3 p-4 rounded-lg border",
+              result.success ? "border-emerald-500/30 bg-emerald-500/5" : "border-amber-500/30 bg-amber-500/5"
+            )}>
+              {result.success ? (
+                <CheckCircle className="w-6 h-6 text-emerald-500 shrink-0" />
+              ) : (
+                <AlertTriangle className="w-6 h-6 text-amber-500 shrink-0" />
+              )}
+              <div>
+                <p className="font-medium">
+                  {result.success ? '全部核心服务启动成功' : `${result.succeeded}/${result.total} 服务启动成功`}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  {result.success
+                    ? '环境变量已配置，数据库已迁移，所有服务就绪'
+                    : `${result.failed} 个服务启动失败，请检查 Docker 容器状态`}
+                </p>
+              </div>
+            </div>
+
+            {/* 各服务详情 */}
+            <div className="space-y-3">
+              {result.services?.map((svc: any, idx: number) => {
+                const allOk = svc.steps.every((s: any) => s.status !== 'fail');
+                return (
+                  <div key={idx} className={cn(
+                    "rounded-lg border p-3",
+                    allOk ? "border-emerald-500/20 bg-emerald-500/5" : "border-red-500/20 bg-red-500/5"
+                  )}>
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-lg">{svc.icon}</span>
+                      <span className="font-medium text-sm">{svc.service}</span>
+                      {allOk ? (
+                        <Badge variant="success" className="ml-auto text-xs">就绪</Badge>
+                      ) : (
+                        <Badge variant="danger" className="ml-auto text-xs">失败</Badge>
+                      )}
+                    </div>
+                    <div className="space-y-1.5 ml-7">
+                      {svc.steps.map((step: any, si: number) => (
+                        <div key={si} className="flex items-center gap-2 text-xs">
+                          {statusIcon(step.status)}
+                          <span className="text-muted-foreground w-24 shrink-0">{step.step}</span>
+                          <span className={cn(
+                            step.status === 'fail' ? 'text-red-400' : 'text-muted-foreground'
+                          )}>{step.detail}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {result.error && (
+              <div className="text-sm text-red-400 bg-red-500/5 rounded-lg p-3">
+                {result.error}
+              </div>
+            )}
+          </div>
+        )}
+
+        <DialogFooter>
+          {!running && !result && (
+            <>
+              <Button variant="outline" onClick={handleClose}>取消</Button>
+              <Button onClick={handleStart} className="bg-blue-600 hover:bg-blue-700">
+                <Rocket className="w-4 h-4 mr-2" />
+                开始启动
+              </Button>
+            </>
+          )}
+          {result && (
+            <Button variant="outline" onClick={handleClose}>关闭</Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ============ 可选服务按钮组 ============
+const OPTIONAL_SERVICES = [
+  { containerName: 'portai-ollama', label: 'Ollama', icon: '🦙', desc: 'AI 推理引擎' },
+  { containerName: 'portai-neo4j', label: 'Neo4j', icon: '🕸️', desc: '图数据库' },
+  { containerName: 'portai-prometheus', label: 'Prometheus', icon: '📊', desc: '指标采集' },
+  { containerName: 'portai-grafana', label: 'Grafana', icon: '📈', desc: '可视化监控' },
+];
+
+function OptionalServiceButtons() {
+  const toast = useToast();
+  const [loadingService, setLoadingService] = useState<string | null>(null);
+
+  const bootstrapOptMut = trpc.docker.bootstrapOptionalService.useMutation({
+    onSuccess: (res) => {
+      const allOk = res.steps.every((s: any) => s.status !== 'fail');
+      if (allOk) {
+        toast.success(`${res.containerName} 启动成功`);
+      } else {
+        const failStep = res.steps.find((s: any) => s.status === 'fail');
+        toast.error(`${res.containerName} 启动失败: ${failStep?.detail || '未知错误'}`);
+      }
+      setLoadingService(null);
+    },
+    onError: (e) => { toast.error(e.message); setLoadingService(null); },
+  });
+
+  return (
+    <div className="flex items-center gap-2 flex-wrap">
+      {OPTIONAL_SERVICES.map(svc => (
+        <Button
+          key={svc.containerName}
+          variant="outline"
+          size="sm"
+          disabled={!!loadingService}
+          onClick={() => {
+            setLoadingService(svc.containerName);
+            bootstrapOptMut.mutate({ containerName: svc.containerName });
+          }}
+          className="gap-1.5"
+        >
+          {loadingService === svc.containerName ? (
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+          ) : (
+            <span className="text-sm">{svc.icon}</span>
+          )}
+          {svc.label}
+        </Button>
+      ))}
+    </div>
+  );
 }
 
 // ============ Docker 引擎管理面板 ============
@@ -72,26 +296,10 @@ function DockerEnginePanel() {
     },
     onError: (e: any) => { toast.error(e.message); setActionLoading(null); },
   });
-  const startAllMut = trpc.docker.startAll.useMutation({
-    onSuccess: (res: any) => {
-      toast.success(`批量启动完成: ${res.started}成功 / ${res.failed}失败`);
-      refetchEngines(); setActionLoading(null);
-    },
-    onError: (e: any) => { toast.error(e.message); setActionLoading(null); },
-  });
-  const stopAllMut = trpc.docker.stopAll.useMutation({
-    onSuccess: (res: any) => {
-      toast.success(`批量停止完成: ${res.stopped}成功 / ${res.failed}失败`);
-      refetchEngines(); setActionLoading(null);
-    },
-    onError: (e: any) => { toast.error(e.message); setActionLoading(null); },
-  });
 
   const handleStart = (name: string) => { setActionLoading(`start-${name}`); startMut.mutate({ containerName: name }); };
   const handleStop = (name: string) => { setActionLoading(`stop-${name}`); stopMut.mutate({ containerName: name }); };
   const handleRestart = (name: string) => { setActionLoading(`restart-${name}`); restartMut.mutate({ containerName: name }); };
-  const handleStartAll = () => { setActionLoading('start-all'); startAllMut.mutate(); };
-  const handleStopAll = () => { setActionLoading('stop-all'); stopAllMut.mutate(); };
   const handleViewLogs = (containerName: string, displayName: string) => {
     setLogsTarget(containerName);
     setLogsTargetName(displayName);
@@ -114,7 +322,7 @@ function DockerEnginePanel() {
 
   return (
     <div className="space-y-6">
-      {/* Docker 连接状态 + 批量操作 */}
+      {/* Docker 连接状态 */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
@@ -133,23 +341,9 @@ function DockerEnginePanel() {
             </div>
           )}
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => { refetchConn(); refetchEngines(); }}>
-            <RefreshCw className="w-4 h-4 mr-1" /> 刷新
-          </Button>
-          {dockerConnected && (
-            <>
-              <Button size="sm" onClick={handleStartAll} disabled={!!actionLoading} className="bg-emerald-600 hover:bg-emerald-700">
-                {actionLoading === 'start-all' ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <PlayCircle className="w-4 h-4 mr-1" />}
-                一键启动全部
-              </Button>
-              <Button size="sm" variant="destructive" onClick={handleStopAll} disabled={!!actionLoading}>
-                {actionLoading === 'stop-all' ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <StopCircle className="w-4 h-4 mr-1" />}
-                全部停止
-              </Button>
-            </>
-          )}
-        </div>
+        <Button variant="outline" size="sm" onClick={() => { refetchConn(); refetchEngines(); }}>
+          <RefreshCw className="w-4 h-4 mr-1" /> 刷新
+        </Button>
       </div>
 
       {/* Docker 未连接提示 */}
@@ -215,7 +409,7 @@ function DockerEnginePanel() {
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 ml-4 shrink-0">
+                  <div className="flex items-center gap-2 shrink-0 ml-4">
                     <Button variant="ghost" size="sm" onClick={() => handleViewLogs(engine.containerName, engine.displayName)} title="查看日志">
                       <Terminal className="w-4 h-4" />
                     </Button>
@@ -279,6 +473,7 @@ export default function Infrastructure() {
   const [activeTab, setActiveTab] = useState('overview');
   const [showCreateNetworkDialog, setShowCreateNetworkDialog] = useState(false);
   const [newNetworkName, setNewNetworkName] = useState('');
+  const [showBootstrapDialog, setShowBootstrapDialog] = useState(false);
 
   // tRPC 查询 — 全部基于 Docker API
   const { data: summary, refetch: refetchSummary } = trpc.infrastructure.getSummary.useQuery();
@@ -316,6 +511,35 @@ export default function Infrastructure() {
 
   return (
     <MainLayout title="基础设施管理">
+      {/* ====== 顶部操作栏：一键启动 + 可选服务 ====== */}
+      <div className="rounded-xl border bg-gradient-to-r from-blue-500/5 via-purple-500/5 to-emerald-500/5 p-5 mb-6">
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          <div className="flex items-center gap-4">
+            <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
+              <Rocket className="w-5 h-5 text-blue-500" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-sm">环境启动</h3>
+              <p className="text-xs text-muted-foreground">一键启动核心服务或单独启动可选服务</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 flex-wrap">
+            {/* 一键启动核心环境 */}
+            <Button
+              onClick={() => setShowBootstrapDialog(true)}
+              className="bg-blue-600 hover:bg-blue-700 gap-2"
+            >
+              <Zap className="w-4 h-4" />
+              一键启动核心环境
+            </Button>
+            {/* 分隔线 */}
+            <div className="w-px h-8 bg-border" />
+            {/* 可选服务单独按钮 */}
+            <OptionalServiceButtons />
+          </div>
+        </div>
+      </div>
+
       {/* 概览统计 */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
         <StatCard label="容器总数" value={dockerData?.containers ?? 0} icon="📦" />
@@ -593,6 +817,9 @@ export default function Infrastructure() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* 一键启动核心环境对话框 */}
+      <BootstrapAllDialog open={showBootstrapDialog} onOpenChange={setShowBootstrapDialog} />
     </MainLayout>
   );
 }

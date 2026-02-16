@@ -1,6 +1,6 @@
 /**
  * Docker 引擎管理 tRPC 路由
- * 提供容器生命周期管理 API
+ * 提供容器生命周期管理 API + 一键启动全部核心环境
  */
 import { z } from 'zod';
 import { publicProcedure, router } from '../core/trpc';
@@ -9,6 +9,8 @@ import { resetDb, getDb } from '../lib/db/index';
 import { createModuleLogger } from '../core/logger';
 
 const log = createModuleLogger('docker-router');
+
+// ============ 辅助函数 ============
 
 /** 等待 MySQL 就绪（最多 30 秒） */
 async function waitForMySQL(url: string, maxRetries = 15): Promise<boolean> {
@@ -35,11 +37,143 @@ async function runMigrations(url: string): Promise<{ success: boolean; error?: s
     await migrate(db, { migrationsFolder: './drizzle' });
     return { success: true };
   } catch (e: any) {
-    log.error('[bootstrapMySQL] Migration failed:', e.message);
+    log.error('[bootstrap] Migration failed:', e.message);
     return { success: false, error: e.message };
   }
 }
 
+/** 通用 TCP 端口等待（最多 maxRetries * 2 秒） */
+async function waitForPort(host: string, port: number, maxRetries = 15): Promise<boolean> {
+  const net = await import('net');
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const socket = new net.Socket();
+        socket.setTimeout(2000);
+        socket.on('connect', () => { socket.destroy(); resolve(); });
+        socket.on('timeout', () => { socket.destroy(); reject(new Error('timeout')); });
+        socket.on('error', reject);
+        socket.connect(port, host);
+      });
+      return true;
+    } catch {
+      await new Promise(r => setTimeout(r, 2000));
+    }
+  }
+  return false;
+}
+
+/** 等待 HTTP 服务就绪 */
+async function waitForHttp(url: string, maxRetries = 15): Promise<boolean> {
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      const resp = await fetch(url, { signal: AbortSignal.timeout(3000) });
+      if (resp.ok || resp.status < 500) return true;
+    } catch {
+      // ignore
+    }
+    await new Promise(r => setTimeout(r, 2000));
+  }
+  return false;
+}
+
+// ============ 步骤类型 ============
+type StepStatus = 'ok' | 'fail' | 'skip';
+interface BootstrapStep {
+  step: string;
+  status: StepStatus;
+  detail?: string;
+}
+
+// ============ 核心服务启动配置 ============
+interface ServiceBootstrapConfig {
+  containerName: string;
+  label: string;
+  icon: string;
+  envVars: Record<string, string>;
+  waitCheck: () => Promise<boolean>;
+  postInit?: () => Promise<{ success: boolean; detail?: string }>;
+}
+
+function getCoreServices(): ServiceBootstrapConfig[] {
+  return [
+    {
+      containerName: 'portai-mysql',
+      label: 'MySQL 数据库',
+      icon: '🐬',
+      envVars: {
+        DATABASE_URL: 'mysql://portai:portai123@localhost:3306/portai_nexus',
+      },
+      waitCheck: () => waitForPort('localhost', 3306),
+      postInit: async () => {
+        // 迁移 + ORM 重连 + 种子数据
+        const dbUrl = 'mysql://portai:portai123@localhost:3306/portai_nexus';
+        const ready = await waitForMySQL(dbUrl);
+        if (!ready) return { success: false, detail: 'MySQL 连接超时' };
+        const migrate = await runMigrations(dbUrl);
+        resetDb();
+        const db = await getDb();
+        if (!db) return { success: false, detail: 'ORM 重连失败' };
+        return { success: true, detail: migrate.success ? '迁移完成 + ORM 已连接' : `迁移警告: ${migrate.error}，ORM 已连接` };
+      },
+    },
+    {
+      containerName: 'portai-redis',
+      label: 'Redis 缓存',
+      icon: '🔴',
+      envVars: {
+        REDIS_HOST: 'localhost',
+        REDIS_PORT: '6379',
+      },
+      waitCheck: () => waitForPort('localhost', 6379),
+    },
+    {
+      containerName: 'portai-kafka',
+      label: 'Kafka 消息队列',
+      icon: '📨',
+      envVars: {
+        KAFKA_BROKERS: 'localhost:9092',
+        KAFKA_CLIENT_ID: 'xilian-platform',
+      },
+      waitCheck: () => waitForPort('localhost', 9092),
+    },
+    {
+      containerName: 'portai-clickhouse',
+      label: 'ClickHouse 时序库',
+      icon: '🏠',
+      envVars: {
+        CLICKHOUSE_HOST: 'http://localhost:8123',
+        CLICKHOUSE_USER: 'portai',
+        CLICKHOUSE_PASSWORD: 'portai123',
+        CLICKHOUSE_DATABASE: 'portai_timeseries',
+      },
+      waitCheck: () => waitForHttp('http://localhost:8123/ping'),
+    },
+    {
+      containerName: 'portai-qdrant',
+      label: 'Qdrant 向量库',
+      icon: '🔮',
+      envVars: {
+        QDRANT_HOST: 'localhost',
+        QDRANT_PORT: '6333',
+      },
+      waitCheck: () => waitForHttp('http://localhost:6333/collections'),
+    },
+    {
+      containerName: 'portai-minio',
+      label: 'MinIO 对象存储',
+      icon: '📦',
+      envVars: {
+        MINIO_ENDPOINT: 'http://localhost:9010',
+        MINIO_ACCESS_KEY: 'portai',
+        MINIO_SECRET_KEY: 'portai123456',
+      },
+      waitCheck: () => waitForHttp('http://localhost:9010/minio/health/live'),
+    },
+  ];
+}
+
+// ============ 路由定义 ============
 export const dockerRouter = router({
   /**
    * 检查 Docker Engine 连接状态
@@ -56,11 +190,7 @@ export const dockerRouter = router({
       const engines = await dockerManager.listEngines();
       return { success: true, engines };
     } catch (e: any) {
-      return {
-        success: false,
-        engines: [],
-        error: e.message,
-      };
+      return { success: false, engines: [], error: e.message };
     }
   }),
 
@@ -150,67 +280,156 @@ export const dockerRouter = router({
     }),
 
   /**
-   * 一键启动 MySQL：启动容器 + 配置 DATABASE_URL + 运行迁移 + 重连数据库
-   * 实现真正的一键可用
+   * 一键启动核心环境：MySQL + Redis + Kafka + ClickHouse + Qdrant + MinIO
+   * 按顺序启动容器 → 配置环境变量 → 等待就绪 → 后置初始化（迁移/种子数据）
    */
-  bootstrapMySQL: publicProcedure.mutation(async () => {
-    const steps: { step: string; status: 'ok' | 'fail' | 'skip'; detail?: string }[] = [];
+  bootstrapAll: publicProcedure.mutation(async () => {
+    const services = getCoreServices();
+    const allSteps: { service: string; icon: string; steps: BootstrapStep[] }[] = [];
 
-    // Step 1: 启动 Docker 容器
-    try {
-      const result = await dockerManager.startEngine('portai-mysql');
-      if (result.success) {
-        steps.push({ step: '启动容器', status: 'ok', detail: 'portai-mysql 已启动' });
-      } else if (result.error === 'ALREADY_RUNNING') {
-        steps.push({ step: '启动容器', status: 'skip', detail: 'portai-mysql 已在运行' });
-      } else {
-        steps.push({ step: '启动容器', status: 'fail', detail: result.message || result.error });
-        return { success: false, steps, error: `容器启动失败: ${result.error}` };
+    for (const svc of services) {
+      const steps: BootstrapStep[] = [];
+
+      // Step 1: 启动容器
+      try {
+        const result = await dockerManager.startEngine(svc.containerName);
+        if (result.success) {
+          steps.push({ step: '启动容器', status: 'ok', detail: `${svc.containerName} 已启动` });
+        } else if (result.error === 'ALREADY_RUNNING') {
+          steps.push({ step: '启动容器', status: 'skip', detail: `${svc.containerName} 已在运行` });
+        } else {
+          steps.push({ step: '启动容器', status: 'fail', detail: result.message || result.error });
+          allSteps.push({ service: svc.label, icon: svc.icon, steps });
+          continue; // 跳过后续步骤
+        }
+      } catch (e: any) {
+        steps.push({ step: '启动容器', status: 'fail', detail: e.message });
+        allSteps.push({ service: svc.label, icon: svc.icon, steps });
+        continue;
       }
-    } catch (e: any) {
-      steps.push({ step: '启动容器', status: 'fail', detail: e.message });
-      return { success: false, steps, error: `Docker 连接失败: ${e.message}` };
+
+      // Step 2: 配置环境变量
+      for (const [key, value] of Object.entries(svc.envVars)) {
+        process.env[key] = value;
+      }
+      steps.push({
+        step: '配置环境变量',
+        status: 'ok',
+        detail: Object.keys(svc.envVars).join(', '),
+      });
+
+      // Step 3: 等待就绪
+      const ready = await svc.waitCheck();
+      if (ready) {
+        steps.push({ step: '等待就绪', status: 'ok', detail: '服务已响应' });
+      } else {
+        steps.push({ step: '等待就绪', status: 'fail', detail: '等待超时' });
+        allSteps.push({ service: svc.label, icon: svc.icon, steps });
+        continue;
+      }
+
+      // Step 4: 后置初始化（如果有）
+      if (svc.postInit) {
+        const initResult = await svc.postInit();
+        steps.push({
+          step: '初始化',
+          status: initResult.success ? 'ok' : 'fail',
+          detail: initResult.detail,
+        });
+      }
+
+      allSteps.push({ service: svc.label, icon: svc.icon, steps });
     }
 
-    // Step 2: 配置 DATABASE_URL
-    const dbUrl = 'mysql://portai:portai123@localhost:3306/portai_nexus';
-    const hadUrl = !!process.env.DATABASE_URL;
-    process.env.DATABASE_URL = dbUrl;
-    steps.push({
-      step: '配置 DATABASE_URL',
-      status: 'ok',
-      detail: hadUrl ? '已更新为本地连接' : '已设置本地连接',
-    });
+    const totalServices = allSteps.length;
+    const successServices = allSteps.filter(s =>
+      s.steps.every(st => st.status !== 'fail')
+    ).length;
 
-    // Step 3: 等待 MySQL 就绪
-    log.info('[bootstrapMySQL] Waiting for MySQL to be ready...');
-    const ready = await waitForMySQL(dbUrl);
-    if (!ready) {
-      steps.push({ step: '等待 MySQL 就绪', status: 'fail', detail: '超时 30 秒，MySQL 未响应' });
-      return { success: false, steps, error: 'MySQL 启动超时' };
-    }
-    steps.push({ step: '等待 MySQL 就绪', status: 'ok', detail: 'MySQL 已响应' });
-
-    // Step 4: 运行数据库迁移
-    const migrateResult = await runMigrations(dbUrl);
-    if (migrateResult.success) {
-      steps.push({ step: '数据库迁移', status: 'ok', detail: '表结构已同步' });
-    } else {
-      steps.push({ step: '数据库迁移', status: 'fail', detail: migrateResult.error });
-      // 迁移失败不阻断，可能表已存在
-    }
-
-    // Step 5: 重置 ORM 连接
-    resetDb();
-    const db = await getDb();
-    if (db) {
-      steps.push({ step: '数据库连接', status: 'ok', detail: 'ORM 已重新连接' });
-    } else {
-      steps.push({ step: '数据库连接', status: 'fail', detail: 'ORM 连接失败' });
-    }
-
-    const allOk = steps.every(s => s.status !== 'fail');
-    log.info(`[bootstrapMySQL] Complete: ${allOk ? 'SUCCESS' : 'PARTIAL'}`, steps);
-    return { success: allOk, steps };
+    log.info(`[bootstrapAll] Complete: ${successServices}/${totalServices} services OK`);
+    return {
+      success: successServices === totalServices,
+      total: totalServices,
+      succeeded: successServices,
+      failed: totalServices - successServices,
+      services: allSteps,
+    };
   }),
+
+  /**
+   * 启动单个可选服务（Ollama/Neo4j/Prometheus/Grafana）
+   * 仅启动容器 + 配置环境变量，不做复杂初始化
+   */
+  bootstrapOptionalService: publicProcedure
+    .input(z.object({ containerName: z.string() }))
+    .mutation(async ({ input }) => {
+      const steps: BootstrapStep[] = [];
+      const { containerName } = input;
+
+      // 可选服务的环境变量映射
+      const optionalEnvMap: Record<string, Record<string, string>> = {
+        'portai-ollama': {
+          OLLAMA_HOST: 'localhost',
+          OLLAMA_PORT: '11434',
+        },
+        'portai-neo4j': {
+          NEO4J_URI: 'bolt://localhost:7687',
+          NEO4J_USER: 'neo4j',
+          NEO4J_PASSWORD: 'portai123',
+        },
+        'portai-prometheus': {
+          PROMETHEUS_HOST: 'localhost',
+          PROMETHEUS_PORT: '9090',
+        },
+        'portai-grafana': {
+          GRAFANA_URL: 'http://localhost:3001',
+        },
+      };
+
+      const waitChecks: Record<string, () => Promise<boolean>> = {
+        'portai-ollama': () => waitForHttp('http://localhost:11434/api/tags'),
+        'portai-neo4j': () => waitForPort('localhost', 7687),
+        'portai-prometheus': () => waitForHttp('http://localhost:9090/-/ready'),
+        'portai-grafana': () => waitForHttp('http://localhost:3001/api/health'),
+      };
+
+      // Step 1: 启动容器
+      try {
+        const result = await dockerManager.startEngine(containerName);
+        if (result.success) {
+          steps.push({ step: '启动容器', status: 'ok', detail: `${containerName} 已启动` });
+        } else if (result.error === 'ALREADY_RUNNING') {
+          steps.push({ step: '启动容器', status: 'skip', detail: `${containerName} 已在运行` });
+        } else {
+          steps.push({ step: '启动容器', status: 'fail', detail: result.message || result.error });
+          return { success: false, containerName, steps };
+        }
+      } catch (e: any) {
+        steps.push({ step: '启动容器', status: 'fail', detail: e.message });
+        return { success: false, containerName, steps };
+      }
+
+      // Step 2: 配置环境变量
+      const envVars = optionalEnvMap[containerName];
+      if (envVars) {
+        for (const [key, value] of Object.entries(envVars)) {
+          process.env[key] = value;
+        }
+        steps.push({ step: '配置环境变量', status: 'ok', detail: Object.keys(envVars).join(', ') });
+      }
+
+      // Step 3: 等待就绪
+      const checker = waitChecks[containerName];
+      if (checker) {
+        const ready = await checker();
+        steps.push({
+          step: '等待就绪',
+          status: ready ? 'ok' : 'fail',
+          detail: ready ? '服务已响应' : '等待超时',
+        });
+      }
+
+      const allOk = steps.every(s => s.status !== 'fail');
+      return { success: allOk, containerName, steps };
+    }),
 });

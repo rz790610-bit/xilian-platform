@@ -52,7 +52,6 @@ import {
 import {
   PipelineEditor,
   DataStream,
-  GraphQueryManager,
   KGOrchestrator,
 } from "./pages/settings/design";
 // V4.0 新增页面 - Monitoring
@@ -74,7 +73,6 @@ import {
   DeduplicationManager,
   ReadReplicaManager,
   MicroserviceDashboard,
-  MySQLStatus
 } from "./pages/settings/status";
 
 // 平台管理 - 安全运维（精简：移除 SmartMonitoring、SecurityScanner、VaultManager、PkiManager）
@@ -170,7 +168,6 @@ function Router() {
       {/* 设计工具 */}
       <Route path="/settings/design/pipeline" component={PipelineEditor} />
       <Route path="/settings/design/datastream" component={DataStream} />
-      <Route path="/settings/design/graph-query" component={GraphQueryManager} />
       <Route path="/settings/design/workbench" component={DatabaseWorkbench} />
       <Route path="/settings/design/kg-orchestrator" component={KGOrchestrator} />
 
@@ -225,7 +222,6 @@ function Router() {
         <Redirect to="/settings/status/topology" />
       </Route>
       <Route path="/settings/status/microservices" component={MicroserviceDashboard} />
-      <Route path="/settings/status/mysql" component={MySQLStatus} />
       <Route path="/settings/security/monitoring">
         <Redirect to="/settings/security/falco" />
       </Route>
@@ -281,7 +277,13 @@ function Router() {
         <Redirect to="/settings/status/performance/replica" />
       </Route>
       <Route path="/performance/graph">
-        <Redirect to="/settings/design/graph-query" />
+        <Redirect to="/settings/status/performance" />
+      </Route>
+      <Route path="/settings/design/graph-query">
+        <Redirect to="/settings/status/performance" />
+      </Route>
+      <Route path="/settings/status/mysql">
+        <Redirect to="/settings/config/infrastructure" />
       </Route>
       
       {/* 404 */}
