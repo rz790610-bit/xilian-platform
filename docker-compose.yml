@@ -3,13 +3,16 @@
 # 包含: MySQL + Redis + ClickHouse + MinIO + Qdrant + Kafka + Neo4j
 #        + Elasticsearch + Kafka Connect (bigdata profile)
 #        + Prometheus + Grafana + Jaeger (monitoring)
+#        + Vault (security profile)
+#        + Flink + Airflow (bigdata profile)
 # ============================================================
 # 启动方式:
 #   最小启动:      docker-compose up -d mysql redis
 #   核心服务:      docker-compose up -d mysql redis clickhouse kafka qdrant neo4j
 #   全部启动:      docker-compose up -d
 #   大数据服务:    docker-compose --profile bigdata up -d
-#   全部+大数据:   docker-compose --profile full up -d
+#   安全服务:      docker-compose --profile security up -d
+#   全部+所有:     docker-compose --profile full up -d
 #   停止全部:      docker-compose down
 #   查看日志:      docker-compose logs -f <service>
 #   查看状态:      docker-compose ps
@@ -632,6 +635,9 @@ services:
     image: hashicorp/vault:1.15
     container_name: xilian-vault
     restart: unless-stopped
+    profiles:
+      - security
+      - full
     cap_add:
       - IPC_LOCK
     ports:
@@ -658,6 +664,9 @@ services:
   vault-init:
     image: hashicorp/vault:1.15
     container_name: xilian-vault-init
+    profiles:
+      - security
+      - full
     entrypoint: /bin/sh
     command: ["-c", "sleep 5 && /vault/config/init-vault.sh"]
     environment:
@@ -777,7 +786,11 @@ services:
     command:
       - -c
       - |
+        # 安装必要的 providers
+        pip install --quiet apache-airflow-providers-http apache-airflow-providers-ssh 2>/dev/null
+        # 初始化数据库
         airflow db init
+        # 创建管理员用户
         airflow users create \
           --username admin \
           --password $${AIRFLOW_ADMIN_PASSWORD:-admin} \
@@ -785,6 +798,13 @@ services:
           --lastname User \
           --role Admin \
           --email admin@xilian.local
+        # 创建平台 API 连接（供 DAG 中 HttpSensor 使用）
+        airflow connections add xilian_api \
+          --conn-type http \
+          --conn-host $${XILIAN_API_HOST:-app} \
+          --conn-port $${XILIAN_API_PORT:-3003} \
+          --conn-schema http \
+          2>/dev/null || echo "Connection xilian_api already exists"
         echo "Airflow initialized successfully"
     environment:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
@@ -806,16 +826,15 @@ services:
     ports:
       - "${AIRFLOW_WEBSERVER_PORT:-8080}:8080"
     environment:
+      _PIP_ADDITIONAL_REQUIREMENTS: apache-airflow-providers-http apache-airflow-providers-ssh
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:${AIRFLOW_DB_PASSWORD:-airflow_secret}@airflow-postgres:5432/airflow
       AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY:-ZmDfcTF7_60GrrY167zsiPd67pEvs0aGOv2oasOM1Pg=}
       AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "true"
       AIRFLOW__WEBSERVER__RBAC: "true"
       AIRFLOW__API__AUTH_BACKENDS: airflow.api.auth.backend.basic_auth
-      AIRFLOW__METRICS__STATSD_ON: "true"
-      AIRFLOW__METRICS__STATSD_HOST: statsd-exporter
-      AIRFLOW__METRICS__STATSD_PORT: "9125"
-      AIRFLOW__METRICS__STATSD_PREFIX: airflow
+      # Metrics: 禁用 StatsD（无 statsd-exporter 服务），通过 Prometheus 直接抓取
+      AIRFLOW__METRICS__STATSD_ON: "false"
     volumes:
       - ./docker/airflow/dags:/opt/airflow/dags
       - ./docker/airflow/plugins:/opt/airflow/plugins
@@ -839,6 +858,7 @@ services:
     profiles: ["bigdata"]
     command: scheduler
     environment:
+      _PIP_ADDITIONAL_REQUIREMENTS: apache-airflow-providers-http apache-airflow-providers-ssh
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:${AIRFLOW_DB_PASSWORD:-airflow_secret}@airflow-postgres:5432/airflow
       AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY:-ZmDfcTF7_60GrrY167zsiPd67pEvs0aGOv2oasOM1Pg=}

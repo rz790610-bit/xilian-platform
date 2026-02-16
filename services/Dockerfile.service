@@ -48,8 +48,8 @@ COPY patches/ ./patches/
 RUN pnpm install --frozen-lockfile --prod
 
 # 复制构建产物
+# 微服务依赖主应用的 logger/db/schema 模块，因此复制完整 dist 目录
 COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/services/${SERVICE_NAME}/proto ./services/${SERVICE_NAME}/proto
 COPY --from=builder /app/drizzle ./drizzle
 
 # 安全：非 root 用户
@@ -73,4 +73,5 @@ EXPOSE ${SERVICE_PORT}
 ENV NODE_ENV=production
 ENV SERVICE_NAME=${SERVICE_NAME}
 
-CMD ["node", "dist/services/${SERVICE_NAME}/src/server.js"]
+# shell 格式 CMD 以支持环境变量替换
+CMD node dist/services/${SERVICE_NAME}/src/server.js

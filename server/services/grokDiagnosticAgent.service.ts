@@ -18,7 +18,7 @@
 
 import { createModuleLogger } from '../core/logger';
 import { getDb } from '../lib/db';
-import { diagnosisResults, auditLogs, devices, sensorData, alertRules } from '../../drizzle/schema';
+import { diagnosisResults, auditLogs, assetNodes, assetSensors, assetMeasurementPoints, alertRules, deviceAlerts } from '../../drizzle/schema';
 import { eq, desc, and, gte, sql } from 'drizzle-orm';
 
 const log = createModuleLogger('grokDiagnosticAgent');
@@ -317,8 +317,8 @@ async function executeToolCall(
       try {
         const device = await db
           .select()
-          .from(devices)
-          .where(eq(devices.deviceCode, deviceCode))
+          .from(assetNodes)
+          .where(eq(assetNodes.code, deviceCode))
           .limit(1);
 
         if (device.length === 0) {
@@ -328,6 +328,8 @@ async function executeToolCall(
         return {
           device: device[0],
           status: device[0].status,
+          location: device[0].location,
+          lastHeartbeat: device[0].lastHeartbeat,
           lastMaintenance: device[0].updatedAt,
         };
       } catch (err) {
@@ -345,15 +347,15 @@ async function executeToolCall(
       try {
         const data = await db
           .select()
-          .from(sensorData)
+          .from(assetSensors)
           .where(
             and(
-              eq(sensorData.deviceCode, deviceCode),
-              eq(sensorData.sensorType, sensorType),
-              gte(sensorData.timestamp, since)
+              eq(assetSensors.deviceCode, deviceCode),
+              eq(assetSensors.physicalQuantity, sensorType),
+              gte(assetSensors.lastReadingAt, since)
             )
           )
-          .orderBy(desc(sensorData.timestamp))
+          .orderBy(desc(assetSensors.lastReadingAt))
           .limit(500);
 
         if (data.length === 0) {
@@ -364,7 +366,7 @@ async function executeToolCall(
         }
 
         // 计算基本统计量
-        const values = data.map(d => d.value).filter((v): v is number => v !== null);
+        const values = data.map(d => d.lastValue).filter((v): v is number => v !== null);
         const stats = {
           count: values.length,
           min: Math.min(...values),
@@ -511,22 +513,22 @@ async function executeToolCall(
         // 获取最近的传感器数据
         const data = await db
           .select()
-          .from(sensorData)
+          .from(assetSensors)
           .where(
             and(
-              eq(sensorData.deviceCode, deviceCode),
-              eq(sensorData.sensorType, sensorType),
-              gte(sensorData.timestamp, new Date(Date.now() - 24 * 3600 * 1000))
+              eq(assetSensors.deviceCode, deviceCode),
+              eq(assetSensors.physicalQuantity, sensorType),
+              gte(assetSensors.lastReadingAt, new Date(Date.now() - 24 * 3600 * 1000))
             )
           )
-          .orderBy(desc(sensorData.timestamp))
+          .orderBy(desc(assetSensors.lastReadingAt))
           .limit(1024);
 
         if (data.length < 64) {
           return { error: `数据不足（${data.length} 点），DSP 分析需要至少 64 个数据点` };
         }
 
-        const values = data.map(d => d.value).filter((v): v is number => v !== null);
+        const values = data.map(d => d.lastValue).filter((v): v is number => v !== null);
 
         // 动态导入 DSP 核心库
         const dsp = await import('../algorithms/_core/dsp');

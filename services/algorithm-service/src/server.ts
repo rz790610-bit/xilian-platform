@@ -25,9 +25,9 @@ import { createModuleLogger } from '../../../server/core/logger';
 import { getDb } from '../../../server/lib/db';
 import {
   algorithmDefinitions,
-  algorithmBindings,
+  algorithmDeviceBindings,
   algorithmCompositions,
-  algorithmExecutionHistory,
+  algorithmExecutions,
   algorithmRoutingRules,
 } from '../../../drizzle/schema';
 import { eq, desc, and, gte, lte, sql, count, like, or } from 'drizzle-orm';
@@ -332,16 +332,16 @@ const algorithmServiceImpl = {
       // 异步写入执行历史
       getDb().then(db => {
         if (!db) return;
-        db.insert(algorithmExecutionHistory).values({
+        db.insert(algorithmExecutions).values({
           executionId,
-          algorithmId: req.algorithmId,
-          deviceId: req.deviceId || null,
-          sensorId: req.sensorId || null,
+          algoCode: req.algorithmId,
+          deviceCode: req.deviceId || null,
           status: 'success',
           durationMs,
-          inputSize: input.data.length,
-          output: JSON.stringify(result),
-          traceId: req.executionTag || null,
+          recordsProcessed: input.data.length,
+          outputSummary: result,
+          startedAt: new Date(startMs),
+          completedAt: new Date(),
         }).catch(err => log.error('Failed to save execution history:', err.message));
       });
 
@@ -367,13 +367,15 @@ const algorithmServiceImpl = {
       // 记录失败
       getDb().then(db => {
         if (!db) return;
-        db.insert(algorithmExecutionHistory).values({
+        db.insert(algorithmExecutions).values({
           executionId: `exec_${Date.now()}`,
-          algorithmId: call.request.algorithmId,
-          status: 'error',
+          algoCode: call.request.algorithmId,
+          status: 'failed',
           durationMs: Date.now() - startMs,
-          inputSize: call.request.input?.data?.length || 0,
-          output: JSON.stringify({ error: err.message }),
+          recordsProcessed: call.request.input?.data?.length || 0,
+          errorMessage: err.message,
+          startedAt: new Date(startMs),
+          completedAt: new Date(),
         }).catch(() => {});
       });
 
@@ -459,17 +461,17 @@ const algorithmServiceImpl = {
       const pageSize = Math.min(100, Math.max(1, req.pageSize || 20));
 
       const conditions: any[] = [];
-      if (req.algorithmId) conditions.push(eq(algorithmExecutionHistory.algorithmId, req.algorithmId));
-      if (req.deviceId) conditions.push(eq(algorithmExecutionHistory.deviceId, req.deviceId));
-      if (req.statusFilter) conditions.push(eq(algorithmExecutionHistory.status, req.statusFilter));
+      if (req.algorithmId) conditions.push(eq(algorithmExecutions.algoCode, req.algorithmId));
+      if (req.deviceId) conditions.push(eq(algorithmExecutions.deviceCode, req.deviceId));
+      if (req.statusFilter) conditions.push(eq(algorithmExecutions.status, req.statusFilter));
 
       const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
       const [records, [totalResult]] = await Promise.all([
-        db.select().from(algorithmExecutionHistory).where(whereClause)
-          .orderBy(desc(algorithmExecutionHistory.createdAt))
+        db.select().from(algorithmExecutions).where(whereClause)
+          .orderBy(desc(algorithmExecutions.createdAt))
           .limit(pageSize).offset((page - 1) * pageSize),
-        db.select({ total: count() }).from(algorithmExecutionHistory).where(whereClause),
+        db.select({ total: count() }).from(algorithmExecutions).where(whereClause),
       ]);
 
       callback(null, {
@@ -505,11 +507,11 @@ const algorithmServiceImpl = {
 
       const bindingId = `bind_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
-      await db.insert(algorithmBindings).values({
-        id: bindingId,
-        algorithmId: req.algorithmId,
-        deviceId: req.deviceId,
-        configOverride: JSON.stringify(req.configOverride || {}),
+      await db.insert(algorithmDeviceBindings).values({
+        deviceCode: req.deviceId,
+        algoCode: req.algorithmId,
+        bindingType: 'algorithm',
+        configOverrides: req.configOverride || {},
         scheduleCron: req.scheduleCron || null,
         autoExecute: req.autoExecute || false,
         active: true,
@@ -539,7 +541,7 @@ const algorithmServiceImpl = {
       const db = await getDb();
       if (!db) throw new Error('Database not available');
 
-      await db.delete(algorithmBindings).where(eq(algorithmBindings.id, bindingId));
+      await db.delete(algorithmDeviceBindings).where(eq(algorithmDeviceBindings.id, bindingId));
       callback(null, {});
     } catch (err: any) {
       callback({ code: grpc.status.INTERNAL, message: err.message });
@@ -557,12 +559,12 @@ const algorithmServiceImpl = {
       if (!db) throw new Error('Database not available');
 
       const conditions: any[] = [];
-      if (req.deviceId) conditions.push(eq(algorithmBindings.deviceId, req.deviceId));
-      if (req.algorithmId) conditions.push(eq(algorithmBindings.algorithmId, req.algorithmId));
+      if (req.deviceId) conditions.push(eq(algorithmDeviceBindings.deviceCode, req.deviceId));
+      if (req.algorithmId) conditions.push(eq(algorithmDeviceBindings.algoCode, req.algorithmId));
 
       const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
-      const bindings = await db.select().from(algorithmBindings)
+      const bindings = await db.select().from(algorithmDeviceBindings)
         .where(whereClause).limit(100);
 
       callback(null, {
@@ -906,10 +908,10 @@ const algorithmServiceImpl = {
         [todayExecCount],
       ] = await Promise.all([
         db.select({ total: count() }).from(algorithmDefinitions),
-        db.select({ total: count() }).from(algorithmBindings),
+        db.select({ total: count() }).from(algorithmDeviceBindings),
         db.select({ total: count() }).from(algorithmCompositions),
-        db.select({ total: count() }).from(algorithmExecutionHistory)
-          .where(gte(algorithmExecutionHistory.createdAt, today)),
+        db.select({ total: count() }).from(algorithmExecutions)
+          .where(gte(algorithmExecutions.createdAt, today)),
       ]);
 
       callback(null, {
@@ -936,14 +938,14 @@ const algorithmServiceImpl = {
       const db = await getDb();
       if (!db) throw new Error('Database not available');
 
-      const records = await db.select().from(algorithmExecutionHistory)
+      const records = await db.select().from(algorithmExecutions)
         .where(
           and(
-            eq(algorithmExecutionHistory.algorithmId, algorithmId),
-            eq(algorithmExecutionHistory.status, 'success')
+            eq(algorithmExecutions.algoCode, algorithmId),
+            eq(algorithmExecutions.status, 'success')
           )
         )
-        .orderBy(desc(algorithmExecutionHistory.createdAt))
+        .orderBy(desc(algorithmExecutions.createdAt))
         .limit(sampleCount || 100);
 
       if (records.length === 0) {
@@ -1005,8 +1007,8 @@ const algorithmServiceImpl = {
       const db = await getDb();
       if (!db) throw new Error('Database not available');
 
-      const [record] = await db.select().from(algorithmExecutionHistory)
-        .where(eq(algorithmExecutionHistory.executionId, executionId)).limit(1);
+      const [record] = await db.select().from(algorithmExecutions)
+        .where(eq(algorithmExecutions.executionId, executionId)).limit(1);
 
       if (!record) {
         return callback({ code: grpc.status.NOT_FOUND, message: 'Execution not found' });
@@ -1049,8 +1051,8 @@ const algorithmServiceImpl = {
         const db = await getDb();
         if (!db) return;
 
-        const [record] = await db.select().from(algorithmExecutionHistory)
-          .where(eq(algorithmExecutionHistory.executionId, executionId)).limit(1);
+        const [record] = await db.select().from(algorithmExecutions)
+          .where(eq(algorithmExecutions.executionId, executionId)).limit(1);
 
         if (record) {
           call.write({

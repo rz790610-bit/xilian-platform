@@ -138,18 +138,23 @@ const deviceServiceImpl = {
       
       const [inserted] = await db.insert(assetNodes).values({
         nodeId,
-        nodeName: req.name,
+        code: `DEV_${nodeId}`,
+        name: req.name,
+        level: 3,
         nodeType: (req.type || 'other').toLowerCase(),
-        parentId: null,
+        parentNodeId: null,
+        rootNodeId: nodeId,
         status: 'online',
-        metadata: JSON.stringify({
-          location: req.location || '',
+        path: `/${nodeId}`,
+        depth: 1,
+        serialNumber: req.serialNumber || null,
+        location: req.location || null,
+        attributes: {
           model: req.model || '',
           manufacturer: req.manufacturer || '',
-          serialNumber: req.serialNumber || '',
           ...(req.metadata || {}),
-        }),
-      }).returning();
+        },
+      });
 
       log.info(`Device created: ${nodeId} (${req.name})`);
       
@@ -217,7 +222,7 @@ const deviceServiceImpl = {
       if (req.search) {
         conditions.push(
           or(
-            like(assetNodes.nodeName, `%${req.search}%`),
+            like(assetNodes.name, `%${req.search}%`),
             like(assetNodes.nodeId, `%${req.search}%`)
           )
         );
@@ -255,7 +260,7 @@ const deviceServiceImpl = {
       if (!db) throw new Error('Database not available');
 
       const updates: Record<string, any> = {};
-      if (req.name) updates.nodeName = req.name;
+      if (req.name) updates.name = req.name;
       if (req.type && req.type !== 'DEVICE_TYPE_UNSPECIFIED') {
         updates.nodeType = req.type.toLowerCase();
       }
@@ -301,7 +306,7 @@ const deviceServiceImpl = {
 
       if (force) {
         // 级联删除传感器
-        await db.delete(assetSensors).where(eq(assetSensors.nodeId, deviceId));
+        await db.delete(assetSensors).where(eq(assetSensors.deviceCode, deviceId));
       }
 
       const result = await db.delete(assetNodes).where(eq(assetNodes.nodeId, deviceId));
@@ -404,15 +409,20 @@ const deviceServiceImpl = {
           const nodeId = `dev_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
           await db.insert(assetNodes).values({
             nodeId,
-            nodeName: dev.name,
+            code: `DEV_${nodeId}`,
+            name: dev.name,
+            level: 3,
             nodeType: (dev.type || 'other').toLowerCase(),
-            parentId: null,
+            parentNodeId: null,
+            rootNodeId: nodeId,
             status: 'online',
-            metadata: JSON.stringify({
-              location: dev.location || '',
+            path: `/${nodeId}`,
+            depth: 1,
+            location: dev.location || null,
+            attributes: {
               model: dev.model || '',
               manufacturer: dev.manufacturer || '',
-            }),
+            },
           });
           successCount++;
         } catch (err: any) {
@@ -465,15 +475,15 @@ const deviceServiceImpl = {
 
       await db.insert(assetSensors).values({
         sensorId,
-        nodeId: req.deviceId,
-        sensorName: req.name,
-        sensorType: (req.type || 'vibration').toLowerCase(),
+        deviceCode: req.deviceId,
+        name: req.name,
+        physicalQuantity: (req.type || 'vibration').toLowerCase(),
         unit: req.unit || '',
-        samplingRateHz: req.samplingRateHz || 1000,
-        config: JSON.stringify({
+        sampleRate: req.samplingRateHz || 1000,
+        metadata: {
           minValue: req.minValue || 0,
           maxValue: req.maxValue || 0,
-        }),
+        },
         status: 'active',
       });
 
@@ -537,9 +547,9 @@ const deviceServiceImpl = {
       if (!db) throw new Error('Database not available');
 
       const conditions: any[] = [];
-      if (req.deviceId) conditions.push(eq(assetSensors.nodeId, req.deviceId));
+      if (req.deviceId) conditions.push(eq(assetSensors.deviceCode, req.deviceId));
       if (req.typeFilter && req.typeFilter !== 'SENSOR_TYPE_UNSPECIFIED') {
-        conditions.push(eq(assetSensors.sensorType, req.typeFilter.toLowerCase()));
+        conditions.push(eq(assetSensors.physicalQuantity, req.typeFilter.toLowerCase()));
       }
 
       const whereClause = conditions.length > 0 ? and(...conditions) : undefined;

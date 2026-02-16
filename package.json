@@ -97,7 +97,8 @@
     "ws": "^8.19.0",
     "xlsx": "^0.18.5",
     "zod": "^4.1.12",
-    "zustand": "^5.0.11"
+    "zustand": "^5.0.11",
+    "google-proto-files": "^4.0.0"
   },
   "devDependencies": {
     "@builder.io/vite-plugin-jsx-loc": "^0.1.1",
