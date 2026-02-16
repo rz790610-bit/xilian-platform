@@ -18,10 +18,31 @@
  * - 内置引擎（PipelineEngine）用于平台内部的轻量级实时管道
  */
 
-import { airflowClient, AirflowDAG, AirflowDAGRun, AirflowTaskInstance } from '../lib/clients/airflow.client';
-import { kafkaConnectClient, KafkaConnector, KafkaConnectorStatus } from '../lib/clients/kafkaConnect.client';
+import { featureFlags, requireFeature } from '../core/featureFlags';
 import { createModuleLogger } from '../core/logger';
 const log = createModuleLogger('dataPipeline');
+
+// 条件导入：仅在功能启用时加载客户端（避免未部署时连接超时）
+let airflowClient: any = null;
+let kafkaConnectClient: any = null;
+
+if (featureFlags.airflow) {
+  import('../lib/clients/airflow.client').then(m => {
+    airflowClient = m.airflowClient;
+    log.info('Airflow client loaded');
+  }).catch(err => log.warn('Failed to load Airflow client:', err.message));
+}
+
+if (featureFlags.kafkaConnect) {
+  import('../lib/clients/kafkaConnect.client').then(m => {
+    kafkaConnectClient = m.kafkaConnectClient;
+    log.info('Kafka Connect client loaded');
+  }).catch(err => log.warn('Failed to load Kafka Connect client:', err.message));
+}
+
+// 保留类型导入（不触发运行时加载）
+import type { AirflowDAG, AirflowDAGRun, AirflowTaskInstance } from '../lib/clients/airflow.client';
+import type { KafkaConnector, KafkaConnectorStatus } from '../lib/clients/kafkaConnect.client';
 
 // ============================================================
 // 类型定义

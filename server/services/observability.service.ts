@@ -3,10 +3,18 @@
  * 整合 Prometheus、Elasticsearch、Jaeger 真实客户端
  */
 
+import { featureFlags } from '../core/featureFlags';
 import { prometheusClient } from '../lib/clients/prometheus.client';
-import { elasticsearchClient } from '../lib/clients/elasticsearch.client';
 import { jaegerClient } from '../lib/clients/jaeger.client';
 import type { LogEntry } from "../core/types/domain";
+
+// 条件导入 Elasticsearch（仅在启用时加载）
+let elasticsearchClient: any = null;
+if (featureFlags.elasticsearch) {
+  import('../lib/clients/elasticsearch.client').then(m => {
+    elasticsearchClient = m.elasticsearchClient;
+  }).catch(() => { /* ES 未部署，静默降级 */ });
+}
 
 // ============================================================
 // 类型定义

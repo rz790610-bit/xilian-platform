@@ -6,9 +6,10 @@
 import { z } from 'zod';
 import { router, publicProcedure, protectedProcedure } from '../core/trpc';
 import { observabilityService } from '../services/observability.service';
+import { featureFlags, requireFeature } from '../core/featureFlags';
 import { prometheusClient } from '../lib/clients/prometheus.client';
-import { elasticsearchClient } from '../lib/clients/elasticsearch.client';
 import { jaegerClient } from '../lib/clients/jaeger.client';
+// Elasticsearch 已在 observability.service.ts 中条件导入
 
 // 保留原有服务用于兼容
 import {
@@ -221,12 +222,16 @@ export const observabilityRouter = router({
     }),
 
   getElasticsearchHealth: protectedProcedure.query(async () => {
+    requireFeature('elasticsearch', 'Elasticsearch');
+    const { elasticsearchClient } = await import('../lib/clients/elasticsearch.client');
     return elasticsearchClient.getClusterHealth();
   }),
 
   getElasticsearchIndices: protectedProcedure
     .input(z.object({ pattern: z.string().optional() }).optional())
     .query(async ({ input }) => {
+      requireFeature('elasticsearch', 'Elasticsearch');
+      const { elasticsearchClient } = await import('../lib/clients/elasticsearch.client');
       return elasticsearchClient.getIndices(input?.pattern);
     }),
 

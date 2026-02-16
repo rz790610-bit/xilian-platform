@@ -26,6 +26,7 @@
  */
 
 import { withCircuitBreaker, circuitBreakerRegistry } from './circuitBreaker';
+import { featureFlags } from '../../core/featureFlags';
 import { createModuleLogger } from '../../core/logger';
 
 const log = createModuleLogger('circuit-breaker-integration');
@@ -288,14 +289,18 @@ export function integrateCircuitBreakers(clients: ClientRegistry): ClientRegistr
     log.info('Neo4j storage protected with circuit breaker');
   }
 
-  if (clients.elasticsearch) {
+  if (clients.elasticsearch && featureFlags.elasticsearch) {
     protected_.elasticsearch = protectElasticsearchClient(clients.elasticsearch);
     log.info('Elasticsearch client protected with circuit breaker');
+  } else if (clients.elasticsearch) {
+    log.info('Elasticsearch circuit breaker skipped (feature disabled)');
   }
 
-  if (clients.airflow) {
+  if (clients.airflow && featureFlags.airflow) {
     protected_.airflow = protectAirflowClient(clients.airflow);
     log.info('Airflow client protected with circuit breaker');
+  } else if (clients.airflow) {
+    log.info('Airflow circuit breaker skipped (feature disabled)');
   }
 
   if (clients.minio) {

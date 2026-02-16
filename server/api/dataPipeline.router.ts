@@ -5,9 +5,9 @@
 
 import { z } from 'zod';
 import { router, publicProcedure, protectedProcedure } from '../core/trpc';
+import { featureFlags, requireFeature } from '../core/featureFlags';
 import { dataPipelineService } from '../services/dataPipeline.service';
-import { airflowClient } from '../lib/clients/airflow.client';
-import { kafkaConnectClient } from '../lib/clients/kafkaConnect.client';
+// 客户端已在 dataPipeline.service.ts 中条件导入，此处不再直接导入
 
 export const dataPipelineRouter = router({
   // ==================== 概览 ====================
@@ -127,6 +127,8 @@ export const dataPipelineRouter = router({
    * 获取 Airflow 健康状态
    */
   getAirflowHealth: publicProcedure.query(async () => {
+    requireFeature('airflow', 'Airflow');
+    const { airflowClient } = await import('../lib/clients/airflow.client');
     return await airflowClient.getHealth();
   }),
 
@@ -134,6 +136,8 @@ export const dataPipelineRouter = router({
    * 获取 Airflow 版本
    */
   getAirflowVersion: publicProcedure.query(async () => {
+    requireFeature('airflow', 'Airflow');
+    const { airflowClient } = await import('../lib/clients/airflow.client');
     return await airflowClient.getVersion();
   }),
 
@@ -141,6 +145,8 @@ export const dataPipelineRouter = router({
    * 获取 Airflow 变量
    */
   getAirflowVariables: publicProcedure.query(async () => {
+    requireFeature('airflow', 'Airflow');
+    const { airflowClient } = await import('../lib/clients/airflow.client');
     return await airflowClient.listVariables();
   }),
 
@@ -154,6 +160,8 @@ export const dataPipelineRouter = router({
       description: z.string().optional(),
     }))
     .mutation(async ({ input }) => {
+      requireFeature('airflow', 'Airflow');
+      const { airflowClient } = await import('../lib/clients/airflow.client');
       const success = await airflowClient.setVariable(input.key, input.value, input.description);
       return { success };
     }),
@@ -164,6 +172,8 @@ export const dataPipelineRouter = router({
   deleteAirflowVariable: protectedProcedure
     .input(z.object({ key: z.string() }))
     .mutation(async ({ input }) => {
+      requireFeature('airflow', 'Airflow');
+      const { airflowClient } = await import('../lib/clients/airflow.client');
       const success = await airflowClient.deleteVariable(input.key);
       return { success };
     }),
@@ -172,6 +182,8 @@ export const dataPipelineRouter = router({
    * 获取 Airflow 连接
    */
   getAirflowConnections: publicProcedure.query(async () => {
+    requireFeature('airflow', 'Airflow');
+    const { airflowClient } = await import('../lib/clients/airflow.client');
     return await airflowClient.listConnections();
   }),
 
@@ -181,6 +193,8 @@ export const dataPipelineRouter = router({
   testAirflowConnection: protectedProcedure
     .input(z.object({ connectionId: z.string() }))
     .mutation(async ({ input }) => {
+      requireFeature('airflow', 'Airflow');
+      const { airflowClient } = await import('../lib/clients/airflow.client');
       return await airflowClient.testConnection(input.connectionId);
     }),
 
@@ -188,6 +202,8 @@ export const dataPipelineRouter = router({
    * 获取 Airflow 池
    */
   getAirflowPools: publicProcedure.query(async () => {
+    requireFeature('airflow', 'Airflow');
+    const { airflowClient } = await import('../lib/clients/airflow.client');
     return await airflowClient.listPools();
   }),
 
@@ -294,6 +310,8 @@ export const dataPipelineRouter = router({
    * 获取 Kafka Connect 集群信息
    */
   getKafkaConnectInfo: publicProcedure.query(async () => {
+    requireFeature('kafkaConnect', 'Kafka Connect');
+    const { kafkaConnectClient } = await import('../lib/clients/kafkaConnect.client');
     return await kafkaConnectClient.getClusterInfo();
   }),
 
@@ -301,6 +319,8 @@ export const dataPipelineRouter = router({
    * 获取可用插件
    */
   getKafkaConnectPlugins: publicProcedure.query(async () => {
+    requireFeature('kafkaConnect', 'Kafka Connect');
+    const { kafkaConnectClient } = await import('../lib/clients/kafkaConnect.client');
     return await kafkaConnectClient.listPlugins();
   }),
 
@@ -313,6 +333,8 @@ export const dataPipelineRouter = router({
       config: z.record(z.string(), z.string()),
     }))
     .mutation(async ({ input }) => {
+      requireFeature('kafkaConnect', 'Kafka Connect');
+      const { kafkaConnectClient } = await import('../lib/clients/kafkaConnect.client');
       return await kafkaConnectClient.validateConnectorConfig(input.pluginClass, input.config as Record<string, string>);
     }),
 
