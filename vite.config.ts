@@ -32,5 +32,21 @@ export default defineConfig({
       strict: true,
       deny: ["**/.*"],
     },
+    // 开发环境 API 代理：将 /api/* 请求转发到 Express 后端
+    // 生产环境由 Express 直接服务静态文件 + API，不需要代理
+    proxy: {
+      '/api': {
+        target: `http://localhost:${process.env.PORT || 3003}`,
+        changeOrigin: true,
+        // WebSocket 支持（Kafka metrics WS 等）
+        ws: true,
+        // 重试配置：后端未就绪时不立即报错
+        configure: (proxy) => {
+          proxy.on('error', (err) => {
+            console.warn('[Vite Proxy] API proxy error:', err.message);
+          });
+        },
+      },
+    },
   },
 });
