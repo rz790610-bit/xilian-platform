@@ -4,9 +4,11 @@
  */
 import { z } from 'zod';
 import { publicProcedure, router } from '../core/trpc';
-import { dockerManager } from '../services/docker/dockerManager.service';
+import { dockerManager, ENGINE_REGISTRY } from '../services/docker/dockerManager.service';
 import { resetDb, getDb } from '../lib/db/index';
 import { createModuleLogger } from '../core/logger';
+import { execSync } from 'child_process';
+import path from 'path';
 
 const log = createModuleLogger('docker-router');
 
@@ -83,6 +85,51 @@ interface BootstrapStep {
   step: string;
   status: StepStatus;
   detail?: string;
+}
+
+/** 通过 docker-compose up -d 创建并启动服务（当容器不存在时） */
+function composeUp(serviceName: string, profile?: string): { success: boolean; detail: string } {
+  try {
+    const composePath = path.resolve(process.cwd(), 'docker-compose.yml');
+    const profileFlag = profile ? `--profile ${profile} ` : '';
+    const cmd = `docker compose -f ${composePath} ${profileFlag}up -d ${serviceName}`;
+    log.info(`[composeUp] Running: ${cmd}`);
+    execSync(cmd, { timeout: 120000, stdio: 'pipe' });
+    return { success: true, detail: `docker compose up -d ${serviceName} 成功` };
+  } catch (e: any) {
+    const stderr = e.stderr?.toString() || e.message;
+    log.error(`[composeUp] Failed: ${stderr}`);
+    return { success: false, detail: stderr.substring(0, 200) };
+  }
+}
+
+/** 获取容器对应的 docker-compose profile（如果有） */
+const PROFILE_MAP: Record<string, string> = {
+  'portai-ollama': 'llm',
+};
+
+/** 尝试启动容器：先用 Docker API，如果 NOT_FOUND 则用 docker-compose 创建 */
+async function ensureContainerStarted(containerName: string): Promise<{ success: boolean; detail: string; method: string }> {
+  // 先尝试 Docker API 启动（容器已存在的情况）
+  const result = await dockerManager.startEngine(containerName);
+  if (result.success) {
+    return { success: true, detail: `${containerName} 已启动`, method: 'docker-api' };
+  }
+  if (result.error === 'ALREADY_RUNNING') {
+    return { success: true, detail: `${containerName} 已在运行`, method: 'already-running' };
+  }
+  // NOT_FOUND — 容器未创建，使用 docker-compose 创建
+  if (result.error === 'NOT_FOUND') {
+    const meta = ENGINE_REGISTRY[containerName];
+    if (!meta) {
+      return { success: false, detail: `未知容器: ${containerName}`, method: 'unknown' };
+    }
+    const profile = PROFILE_MAP[containerName];
+    log.info(`[ensureContainerStarted] Container ${containerName} not found, using docker-compose up -d ${meta.serviceName}`);
+    const composeResult = composeUp(meta.serviceName, profile);
+    return { success: composeResult.success, detail: composeResult.detail, method: 'docker-compose' };
+  }
+  return { success: false, detail: result.message || result.error || '启动失败', method: 'docker-api-error' };
 }
 
 // ============ 核心服务启动配置 ============
@@ -290,17 +337,19 @@ export const dockerRouter = router({
     for (const svc of services) {
       const steps: BootstrapStep[] = [];
 
-      // Step 1: 启动容器
+      // Step 1: 启动容器（先 Docker API，NOT_FOUND 时 docker-compose 创建）
       try {
-        const result = await dockerManager.startEngine(svc.containerName);
-        if (result.success) {
-          steps.push({ step: '启动容器', status: 'ok', detail: `${svc.containerName} 已启动` });
-        } else if (result.error === 'ALREADY_RUNNING') {
-          steps.push({ step: '启动容器', status: 'skip', detail: `${svc.containerName} 已在运行` });
+        const startResult = await ensureContainerStarted(svc.containerName);
+        if (startResult.success) {
+          steps.push({
+            step: '启动容器',
+            status: startResult.method === 'already-running' ? 'skip' : 'ok',
+            detail: startResult.detail,
+          });
         } else {
-          steps.push({ step: '启动容器', status: 'fail', detail: result.message || result.error });
+          steps.push({ step: '启动容器', status: 'fail', detail: startResult.detail });
           allSteps.push({ service: svc.label, icon: svc.icon, steps });
-          continue; // 跳过后续步骤
+          continue;
         }
       } catch (e: any) {
         steps.push({ step: '启动容器', status: 'fail', detail: e.message });
@@ -393,15 +442,17 @@ export const dockerRouter = router({
         'portai-grafana': () => waitForHttp('http://localhost:3001/api/health'),
       };
 
-      // Step 1: 启动容器
+      // Step 1: 启动容器（先 Docker API，NOT_FOUND 时 docker-compose 创建）
       try {
-        const result = await dockerManager.startEngine(containerName);
-        if (result.success) {
-          steps.push({ step: '启动容器', status: 'ok', detail: `${containerName} 已启动` });
-        } else if (result.error === 'ALREADY_RUNNING') {
-          steps.push({ step: '启动容器', status: 'skip', detail: `${containerName} 已在运行` });
+        const startResult = await ensureContainerStarted(containerName);
+        if (startResult.success) {
+          steps.push({
+            step: '启动容器',
+            status: startResult.method === 'already-running' ? 'skip' : 'ok',
+            detail: startResult.detail,
+          });
         } else {
-          steps.push({ step: '启动容器', status: 'fail', detail: result.message || result.error });
+          steps.push({ step: '启动容器', status: 'fail', detail: startResult.detail });
           return { success: false, containerName, steps };
         }
       } catch (e: any) {

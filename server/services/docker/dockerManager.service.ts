@@ -64,7 +64,7 @@ export interface DockerActionResult {
 // ============ 引擎映射配置 ============
 
 /** 容器名 → 引擎元数据 */
-const ENGINE_REGISTRY: Record<string, {
+export const ENGINE_REGISTRY: Record<string, {
   serviceName: string;
   displayName: string;
   engineType: string;
