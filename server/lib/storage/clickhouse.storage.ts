@@ -15,10 +15,13 @@
  */
 
 import { createClient, ClickHouseClient } from '@clickhouse/client';
+import { createModuleLogger } from '../../core/logger';
+const log = createModuleLogger('clickhouse');
 
 // ============ 集群配置 ============
 
 export interface ClickHouseClusterConfig {
+
   nodes: Array<{
     host: string;
     port: number;
@@ -141,7 +144,7 @@ export class ClickHouseStorage {
   async initialize(): Promise<void> {
     if (this.isInitialized) return;
 
-    console.log('[ClickHouse] Initializing cluster connections...');
+    log.debug('[ClickHouse] Initializing cluster connections...');
 
     for (const node of this.config.nodes) {
       try {
@@ -156,9 +159,9 @@ export class ClickHouseStorage {
         // 测试连接
         await client.query({ query: 'SELECT 1' });
         this.clients.set(`${node.host}:${node.port}`, client);
-        console.log(`[ClickHouse] Connected to node ${node.host}:${node.port}`);
+        log.debug(`[ClickHouse] Connected to node ${node.host}:${node.port}`);
       } catch (error) {
-        console.error(`[ClickHouse] Failed to connect to ${node.host}:${node.port}:`, error);
+        log.error(`[ClickHouse] Failed to connect to ${node.host}:${node.port}:`, error);
       }
     }
 
@@ -169,7 +172,7 @@ export class ClickHouseStorage {
     // 初始化表结构
     await this.initializeTables();
     this.isInitialized = true;
-    console.log('[ClickHouse] Cluster initialized successfully');
+    log.debug('[ClickHouse] Cluster initialized successfully');
   }
 
   /**
@@ -368,7 +371,7 @@ export class ClickHouseStorage {
       `,
     });
 
-    console.log('[ClickHouse] Tables and materialized views initialized');
+    log.debug('[ClickHouse] Tables and materialized views initialized');
   }
 
   // ============ 数据写入方法 ============
@@ -403,7 +406,7 @@ export class ClickHouseStorage {
 
       inserted = readings.length;
     } catch (error) {
-      console.error('[ClickHouse] Insert sensor readings error:', error);
+      log.error('[ClickHouse] Insert sensor readings error:', error);
       errors = readings.length;
     }
 
@@ -439,7 +442,7 @@ export class ClickHouseStorage {
 
       return true;
     } catch (error) {
-      console.error('[ClickHouse] Insert fault event error:', error);
+      log.error('[ClickHouse] Insert fault event error:', error);
       return false;
     }
   }
@@ -493,7 +496,7 @@ export class ClickHouseStorage {
         metadata: typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata,
       }));
     } catch (error) {
-      console.error('[ClickHouse] Query raw readings error:', error);
+      log.error('[ClickHouse] Query raw readings error:', error);
       return [];
     }
   }
@@ -545,7 +548,7 @@ export class ClickHouseStorage {
         last_value: row.last_value,
       }));
     } catch (error) {
-      console.error('[ClickHouse] Query aggregated data error:', error);
+      log.error('[ClickHouse] Query aggregated data error:', error);
       return [];
     }
   }
@@ -633,7 +636,7 @@ export class ClickHouseStorage {
         metadata: typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata,
       }));
     } catch (error) {
-      console.error('[ClickHouse] Query fault events error:', error);
+      log.error('[ClickHouse] Query fault events error:', error);
       return [];
     }
   }
@@ -716,7 +719,7 @@ export class ClickHouseStorage {
         criticalFaults: faultStats.critical_faults || 0,
       };
     } catch (error) {
-      console.error('[ClickHouse] Get device statistics error:', error);
+      log.error('[ClickHouse] Get device statistics error:', error);
       return {
         totalReadings: 0,
         avgValue: 0,
@@ -805,7 +808,7 @@ export class ClickHouseStorage {
         replicationStatus = 'single-node';
       }
     } catch (error) {
-      console.error('[ClickHouse] Get cluster status error:', error);
+      log.error('[ClickHouse] Get cluster status error:', error);
     }
 
     return {
@@ -971,9 +974,9 @@ export class ClickHouseStorage {
       const client = this.clients.get(nodeKey)!;
       try {
         await client.close();
-        console.log(`[ClickHouse] Closed connection to ${nodeKey}`);
+        log.debug(`[ClickHouse] Closed connection to ${nodeKey}`);
       } catch (error) {
-        console.error(`[ClickHouse] Error closing connection to ${nodeKey}:`, error);
+        log.error(`[ClickHouse] Error closing connection to ${nodeKey}:`, error);
       }
     }
     this.clients.clear();

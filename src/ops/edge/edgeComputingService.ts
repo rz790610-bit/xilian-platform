@@ -1,3 +1,6 @@
+import { createModuleLogger } from '../../../server/core/logger';
+const log = createModuleLogger('edgeComputingService');
+
 /**
  * 边缘计算增强服务
  * 提供 TensorRT-LLM 边缘推理、边缘网关、5G TSN 低延迟通信等功能
@@ -6,6 +9,7 @@
 // ==================== 类型定义 ====================
 
 export interface EdgeNode {
+
   id: string;
   name: string;
   location: {
@@ -183,7 +187,7 @@ export class EdgeInferenceService {
   private processingInterval?: NodeJS.Timeout;
 
   constructor() {
-    console.log('[EdgeInference] TensorRT-LLM 边缘推理服务已初始化');
+    log.debug('[EdgeInference] TensorRT-LLM 边缘推理服务已初始化');
     this.startProcessing();
   }
 
@@ -197,7 +201,7 @@ export class EdgeInferenceService {
     };
 
     this.nodes.set(newNode.id, newNode);
-    console.log(`[EdgeInference] 注册边缘节点: ${newNode.name}`);
+    log.debug(`[EdgeInference] 注册边缘节点: ${newNode.name}`);
     return newNode;
   }
 
@@ -236,7 +240,7 @@ export class EdgeInferenceService {
 
   removeNode(nodeId: string): void {
     this.nodes.delete(nodeId);
-    console.log(`[EdgeInference] 移除边缘节点: ${nodeId}`);
+    log.debug(`[EdgeInference] 移除边缘节点: ${nodeId}`);
   }
 
   // ==================== 模型管理 ====================
@@ -251,13 +255,13 @@ export class EdgeInferenceService {
     };
 
     this.models.set(newModel.id, newModel);
-    console.log(`[EdgeInference] 部署模型: ${newModel.name} v${newModel.version}`);
+    log.debug(`[EdgeInference] 部署模型: ${newModel.name} v${newModel.version}`);
 
     // 模拟部署过程
     setTimeout(() => {
       newModel.status = 'ready';
       newModel.updatedAt = Date.now();
-      console.log(`[EdgeInference] 模型部署完成: ${newModel.name}`);
+      log.debug(`[EdgeInference] 模型部署完成: ${newModel.name}`);
     }, 2000);
 
     return newModel;
@@ -283,7 +287,7 @@ export class EdgeInferenceService {
 
   undeployModel(modelId: string): void {
     this.models.delete(modelId);
-    console.log(`[EdgeInference] 卸载模型: ${modelId}`);
+    log.debug(`[EdgeInference] 卸载模型: ${modelId}`);
   }
 
   // ==================== 推理请求 ====================
@@ -439,7 +443,7 @@ export class EdgeGatewayService {
   private messageHandlers: Map<string, (message: unknown) => void> = new Map();
 
   constructor() {
-    console.log('[EdgeGateway] 边缘网关服务已初始化');
+    log.debug('[EdgeGateway] 边缘网关服务已初始化');
   }
 
   // 创建网关
@@ -459,7 +463,7 @@ export class EdgeGatewayService {
     };
 
     this.gateways.set(newGateway.id, newGateway);
-    console.log(`[EdgeGateway] 创建网关: ${newGateway.name} (${newGateway.type})`);
+    log.debug(`[EdgeGateway] 创建网关: ${newGateway.name} (${newGateway.type})`);
     return newGateway;
   }
 
@@ -470,14 +474,14 @@ export class EdgeGatewayService {
       throw new Error(`Gateway ${gatewayId} not found`);
     }
 
-    console.log(`[EdgeGateway] 连接网关: ${gateway.name}`);
+    log.debug(`[EdgeGateway] 连接网关: ${gateway.name}`);
 
     // 模拟连接过程
     await new Promise(resolve => setTimeout(resolve, 500));
     gateway.status = 'connected';
     gateway.lastActivity = Date.now();
 
-    console.log(`[EdgeGateway] 网关已连接: ${gateway.name}`);
+    log.debug(`[EdgeGateway] 网关已连接: ${gateway.name}`);
   }
 
   // 断开网关
@@ -487,7 +491,7 @@ export class EdgeGatewayService {
       throw new Error(`Gateway ${gatewayId} not found`);
     }
 
-    console.log(`[EdgeGateway] 断开网关: ${gateway.name}`);
+    log.debug(`[EdgeGateway] 断开网关: ${gateway.name}`);
     gateway.status = 'disconnected';
   }
 
@@ -508,21 +512,21 @@ export class EdgeGatewayService {
     gateway.metrics.bytesSent += payloadSize;
     gateway.lastActivity = Date.now();
 
-    console.log(`[EdgeGateway] 发送消息: ${gateway.name} -> ${topic}`);
+    log.debug(`[EdgeGateway] 发送消息: ${gateway.name} -> ${topic}`);
   }
 
   // 订阅消息
   subscribe(gatewayId: string, topic: string, handler: (message: unknown) => void): void {
     const key = `${gatewayId}:${topic}`;
     this.messageHandlers.set(key, handler);
-    console.log(`[EdgeGateway] 订阅主题: ${topic}`);
+    log.debug(`[EdgeGateway] 订阅主题: ${topic}`);
   }
 
   // 取消订阅
   unsubscribe(gatewayId: string, topic: string): void {
     const key = `${gatewayId}:${topic}`;
     this.messageHandlers.delete(key);
-    console.log(`[EdgeGateway] 取消订阅: ${topic}`);
+    log.debug(`[EdgeGateway] 取消订阅: ${topic}`);
   }
 
   // 获取网关
@@ -548,7 +552,7 @@ export class EdgeGatewayService {
   // 删除网关
   deleteGateway(gatewayId: string): void {
     this.gateways.delete(gatewayId);
-    console.log(`[EdgeGateway] 删除网关: ${gatewayId}`);
+    log.debug(`[EdgeGateway] 删除网关: ${gatewayId}`);
   }
 
   // 模拟接收消息
@@ -576,7 +580,7 @@ export class TSNService {
   private fiveGConfigs: Map<string, FiveGConfig> = new Map();
 
   constructor() {
-    console.log('[TSN] 5G TSN 低延迟通信服务已初始化');
+    log.debug('[TSN] 5G TSN 低延迟通信服务已初始化');
   }
 
   // ==================== TSN 配置管理 ====================
@@ -597,7 +601,7 @@ export class TSNService {
     };
 
     this.configs.set(newConfig.id, newConfig);
-    console.log(`[TSN] 创建 TSN 配置: ${newConfig.name}`);
+    log.debug(`[TSN] 创建 TSN 配置: ${newConfig.name}`);
 
     // 模拟配置过程
     setTimeout(() => {
@@ -609,7 +613,7 @@ export class TSNService {
         bandwidth: config.network.bandwidth * (0.9 + Math.random() * 0.1),
       };
       newConfig.updatedAt = Date.now();
-      console.log(`[TSN] TSN 配置已激活: ${newConfig.name}`);
+      log.debug(`[TSN] TSN 配置已激活: ${newConfig.name}`);
     }, 1000);
 
     return newConfig;
@@ -641,7 +645,7 @@ export class TSNService {
 
   deleteTSNConfig(id: string): void {
     this.configs.delete(id);
-    console.log(`[TSN] 删除 TSN 配置: ${id}`);
+    log.debug(`[TSN] 删除 TSN 配置: ${id}`);
   }
 
   // ==================== 5G 配置管理 ====================
@@ -661,7 +665,7 @@ export class TSNService {
     };
 
     this.fiveGConfigs.set(newConfig.id, newConfig);
-    console.log(`[TSN] 创建 5G 配置: ${newConfig.name} (${newConfig.slice.type})`);
+    log.debug(`[TSN] 创建 5G 配置: ${newConfig.name} (${newConfig.slice.type})`);
 
     // 模拟连接过程
     setTimeout(() => {
@@ -677,7 +681,7 @@ export class TSNService {
         handovers: 0,
       };
       newConfig.updatedAt = Date.now();
-      console.log(`[TSN] 5G 连接已建立: ${newConfig.name}`);
+      log.debug(`[TSN] 5G 连接已建立: ${newConfig.name}`);
     }, 1500);
 
     return newConfig;
@@ -709,7 +713,7 @@ export class TSNService {
 
   delete5GConfig(id: string): void {
     this.fiveGConfigs.delete(id);
-    console.log(`[TSN] 删除 5G 配置: ${id}`);
+    log.debug(`[TSN] 删除 5G 配置: ${id}`);
   }
 
   // ==================== 性能监控 ====================

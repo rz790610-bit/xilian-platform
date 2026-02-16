@@ -4,10 +4,13 @@
  */
 
 import { getDb } from '../lib/db';
+import { createModuleLogger } from '../core/logger';
+const log = createModuleLogger('readReplica');
 
 // ============ 类型定义 ============
 
 export interface ReplicaConfig {
+
   host: string;
   port: number;
   database: string;
@@ -69,7 +72,7 @@ class ReadReplicaService {
   async start(): Promise<void> {
     if (this.isRunning) return;
 
-    console.log('[ReadReplica] Starting read replica service...');
+    log.debug('[ReadReplica] Starting read replica service...');
     this.isRunning = true;
 
     // 初始化副本配置
@@ -78,14 +81,14 @@ class ReadReplicaService {
     // 启动健康检查
     this.startHealthCheck();
 
-    console.log('[ReadReplica] Started');
+    log.debug('[ReadReplica] Started');
   }
 
   /**
    * 停止服务
    */
   async stop(): Promise<void> {
-    console.log('[ReadReplica] Stopping...');
+    log.debug('[ReadReplica] Stopping...');
     this.isRunning = false;
 
     if (this.healthCheckTimer) {
@@ -93,7 +96,7 @@ class ReadReplicaService {
       this.healthCheckTimer = null;
     }
 
-    console.log('[ReadReplica] Stopped');
+    log.debug('[ReadReplica] Stopped');
   }
 
   /**
@@ -116,7 +119,7 @@ class ReadReplicaService {
         avgResponseTimeMs: 0,
         lastCheckedAt: new Date(),
       });
-      console.log('[ReadReplica] No replicas configured, using primary as read source');
+      log.debug('[ReadReplica] No replicas configured, using primary as read source');
     } else {
       for (let i = 0; i < replicaHosts.length; i++) {
         const id = `replica-${i + 1}`;
@@ -131,7 +134,7 @@ class ReadReplicaService {
           lastCheckedAt: new Date(),
         });
       }
-      console.log(`[ReadReplica] Initialized ${replicaHosts.length} replicas`);
+      log.debug(`[ReadReplica] Initialized ${replicaHosts.length} replicas`);
     }
   }
 
@@ -224,12 +227,12 @@ class ReadReplicaService {
         replica.lastCheckedAt = new Date();
 
         if (!replica.isHealthy) {
-          console.warn(`[ReadReplica] Replica ${id} unhealthy: lag=${replica.lagSeconds}s`);
+          log.warn(`[ReadReplica] Replica ${id} unhealthy: lag=${replica.lagSeconds}s`);
         }
       } catch (error) {
         replica.isHealthy = false;
         replica.lastCheckedAt = new Date();
-        console.error(`[ReadReplica] Health check failed for ${id}:`, error);
+        log.error(`[ReadReplica] Health check failed for ${id}:`, error);
       }
     }
   }

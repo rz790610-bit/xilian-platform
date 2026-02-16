@@ -22,12 +22,15 @@ import { prometheusClient } from '../lib/clients/prometheus.client';
 import { getDb } from '../lib/db';
 import { pipelines, pipelineRuns, pipelineNodeMetrics } from '../../drizzle/schema';
 import type {
+
   PipelineDAGConfig, EditorNode, EditorConnection,
   PipelineRunStatus, TriggerType, PipelineMetrics,
   PipelineStatusResponse, PipelineRunRecord, PipelineCategory,
   NodeSubType,
 } from '../../shared/pipelineTypes';
 import { topologicalSort, ALL_NODE_TYPES } from '../../shared/pipelineTypes';
+import { createModuleLogger } from '../core/logger';
+const log = createModuleLogger('pipeline');
 
 // ============ 兼容旧接口（pipeline.router.ts 引用） ============
 export type PipelineStatus = 'created' | 'running' | 'paused' | 'stopped' | 'error';
@@ -165,7 +168,7 @@ class ConnectorFactory {
       case 'prometheus_sink': return this.execPrometheusSink(config, inputRecords);
 
       default:
-        console.warn(`[Pipeline] Unknown node subType: ${nodeSubType}, passing through`);
+        log.warn(`[Pipeline] Unknown node subType: ${nodeSubType}, passing through`);
         return inputRecords;
     }
   }
@@ -282,7 +285,7 @@ class ConnectorFactory {
         client.on('message', (_t: string, payload: Buffer) => { records.push({ id: `mqtt-${Date.now()}-${records.length}`, timestamp: Date.now(), source: 'mqtt', data: this.tryParseJSON(payload.toString()), _modality: 'iot' }); });
         client.on('error', (err: Error) => { clearTimeout(timeout); client.end(); reject(err); });
       });
-    } catch (err: any) { console.warn(`[Pipeline] MQTT error: ${err.message}`); }
+    } catch (err: any) { log.warn(`[Pipeline] MQTT error: ${err.message}`); }
     return records;
   }
 
@@ -774,7 +777,7 @@ class ConnectorFactory {
     const url = config.url as string;
     const template = config.template as string || '';
     const message = records.length > 0 ? template.replace(/\{\{(\w+)\}\}/g, (_, key) => String(records[0].data[key] ?? '')) : template;
-    if (url) { try { await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: message, records: records.length }), signal: AbortSignal.timeout(10000) }); } catch (err: any) { console.warn(`[Pipeline] Notify error: ${err.message}`); } }
+    if (url) { try { await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: message, records: records.length }), signal: AbortSignal.timeout(10000) }); } catch (err: any) { log.warn(`[Pipeline] Notify error: ${err.message}`); } }
     return records;
   }
 
@@ -973,7 +976,7 @@ class ConnectorFactory {
       const vectorField = config.vectorField as string || 'embedding';
       const points = records.filter(r => Array.isArray(r.data[vectorField])).map(r => ({ id: r.id, vector: r.data[vectorField] as number[], payload: Object.fromEntries(Object.entries(r.data).filter(([k]) => k !== vectorField)) }));
       if (points.length > 0) await qdrantStorage.upsertPoints(collection, points);
-    } catch (err: any) { console.warn(`[Pipeline] Qdrant sink error: ${err.message}`); }
+    } catch (err: any) { log.warn(`[Pipeline] Qdrant sink error: ${err.message}`); }
     return records;
   }
 
@@ -993,7 +996,7 @@ class ConnectorFactory {
           await neo4jStorage.createSolution(r.data as any);
         }
       }
-    } catch (err: any) { console.warn(`[Pipeline] Neo4j sink error: ${err.message}`); }
+    } catch (err: any) { log.warn(`[Pipeline] Neo4j sink error: ${err.message}`); }
     return records;
   }
 
@@ -1246,7 +1249,7 @@ class RunExecutor {
       } catch (err: any) {
         if (attempt < retryPolicy.maxRetries) {
           const delay = retryPolicy.retryDelayMs * Math.pow(retryPolicy.backoffMultiplier || 2, attempt);
-          console.warn(`[Pipeline] Node ${node.id} attempt ${attempt + 1} failed, retrying in ${delay}ms: ${err.message}`);
+          log.warn(`[Pipeline] Node ${node.id} attempt ${attempt + 1} failed, retrying in ${delay}ms: ${err.message}`);
           await new Promise(r => setTimeout(r, delay));
         } else {
           return {

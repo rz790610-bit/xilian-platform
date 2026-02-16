@@ -6,6 +6,8 @@
 import { EventEmitter } from 'events';
 import * as fs from 'fs';
 import * as path from 'path';
+import { createModuleLogger } from '../core/logger';
+const log = createModuleLogger('plugin');
 
 // ============ 类型定义 ============
 
@@ -17,6 +19,7 @@ export type PluginType = 'source' | 'processor' | 'sink' | 'analyzer' | 'visuali
 
 // 插件元数据
 export interface PluginMetadata {
+
   id: string;
   name: string;
   version: string;
@@ -127,11 +130,11 @@ export class LogAnalyzerPlugin implements Plugin {
   };
 
   async onEnable(): Promise<void> {
-    console.log('[LogAnalyzerPlugin] Enabled');
+    log.debug('[LogAnalyzerPlugin] Enabled');
   }
 
   async onDisable(): Promise<void> {
-    console.log('[LogAnalyzerPlugin] Disabled');
+    log.debug('[LogAnalyzerPlugin] Disabled');
   }
 
   async execute(context: PluginContext): Promise<{
@@ -457,7 +460,7 @@ export class PluginEngine extends EventEmitter {
     // 自动安装内置插件
     for (const plugin of this.builtinPlugins) {
       this.installPlugin(plugin).catch(err => {
-        console.error(`[PluginEngine] Failed to install builtin plugin ${plugin.metadata.id}:`, err);
+        log.error(`[PluginEngine] Failed to install builtin plugin ${plugin.metadata.id}:`, err);
       });
     }
   }
@@ -476,10 +479,10 @@ export class PluginEngine extends EventEmitter {
       pluginId,
       config,
       logger: {
-        info: (msg: string, ...args: unknown[]) => console.log(`[Plugin:${pluginId}] ${msg}`, ...args),
-        warn: (msg: string, ...args: unknown[]) => console.warn(`[Plugin:${pluginId}] ${msg}`, ...args),
-        error: (msg: string, ...args: unknown[]) => console.error(`[Plugin:${pluginId}] ${msg}`, ...args),
-        debug: (msg: string, ...args: unknown[]) => console.debug(`[Plugin:${pluginId}] ${msg}`, ...args),
+        info: (msg: string, ...args: unknown[]) => log.debug(`[Plugin:${pluginId}] ${msg}`, ...args),
+        warn: (msg: string, ...args: unknown[]) => log.warn(`[Plugin:${pluginId}] ${msg}`, ...args),
+        error: (msg: string, ...args: unknown[]) => log.error(`[Plugin:${pluginId}] ${msg}`, ...args),
+        debug: (msg: string, ...args: unknown[]) => log.debug(`[Plugin:${pluginId}] ${msg}`, ...args),
       },
       services: {
         http: fetch,
@@ -537,7 +540,7 @@ export class PluginEngine extends EventEmitter {
 
     this.plugins.set(id, runtime);
     this.emit('plugin:installed', { pluginId: id });
-    console.log(`[PluginEngine] Plugin ${id} installed`);
+    log.debug(`[PluginEngine] Plugin ${id} installed`);
   }
 
   /**
@@ -561,7 +564,7 @@ export class PluginEngine extends EventEmitter {
       runtime.status = 'enabled';
       runtime.enabledAt = Date.now();
       this.emit('plugin:enabled', { pluginId });
-      console.log(`[PluginEngine] Plugin ${pluginId} enabled`);
+      log.debug(`[PluginEngine] Plugin ${pluginId} enabled`);
     } catch (error) {
       runtime.status = 'error';
       runtime.lastError = error instanceof Error ? error.message : 'Unknown error';
@@ -589,7 +592,7 @@ export class PluginEngine extends EventEmitter {
 
       runtime.status = 'disabled';
       this.emit('plugin:disabled', { pluginId });
-      console.log(`[PluginEngine] Plugin ${pluginId} disabled`);
+      log.debug(`[PluginEngine] Plugin ${pluginId} disabled`);
     } catch (error) {
       runtime.lastError = error instanceof Error ? error.message : 'Unknown error';
       throw error;
@@ -627,7 +630,7 @@ export class PluginEngine extends EventEmitter {
 
     this.plugins.delete(pluginId);
     this.emit('plugin:uninstalled', { pluginId });
-    console.log(`[PluginEngine] Plugin ${pluginId} uninstalled`);
+    log.debug(`[PluginEngine] Plugin ${pluginId} uninstalled`);
   }
 
   /**

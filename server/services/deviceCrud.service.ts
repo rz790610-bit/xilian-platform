@@ -16,6 +16,8 @@ import { assetNodes, assetSensors } from '../../drizzle/schema';
 import { eq, desc, and, or, like, inArray, sql, count, gte, lte } from 'drizzle-orm';
 import { eventBus, TOPICS } from './eventBus.service';
 import type { PaginatedResult } from "../core/types/domain";
+import { createModuleLogger } from '../core/logger';
+const log = createModuleLogger('deviceCrud');
 
 // ============================================
 // 类型定义
@@ -25,6 +27,7 @@ import type { PaginatedResult } from "../core/types/domain";
  * 设备类型枚举
  */
 export type DeviceType = 
+
   | 'agv'           // 自动导引车
   | 'rtg'           // 轮胎式龙门吊
   | 'qc'            // 岸桥
@@ -253,7 +256,7 @@ export class DeviceCrudService {
 
       return this.getById(input.deviceId);
     } catch (error) {
-      console.error('[DeviceCrudService] Create failed:', error);
+      log.error('[DeviceCrudService] Create failed:', error);
       throw error;
     }
   }
@@ -328,7 +331,7 @@ export class DeviceCrudService {
         updatedAt: d.updatedAt,
       };
     } catch (error) {
-      console.error('[DeviceCrudService] GetById failed:', error);
+      log.error('[DeviceCrudService] GetById failed:', error);
       return null;
     }
   }
@@ -441,7 +444,7 @@ export class DeviceCrudService {
         hasPrev: page > 1,
       };
     } catch (error) {
-      console.error('[DeviceCrudService] List failed:', error);
+      log.error('[DeviceCrudService] List failed:', error);
       return {
         items: [],
         data: [],
@@ -578,7 +581,7 @@ export class DeviceCrudService {
 
       return this.getById(deviceId);
     } catch (error) {
-      console.error('[DeviceCrudService] Update failed:', error);
+      log.error('[DeviceCrudService] Update failed:', error);
       throw error;
     }
   }
@@ -642,7 +645,7 @@ export class DeviceCrudService {
 
       return true;
     } catch (error) {
-      console.error('[DeviceCrudService] Delete failed:', error);
+      log.error('[DeviceCrudService] Delete failed:', error);
       throw error;
     }
   }
@@ -705,7 +708,7 @@ export class DeviceCrudService {
 
       return true;
     } catch (error) {
-      console.error('[DeviceCrudService] UpdateStatus failed:', error);
+      log.error('[DeviceCrudService] UpdateStatus failed:', error);
       return false;
     }
   }
@@ -852,7 +855,7 @@ export class DeviceCrudService {
         recentlyOffline,
       };
     } catch (error) {
-      console.error('[DeviceCrudService] GetStatistics failed:', error);
+      log.error('[DeviceCrudService] GetStatistics failed:', error);
       return {
         total: 0,
         byStatus: { online: 0, offline: 0, maintenance: 0, error: 0, unknown: 0 },
@@ -958,7 +961,7 @@ export class DeviceCrudService {
         healthScore,
       };
     } catch (error) {
-      console.error('[DeviceCrudService] HealthCheck failed:', error);
+      log.error('[DeviceCrudService] HealthCheck failed:', error);
       return null;
     }
   }

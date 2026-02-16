@@ -20,12 +20,15 @@
 
 import { airflowClient, AirflowDAG, AirflowDAGRun, AirflowTaskInstance } from '../lib/clients/airflow.client';
 import { kafkaConnectClient, KafkaConnector, KafkaConnectorStatus } from '../lib/clients/kafkaConnect.client';
+import { createModuleLogger } from '../core/logger';
+const log = createModuleLogger('dataPipeline');
 
 // ============================================================
 // 类型定义
 // ============================================================
 
 export interface DataPipeline {
+
   id: string;
   name: string;
   description: string;
@@ -122,7 +125,7 @@ export class EnhancedDataPipelineService {
   private static instance: EnhancedDataPipelineService;
 
   private constructor() {
-    console.log('[EnhancedDataPipelineService] Initialized with real Airflow and Kafka Connect clients');
+    log.debug('[EnhancedDataPipelineService] Initialized with real Airflow and Kafka Connect clients');
   }
 
   static getInstance(): EnhancedDataPipelineService {

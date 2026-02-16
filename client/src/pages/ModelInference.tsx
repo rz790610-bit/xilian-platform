@@ -84,20 +84,8 @@ export default function ModelInference() {
       });
       toast.success('分析完成');
     } catch (error) {
-      // 模拟结果
-      const mockFreqs = Array.from({ length: 100 }, (_, i) => i * 20);
-      const mockAmplitude = (mockFreqs || []).map(f => 
-        Math.exp(-Math.pow(f - 500, 2) / 50000) * 100 + Math.random() * 10
-      );
-
-      setResult({
-        rms: 0.245 + Math.random() * 0.1,
-        peak: 0.892 + Math.random() * 0.2,
-        freq: 485 + Math.random() * 30,
-        cf: 3.64 + Math.random() * 0.5,
-        spectrum: { freqs: mockFreqs, amplitude: mockAmplitude }
-      });
-      toast.success('分析完成（演示数据）');
+      const msg = error instanceof Error ? error.message : '未知错误';
+      toast.error(`分析失败：${msg}，请确认分析服务已启动`);
     }
     setIsAnalyzing(false);
   };

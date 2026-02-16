@@ -6,6 +6,7 @@
 import { eventBus, TOPICS, Event } from './eventBus.service';
 import { getDb } from '../lib/db';
 import {
+
   detectZScore as anomalyEngineDetectZScore,
   detectIQR as anomalyEngineDetectIQR,
   detectMAD as anomalyEngineDetectMAD,
@@ -222,7 +223,7 @@ class StreamProcessor {
       this.generateAggregates();
     }, 60000); // 每分钟生成一次聚合
 
-    console.log('[StreamProcessor] Started');
+    log.debug('[StreamProcessor] Started');
   }
 
   /**
@@ -238,7 +239,7 @@ class StreamProcessor {
       clearInterval(this.aggregateInterval);
       this.aggregateInterval = null;
     }
-    console.log('[StreamProcessor] Stopped');
+    log.debug('[StreamProcessor] Stopped');
   }
 
   /**
@@ -393,7 +394,7 @@ class StreamProcessor {
         recordedAt: new Date(),
       });
     } catch (error) {
-      console.error('[StreamProcessor] Failed to persist reading:', error);
+      log.error('[StreamProcessor] Failed to persist reading:', error);
     }
   }
 
@@ -421,7 +422,7 @@ class StreamProcessor {
         createdAt: result.timestamp instanceof Date ? result.timestamp : new Date(result.timestamp || Date.now()),
       });
     } catch (error) {
-      console.error('[StreamProcessor] Failed to record anomaly:', error);
+      log.error('[StreamProcessor] Failed to record anomaly:', error);
     }
   }
 
@@ -456,7 +457,7 @@ class StreamProcessor {
         recordedAt: new Date(),
       });
     } catch (error) {
-      console.error('[StreamProcessor] Failed to save aggregate:', error);
+      log.error('[StreamProcessor] Failed to save aggregate:', error);
     }
   }
 
@@ -562,6 +563,8 @@ export const streamProcessor = new StreamProcessor();
 import { z } from 'zod';
 import { publicProcedure, protectedProcedure, router } from '../core/trpc';
 import type { SensorReading, AnomalyResult, AggregateResult } from "../core/types/domain";
+import { createModuleLogger } from '../core/logger';
+const log = createModuleLogger('streamProcessor');
 
 export const streamProcessorRouter = router({
   // 获取处理指标
@@ -664,7 +667,7 @@ export const streamProcessorRouter = router({
           score: r.score ? r.score / 100 : null,
         }));
       } catch (error) {
-        console.error('[StreamProcessor] Failed to get anomalies:', error);
+        log.error('[StreamProcessor] Failed to get anomalies:', error);
         return [];
       }
     }),
@@ -704,7 +707,7 @@ export const streamProcessorRouter = router({
 
         return { success: true };
       } catch (error) {
-        console.error('[StreamProcessor] Failed to update anomaly:', error);
+        log.error('[StreamProcessor] Failed to update anomaly:', error);
         return { success: false };
       }
     }),

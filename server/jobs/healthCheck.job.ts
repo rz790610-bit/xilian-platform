@@ -7,8 +7,11 @@ import { updateTopoNodeStatus, updateTopoNodeMetrics, getTopoNodes, createTopoNo
 import { redisClient } from '../lib/clients/redis.client';
 import { kafkaClient } from '../lib/clients/kafka.client';
 import { config } from '../core/config';
+import { createModuleLogger } from '../core/logger';
+const log = createModuleLogger('healthCheck.job');
 
 // 服务配置类型
+
 interface ServiceConfig {
   nodeId: string;
   name: string;
@@ -518,26 +521,26 @@ export function startPeriodicHealthCheck(intervalMs: number = 30000): void {
   
   // 立即执行一次
   checkAllServicesAndUpdateTopology().catch(err => {
-    console.error('[HealthCheck] Initial check failed:', err);
+    log.error('[HealthCheck] Initial check failed:', err);
   });
   
   // 设置定时任务
   healthCheckInterval = setInterval(async () => {
     try {
       const result = await checkAllServicesAndUpdateTopology();
-      console.log(`[HealthCheck] ${result.results.filter(r => r.online).length}/${result.results.length} services online`);
+      log.debug(`[HealthCheck] ${result.results.filter(r => r.online).length}/${result.results.length} services online`);
     } catch (err) {
-      console.error('[HealthCheck] Periodic check failed:', err);
+      log.error('[HealthCheck] Periodic check failed:', err);
     }
   }, intervalMs);
   
-  console.log(`[HealthCheck] Started periodic health check every ${intervalMs}ms`);
+  log.debug(`[HealthCheck] Started periodic health check every ${intervalMs}ms`);
 }
 
 export function stopPeriodicHealthCheck(): void {
   if (healthCheckInterval) {
     clearInterval(healthCheckInterval);
     healthCheckInterval = null;
-    console.log('[HealthCheck] Stopped periodic health check');
+    log.debug('[HealthCheck] Stopped periodic health check');
   }
 }

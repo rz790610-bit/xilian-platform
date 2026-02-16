@@ -5,10 +5,13 @@
  * ArgoCD → 未来规划（返回未连接+配置引导）
  */
 import { dockerManager } from './docker/dockerManager.service';
+import { createModuleLogger } from '../core/logger';
+const log = createModuleLogger('infrastructure');
 
 // ============================================================
 // 环境变量管理（替代 Vault）
 // ============================================================
+
 const ENV_SECRET_KEYS = [
   'MYSQL_ROOT_PASSWORD', 'MYSQL_PASSWORD', 'MYSQL_HOST', 'MYSQL_PORT', 'MYSQL_DATABASE',
   'REDIS_PASSWORD', 'REDIS_HOST', 'REDIS_PORT',
@@ -115,7 +118,7 @@ export class EnhancedInfrastructureService {
 
   private constructor() {
     this.checkConnections();
-    console.log('[EnhancedInfrastructure] 基础设施服务已初始化 (Docker + 环境变量模式)');
+    log.debug('[EnhancedInfrastructure] 基础设施服务已初始化 (Docker + 环境变量模式)');
   }
 
   static getInstance(): EnhancedInfrastructureService {

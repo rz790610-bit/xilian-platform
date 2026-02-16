@@ -11,6 +11,7 @@
 
 import { getDb } from '../lib/db';
 import { 
+
   assetNodes, 
   assetSensors, 
   eventStore,
@@ -71,7 +72,7 @@ class DataSimulator {
       await this.generateSimulatedData();
     }, intervalMs);
 
-    console.log('[DataSimulator] Started with interval:', intervalMs, 'ms');
+    log.debug('[DataSimulator] Started with interval:', intervalMs, 'ms');
   }
 
   /**
@@ -83,7 +84,7 @@ class DataSimulator {
       clearInterval(this.simulationInterval);
       this.simulationInterval = null;
     }
-    console.log('[DataSimulator] Stopped');
+    log.debug('[DataSimulator] Stopped');
   }
 
   /**
@@ -246,7 +247,7 @@ class DeviceService {
         status: 'unknown',
       };
     } catch (error) {
-      console.error('[DeviceService] Create device failed:', error);
+      log.error('[DeviceService] Create device failed:', error);
       return null;
     }
   }
@@ -300,7 +301,7 @@ class DeviceService {
         };
       });
     } catch (error) {
-      console.error('[DeviceService] List devices failed:', error);
+      log.error('[DeviceService] List devices failed:', error);
       return [];
     }
   }
@@ -343,7 +344,7 @@ class DeviceService {
         lastHeartbeat: d.lastHeartbeat || undefined,
       };
     } catch (error) {
-      console.error('[DeviceService] Get device failed:', error);
+      log.error('[DeviceService] Get device failed:', error);
       return null;
     }
   }
@@ -378,7 +379,7 @@ class DeviceService {
 
       return true;
     } catch (error) {
-      console.error('[DeviceService] Update device status failed:', error);
+      log.error('[DeviceService] Update device status failed:', error);
       return false;
     }
   }
@@ -394,7 +395,7 @@ class DeviceService {
       await db.delete(assetNodes).where(eq(assetNodes.nodeId, deviceId));
       return true;
     } catch (error) {
-      console.error('[DeviceService] Delete device failed:', error);
+      log.error('[DeviceService] Delete device failed:', error);
       return false;
     }
   }
@@ -450,7 +451,7 @@ class SensorService {
         status: 'active',
       };
     } catch (error) {
-      console.error('[SensorService] Create sensor failed:', error);
+      log.error('[SensorService] Create sensor failed:', error);
       return null;
     }
   }
@@ -485,7 +486,7 @@ class SensorService {
         lastReadingAt: s.lastReadingAt || undefined,
       }));
     } catch (error) {
-      console.error('[SensorService] List sensors failed:', error);
+      log.error('[SensorService] List sensors failed:', error);
       return [];
     }
   }
@@ -525,7 +526,7 @@ class SensorService {
         };
       });
     } catch (error) {
-      console.error('[SensorService] Get readings failed:', error);
+      log.error('[SensorService] Get readings failed:', error);
       return [];
     }
   }
@@ -587,7 +588,7 @@ class SensorService {
         })
         .filter((r): r is NonNullable<typeof r> => r !== null);
     } catch (error) {
-      console.error('[SensorService] Get aggregates failed:', error);
+      log.error('[SensorService] Get aggregates failed:', error);
       return [];
     }
   }
@@ -609,7 +610,7 @@ class SensorService {
         })
         .where(eq(assetSensors.sensorId, sensorId));
     } catch (error) {
-      console.error('[SensorService] Update last value failed:', error);
+      log.error('[SensorService] Update last value failed:', error);
     }
   }
 
@@ -624,7 +625,7 @@ class SensorService {
       await db.delete(assetSensors).where(eq(assetSensors.sensorId, sensorId));
       return true;
     } catch (error) {
-      console.error('[SensorService] Delete sensor failed:', error);
+      log.error('[SensorService] Delete sensor failed:', error);
       return false;
     }
   }
@@ -639,6 +640,8 @@ export const sensorService = new SensorService();
 
 import { z } from 'zod';
 import { publicProcedure, protectedProcedure, router } from '../core/trpc';
+import { createModuleLogger } from '../core/logger';
+const log = createModuleLogger('device');
 
 export const deviceRouter = router({
   // 设备管理

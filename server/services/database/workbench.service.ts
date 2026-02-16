@@ -15,10 +15,13 @@
 import { sql } from "drizzle-orm";
 import { config } from '../../core/config';
 import { getDb } from "../../lib/db";
+import { createModuleLogger } from '../../core/logger';
+const log = createModuleLogger('workbench');
 
 // ============ 类型定义 ============
 
 export interface ConnectionStatus {
+
   connected: boolean;
   host: string;
   port: number;
@@ -261,7 +264,7 @@ export const connectionService = {
         totalTables: Number(tableCountRows[0]?.cnt || 0),
       };
     } catch (error) {
-      console.error('[Workbench] Failed to get connection status:', error);
+      log.error('[Workbench] Failed to get connection status:', error);
       return {
         connected: false, host: '-', port: 0, database: '-',
         version: '-', uptime: 0, charset: '-',
@@ -301,7 +304,7 @@ export const connectionService = {
         info: String(r.Info || '').substring(0, 200),
       }));
     } catch (error) {
-      console.error('[Workbench] Failed to get process list:', error);
+      log.error('[Workbench] Failed to get process list:', error);
       return [];
     }
   },
@@ -362,7 +365,7 @@ export const tableService = {
         linkedModule: MODULE_TABLE_MAP[row.name] || null,
       }));
     } catch (error) {
-      console.error('[Workbench] Failed to list tables:', error);
+      log.error('[Workbench] Failed to list tables:', error);
       return [];
     }
   },
@@ -399,7 +402,7 @@ export const tableService = {
         ordinalPosition: Number(row.ordinalPosition || 0),
       }));
     } catch (error) {
-      console.error('[Workbench] Failed to get columns:', error);
+      log.error('[Workbench] Failed to get columns:', error);
       return [];
     }
   },
@@ -427,7 +430,7 @@ export const tableService = {
 
       return Array.from(indexMap.values());
     } catch (error) {
-      console.error('[Workbench] Failed to get indexes:', error);
+      log.error('[Workbench] Failed to get indexes:', error);
       return [];
     }
   },
@@ -464,7 +467,7 @@ export const tableService = {
         onUpdate: String(row.onUpdate || 'RESTRICT'),
       }));
     } catch (error) {
-      console.error('[Workbench] Failed to get foreign keys:', error);
+      log.error('[Workbench] Failed to get foreign keys:', error);
       return [];
     }
   },
@@ -477,7 +480,7 @@ export const tableService = {
       const rows = await execQuery(db, `SHOW CREATE TABLE \`${tableName.replace(/`/g, '')}\``);
       return String(rows[0]?.['Create Table'] || '');
     } catch (error) {
-      console.error('[Workbench] Failed to get CREATE TABLE:', error);
+      log.error('[Workbench] Failed to get CREATE TABLE:', error);
       return '';
     }
   },
@@ -533,10 +536,10 @@ export const tableService = {
       const createSQL = `CREATE TABLE \`${tableName}\` (\n  ${columnDefs.join(',\n  ')}\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci${tableComment}`;
 
       await db.execute(sql.raw(createSQL));
-      console.log(`[Workbench] Created table: ${tableName}`);
+      log.debug(`[Workbench] Created table: ${tableName}`);
       return { success: true };
     } catch (error: any) {
-      console.error('[Workbench] Failed to create table:', error);
+      log.error('[Workbench] Failed to create table:', error);
       return { success: false, error: error.message };
     }
   },
@@ -553,7 +556,7 @@ export const tableService = {
 
     try {
       await db.execute(sql.raw(`DROP TABLE IF EXISTS \`${tableName.replace(/`/g, '')}\``));
-      console.log(`[Workbench] Dropped table: ${tableName}`);
+      log.debug(`[Workbench] Dropped table: ${tableName}`);
       return { success: true };
     } catch (error: any) {
       return { success: false, error: error.message };
@@ -810,7 +813,7 @@ export const dataService = {
 
       return { rows: dataRows, total, columns };
     } catch (error) {
-      console.error('[Workbench] Failed to query rows:', error);
+      log.error('[Workbench] Failed to query rows:', error);
       return { rows: [], total: 0, columns: [] };
     }
   },
@@ -931,7 +934,7 @@ export const dataService = {
 
       return '';
     } catch (error) {
-      console.error('[Workbench] Failed to export data:', error);
+      log.error('[Workbench] Failed to export data:', error);
       return '';
     }
   },
@@ -1017,7 +1020,7 @@ export const moduleService = {
         .map(([module, stats]) => ({ module, ...stats }))
         .sort((a, b) => b.tables - a.tables);
     } catch (error) {
-      console.error('[Workbench] Failed to get module stats:', error);
+      log.error('[Workbench] Failed to get module stats:', error);
       return [];
     }
   },
@@ -1050,7 +1053,7 @@ export const moduleService = {
       typescript: `// TypeScript / fetch
 const res = await fetch('/api/rest/${tableName}?page=1&pageSize=20');
 const data = await res.json();
-console.log(data.rows);
+log.debug(data.rows);
 
 // 插入记录
 const created = await fetch('/api/rest/${tableName}', {

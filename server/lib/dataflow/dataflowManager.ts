@@ -10,10 +10,13 @@
 import { kafkaCluster, XILIAN_TOPICS, TopicConfig } from './kafkaCluster';
 import { anomalyDetector, metricsAggregator, kgBuilder, AnomalyResult, AggregationResult, KGEntity, KGRelation } from './flinkProcessor';
 import { kafkaArchiver, ArchiveFile, ArchiveStats } from './kafkaCluster';
+import { createModuleLogger } from '../../core/logger';
+const log = createModuleLogger('dataflowManager');
 
 // ============ 类型定义 ============
 
 export interface DataflowStatus {
+
   kafka: {
     connected: boolean;
     brokers: number;
@@ -147,11 +150,11 @@ export class DataflowManager {
    */
   async initialize(): Promise<void> {
     if (this.isInitialized) {
-      console.log('[DataflowManager] Already initialized');
+      log.debug('[DataflowManager] Already initialized');
       return;
     }
 
-    console.log('[DataflowManager] Initializing dataflow layer...');
+    log.debug('[DataflowManager] Initializing dataflow layer...');
 
     try {
       // 初始化 Kafka 集群
@@ -161,9 +164,9 @@ export class DataflowManager {
       this.registerEventHandlers();
 
       this.isInitialized = true;
-      console.log('[DataflowManager] Dataflow layer initialized');
+      log.debug('[DataflowManager] Dataflow layer initialized');
     } catch (error) {
-      console.error('[DataflowManager] Initialization failed:', error);
+      log.error('[DataflowManager] Initialization failed:', error);
       throw error;
     }
   }
@@ -213,11 +216,11 @@ export class DataflowManager {
     }
 
     if (this.isRunning) {
-      console.log('[DataflowManager] Already running');
+      log.debug('[DataflowManager] Already running');
       return;
     }
 
-    console.log('[DataflowManager] Starting all processors...');
+    log.debug('[DataflowManager] Starting all processors...');
     this.isRunning = true;
 
     try {
@@ -233,9 +236,9 @@ export class DataflowManager {
       // 启动归档服务
       await kafkaArchiver.start();
 
-      console.log('[DataflowManager] All processors started');
+      log.debug('[DataflowManager] All processors started');
     } catch (error) {
-      console.error('[DataflowManager] Failed to start processors:', error);
+      log.error('[DataflowManager] Failed to start processors:', error);
       this.isRunning = false;
       throw error;
     }
@@ -247,7 +250,7 @@ export class DataflowManager {
   async stop(): Promise<void> {
     if (!this.isRunning) return;
 
-    console.log('[DataflowManager] Stopping all processors...');
+    log.debug('[DataflowManager] Stopping all processors...');
     this.isRunning = false;
 
     try {
@@ -256,9 +259,9 @@ export class DataflowManager {
       await kgBuilder.stop();
       await kafkaArchiver.stop();
 
-      console.log('[DataflowManager] All processors stopped');
+      log.debug('[DataflowManager] All processors stopped');
     } catch (error) {
-      console.error('[DataflowManager] Error stopping processors:', error);
+      log.error('[DataflowManager] Error stopping processors:', error);
       throw error;
     }
   }
@@ -267,13 +270,13 @@ export class DataflowManager {
    * 关闭数据流层
    */
   async close(): Promise<void> {
-    console.log('[DataflowManager] Closing dataflow layer...');
+    log.debug('[DataflowManager] Closing dataflow layer...');
 
     await this.stop();
     await kafkaCluster.close();
 
     this.isInitialized = false;
-    console.log('[DataflowManager] Dataflow layer closed');
+    log.debug('[DataflowManager] Dataflow layer closed');
   }
 
   /**
@@ -518,7 +521,7 @@ export class DataflowManager {
         try {
           handler(event);
         } catch (error) {
-          console.error(`[DataflowManager] Event handler error for ${type}:`, error);
+          log.error(`[DataflowManager] Event handler error for ${type}:`, error);
         }
       }
     }

@@ -13,6 +13,7 @@ import type { LogEntry } from "../core/types/domain";
 // ============================================================
 
 export interface MetricData {
+
   name: string;
   value: number;
   labels: Record<string, string>;
@@ -42,6 +43,8 @@ export interface AlertData {
 
 // ServiceHealth 统一使用 core/types/domain.ts 中的定义
 import type { ServiceHealth } from '../core/types/domain';
+import { createModuleLogger } from '../core/logger';
+const log = createModuleLogger('observability');
 
 export interface ObservabilityDashboard {
   metrics: {
@@ -80,7 +83,7 @@ export class EnhancedObservabilityService {
 
   private constructor() {
     this.checkConnections();
-    console.log('[EnhancedObservability] 增强版可观测性服务已初始化');
+    log.debug('[EnhancedObservability] 增强版可观测性服务已初始化');
   }
 
   static getInstance(): EnhancedObservabilityService {

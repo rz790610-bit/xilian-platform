@@ -18,10 +18,13 @@ import { metricsCollector } from "../platform/middleware/metricsCollector";
 import { gracefulShutdown, registerBuiltinShutdownHooks } from "../platform/middleware/gracefulShutdown";
 import { initOpenTelemetry, shutdownOpenTelemetry } from "../platform/middleware/opentelemetry";
 import { configCenter } from "../platform/services/configCenter";
+import { createModuleLogger } from './logger';
+const log = createModuleLogger('index');
 
 // ============================================================
 // 端口发现
 // ============================================================
+
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -52,15 +55,15 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
  * 路径已更新为三层架构迁移后的新位置
  */
 async function initPerformanceServices(): Promise<void> {
-  console.log('[v1.9] Initializing performance optimization services...');
+  log.debug('[v1.9] Initializing performance optimization services...');
 
   try {
     // 1. Outbox 混合发布器
     const { outboxPublisher } = await import('../services/outbox.publisher');
     await outboxPublisher.start();
-    console.log('[v1.9] ✓ Outbox Publisher started');
+    log.debug('[v1.9] ✓ Outbox Publisher started');
   } catch (err) {
-    console.error('[v1.9] ✗ Outbox Publisher failed to start:', err);
+    log.error('[v1.9] ✗ Outbox Publisher failed to start:', err);
   }
 
   try {
@@ -69,39 +72,39 @@ async function initPerformanceServices(): Promise<void> {
     const { registerRollbackSaga } = await import('../services/saga.rollback');
     await sagaOrchestrator.start();
     registerRollbackSaga(); // 注册内置 Saga 定义
-    console.log('[v1.9] ✓ Saga Orchestrator started');
+    log.debug('[v1.9] ✓ Saga Orchestrator started');
   } catch (err) {
-    console.error('[v1.9] ✗ Saga Orchestrator failed to start:', err);
+    log.error('[v1.9] ✗ Saga Orchestrator failed to start:', err);
   }
 
   try {
     // 3. 自适应采样服务
     const { adaptiveSamplingService } = await import('../services/adaptiveSampling.service');
     await adaptiveSamplingService.start();
-    console.log('[v1.9] ✓ Adaptive Sampling Service started');
+    log.debug('[v1.9] ✓ Adaptive Sampling Service started');
   } catch (err) {
-    console.error('[v1.9] ✗ Adaptive Sampling Service failed to start:', err);
+    log.error('[v1.9] ✗ Adaptive Sampling Service failed to start:', err);
   }
 
   try {
     // 4. 读写分离服务
     const { readReplicaService } = await import('../services/readReplica.service');
     await readReplicaService.start();
-    console.log('[v1.9] ✓ Read Replica Service started');
+    log.debug('[v1.9] ✓ Read Replica Service started');
   } catch (err) {
-    console.error('[v1.9] ✗ Read Replica Service failed to start:', err);
+    log.error('[v1.9] ✗ Read Replica Service failed to start:', err);
   }
 
   try {
     // 5. 图查询优化器
     const { graphQueryOptimizer } = await import('../services/graphQuery.optimizer');
     await graphQueryOptimizer.start();
-    console.log('[v1.9] ✓ Graph Query Optimizer started');
+    log.debug('[v1.9] ✓ Graph Query Optimizer started');
   } catch (err) {
-    console.error('[v1.9] ✗ Graph Query Optimizer failed to start:', err);
+    log.error('[v1.9] ✗ Graph Query Optimizer failed to start:', err);
   }
 
-  console.log('[v1.9] Performance optimization services initialized');
+  log.debug('[v1.9] Performance optimization services initialized');
 }
 
 // ============================================================
@@ -122,13 +125,13 @@ async function registerEventBusIntegration(): Promise<void> {
       try {
         const result = await deduplicationService.isDuplicate(event.eventId || '', 'global');
         if (result.isDuplicate) {
-          console.log(`[v1.9] Duplicate event filtered: ${event.eventId}`);
+          log.debug(`[v1.9] Duplicate event filtered: ${event.eventId}`);
           return;
         }
         await deduplicationService.markProcessed(event.eventId || '', event.eventType || 'unknown', 'global');
       } catch (err) {
         // 去重服务失败不应阻塞事件处理
-        console.warn('[v1.9] Deduplication check failed:', err);
+        log.warn('[v1.9] Deduplication check failed:', err);
       }
     });
 
@@ -144,7 +147,7 @@ async function registerEventBusIntegration(): Promise<void> {
           metadata: { source: 'eventBus', correlationId: event.eventId },
         });
       } catch (err) {
-        console.warn('[v1.9] Outbox event forwarding failed:', err);
+        log.warn('[v1.9] Outbox event forwarding failed:', err);
       }
     });
 
@@ -153,15 +156,15 @@ async function registerEventBusIntegration(): Promise<void> {
       try {
         const { adaptiveSamplingService } = await import('../services/adaptiveSampling.service');
         // 异常检测到时，可能需要提高采样率
-        console.log(`[v1.9] Anomaly detected, adaptive sampling may adjust: ${event.eventId}`);
+        log.debug(`[v1.9] Anomaly detected, adaptive sampling may adjust: ${event.eventId}`);
       } catch (err) {
-        console.warn('[v1.9] Adaptive sampling notification failed:', err);
+        log.warn('[v1.9] Adaptive sampling notification failed:', err);
       }
     });
 
-    console.log('[v1.9] ✓ Event bus integration registered');
+    log.debug('[v1.9] ✓ Event bus integration registered');
   } catch (err) {
-    console.error('[v1.9] ✗ Event bus integration failed:', err);
+    log.error('[v1.9] ✗ Event bus integration failed:', err);
   }
 }
 
@@ -174,12 +177,12 @@ async function startServer() {
   // OTel 必须在 require express 之前初始化才能自动插桩 HTTP
   // 但由于我们使用 ESM import，这里是最早的可行时机
   await initOpenTelemetry().catch(err => {
-    console.warn('[OTel] Initialization failed (continuing without tracing):', err);
+    log.warn('[OTel] Initialization failed (continuing without tracing):', err);
   });
 
   // 配置中心初始化
   await configCenter.initialize().catch(err => {
-    console.warn('[ConfigCenter] Initialization failed (using env defaults):', err);
+    log.warn('[ConfigCenter] Initialization failed (using env defaults):', err);
   });
 
   const app = express();
@@ -219,9 +222,9 @@ async function startServer() {
     const { restRouter } = await import('../services/database/restBridge');
     // API 限流应用于 REST 端点
     app.use('/api/rest', createApiLimiter(), restRouter);
-    console.log('[REST Bridge] ✓ Auto-generated REST API registered at /api/rest');
+    log.debug('[REST Bridge] ✓ Auto-generated REST API registered at /api/rest');
   } catch (err) {
-    console.error('[REST Bridge] ✗ Failed to register REST API:', err);
+    log.error('[REST Bridge] ✗ Failed to register REST API:', err);
   }
 
   // ── 阶段 6: tRPC API ──
@@ -239,7 +242,7 @@ async function startServer() {
   const port = await findAvailablePort(preferredPort);
 
   if (port !== preferredPort) {
-    console.log(`Port ${preferredPort} is busy, using port ${port} instead`);
+    log.debug(`Port ${preferredPort} is busy, using port ${port} instead`);
   }
 
   if (process.env.NODE_ENV === "development") {
@@ -266,42 +269,42 @@ async function startServer() {
 
   // ── 阶段 10: 启动监听 ──
   server.listen(port, () => {
-    console.log(`Server running on http://localhost:${port}/`);
-    console.log('[Platform] ✓ Security headers (helmet) enabled');
-    console.log('[Platform] ✓ CORS middleware enabled');
-    console.log('[Platform] ✓ Rate limiting enabled');
-    console.log('[Platform] ✓ Prometheus metrics at /api/metrics');
-    console.log('[Platform] ✓ Request ID middleware enabled');
-    console.log('[Platform] ✓ Graceful shutdown handlers registered');
+    log.debug(`Server running on http://localhost:${port}/`);
+    log.debug('[Platform] ✓ Security headers (helmet) enabled');
+    log.debug('[Platform] ✓ CORS middleware enabled');
+    log.debug('[Platform] ✓ Rate limiting enabled');
+    log.debug('[Platform] ✓ Prometheus metrics at /api/metrics');
+    log.debug('[Platform] ✓ Request ID middleware enabled');
+    log.debug('[Platform] ✓ Graceful shutdown handlers registered');
     
     // 启动定时健康检查（每30秒检查一次）
     import('../jobs/healthCheck.job').then(({ startPeriodicHealthCheck }) => {
       startPeriodicHealthCheck(30000);
     }).catch(err => {
-      console.error('[Server] Failed to start health check:', err);
+      log.error('[Server] Failed to start health check:', err);
     });
 
     // 初始化 v1.9 性能优化服务
     initPerformanceServices().catch(err => {
-      console.error('[Server] Failed to initialize v1.9 services:', err);
+      log.error('[Server] Failed to initialize v1.9 services:', err);
     });
 
     // 注册事件总线集成
     registerEventBusIntegration().catch(err => {
-      console.error('[Server] Failed to register event bus integration:', err);
+      log.error('[Server] Failed to register event bus integration:', err);
     });
 
     // 同步内置算法到数据库
     import('../services/algorithm.service').then(({ algorithmService }) => {
       algorithmService.syncBuiltinAlgorithms().then((result) => {
-        console.log(`[Algorithm] ✓ Synced builtin algorithms: ${result.created} created, ${result.updated} updated, ${result.skipped} skipped`);
+        log.debug(`[Algorithm] ✓ Synced builtin algorithms: ${result.created} created, ${result.updated} updated, ${result.skipped} skipped`);
       }).catch(err => {
-        console.error('[Algorithm] Failed to sync builtin algorithms:', err.message);
+        log.error('[Algorithm] Failed to sync builtin algorithms:', err.message);
       });
     }).catch(err => {
-      console.error('[Algorithm] Failed to load algorithm service:', err.message);
+      log.error('[Algorithm] Failed to load algorithm service:', err.message);
     });
   });
 }
 
-startServer().catch(console.error);
+startServer().catch((err) => log.error({ err }, "Server startup failed"));

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { PageCard } from '@/components/common/PageCard';
-import { Badge } from '@/components/common/Badge';
+import { Badge } from '@/components/ui/badge';
 import { StatCard } from '@/components/common/StatCard';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';

@@ -8,12 +8,14 @@
 import { z } from 'zod';
 import { router, publicProcedure, protectedProcedure } from '../core/trpc';
 import { monitoringService } from '../services/monitoring.service';
+import { createModuleLogger } from '../core/logger';
+const log = createModuleLogger('monitoring');
 
 export const monitoringRouter = router({
   // ============================================================
   // 综合仪表盘
   // ============================================================
-  
+
   getDashboard: protectedProcedure
     .query(async () => {
       const overview = await monitoringService.getMonitoringOverview();
@@ -256,7 +258,7 @@ export const monitoringRouter = router({
     }))
     .mutation(async ({ input }) => {
       // 卸载插件（从缓存中移除）
-      console.log(`[Monitoring] 卸载插件: ${input.pluginId}`);
+      log.debug(`[Monitoring] 卸载插件: ${input.pluginId}`);
       return { 
         success: true, 
         message: `插件 ${input.pluginId} 已卸载`,

@@ -20,6 +20,7 @@
 
 import { getDb } from '../lib/db';
 import {
+
   algorithmDefinitions,
   algorithmCompositions,
   algorithmDeviceBindings,
@@ -30,6 +31,8 @@ import {
 import { eq, desc, and, or, like, inArray, sql, count, asc, gte } from 'drizzle-orm';
 import { algorithmRegistry, type AlgorithmRegistryItem } from '../core/registries/algorithm.registry';
 import { eventBus, TOPICS } from './eventBus.service';
+import { createModuleLogger } from '../core/logger';
+const log = createModuleLogger('algorithm');
 
 // ============================================================================
 // 类型定义
@@ -411,7 +414,7 @@ class AlgorithmService {
       created++;
     }
 
-    console.log(`[AlgorithmService] Synced builtin algorithms: ${created} created, ${updated} updated, ${skipped} skipped`);
+    log.debug(`[AlgorithmService] Synced builtin algorithms: ${created} created, ${updated} updated, ${skipped} skipped`);
     return { created, updated, skipped };
   }
 
@@ -999,7 +1002,7 @@ class AlgorithmService {
         nodeIds: [`${nodeType}_${Date.now()}`],
       };
     } catch (error: any) {
-      console.error('[AlgorithmService] KG write failed:', error.message);
+      log.error('[AlgorithmService] KG write failed:', error.message);
       return { nodesCreated: 0, edgesCreated: 0, nodeIds: [] };
     }
   }
@@ -1090,7 +1093,7 @@ class AlgorithmService {
                 trigger: 'cascade',
                 parentExecutionId: `${algoCode}_cascade`,
               }).catch(err => {
-                console.error(`[AlgorithmService] Cascade execution failed: ${cascade.algo_code}`, err.message);
+                log.error(`[AlgorithmService] Cascade execution failed: ${cascade.algo_code}`, err.message);
               });
             }
           }
@@ -1147,7 +1150,7 @@ class AlgorithmService {
         break;
 
       default:
-        console.warn(`[AlgorithmService] Unknown routing target: ${target.target}`);
+        log.warn(`[AlgorithmService] Unknown routing target: ${target.target}`);
     }
   }
 
@@ -1169,7 +1172,7 @@ class AlgorithmService {
         context
       );
     } catch (error) {
-      console.warn(`[AlgorithmService] Condition evaluation failed: ${condition}`, error);
+      log.warn(`[AlgorithmService] Condition evaluation failed: ${condition}`, error);
       return false;
     }
   }
@@ -1501,7 +1504,7 @@ class AlgorithmService {
         completedAt: new Date(),
       });
     } catch (error: any) {
-      console.error('[AlgorithmService] Failed to record execution:', error.message);
+      log.error('[AlgorithmService] Failed to record execution:', error.message);
     }
   }
 

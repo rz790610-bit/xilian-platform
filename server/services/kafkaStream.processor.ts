@@ -12,9 +12,12 @@ import { getDb } from '../lib/db';
 import { detectZScore as unifiedDetectZScore, determineSeverity as unifiedDetermineSeverity } from '../lib/dataflow/anomalyEngine';
 import { anomalyDetections, eventStore } from '../../drizzle/schema';
 import { eq, desc, and, gte, lte, sql } from 'drizzle-orm';
+import { createModuleLogger } from '../core/logger';
+const log = createModuleLogger('kafkaStream');
 
 // 流处理配置
 export interface StreamProcessorConfig {
+
   windowSizeMs: number;       // 窗口大小（毫秒）
   slideIntervalMs: number;    // 滑动间隔（毫秒）
   anomalyThreshold: number;   // 异常阈值（Z-Score）
@@ -102,11 +105,11 @@ export class KafkaStreamProcessor {
    */
   async start(): Promise<void> {
     if (this.isRunning) {
-      console.log('[KafkaStreamProcessor] 已在运行中');
+      log.debug('[KafkaStreamProcessor] 已在运行中');
       return;
     }
 
-    console.log('[KafkaStreamProcessor] 启动流处理器...');
+    log.debug('[KafkaStreamProcessor] 启动流处理器...');
     this.isRunning = true;
 
     // 订阅遥测数据主题
@@ -128,7 +131,7 @@ export class KafkaStreamProcessor {
       this.config.aggregationIntervalMs
     );
 
-    console.log('[KafkaStreamProcessor] 流处理器已启动');
+    log.debug('[KafkaStreamProcessor] 流处理器已启动');
   }
 
   /**
@@ -137,7 +140,7 @@ export class KafkaStreamProcessor {
   async stop(): Promise<void> {
     if (!this.isRunning) return;
 
-    console.log('[KafkaStreamProcessor] 停止流处理器...');
+    log.debug('[KafkaStreamProcessor] 停止流处理器...');
     this.isRunning = false;
 
     if (this.slideTimer) {
@@ -153,7 +156,7 @@ export class KafkaStreamProcessor {
     // 刷新剩余数据
     await this.flushAggregations();
 
-    console.log('[KafkaStreamProcessor] 流处理器已停止');
+    log.debug('[KafkaStreamProcessor] 流处理器已停止');
   }
 
   /**
@@ -191,7 +194,7 @@ export class KafkaStreamProcessor {
         await this.handleAnomaly(anomalyResult);
       }
     } catch (error) {
-      console.error('[KafkaStreamProcessor] 处理消息失败:', error);
+      log.error('[KafkaStreamProcessor] 处理消息失败:', error);
     }
   }
 
@@ -298,7 +301,7 @@ export class KafkaStreamProcessor {
    * 处理异常
    */
   private async handleAnomaly(result: AnomalyResult): Promise<void> {
-    console.log(`[KafkaStreamProcessor] 检测到异常: ${result.deviceId}/${result.sensorId} Z-Score=${result.zScore.toFixed(2)}`);
+    log.debug(`[KafkaStreamProcessor] 检测到异常: ${result.deviceId}/${result.sensorId} Z-Score=${result.zScore.toFixed(2)}`);
 
     // 保存到数据库（anomaly_detections 表，nodeId 字段对应 deviceId）
     try {
@@ -320,7 +323,7 @@ export class KafkaStreamProcessor {
         });
       }
     } catch (error) {
-      console.error('[KafkaStreamProcessor] 保存异常记录失败:', error);
+      log.error('[KafkaStreamProcessor] 保存异常记录失败:', error);
     }
 
     // 发送异常事件到 Kafka
@@ -334,7 +337,7 @@ export class KafkaStreamProcessor {
         timestamp: Date.now().toString(),
       }]);
     } catch (error) {
-      console.error('[KafkaStreamProcessor] 发送异常事件失败:', error);
+      log.error('[KafkaStreamProcessor] 发送异常事件失败:', error);
     }
 
     // 通知处理器
@@ -342,7 +345,7 @@ export class KafkaStreamProcessor {
       try {
         handler(result);
       } catch (error) {
-        console.error('[KafkaStreamProcessor] 异常处理器执行失败:', error);
+        log.error('[KafkaStreamProcessor] 异常处理器执行失败:', error);
       }
     }
   }
@@ -414,7 +417,7 @@ export class KafkaStreamProcessor {
           });
         }
       } catch (error) {
-        console.error('[KafkaStreamProcessor] 保存聚合数据失败:', error);
+        log.error('[KafkaStreamProcessor] 保存聚合数据失败:', error);
       }
 
       // 发送聚合事件到 Kafka
@@ -425,7 +428,7 @@ export class KafkaStreamProcessor {
           timestamp: Date.now().toString(),
         }]);
       } catch (error) {
-        console.error('[KafkaStreamProcessor] 发送聚合事件失败:', error);
+        log.error('[KafkaStreamProcessor] 发送聚合事件失败:', error);
       }
 
       // 通知处理器
@@ -433,7 +436,7 @@ export class KafkaStreamProcessor {
         try {
           handler(aggregation);
         } catch (error) {
-          console.error('[KafkaStreamProcessor] 聚合处理器执行失败:', error);
+          log.error('[KafkaStreamProcessor] 聚合处理器执行失败:', error);
         }
       }
     }

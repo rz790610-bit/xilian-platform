@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { StatCard } from '@/components/common/StatCard';
 import { PageCard } from '@/components/common/PageCard';
-import { Badge } from '@/components/common/Badge';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useAppStore } from '@/stores/appStore';
 import { useLocation } from 'wouter';

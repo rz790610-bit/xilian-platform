@@ -5,6 +5,7 @@
 import { getDb } from "../lib/db";
 import { eq, and, like, desc, sql, inArray } from "drizzle-orm";
 import {
+
   dataConnectors, dataEndpoints, dataBindings,
   type DataConnector, type InsertDataConnector,
   type DataEndpoint, type InsertDataEndpoint,
@@ -15,6 +16,8 @@ import type {
   DiscoveredEndpoint, AccessLayerStats, HealthCheckResult,
 } from "../../shared/accessLayerTypes";
 import { protocolAdapters } from "./protocol-adapters";
+import { createModuleLogger } from '../core/logger';
+const log = createModuleLogger('access-layer');
 
 // ============ 自动建表 ============
 let _tablesEnsured = false;
@@ -91,7 +94,7 @@ async function ensureAccessLayerTables(db: NonNullable<Awaited<ReturnType<typeof
     `);
     _tablesEnsured = true;
   } catch (err) {
-    console.warn('[AccessLayer] ensureAccessLayerTables warning:', err);
+    log.warn('[AccessLayer] ensureAccessLayerTables warning:', err);
     _tablesEnsured = true; // 避免反复重试
   }
 }

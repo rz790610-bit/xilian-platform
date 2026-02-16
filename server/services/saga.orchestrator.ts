@@ -6,10 +6,13 @@
 import { getDb } from '../lib/db';
 import { sagaInstances, sagaSteps, sagaDeadLetters } from '../../drizzle/schema';
 import { eq, and, lt, desc } from 'drizzle-orm';
+import { createModuleLogger } from '../core/logger';
+const log = createModuleLogger('saga');
 
 // ============ 类型定义 ============
 
 export interface SagaStep<TInput = unknown, TOutput = unknown> {
+
   name: string;
   execute: (input: TInput, context: SagaContext) => Promise<TOutput>;
   compensate?: (input: TInput, output: TOutput, context: SagaContext) => Promise<void>;
@@ -53,7 +56,7 @@ const sagaRegistry: Map<string, SagaDefinition> = new Map();
 
 export function registerSaga<TInput, TOutput>(definition: SagaDefinition<TInput, TOutput>): void {
   sagaRegistry.set(definition.type, definition as SagaDefinition);
-  console.log(`[SagaOrchestrator] Registered saga: ${definition.type}`);
+  log.debug(`[SagaOrchestrator] Registered saga: ${definition.type}`);
 }
 
 // ============ Saga 编排器类 ============
@@ -81,7 +84,7 @@ class SagaOrchestrator {
   async start(): Promise<void> {
     if (this.isRunning) return;
 
-    console.log('[SagaOrchestrator] Starting...');
+    log.debug('[SagaOrchestrator] Starting...');
     this.isRunning = true;
 
     // 启动超时检查器
@@ -90,14 +93,14 @@ class SagaOrchestrator {
     // 恢复中断的 Saga
     await this.recoverInterruptedSagas();
 
-    console.log('[SagaOrchestrator] Started');
+    log.debug('[SagaOrchestrator] Started');
   }
 
   /**
    * 停止 Saga 编排器
    */
   async stop(): Promise<void> {
-    console.log('[SagaOrchestrator] Stopping...');
+    log.debug('[SagaOrchestrator] Stopping...');
     this.isRunning = false;
 
     if (this.timeoutChecker) {
@@ -105,7 +108,7 @@ class SagaOrchestrator {
       this.timeoutChecker = null;
     }
 
-    console.log('[SagaOrchestrator] Stopped');
+    log.debug('[SagaOrchestrator] Stopped');
   }
 
   /**
@@ -208,7 +211,7 @@ class SagaOrchestrator {
 
           while (step.retryable !== false && retryCount < maxRetries && !succeeded) {
             retryCount++;
-            console.log(`[SagaOrchestrator] Retrying step ${step.name} (${retryCount}/${maxRetries})`);
+            log.debug(`[SagaOrchestrator] Retrying step ${step.name} (${retryCount}/${maxRetries})`);
 
             try {
               await this.sleep(Math.min(retryCount * 1000, 5000)); // 退避
@@ -232,7 +235,7 @@ class SagaOrchestrator {
                   .where(eq(sagaSteps.stepId, stepId));
               }
             } catch (retryError) {
-              console.error(`[SagaOrchestrator] Retry ${retryCount} failed:`, retryError);
+              log.error(`[SagaOrchestrator] Retry ${retryCount} failed:`, retryError);
             }
           }
 
@@ -280,7 +283,7 @@ class SagaOrchestrator {
         totalSteps: definition.steps.length,
       };
     } catch (error) {
-      console.error(`[SagaOrchestrator] Saga ${sagaId} failed:`, error);
+      log.error(`[SagaOrchestrator] Saga ${sagaId} failed:`, error);
 
       // 开始补偿
       const compensationResult = await this.compensate(sagaId, definition, context, input);
@@ -329,7 +332,7 @@ class SagaOrchestrator {
     context: SagaContext,
     originalInput: unknown
   ): Promise<{ success: boolean; failedSteps: string[] }> {
-    console.log(`[SagaOrchestrator] Starting compensation for saga ${sagaId}`);
+    log.debug(`[SagaOrchestrator] Starting compensation for saga ${sagaId}`);
 
     const failedSteps: string[] = [];
     const db = await getDb();
@@ -367,9 +370,9 @@ class SagaOrchestrator {
             .where(eq(sagaSteps.stepId, compensationStepId));
         }
 
-        console.log(`[SagaOrchestrator] Compensated step: ${step.name}`);
+        log.debug(`[SagaOrchestrator] Compensated step: ${step.name}`);
       } catch (compError) {
-        console.error(`[SagaOrchestrator] Compensation failed for step ${step.name}:`, compError);
+        log.error(`[SagaOrchestrator] Compensation failed for step ${step.name}:`, compError);
         failedSteps.push(step.name);
 
         if (db) {
@@ -417,7 +420,7 @@ class SagaOrchestrator {
       retryable: failureType !== 'max_retries',
     });
 
-    console.log(`[SagaOrchestrator] Wrote to dead letter queue: ${deadLetterId}`);
+    log.debug(`[SagaOrchestrator] Wrote to dead letter queue: ${deadLetterId}`);
   }
 
   /**
@@ -451,7 +454,7 @@ class SagaOrchestrator {
     const checkpoint = instance.checkpoint as SagaContext['checkpoint'];
     const startStep = checkpoint.lastCompletedStep + 1;
 
-    console.log(`[SagaOrchestrator] Resuming saga ${sagaId} from step ${startStep}`);
+    log.debug(`[SagaOrchestrator] Resuming saga ${sagaId} from step ${startStep}`);
 
     // 重新执行剩余步骤
     return this.execute(instance.sagaType, instance.input);
@@ -488,7 +491,7 @@ class SagaOrchestrator {
     }
 
     for (const saga of timedOutSagas) {
-      console.warn(`[SagaOrchestrator] Saga ${saga.sagaId} timed out`);
+      log.warn(`[SagaOrchestrator] Saga ${saga.sagaId} timed out`);
 
       await db.update(sagaInstances)
         .set({
@@ -523,7 +526,7 @@ class SagaOrchestrator {
       .where(eq(sagaInstances.status, 'running'));
 
     for (const saga of interruptedSagas) {
-      console.log(`[SagaOrchestrator] Found interrupted saga: ${saga.sagaId}`);
+      log.debug(`[SagaOrchestrator] Found interrupted saga: ${saga.sagaId}`);
 
       // 标记为需要恢复
       await db.update(sagaInstances)
@@ -532,7 +535,7 @@ class SagaOrchestrator {
     }
 
     if (interruptedSagas.length > 0) {
-      console.log(`[SagaOrchestrator] Found ${interruptedSagas.length} interrupted sagas, marked as partial`);
+      log.debug(`[SagaOrchestrator] Found ${interruptedSagas.length} interrupted sagas, marked as partial`);
     }
   }
 

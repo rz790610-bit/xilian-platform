@@ -5,8 +5,11 @@
 
 import http from 'http';
 import https from 'https';
+import { createModuleLogger } from '../../core/logger';
+const log = createModuleLogger('kafkaConnect');
 
 // 配置
+
 const KAFKA_CONNECT_CONFIG = {
   host: process.env.KAFKA_CONNECT_HOST || 'localhost',
   port: parseInt(process.env.KAFKA_CONNECT_PORT || '8083'),
@@ -135,7 +138,7 @@ export class KafkaConnectClient {
   private static instance: KafkaConnectClient;
 
   private constructor() {
-    console.log('[KafkaConnect] Client initialized');
+    log.debug('[KafkaConnect] Client initialized');
   }
 
   static getInstance(): KafkaConnectClient {

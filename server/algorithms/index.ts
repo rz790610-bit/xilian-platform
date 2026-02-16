@@ -18,11 +18,14 @@ import { getFeatureExtractionAlgorithms } from './feature-extraction';
 import { getAgentPluginAlgorithms } from './agent-plugins';
 import { getModelIterationAlgorithms } from './model-iteration';
 import { getRuleLearningAlgorithms } from './rule-learning';
+import { createModuleLogger } from '../core/logger';
+const log = createModuleLogger('index');
 
 /**
  * 获取所有算法注册信息
  */
 export function getAllAlgorithmRegistrations(): AlgorithmRegistration[] {
+
   return [
     ...getMechanicalAlgorithms(),
     ...getElectricalAlgorithms(),
@@ -47,7 +50,7 @@ export function getAlgorithmEngine(): AlgorithmEngine {
     const engine = AlgorithmEngine.getInstance();
     const registrations = getAllAlgorithmRegistrations();
     engine.registerAll(registrations);
-    console.log(`[AlgorithmEngine] Registered ${registrations.length} algorithms across 10 categories`);
+    log.debug(`[AlgorithmEngine] Registered ${registrations.length} algorithms across 10 categories`);
     engineInstance = engine;
   }
   return engineInstance!;

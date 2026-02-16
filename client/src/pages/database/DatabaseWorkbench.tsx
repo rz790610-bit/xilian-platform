@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useMemo, useRef, lazy, Suspense } fro
 import { MainLayout } from '@/components/layout/MainLayout';
 import { PageCard } from '@/components/common/PageCard';
 import { StatCard } from '@/components/common/StatCard';
-import { Badge } from '@/components/common/Badge';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { trpc } from '@/lib/trpc';
 import { useToast } from '@/components/common/Toast';

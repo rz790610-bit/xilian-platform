@@ -1,3 +1,6 @@
+import { createModuleLogger } from '../../core/logger';
+const log = createModuleLogger('service-registry');
+
 /**
  * 服务注册与发现 - 平台基础设施层
  * 
@@ -14,9 +17,7 @@
  * 依赖: server/lib/clients/redis.client, server/core/logger
  */
 
-import { createModuleLogger } from '../../core/logger';
 
-const log = createModuleLogger('service-registry');
 
 // ============================================================
 // 类型定义

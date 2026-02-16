@@ -8,10 +8,13 @@ import { redisClient } from '../lib/clients/redis.client';
 import { getDb } from '../lib/db';
 import { processedEvents, idempotentRecords } from '../../drizzle/schema';
 import { eq, lt, sql } from 'drizzle-orm';
+import { createModuleLogger } from '../core/logger';
+const log = createModuleLogger('deduplication');
 
 // ============ 类型定义 ============
 
 export interface DeduplicationResult {
+
   isDuplicate: boolean;
   eventId: string;
   source: 'redis' | 'mysql' | 'none';
@@ -67,7 +70,7 @@ class DeduplicationService {
   async start(): Promise<void> {
     if (this.isRunning) return;
 
-    console.log('[Deduplication] Starting deduplication service...');
+    log.debug('[Deduplication] Starting deduplication service...');
     this.isRunning = true;
 
     // 启动异步刷盘
@@ -76,14 +79,14 @@ class DeduplicationService {
     // 启动过期清理
     this.startCleanupTimer();
 
-    console.log('[Deduplication] Started');
+    log.debug('[Deduplication] Started');
   }
 
   /**
    * 停止去重服务
    */
   async stop(): Promise<void> {
-    console.log('[Deduplication] Stopping...');
+    log.debug('[Deduplication] Stopping...');
     this.isRunning = false;
 
     if (this.flushTimer) {
@@ -101,7 +104,7 @@ class DeduplicationService {
       await this.flushToDatabase();
     }
 
-    console.log('[Deduplication] Stopped');
+    log.debug('[Deduplication] Stopped');
   }
 
   /**
@@ -160,7 +163,7 @@ class DeduplicationService {
         checkTimeMs: Date.now() - startTime,
       };
     } catch (error) {
-      console.error(`[Deduplication] Check failed for ${eventId}:`, error);
+      log.error(`[Deduplication] Check failed for ${eventId}:`, error);
       // 出错时保守处理，认为不重复
       return {
         isDuplicate: false,
@@ -318,7 +321,7 @@ class DeduplicationService {
 
       this.metrics.flushedToDb += batch.length;
     } catch (error) {
-      console.error(`[Deduplication] Flush failed for ${batch.length} items:`, error);
+      log.error(`[Deduplication] Flush failed for ${batch.length} items:`, error);
       this.metrics.flushErrors++;
       // 放回队列
       this.flushQueue.unshift(...batch);
@@ -352,9 +355,9 @@ class DeduplicationService {
       await db.delete(idempotentRecords)
         .where(lt(idempotentRecords.expiresAt, now));
 
-      console.log('[Deduplication] Cleaned up expired records');
+      log.debug('[Deduplication] Cleaned up expired records');
     } catch (error) {
-      console.error('[Deduplication] Cleanup failed:', error);
+      log.error('[Deduplication] Cleanup failed:', error);
     }
   }
 

@@ -5,8 +5,11 @@
 
 import http from 'http';
 import https from 'https';
+import { createModuleLogger } from '../../core/logger';
+const log = createModuleLogger('prometheus');
 
 // 配置
+
 const PROMETHEUS_CONFIG = {
   host: process.env.PROMETHEUS_HOST || 'localhost',
   port: parseInt(process.env.PROMETHEUS_PORT || '9090'),
@@ -132,7 +135,7 @@ export class PrometheusClient {
   private static instance: PrometheusClient;
 
   private constructor() {
-    console.log('[Prometheus] Client initialized');
+    log.debug('[Prometheus] Client initialized');
   }
 
   static getInstance(): PrometheusClient {

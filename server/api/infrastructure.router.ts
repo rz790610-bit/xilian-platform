@@ -18,8 +18,9 @@ export const infrastructureRouter = router({
       const overview = await infrastructureService.getKubernetesOverview();
       return overview;
     } catch {
-      // 回退到模拟服务
-      return InfrastructureService.getClusterOverview();
+      // 服务不可用时返回降级数据
+      const data = InfrastructureService.getClusterOverview();
+      return { ...data, _fallback: true };
     }
   }),
 
@@ -27,8 +28,9 @@ export const infrastructureRouter = router({
     try {
       return await infrastructureService.getOverview();
     } catch {
-      // 回退到模拟数据
+      // 服务不可用时返回降级数据
       return {
+        _fallback: true,
         kubernetes: {
           connected: false,
           nodes: { total: 0, ready: 0 },
@@ -60,6 +62,7 @@ export const infrastructureRouter = router({
       return await infrastructureService.getHealth();
     } catch {
       return {
+        _fallback: true,
         status: 'unhealthy' as const,
         components: {
           kubernetes: { status: 'disconnected' },

@@ -1,9 +1,13 @@
+import { createModuleLogger } from '../../core/logger';
+const log = createModuleLogger('cacheService');
+
 /**
  * 多级缓存服务
  * 实现 L1 (内存) + L2 (Redis) 缓存策略
  */
 
 // 缓存配置
+
 interface CacheConfig {
   l1: {
     maxSize: number;
@@ -443,10 +447,10 @@ export const defaultCache = new MultiLevelCache({
 
 // 缓存预热
 export async function warmupCache(cache: MultiLevelCache): Promise<void> {
-  console.log('[Cache] Starting cache warmup...');
+  log.debug('[Cache] Starting cache warmup...');
   
   // 这里可以预加载常用数据
   // 例如：热门设备列表、系统配置等
   
-  console.log('[Cache] Cache warmup completed');
+  log.debug('[Cache] Cache warmup completed');
 }

@@ -18,6 +18,9 @@
  */
 
 import { Router, Request, Response, NextFunction } from 'express';
+import { createModuleLogger } from '../../core/logger';
+const log = createModuleLogger('metrics-collector');
+
 import client, {
   Registry,
   Counter,
@@ -26,9 +29,7 @@ import client, {
   Summary,
   collectDefaultMetrics,
 } from 'prom-client';
-import { createModuleLogger } from '../../core/logger';
 
-const log = createModuleLogger('metrics-collector');
 
 // ============================================================
 // 指标注册表

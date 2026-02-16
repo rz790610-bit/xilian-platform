@@ -4,6 +4,9 @@ import { invokeLLM } from "../core/llm";
 import { PDFParse } from "pdf-parse";
 import mammoth from "mammoth";
 import {
+import { createModuleLogger } from '../core/logger';
+const log = createModuleLogger('knowledge');
+
   createKbCollection, getKbCollections, getKbCollectionByName, deleteKbCollection,
   createKbPoint, createKbPointsBatch, getKbPoints, deleteKbPoint,
   createKbDocument, getKbDocuments, updateKbDocumentStatus,
@@ -51,7 +54,7 @@ async function parsePDF(buffer: Buffer): Promise<string> {
     const result = await parser.getText();
     return result.text || "";
   } catch (error) {
-    console.error("PDF parsing failed:", error);
+    log.error("PDF parsing failed:", error);
     throw new Error("PDF 解析失败");
   }
 }
@@ -61,7 +64,7 @@ async function parseWord(buffer: Buffer): Promise<string> {
     const result = await mammoth.extractRawText({ buffer });
     return result.value || "";
   } catch (error) {
-    console.error("Word parsing failed:", error);
+    log.error("Word parsing failed:", error);
     throw new Error("Word 文档解析失败");
   }
 }
@@ -146,7 +149,7 @@ async function upsertToQdrant(
     });
     return response.ok;
   } catch (error) {
-    console.error("Qdrant upsert failed:", error);
+    log.error("Qdrant upsert failed:", error);
     return false;
   }
 }
@@ -336,7 +339,7 @@ export const knowledgeRouter = router({
               relations = parsed.relations || [];
             }
           } catch (e) {
-            console.error("Entity extraction failed:", e);
+            log.error("Entity extraction failed:", e);
           }
         }
         
@@ -474,7 +477,7 @@ export const knowledgeRouter = router({
         }
         return { entities: [], relations: [] };
       } catch (error) {
-        console.error("Entity extraction failed:", error);
+        log.error("Entity extraction failed:", error);
         return { entities: [], relations: [], error: String(error) };
       }
     }),
@@ -497,7 +500,7 @@ export const knowledgeRouter = router({
         const msgContent = response.choices[0]?.message?.content;
         return { summary: typeof msgContent === 'string' ? msgContent : '' };
       } catch (error) {
-        console.error("Summarization failed:", error);
+        log.error("Summarization failed:", error);
         return { summary: "", error: String(error) };
       }
     }),

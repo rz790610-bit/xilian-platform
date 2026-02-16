@@ -1,9 +1,13 @@
+import { createModuleLogger } from '../core/logger';
+const log = createModuleLogger('monitoring');
+
 /**
  * PortAI Nexus - 增强版真实监控服务
  * 整合所有真实客户端，提供完整的监控能力
  */
 
 import { 
+
   getAllDatabaseStatus, 
   getMySQLStatus, 
   getRedisStatus, 
@@ -48,7 +52,7 @@ export class EnhancedMonitoringService {
 
   private constructor() {
     this.initializeDefaults();
-    console.log('[EnhancedMonitoring] 增强版监控服务已初始化');
+    log.debug('[EnhancedMonitoring] 增强版监控服务已初始化');
   }
 
   static getInstance(): EnhancedMonitoringService {
@@ -85,7 +89,7 @@ export class EnhancedMonitoringService {
     dbName: string, 
     action: 'backup' | 'optimize' | 'flush' | 'restart'
   ): Promise<{ success: boolean; message: string }> {
-    console.log(`[EnhancedMonitoring] Database action: ${action} on ${dbName}`);
+    log.debug(`[EnhancedMonitoring] Database action: ${action} on ${dbName}`);
     
     // 记录操作到告警
     await this.createAlert({
@@ -377,14 +381,14 @@ export class EnhancedMonitoringService {
       }
     });
 
-    console.log(`[EnhancedMonitoring] Health monitoring started with ${intervalMs}ms interval`);
+    log.debug(`[EnhancedMonitoring] Health monitoring started with ${intervalMs}ms interval`);
   }
 
   stopHealthMonitoring(): void {
     if (this.healthMonitor) {
       this.healthMonitor.stop();
       this.healthMonitor = null;
-      console.log('[EnhancedMonitoring] Health monitoring stopped');
+      log.debug('[EnhancedMonitoring] Health monitoring stopped');
     }
   }
 

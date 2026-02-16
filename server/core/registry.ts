@@ -1,3 +1,6 @@
+import { createModuleLogger } from './logger';
+const log = createModuleLogger('registry');
+
 /**
  * ============================================================================
  * 平台级统一注册中心 (Platform Registry)
@@ -39,6 +42,7 @@
 /** 所有注册项必须实现的基础元数据 */
 export interface RegistryItemMeta {
   /** 唯一标识符 */
+
   id: string;
   /** 显示标签 */
   label: string;
@@ -136,7 +140,7 @@ export class BaseRegistry<TItem extends RegistryItemMeta> {
   register(item: TItem): this {
     // 校验分类是否存在
     if (item.category && !this.categories.has(item.category)) {
-      console.warn(`[${this.name}] 注册项 "${item.id}" 的分类 "${item.category}" 未注册，自动创建`);
+      log.warn(`[${this.name}] 注册项 "${item.id}" 的分类 "${item.category}" 未注册，自动创建`);
       this.registerCategory({
         id: item.category,
         label: item.category,
@@ -266,7 +270,7 @@ export class BaseRegistry<TItem extends RegistryItemMeta> {
       try {
         listener(event, item, this);
       } catch (err) {
-        console.error(`[${this.name}] 事件监听器异常:`, err);
+        log.error(`[${this.name}] 事件监听器异常:`, err);
       }
     }
   }

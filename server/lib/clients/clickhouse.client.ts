@@ -5,8 +5,11 @@
 
 import { createClient, ClickHouseClient } from '@clickhouse/client';
 import type { SensorReading, QueryOptions } from "../../core/types/domain";
+import { createModuleLogger } from '../../core/logger';
+const log = createModuleLogger('clickhouse');
 
 // ClickHouse 配置
+
 const CLICKHOUSE_CONFIG = {
   host: process.env.CLICKHOUSE_HOST || 'http://localhost:8123',
   username: process.env.CLICKHOUSE_USER || 'xilian',
@@ -49,7 +52,7 @@ export async function checkConnection(): Promise<boolean> {
     return true;
   } catch (error) {
     isConnected = false;
-    console.error('[ClickHouse] Connection check failed:', error);
+    log.error('[ClickHouse] Connection check failed:', error);
     return false;
   }
 }
@@ -580,7 +583,7 @@ export async function getDatabaseStats(): Promise<{
       newestData: timeStats.newest ? new Date(timeStats.newest) : null,
     };
   } catch (error) {
-    console.error('[ClickHouse] Failed to get database stats:', error);
+    log.error('[ClickHouse] Failed to get database stats:', error);
     return {
       totalTables: 0,
       totalRows: 0,

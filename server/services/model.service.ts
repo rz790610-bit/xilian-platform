@@ -7,6 +7,7 @@ import { z } from "zod";
 import { publicProcedure, protectedProcedure, router } from "../core/trpc";
 import { getDb } from "../lib/db";
 import { 
+
   models, 
   modelConversations, 
   modelMessages, 
@@ -16,6 +17,8 @@ import {
 } from "../../drizzle/schema";
 import { eq, desc, and, sql, like } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
+import { createModuleLogger } from '../core/logger';
+const log = createModuleLogger('model');
 
 // Ollama API 配置
 const OLLAMA_BASE_URL = process.env.OLLAMA_URL || "http://localhost:11434";
@@ -59,7 +62,7 @@ async function getOllamaModels(): Promise<Array<{
     const data = await response.json();
     return data.models || [];
   } catch (error) {
-    console.error("[ModelService] Failed to get Ollama models:", error);
+    log.error("[ModelService] Failed to get Ollama models:", error);
     return [];
   }
 }
@@ -89,7 +92,7 @@ async function getOllamaRunningModels(): Promise<Array<{
     const data = await response.json();
     return data.models || [];
   } catch (error) {
-    console.error("[ModelService] Failed to get Ollama running models:", error);
+    log.error("[ModelService] Failed to get Ollama running models:", error);
     return [];
   }
 }

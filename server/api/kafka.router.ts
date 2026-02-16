@@ -8,6 +8,8 @@ import { publicProcedure, protectedProcedure, router } from '../core/trpc';
 import { kafkaClient, KAFKA_TOPICS } from '../lib/clients/kafka.client';
 import { kafkaEventBus } from '../lib/clients/kafkaEventBus';
 import { kafkaStreamProcessor } from '../services/kafkaStream.processor';
+import { createModuleLogger } from '../core/logger';
+const log = createModuleLogger('kafka');
 
 export const kafkaRouter = router({
   // ============ 集群状态 ============
@@ -15,6 +17,7 @@ export const kafkaRouter = router({
   /**
    * 获取 Kafka 集群状态
    */
+
   getClusterStatus: publicProcedure.query(async () => {
     const kafkaBrokers = process.env.KAFKA_BROKERS || 'localhost:9092';
     const isConfigured = !!process.env.KAFKA_BROKERS;
@@ -29,7 +32,7 @@ export const kafkaRouter = router({
         clusterInfo = await kafkaClient.getClusterInfo();
         health = await kafkaClient.healthCheck();
       } catch (error) {
-        console.error('[KafkaRouter] 获取集群状态失败:', error);
+        log.error('[KafkaRouter] 获取集群状态失败:', error);
       }
     }
 

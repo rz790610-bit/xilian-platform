@@ -11,10 +11,13 @@
 
 import { Kafka, Admin, Producer, Consumer, logLevel, CompressionTypes, ITopicConfig } from 'kafkajs';
 import { KAFKA_TOPICS, KAFKA_TOPIC_CLUSTER_CONFIGS, type TopicClusterConfig } from '../../shared/constants/kafka-topics.const';
+import { createModuleLogger } from '../../core/logger';
+const log = createModuleLogger('kafkaCluster');
 
 // ============ 配置类型 ============
 
 export interface KafkaClusterConfig {
+
   brokers: BrokerConfig[];
   clusterId: string;
   clientId: string;
@@ -105,13 +108,13 @@ export class KafkaClusterService {
    */
   async initialize(): Promise<void> {
     if (this.isInitialized) {
-      console.log('[KafkaCluster] Already initialized');
+      log.debug('[KafkaCluster] Already initialized');
       return;
     }
 
-    console.log('[KafkaCluster] Initializing Kafka cluster connection...');
-    console.log(`[KafkaCluster] Cluster ID: ${this.config.clusterId}`);
-    console.log(`[KafkaCluster] Brokers: ${this.config.brokers.map(b => `${b.host}:${b.port}`).join(', ')}`);
+    log.debug('[KafkaCluster] Initializing Kafka cluster connection...');
+    log.debug(`[KafkaCluster] Cluster ID: ${this.config.clusterId}`);
+    log.debug(`[KafkaCluster] Brokers: ${this.config.brokers.map(b => `${b.host}:${b.port}`).join(', ')}`);
 
     try {
       // 创建 Kafka 实例
@@ -146,9 +149,9 @@ export class KafkaClusterService {
       await this.ensureTopicsExist();
 
       this.isInitialized = true;
-      console.log('[KafkaCluster] Kafka cluster connection established');
+      log.debug('[KafkaCluster] Kafka cluster connection established');
     } catch (error) {
-      console.error('[KafkaCluster] Initialization failed:', error);
+      log.error('[KafkaCluster] Initialization failed:', error);
       throw error;
     }
   }
@@ -174,9 +177,9 @@ export class KafkaClusterService {
     }
 
     if (topicsToCreate.length > 0) {
-      console.log(`[KafkaCluster] Creating ${topicsToCreate.length} topics...`);
+      log.debug(`[KafkaCluster] Creating ${topicsToCreate.length} topics...`);
       await this.admin.createTopics({ topics: topicsToCreate });
-      console.log('[KafkaCluster] Topics created successfully');
+      log.debug('[KafkaCluster] Topics created successfully');
     }
   }
 
@@ -218,7 +221,7 @@ export class KafkaClusterService {
     try {
       const existingTopics = await this.admin.listTopics();
       if (existingTopics.includes(config.name)) {
-        console.log(`[KafkaCluster] Topic ${config.name} already exists`);
+        log.debug(`[KafkaCluster] Topic ${config.name} already exists`);
         return false;
       }
 
@@ -232,10 +235,10 @@ export class KafkaClusterService {
       });
 
       this.topicConfigs.set(config.name, config);
-      console.log(`[KafkaCluster] Topic ${config.name} created successfully`);
+      log.debug(`[KafkaCluster] Topic ${config.name} created successfully`);
       return true;
     } catch (error) {
-      console.error(`[KafkaCluster] Failed to create topic ${config.name}:`, error);
+      log.error(`[KafkaCluster] Failed to create topic ${config.name}:`, error);
       throw error;
     }
   }
@@ -251,10 +254,10 @@ export class KafkaClusterService {
     try {
       await this.admin.deleteTopics({ topics: [topicName] });
       this.topicConfigs.delete(topicName);
-      console.log(`[KafkaCluster] Topic ${topicName} deleted successfully`);
+      log.debug(`[KafkaCluster] Topic ${topicName} deleted successfully`);
       return true;
     } catch (error) {
-      console.error(`[KafkaCluster] Failed to delete topic ${topicName}:`, error);
+      log.error(`[KafkaCluster] Failed to delete topic ${topicName}:`, error);
       throw error;
     }
   }
@@ -277,10 +280,10 @@ export class KafkaClusterService {
         }],
       });
 
-      console.log(`[KafkaCluster] Topic ${topicName} config updated successfully`);
+      log.debug(`[KafkaCluster] Topic ${topicName} config updated successfully`);
       return true;
     } catch (error) {
-      console.error(`[KafkaCluster] Failed to update topic ${topicName} config:`, error);
+      log.error(`[KafkaCluster] Failed to update topic ${topicName} config:`, error);
       throw error;
     }
   }
@@ -416,7 +419,7 @@ export class KafkaClusterService {
     });
 
     this.consumers.set(consumerId, consumer);
-    console.log(`[KafkaCluster] Consumer ${consumerId} subscribed to: ${topics.join(', ')}`);
+    log.debug(`[KafkaCluster] Consumer ${consumerId} subscribed to: ${topics.join(', ')}`);
 
     return consumerId;
   }
@@ -429,7 +432,7 @@ export class KafkaClusterService {
     if (consumer) {
       await consumer.disconnect();
       this.consumers.delete(consumerId);
-      console.log(`[KafkaCluster] Consumer ${consumerId} stopped`);
+      log.debug(`[KafkaCluster] Consumer ${consumerId} stopped`);
     }
   }
 
@@ -507,7 +510,7 @@ export class KafkaClusterService {
         })),
       };
     } catch (error) {
-      console.error(`[KafkaCluster] Failed to get consumer group info:`, error);
+      log.error(`[KafkaCluster] Failed to get consumer group info:`, error);
       return null;
     }
   }
@@ -568,7 +571,7 @@ export class KafkaClusterService {
       partitions,
     });
 
-    console.log(`[KafkaCluster] Consumer group ${groupId} offsets reset for topic ${topic}`);
+    log.debug(`[KafkaCluster] Consumer group ${groupId} offsets reset for topic ${topic}`);
   }
 
   /**
@@ -673,7 +676,7 @@ export class KafkaClusterService {
           config: topicStats.config,
         });
       } catch (error) {
-        console.error(`[KafkaCluster] Failed to get stats for topic ${topic}:`, error);
+        log.error(`[KafkaCluster] Failed to get stats for topic ${topic}:`, error);
       }
     }
 
@@ -749,12 +752,12 @@ export class KafkaClusterService {
    * 关闭连接
    */
   async close(): Promise<void> {
-    console.log('[KafkaCluster] Closing Kafka cluster connections...');
+    log.debug('[KafkaCluster] Closing Kafka cluster connections...');
 
     // 停止所有消费者
     for (const [consumerId, consumer] of Array.from(this.consumers.entries())) {
       await consumer.disconnect();
-      console.log(`[KafkaCluster] Consumer ${consumerId} disconnected`);
+      log.debug(`[KafkaCluster] Consumer ${consumerId} disconnected`);
     }
     this.consumers.clear();
 
@@ -772,7 +775,7 @@ export class KafkaClusterService {
 
     this.kafka = null;
     this.isInitialized = false;
-    console.log('[KafkaCluster] Kafka cluster connections closed');
+    log.debug('[KafkaCluster] Kafka cluster connections closed');
   }
 }
 
@@ -852,7 +855,7 @@ export class KafkaArchiver {
    */
   async archive(topic: string): Promise<ArchiveFile | null> {
     if (!this.config.enabled) {
-      console.warn('[KafkaArchiver] Archiver is disabled');
+      log.warn('[KafkaArchiver] Archiver is disabled');
       return null;
     }
 
@@ -904,11 +907,11 @@ export class KafkaArchiver {
         await new Promise(resolve => setTimeout(resolve, Math.min(30000, 5000)));
         await kafkaCluster.stopConsumer(consumerId);
       } catch (kafkaErr) {
-        console.warn(`[KafkaArchiver] Kafka not available for topic ${topic}, creating empty archive:`, kafkaErr);
+        log.warn(`[KafkaArchiver] Kafka not available for topic ${topic}, creating empty archive:`, kafkaErr);
       }
 
       if (messages.length === 0) {
-        console.log(`[KafkaArchiver] No messages to archive for topic: ${topic}`);
+        log.debug(`[KafkaArchiver] No messages to archive for topic: ${topic}`);
         return null;
       }
 
@@ -966,7 +969,7 @@ export class KafkaArchiver {
 
       // 触发回调
       for (const cb of this.archiveCallbacks) {
-        try { cb(archiveFile); } catch (e) { console.warn('[KafkaArchiver] Callback error:', e); }
+        try { cb(archiveFile); } catch (e) { log.warn('[KafkaArchiver] Callback error:', e); }
       }
 
       // 保存元数据到 JSON 索引文件
@@ -979,13 +982,13 @@ export class KafkaArchiver {
         index.push(record);
         fs.writeFileSync(indexPath, JSON.stringify(index, null, 2));
       } catch (e) {
-        console.warn('[KafkaArchiver] Failed to update index:', e);
+        log.warn('[KafkaArchiver] Failed to update index:', e);
       }
 
-      console.log(`[KafkaArchiver] Archived ${messages.length} messages from ${topic} to ${filePath} (${(fileStats.size / 1024).toFixed(1)} KB)`);
+      log.debug(`[KafkaArchiver] Archived ${messages.length} messages from ${topic} to ${filePath} (${(fileStats.size / 1024).toFixed(1)} KB)`);
       return archiveFile;
     } catch (error) {
-      console.error(`[KafkaArchiver] Archive failed for topic ${topic}:`, error);
+      log.error(`[KafkaArchiver] Archive failed for topic ${topic}:`, error);
       return null;
     }
   }
@@ -1085,13 +1088,13 @@ export class KafkaArchiver {
       || (await this.listArchives()).find(r => r.id === archiveId);
 
     if (!record) {
-      console.error(`[KafkaArchiver] Archive not found: ${archiveId}`);
+      log.error(`[KafkaArchiver] Archive not found: ${archiveId}`);
       return false;
     }
 
     try {
       if (!fs.existsSync(record.filePath)) {
-        console.error(`[KafkaArchiver] Archive file not found: ${record.filePath}`);
+        log.error(`[KafkaArchiver] Archive file not found: ${record.filePath}`);
         return false;
       }
 
@@ -1117,16 +1120,16 @@ export class KafkaArchiver {
       if (messages.length > 0) {
         try {
           await kafkaCluster.produce(record.topic, messages);
-          console.log(`[KafkaArchiver] Restored ${messages.length} messages to topic ${record.topic}`);
+          log.debug(`[KafkaArchiver] Restored ${messages.length} messages to topic ${record.topic}`);
         } catch (kafkaErr) {
-          console.error(`[KafkaArchiver] Failed to produce restored messages:`, kafkaErr);
+          log.error(`[KafkaArchiver] Failed to produce restored messages:`, kafkaErr);
           return false;
         }
       }
 
       return true;
     } catch (error) {
-      console.error(`[KafkaArchiver] Restore failed for ${archiveId}:`, error);
+      log.error(`[KafkaArchiver] Restore failed for ${archiveId}:`, error);
       return false;
     }
   }
@@ -1153,7 +1156,7 @@ export class KafkaArchiver {
           toRemove.push(record.id);
           cleaned++;
         } catch (e) {
-          console.warn(`[KafkaArchiver] Failed to delete ${record.filePath}:`, e);
+          log.warn(`[KafkaArchiver] Failed to delete ${record.filePath}:`, e);
         }
       }
     }
@@ -1175,7 +1178,7 @@ export class KafkaArchiver {
       }
     } catch (e) { /* ignore */ }
 
-    console.log(`[KafkaArchiver] Cleaned up ${cleaned} expired archives (before ${cutoff.toISOString()})`);
+    log.debug(`[KafkaArchiver] Cleaned up ${cleaned} expired archives (before ${cutoff.toISOString()})`);
     return cleaned;
   }
 
@@ -1187,7 +1190,7 @@ export class KafkaArchiver {
 
   async start(): Promise<void> {
     this._isRunning = true;
-    console.log('[KafkaArchiver] Started');
+    log.debug('[KafkaArchiver] Started');
 
     // 启动定时归档（每小时归档一次配置的 topics）
     if (this.config.enabled && this.config.topics && this.config.topics.length > 0) {
@@ -1196,7 +1199,7 @@ export class KafkaArchiver {
           try {
             await this.archive(topic);
           } catch (e) {
-            console.error(`[KafkaArchiver] Scheduled archive failed for ${topic}:`, e);
+            log.error(`[KafkaArchiver] Scheduled archive failed for ${topic}:`, e);
           }
         }
       }, 3600000); // 每小时
@@ -1209,7 +1212,7 @@ export class KafkaArchiver {
       clearInterval(this.scheduledTimer);
       this.scheduledTimer = null;
     }
-    console.log('[KafkaArchiver] Stopped');
+    log.debug('[KafkaArchiver] Stopped');
   }
 
   getStatus(): { isRunning: boolean; stats: { filesCreated: number } } {

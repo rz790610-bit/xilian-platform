@@ -1,3 +1,6 @@
+import { createModuleLogger } from '../../../server/core/logger';
+const log = createModuleLogger('dashboardService');
+
 /**
  * 统一监控仪表盘服务
  * 提供集群概览、存储监控、数据流监控、API 网关、安全态势等仪表盘
@@ -6,6 +9,7 @@
 // ==================== 类型定义 ====================
 
 export interface MetricValue {
+
   value: number;
   unit: string;
   timestamp: number;
@@ -613,7 +617,7 @@ export class DashboardService {
   private cacheTTL = 30000; // 30 seconds
 
   constructor() {
-    console.log('[Dashboard] 仪表盘服务已初始化');
+    log.debug('[Dashboard] 仪表盘服务已初始化');
   }
 
   // ==================== 集群概览 ====================

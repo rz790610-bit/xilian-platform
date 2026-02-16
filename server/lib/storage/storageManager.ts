@@ -18,10 +18,13 @@ import { neo4jStorage, Neo4jStorage } from './neo4j.storage';
 import { qdrantStorage, QdrantStorage } from './qdrant.storage';
 import { minioStorage, MinioStorage } from './minio.storage';
 import { redisStorage, RedisStorage } from './redis.storage';
+import { createModuleLogger } from '../../core/logger';
+const log = createModuleLogger('storageManager');
 
 // ============ 类型定义 ============
 
 export interface StorageHealth {
+
   name: string;
   status: 'healthy' | 'degraded' | 'unhealthy' | 'unknown';
   latencyMs: number;
@@ -90,11 +93,11 @@ export class StorageManager {
    */
   async initialize(): Promise<void> {
     if (this.isInitialized) {
-      console.log('[StorageManager] Already initialized');
+      log.debug('[StorageManager] Already initialized');
       return;
     }
 
-    console.log('[StorageManager] Initializing storage services...');
+    log.debug('[StorageManager] Initializing storage services...');
     const startTime = Date.now();
 
     const initPromises: Promise<void>[] = [];
@@ -155,7 +158,7 @@ export class StorageManager {
     this.initializationTime = Date.now() - startTime;
     this.isInitialized = true;
 
-    console.log(`[StorageManager] Initialization completed in ${this.initializationTime}ms`);
+    log.debug(`[StorageManager] Initialization completed in ${this.initializationTime}ms`);
 
     // 启动定期健康检查
     this.startHealthCheckInterval();
@@ -170,9 +173,9 @@ export class StorageManager {
   ): Promise<void> {
     try {
       await initFn();
-      console.log(`[StorageManager] ${name} initialized successfully`);
+      log.debug(`[StorageManager] ${name} initialized successfully`);
     } catch (error) {
-      console.error(`[StorageManager] ${name} initialization failed:`, error);
+      log.error(`[StorageManager] ${name} initialization failed:`, error);
       // 不抛出错误，允许其他服务继续初始化
     }
   }
@@ -202,12 +205,12 @@ export class StorageManager {
       this.lastHealthCheck = new Date();
 
       if (status.overallStatus === 'unhealthy') {
-        console.warn('[StorageManager] Some services are unhealthy:', 
+        log.warn('[StorageManager] Some services are unhealthy:', 
           status.services.filter(s => s.status === 'unhealthy').map(s => s.name)
         );
       }
     } catch (error) {
-      console.error('[StorageManager] Health check failed:', error);
+      log.error('[StorageManager] Health check failed:', error);
     }
   }
 
@@ -564,7 +567,7 @@ export class StorageManager {
    * 关闭所有存储服务
    */
   async shutdown(): Promise<void> {
-    console.log('[StorageManager] Shutting down storage services...');
+    log.debug('[StorageManager] Shutting down storage services...');
 
     // 停止健康检查
     if (this.healthCheckInterval) {
@@ -576,15 +579,15 @@ export class StorageManager {
     const closePromises: Promise<void>[] = [];
 
     if (this.config.redis.enabled) {
-      closePromises.push(this.redis.close().catch(console.error));
+      closePromises.push(this.redis.close().catch((err) => log.error({ err }, "Close failed")));
     }
 
     if (this.config.neo4j.enabled) {
-      closePromises.push(this.neo4j.close().catch(console.error));
+      closePromises.push(this.neo4j.close().catch((err) => log.error({ err }, "Close failed")));
     }
 
     if (this.config.qdrant.enabled) {
-      closePromises.push(this.qdrant.close().catch(console.error));
+      closePromises.push(this.qdrant.close().catch((err) => log.error({ err }, "Close failed")));
     }
 
     // ClickHouse, PostgreSQL, MinIO 使用连接池，不需要显式关闭
@@ -592,7 +595,7 @@ export class StorageManager {
     await Promise.allSettled(closePromises);
 
     this.isInitialized = false;
-    console.log('[StorageManager] All storage services shut down');
+    log.debug('[StorageManager] All storage services shut down');
   }
 }
 

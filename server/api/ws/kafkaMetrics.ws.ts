@@ -13,8 +13,11 @@ import type { Server } from "http";
 import type { IncomingMessage } from "http";
 import { kafkaClient } from "../../lib/clients/kafka.client";
 import { redisClient } from "../../lib/clients/redis.client";
+import { createModuleLogger } from '../../core/logger';
+const log = createModuleLogger('kafkaMetrics.ws');
 
 // 指标数据结构
+
 interface KafkaMetrics {
   timestamp: number;
   throughput: {
@@ -156,7 +159,7 @@ async function getRealKafkaMetrics(): Promise<KafkaMetrics | null> {
       redis: null,
     };
   } catch (error) {
-    console.error("[KafkaMetricsWS] Error fetching Kafka metrics:", error);
+    log.error("[KafkaMetricsWS] Error fetching Kafka metrics:", error);
     return null;
   }
 }
@@ -233,7 +236,7 @@ async function collectAndBroadcastMetrics() {
       }
     });
   } catch (error) {
-    console.error("[KafkaMetricsWS] Error collecting metrics:", error);
+    log.error("[KafkaMetricsWS] Error collecting metrics:", error);
   }
 }
 
@@ -242,7 +245,7 @@ const KAFKA_WS_PATH = "/ws/kafka-metrics";
 // 初始化 WebSocket 服务器
 export function initKafkaMetricsWebSocket(server: Server) {
   if (wss) {
-    console.log("[KafkaMetricsWS] WebSocket server already initialized");
+    log.debug("[KafkaMetricsWS] WebSocket server already initialized");
     return;
   }
 
@@ -250,7 +253,7 @@ export function initKafkaMetricsWebSocket(server: Server) {
   // 这样不会与 Vite HMR WebSocket 冲突
   wss = new WebSocketServer({ noServer: true });
 
-  console.log("[KafkaMetricsWS] WebSocket server initialized at " + KAFKA_WS_PATH);
+  log.debug("[KafkaMetricsWS] WebSocket server initialized at " + KAFKA_WS_PATH);
 
   // 手动处理 upgrade 事件，只处理 /ws/kafka-metrics 路径
   server.on("upgrade", (request, socket, head) => {
@@ -265,7 +268,7 @@ export function initKafkaMetricsWebSocket(server: Server) {
   });
 
   wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
-    console.log("[KafkaMetricsWS] Client connected from:", req.socket.remoteAddress);
+    log.debug("[KafkaMetricsWS] Client connected from:", req.socket.remoteAddress);
     clients.add(ws);
 
     // 发送初始数据（包含历史记录）
@@ -291,12 +294,12 @@ export function initKafkaMetricsWebSocket(server: Server) {
     });
 
     ws.on("close", () => {
-      console.log("[KafkaMetricsWS] Client disconnected");
+      log.debug("[KafkaMetricsWS] Client disconnected");
       clients.delete(ws);
     });
 
     ws.on("error", (error: Error) => {
-      console.error("[KafkaMetricsWS] WebSocket error:", error);
+      log.error("[KafkaMetricsWS] WebSocket error:", error);
       clients.delete(ws);
     });
   });
@@ -304,7 +307,7 @@ export function initKafkaMetricsWebSocket(server: Server) {
   // 启动定时指标收集（每 5 秒）
   if (!metricsInterval) {
     metricsInterval = setInterval(collectAndBroadcastMetrics, 5000);
-    console.log("[KafkaMetricsWS] Metrics collection started (5s interval)");
+    log.debug("[KafkaMetricsWS] Metrics collection started (5s interval)");
   }
 }
 
@@ -322,7 +325,7 @@ export function closeKafkaMetricsWebSocket() {
     clients.clear();
     wss.close();
     wss = null;
-    console.log("[KafkaMetricsWS] WebSocket server closed");
+    log.debug("[KafkaMetricsWS] WebSocket server closed");
   }
 }
 

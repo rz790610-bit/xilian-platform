@@ -1,3 +1,6 @@
+import { createModuleLogger } from '../core/logger';
+const log = createModuleLogger('graphQuery.optimizer');
+
 /**
  * 图查询优化服务
  * Neo4j 索引 + Cypher 优化，查询性能提升 10 倍
@@ -6,6 +9,7 @@
 // ============ 类型定义 ============
 
 export interface GraphQueryPlan {
+
   queryId: string;
   originalQuery: string;
   optimizedQuery: string;
@@ -74,7 +78,7 @@ class GraphQueryOptimizer {
   async start(): Promise<void> {
     if (this.isRunning) return;
 
-    console.log('[GraphQueryOptimizer] Starting...');
+    log.debug('[GraphQueryOptimizer] Starting...');
     this.isRunning = true;
 
     // 初始化推荐索引
@@ -85,14 +89,14 @@ class GraphQueryOptimizer {
       this.cleanupCache();
     }, 30000);
 
-    console.log('[GraphQueryOptimizer] Started');
+    log.debug('[GraphQueryOptimizer] Started');
   }
 
   /**
    * 停止优化器
    */
   async stop(): Promise<void> {
-    console.log('[GraphQueryOptimizer] Stopping...');
+    log.debug('[GraphQueryOptimizer] Stopping...');
     this.isRunning = false;
 
     if (this.cleanupTimer) {
@@ -100,7 +104,7 @@ class GraphQueryOptimizer {
       this.cleanupTimer = null;
     }
 
-    console.log('[GraphQueryOptimizer] Stopped');
+    log.debug('[GraphQueryOptimizer] Stopped');
   }
 
   /**
@@ -184,7 +188,7 @@ class GraphQueryOptimizer {
       this.indexes.set(index.indexName, index);
     }
 
-    console.log(`[GraphQueryOptimizer] Initialized ${recommendedIndexes.length} recommended indexes`);
+    log.debug(`[GraphQueryOptimizer] Initialized ${recommendedIndexes.length} recommended indexes`);
   }
 
   /**
@@ -324,12 +328,12 @@ class GraphQueryOptimizer {
       ? `CREATE INDEX ${config.indexName} IF NOT EXISTS FOR (n:${config.tagName}) ON (${config.fields.map(f => `n.${f}`).join(', ')})`
       : `CREATE INDEX ${config.indexName} IF NOT EXISTS FOR ()-[r:${config.tagName}]-() ON (${config.fields.map(f => `r.${f}`).join(', ')})`;
 
-    console.log(`[GraphQueryOptimizer] Index creation statement: ${createStatement}`);
+    log.debug(`[GraphQueryOptimizer] Index creation statement: ${createStatement}`);
 
     // 模拟索引构建
     setTimeout(() => {
       index.status = 'active';
-      console.log(`[GraphQueryOptimizer] Index ${config.indexName} built successfully`);
+      log.debug(`[GraphQueryOptimizer] Index ${config.indexName} built successfully`);
     }, 2000);
 
     return index;
@@ -346,7 +350,7 @@ class GraphQueryOptimizer {
       ? `DROP TAG INDEX IF EXISTS ${indexName}`
       : `DROP EDGE INDEX IF EXISTS ${indexName}`;
 
-    console.log(`[GraphQueryOptimizer] Index drop statement: ${dropStatement}`);
+    log.debug(`[GraphQueryOptimizer] Index drop statement: ${dropStatement}`);
 
     this.indexes.delete(indexName);
     return true;

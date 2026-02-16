@@ -1,3 +1,6 @@
+import { createModuleLogger } from '../../../server/core/logger';
+const log = createModuleLogger('automationService');
+
 /**
  * 自动化运维服务
  * 提供自动扩缩容、故障自愈、备份恢复、版本回滚等功能
@@ -6,6 +9,7 @@
 // ==================== 类型定义 ====================
 
 export interface ScalingPolicy {
+
   id: string;
   name: string;
   target: {
@@ -216,7 +220,7 @@ export class AutoScalingService {
   private evaluationIntervals: Map<string, NodeJS.Timeout> = new Map();
 
   constructor() {
-    console.log('[AutoScaling] 自动扩缩容服务已初始化');
+    log.debug('[AutoScaling] 自动扩缩容服务已初始化');
   }
 
   // 创建扩缩容策略
@@ -234,7 +238,7 @@ export class AutoScalingService {
       this.startEvaluation(newPolicy.id);
     }
 
-    console.log(`[AutoScaling] 创建扩缩容策略: ${newPolicy.name}`);
+    log.debug(`[AutoScaling] 创建扩缩容策略: ${newPolicy.name}`);
     return newPolicy;
   }
 
@@ -266,7 +270,7 @@ export class AutoScalingService {
   deletePolicy(id: string): void {
     this.stopEvaluation(id);
     this.policies.delete(id);
-    console.log(`[AutoScaling] 删除扩缩容策略: ${id}`);
+    log.debug(`[AutoScaling] 删除扩缩容策略: ${id}`);
   }
 
   // 获取策略
@@ -349,7 +353,7 @@ export class AutoScalingService {
           await this.executeScaling(event, policy);
         }
       } catch (error) {
-        console.error(`[AutoScaling] 评估失败: ${error}`);
+        log.error(`[AutoScaling] 评估失败: ${error}`);
       }
     };
 
@@ -423,17 +427,17 @@ export class AutoScalingService {
   // 执行扩缩容
   private async executeScaling(event: ScalingEvent, policy: ScalingPolicy): Promise<void> {
     event.status = 'in-progress';
-    console.log(`[AutoScaling] 执行扩缩容: ${policy.target.name} ${event.fromReplicas} -> ${event.toReplicas}`);
+    log.debug(`[AutoScaling] 执行扩缩容: ${policy.target.name} ${event.fromReplicas} -> ${event.toReplicas}`);
 
     try {
       // 模拟扩缩容操作
       await new Promise(resolve => setTimeout(resolve, 1000));
       event.status = 'completed';
-      console.log(`[AutoScaling] 扩缩容完成: ${policy.target.name}`);
+      log.debug(`[AutoScaling] 扩缩容完成: ${policy.target.name}`);
     } catch (error) {
       event.status = 'failed';
       event.error = String(error);
-      console.error(`[AutoScaling] 扩缩容失败: ${error}`);
+      log.error(`[AutoScaling] 扩缩容失败: ${error}`);
     }
   }
 
@@ -455,7 +459,7 @@ export class SelfHealingService {
   private monitoringIntervals: Map<string, NodeJS.Timeout> = new Map();
 
   constructor() {
-    console.log('[SelfHealing] 故障自愈服务已初始化');
+    log.debug('[SelfHealing] 故障自愈服务已初始化');
   }
 
   // 创建自愈规则
@@ -473,7 +477,7 @@ export class SelfHealingService {
       this.startMonitoring(newRule.id);
     }
 
-    console.log(`[SelfHealing] 创建自愈规则: ${newRule.name}`);
+    log.debug(`[SelfHealing] 创建自愈规则: ${newRule.name}`);
     return newRule;
   }
 
@@ -505,7 +509,7 @@ export class SelfHealingService {
   deleteRule(id: string): void {
     this.stopMonitoring(id);
     this.rules.delete(id);
-    console.log(`[SelfHealing] 删除自愈规则: ${id}`);
+    log.debug(`[SelfHealing] 删除自愈规则: ${id}`);
   }
 
   // 获取规则
@@ -608,7 +612,7 @@ export class SelfHealingService {
           await this.executeHealing(event, rule);
         }
       } catch (error) {
-        console.error(`[SelfHealing] 监控失败: ${error}`);
+        log.error(`[SelfHealing] 监控失败: ${error}`);
       }
     };
 
@@ -648,24 +652,24 @@ export class SelfHealingService {
   // 执行自愈
   private async executeHealing(event: HealingEvent, rule: SelfHealingRule): Promise<void> {
     event.status = 'executing';
-    console.log(`[SelfHealing] 执行自愈: ${rule.name} -> ${event.action.target}`);
+    log.debug(`[SelfHealing] 执行自愈: ${rule.name} -> ${event.action.target}`);
 
     try {
       // 模拟自愈操作
       await this.performAction(event.action.type, event.action.target, event.action.params);
       event.status = 'completed';
       event.endTime = Date.now();
-      console.log(`[SelfHealing] 自愈完成: ${event.action.target}`);
+      log.debug(`[SelfHealing] 自愈完成: ${event.action.target}`);
     } catch (error) {
       if (event.retryCount < rule.maxRetries) {
         event.retryCount++;
-        console.log(`[SelfHealing] 重试自愈 (${event.retryCount}/${rule.maxRetries}): ${event.action.target}`);
+        log.debug(`[SelfHealing] 重试自愈 (${event.retryCount}/${rule.maxRetries}): ${event.action.target}`);
         await this.executeHealing(event, rule);
       } else {
         event.status = 'failed';
         event.error = String(error);
         event.endTime = Date.now();
-        console.error(`[SelfHealing] 自愈失败: ${error}`);
+        log.error(`[SelfHealing] 自愈失败: ${error}`);
       }
     }
   }
@@ -677,25 +681,25 @@ export class SelfHealingService {
 
     switch (type) {
       case 'restart-pod':
-        console.log(`[SelfHealing] 重启 Pod: ${target}`);
+        log.debug(`[SelfHealing] 重启 Pod: ${target}`);
         break;
       case 'reschedule-pod':
-        console.log(`[SelfHealing] 重新调度 Pod: ${target}`);
+        log.debug(`[SelfHealing] 重新调度 Pod: ${target}`);
         break;
       case 'cordon-node':
-        console.log(`[SelfHealing] 隔离节点: ${target}`);
+        log.debug(`[SelfHealing] 隔离节点: ${target}`);
         break;
       case 'drain-node':
-        console.log(`[SelfHealing] 排空节点: ${target}`);
+        log.debug(`[SelfHealing] 排空节点: ${target}`);
         break;
       case 'scale-up':
-        console.log(`[SelfHealing] 扩容: ${target}`);
+        log.debug(`[SelfHealing] 扩容: ${target}`);
         break;
       case 'failover':
-        console.log(`[SelfHealing] 故障转移: ${target}`);
+        log.debug(`[SelfHealing] 故障转移: ${target}`);
         break;
       default:
-        console.log(`[SelfHealing] 自定义操作: ${type} -> ${target}`);
+        log.debug(`[SelfHealing] 自定义操作: ${type} -> ${target}`);
     }
   }
 
@@ -717,7 +721,7 @@ export class BackupRecoveryService {
   private scheduleIntervals: Map<string, NodeJS.Timeout> = new Map();
 
   constructor() {
-    console.log('[BackupRecovery] 备份恢复服务已初始化');
+    log.debug('[BackupRecovery] 备份恢复服务已初始化');
   }
 
   // 创建备份策略
@@ -735,7 +739,7 @@ export class BackupRecoveryService {
       this.scheduleBackup(newPolicy.id);
     }
 
-    console.log(`[BackupRecovery] 创建备份策略: ${newPolicy.name}`);
+    log.debug(`[BackupRecovery] 创建备份策略: ${newPolicy.name}`);
     return newPolicy;
   }
 
@@ -767,7 +771,7 @@ export class BackupRecoveryService {
   deletePolicy(id: string): void {
     this.unscheduleBackup(id);
     this.policies.delete(id);
-    console.log(`[BackupRecovery] 删除备份策略: ${id}`);
+    log.debug(`[BackupRecovery] 删除备份策略: ${id}`);
   }
 
   // 获取策略
@@ -923,7 +927,7 @@ export class BackupRecoveryService {
   // 执行备份
   private async executeBackup(job: BackupJob, policy: BackupPolicy): Promise<void> {
     job.status = 'running';
-    console.log(`[BackupRecovery] 开始备份: ${policy.name}`);
+    log.debug(`[BackupRecovery] 开始备份: ${policy.name}`);
 
     try {
       // 模拟备份过程
@@ -943,19 +947,19 @@ export class BackupRecoveryService {
       ];
       job.status = 'completed';
       job.endTime = Date.now();
-      console.log(`[BackupRecovery] 备份完成: ${policy.name}`);
+      log.debug(`[BackupRecovery] 备份完成: ${policy.name}`);
     } catch (error) {
       job.status = 'failed';
       job.error = String(error);
       job.endTime = Date.now();
-      console.error(`[BackupRecovery] 备份失败: ${error}`);
+      log.error(`[BackupRecovery] 备份失败: ${error}`);
     }
   }
 
   // 执行恢复
   private async executeRestore(job: RestoreJob, backup: BackupJob): Promise<void> {
     job.status = 'running';
-    console.log(`[BackupRecovery] 开始恢复: ${backup.id}`);
+    log.debug(`[BackupRecovery] 开始恢复: ${backup.id}`);
 
     try {
       // 模拟恢复过程
@@ -966,12 +970,12 @@ export class BackupRecoveryService {
 
       job.status = 'completed';
       job.endTime = Date.now();
-      console.log(`[BackupRecovery] 恢复完成: ${backup.id}`);
+      log.debug(`[BackupRecovery] 恢复完成: ${backup.id}`);
     } catch (error) {
       job.status = 'failed';
       job.error = String(error);
       job.endTime = Date.now();
-      console.error(`[BackupRecovery] 恢复失败: ${error}`);
+      log.error(`[BackupRecovery] 恢复失败: ${error}`);
     }
   }
 
@@ -992,7 +996,7 @@ export class RollbackService {
   private revisionHistory: Map<string, Array<{ revision: number; timestamp: number; image: string }>> = new Map();
 
   constructor() {
-    console.log('[Rollback] 版本回滚服务已初始化');
+    log.debug('[Rollback] 版本回滚服务已初始化');
   }
 
   // 创建回滚策略
@@ -1009,7 +1013,7 @@ export class RollbackService {
     // 初始化版本历史
     this.initRevisionHistory(newPolicy);
 
-    console.log(`[Rollback] 创建回滚策略: ${newPolicy.name}`);
+    log.debug(`[Rollback] 创建回滚策略: ${newPolicy.name}`);
     return newPolicy;
   }
 
@@ -1033,7 +1037,7 @@ export class RollbackService {
   // 删除回滚策略
   deletePolicy(id: string): void {
     this.policies.delete(id);
-    console.log(`[Rollback] 删除回滚策略: ${id}`);
+    log.debug(`[Rollback] 删除回滚策略: ${id}`);
   }
 
   // 获取策略
@@ -1119,7 +1123,7 @@ export class RollbackService {
   // 执行回滚
   private async executeRollback(event: RollbackEvent, policy: RollbackPolicy): Promise<void> {
     event.status = 'in-progress';
-    console.log(`[Rollback] 执行回滚: ${policy.target.name} r${event.fromRevision} -> r${event.toRevision}`);
+    log.debug(`[Rollback] 执行回滚: ${policy.target.name} r${event.fromRevision} -> r${event.toRevision}`);
 
     try {
       // 模拟回滚过程
@@ -1135,16 +1139,16 @@ export class RollbackService {
 
       event.status = 'completed';
       event.endTime = Date.now();
-      console.log(`[Rollback] 回滚完成: ${policy.target.name}`);
+      log.debug(`[Rollback] 回滚完成: ${policy.target.name}`);
     } catch (error) {
       event.status = 'failed';
       event.error = String(error);
       event.endTime = Date.now();
-      console.error(`[Rollback] 回滚失败: ${error}`);
+      log.error(`[Rollback] 回滚失败: ${error}`);
 
       // 如果启用了自动回滚，尝试恢复到原版本
       if (policy.strategy.autoRollback) {
-        console.log(`[Rollback] 尝试自动恢复到原版本 r${event.fromRevision}`);
+        log.debug(`[Rollback] 尝试自动恢复到原版本 r${event.fromRevision}`);
         event.status = 'rolled-back';
       }
     }

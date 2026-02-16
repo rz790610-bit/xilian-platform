@@ -10,11 +10,15 @@
 import { kafkaCluster, XILIAN_TOPICS } from './kafkaCluster';
 import { SensorReading, AnomalyResult, WindowConfig } from "../../core/types/domain";
 import { detectZScore as unifiedDetectZScore, determineSeverity as unifiedDetermineSeverity } from './anomalyEngine';
+import { createModuleLogger } from '../../core/logger';
+const log = createModuleLogger('flinkProcessor');
+
 export { SensorReading, AnomalyResult, WindowConfig };
 
 // ============ 类型定义 ============
 
 export interface AnomalyDetectorConfig {
+
   window: WindowConfig;
   threshold: number; // Z-Score 阈值
   minDataPoints: number;
@@ -168,11 +172,11 @@ export class AnomalyDetector {
 
   async start(): Promise<void> {
     if (this.isRunning) {
-      console.log('[AnomalyDetector] Already running');
+      log.debug('[AnomalyDetector] Already running');
       return;
     }
 
-    console.log('[AnomalyDetector] Starting anomaly detector...');
+    log.debug('[AnomalyDetector] Starting anomaly detector...');
     this.isRunning = true;
 
     try {
@@ -189,9 +193,9 @@ export class AnomalyDetector {
         this.slideWindows();
       }, this.config.window.slideMs);
 
-      console.log('[AnomalyDetector] Anomaly detector started');
+      log.debug('[AnomalyDetector] Anomaly detector started');
     } catch (error) {
-      console.error('[AnomalyDetector] Failed to start:', error);
+      log.error('[AnomalyDetector] Failed to start:', error);
       this.isRunning = false;
       throw error;
     }
@@ -200,7 +204,7 @@ export class AnomalyDetector {
   async stop(): Promise<void> {
     if (!this.isRunning) return;
 
-    console.log('[AnomalyDetector] Stopping anomaly detector...');
+    log.debug('[AnomalyDetector] Stopping anomaly detector...');
     this.isRunning = false;
 
     if (this.slideTimer) {
@@ -214,7 +218,7 @@ export class AnomalyDetector {
     }
 
     this.windowState.clear();
-    console.log('[AnomalyDetector] Anomaly detector stopped');
+    log.debug('[AnomalyDetector] Anomaly detector stopped');
   }
 
   private async handleMessage(message: {
@@ -241,7 +245,7 @@ export class AnomalyDetector {
         await this.emitAnomaly(result);
       }
     } catch (error) {
-      console.error('[AnomalyDetector] Error processing message:', error);
+      log.error('[AnomalyDetector] Error processing message:', error);
     }
   }
 
@@ -311,12 +315,12 @@ export class AnomalyDetector {
     // 处理已关闭的窗口
     for (const window of evicted) {
       // 可以在这里进行窗口级别的聚合分析
-      console.log(`[AnomalyDetector] Window closed: ${window.key}, points: ${window.data.length}`);
+      log.debug(`[AnomalyDetector] Window closed: ${window.key}, points: ${window.data.length}`);
     }
   }
 
   private async emitAnomaly(result: AnomalyResult): Promise<void> {
-    console.log(`[AnomalyDetector] Anomaly detected: ${result.deviceId}/${result.sensorId} score=${result.score.toFixed(2)}`);
+    log.debug(`[AnomalyDetector] Anomaly detected: ${result.deviceId}/${result.sensorId} score=${result.score.toFixed(2)}`);
 
     // 发送到 Kafka
     try {
@@ -325,7 +329,7 @@ export class AnomalyDetector {
         value: JSON.stringify(result),
       }]);
     } catch (error) {
-      console.error('[AnomalyDetector] Failed to emit anomaly:', error);
+      log.error('[AnomalyDetector] Failed to emit anomaly:', error);
     }
 
     // 通知处理器
@@ -333,7 +337,7 @@ export class AnomalyDetector {
       try {
         handler(result);
       } catch (error) {
-        console.error('[AnomalyDetector] Handler error:', error);
+        log.error('[AnomalyDetector] Handler error:', error);
       }
     }
   }
@@ -408,11 +412,11 @@ export class MetricsAggregator {
 
   async start(): Promise<void> {
     if (this.isRunning) {
-      console.log('[MetricsAggregator] Already running');
+      log.debug('[MetricsAggregator] Already running');
       return;
     }
 
-    console.log('[MetricsAggregator] Starting metrics aggregator...');
+    log.debug('[MetricsAggregator] Starting metrics aggregator...');
     this.isRunning = true;
 
     try {
@@ -434,9 +438,9 @@ export class MetricsAggregator {
         this.flushAggregations('1h');
       }, this.config.windows['1h'].sizeMs);
 
-      console.log('[MetricsAggregator] Metrics aggregator started');
+      log.debug('[MetricsAggregator] Metrics aggregator started');
     } catch (error) {
-      console.error('[MetricsAggregator] Failed to start:', error);
+      log.error('[MetricsAggregator] Failed to start:', error);
       this.isRunning = false;
       throw error;
     }
@@ -445,7 +449,7 @@ export class MetricsAggregator {
   async stop(): Promise<void> {
     if (!this.isRunning) return;
 
-    console.log('[MetricsAggregator] Stopping metrics aggregator...');
+    log.debug('[MetricsAggregator] Stopping metrics aggregator...');
     this.isRunning = false;
 
     if (this.flush1mTimer) {
@@ -469,7 +473,7 @@ export class MetricsAggregator {
 
     this.window1m.clear();
     this.window1h.clear();
-    console.log('[MetricsAggregator] Metrics aggregator stopped');
+    log.debug('[MetricsAggregator] Metrics aggregator stopped');
   }
 
   private async handleMessage(message: {
@@ -491,7 +495,7 @@ export class MetricsAggregator {
       this.window1m.add(key, reading, Number(reading.timestamp));
       this.window1h.add(key, reading, Number(reading.timestamp));
     } catch (error) {
-      console.error('[MetricsAggregator] Error processing message:', error);
+      log.error('[MetricsAggregator] Error processing message:', error);
     }
   }
 
@@ -575,7 +579,7 @@ export class MetricsAggregator {
         value: JSON.stringify(result),
       }]);
     } catch (error) {
-      console.error('[MetricsAggregator] Failed to emit aggregation:', error);
+      log.error('[MetricsAggregator] Failed to emit aggregation:', error);
     }
 
     // 通知处理器
@@ -583,7 +587,7 @@ export class MetricsAggregator {
       try {
         handler(result);
       } catch (error) {
-        console.error('[MetricsAggregator] Handler error:', error);
+        log.error('[MetricsAggregator] Handler error:', error);
       }
     }
   }
@@ -647,11 +651,11 @@ export class KGBuilder {
 
   async start(): Promise<void> {
     if (this.isRunning) {
-      console.log('[KGBuilder] Already running');
+      log.debug('[KGBuilder] Already running');
       return;
     }
 
-    console.log('[KGBuilder] Starting KG builder...');
+    log.debug('[KGBuilder] Starting KG builder...');
     this.isRunning = true;
 
     try {
@@ -668,9 +672,9 @@ export class KGBuilder {
         this.flushBuffers();
       }, this.config.flushIntervalMs);
 
-      console.log('[KGBuilder] KG builder started');
+      log.debug('[KGBuilder] KG builder started');
     } catch (error) {
-      console.error('[KGBuilder] Failed to start:', error);
+      log.error('[KGBuilder] Failed to start:', error);
       this.isRunning = false;
       throw error;
     }
@@ -679,7 +683,7 @@ export class KGBuilder {
   async stop(): Promise<void> {
     if (!this.isRunning) return;
 
-    console.log('[KGBuilder] Stopping KG builder...');
+    log.debug('[KGBuilder] Stopping KG builder...');
     this.isRunning = false;
 
     if (this.flushTimer) {
@@ -697,7 +701,7 @@ export class KGBuilder {
 
     this.entityBuffer = [];
     this.relationBuffer = [];
-    console.log('[KGBuilder] KG builder stopped');
+    log.debug('[KGBuilder] KG builder stopped');
   }
 
   private async handleMessage(message: {
@@ -715,7 +719,7 @@ export class KGBuilder {
       const cdcEvent: CDCEvent = JSON.parse(message.value);
       await this.processCDCEvent(cdcEvent);
     } catch (error) {
-      console.error('[KGBuilder] Error processing message:', error);
+      log.error('[KGBuilder] Error processing message:', error);
     }
   }
 
@@ -834,14 +838,14 @@ export class KGBuilder {
             try {
               handler(entity);
             } catch (error) {
-              console.error('[KGBuilder] Entity handler error:', error);
+              log.error('[KGBuilder] Entity handler error:', error);
             }
           }
         }
 
-        console.log(`[KGBuilder] Flushed ${this.entityBuffer.length} entities`);
+        log.debug(`[KGBuilder] Flushed ${this.entityBuffer.length} entities`);
       } catch (error) {
-        console.error('[KGBuilder] Failed to flush entities:', error);
+        log.error('[KGBuilder] Failed to flush entities:', error);
       }
     }
 
@@ -851,7 +855,7 @@ export class KGBuilder {
         try {
           handler(relation);
         } catch (error) {
-          console.error('[KGBuilder] Relation handler error:', error);
+          log.error('[KGBuilder] Relation handler error:', error);
         }
       }
     }

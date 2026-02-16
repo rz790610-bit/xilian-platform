@@ -6,10 +6,13 @@
 import { kafkaClient, KAFKA_TOPICS, KafkaMessage, MessageHandler } from './kafka.client';
 import { getDb } from '../db';
 import { eventLogs } from '../../../drizzle/schema';
+
 const eventLog = eventLogs;
 const db = getDb;
 import { eq, desc, and, gte, lte, sql } from 'drizzle-orm';
 import type { EventHandler, EventPayload } from "../../core/types/domain";
+import { createModuleLogger } from '../../core/logger';
+const log = createModuleLogger('kafkaEventBus');
 
 // EventPayload 和 EventHandler 已从 domain.ts 统一导入
 // 订阅信息
@@ -44,11 +47,11 @@ class KafkaEventBus {
       await this.createDefaultTopics();
 
       this.isInitialized = true;
-      console.log('[KafkaEventBus] 事件总线初始化完成');
+      log.debug('[KafkaEventBus] 事件总线初始化完成');
     } catch (error) {
-      console.error('[KafkaEventBus] 初始化失败:', error);
+      log.error('[KafkaEventBus] 初始化失败:', error);
       // 如果 Kafka 不可用，使用降级模式
-      console.log('[KafkaEventBus] 将使用内存模式作为降级方案');
+      log.debug('[KafkaEventBus] 将使用内存模式作为降级方案');
       this.isInitialized = true;
     }
   }
@@ -62,7 +65,7 @@ class KafkaEventBus {
       try {
         await kafkaClient.createTopic(topic, 3, 1);
       } catch (error) {
-        console.warn(`[KafkaEventBus] 创建主题 ${topic} 失败:`, error);
+        log.warn(`[KafkaEventBus] 创建主题 ${topic} 失败:`, error);
       }
     }
   }
@@ -96,7 +99,7 @@ class KafkaEventBus {
         };
         await kafkaClient.produce(topic, [message]);
       } catch (error) {
-        console.error('[KafkaEventBus] Kafka 发送失败，保存到数据库:', error);;
+        log.error('[KafkaEventBus] Kafka 发送失败，保存到数据库:', error);;
       }
     }
 
@@ -117,7 +120,7 @@ class KafkaEventBus {
         createdAt: new Date(timestamp),
       });
     } catch (error) {
-      console.error('[KafkaEventBus] 数据库保存失败:', error);
+      log.error('[KafkaEventBus] 数据库保存失败:', error);
     }
 
     // 触发本地订阅者（用于实时处理）
@@ -190,7 +193,7 @@ class KafkaEventBus {
         }));
         await kafkaClient.produceBatch(batchMessages);
       } catch (error) {
-        console.error('[KafkaEventBus] Kafka 批量发送失败:', error);
+        log.error('[KafkaEventBus] Kafka 批量发送失败:', error);
       }
     }
 
@@ -206,7 +209,7 @@ class KafkaEventBus {
         }
       }
     } catch (error) {
-      console.error('[KafkaEventBus] 数据库批量保存失败:', error);
+      log.error('[KafkaEventBus] 数据库批量保存失败:', error);
     }
 
     return eventIds;
@@ -247,19 +250,19 @@ class KafkaEventBus {
                   .set({ processed: true, processedAt: new Date() })
                   .where(eq(eventLog.eventId, event.eventId || ''));
               } catch (error) {
-                console.error('[KafkaEventBus] 处理消息失败:', error);
+                log.error('[KafkaEventBus] 处理消息失败:', error);
               }
             }
           }
         );
         subscription.consumerId = consumerId;
       } catch (error) {
-        console.error('[KafkaEventBus] 创建 Kafka 消费者失败:', error);
+        log.error('[KafkaEventBus] 创建 Kafka 消费者失败:', error);
       }
     }
 
     this.subscriptions.set(subscriptionId, subscription);
-    console.log(`[KafkaEventBus] 订阅 ${topic} 成功，ID: ${subscriptionId}`);
+    log.debug(`[KafkaEventBus] 订阅 ${topic} 成功，ID: ${subscriptionId}`);
 
     return subscriptionId;
   }
@@ -279,7 +282,7 @@ class KafkaEventBus {
     }
 
     this.subscriptions.delete(subscriptionId);
-    console.log(`[KafkaEventBus] 取消订阅 ${subscriptionId}`);
+    log.debug(`[KafkaEventBus] 取消订阅 ${subscriptionId}`);
   }
 
   /**
@@ -291,7 +294,7 @@ class KafkaEventBus {
         try {
           await subscription.handler(event);
         } catch (error) {
-          console.error(`[KafkaEventBus] 处理器 ${subscription.id} 执行失败:`, error);
+          log.error(`[KafkaEventBus] 处理器 ${subscription.id} 执行失败:`, error);
         }
       }
     }
@@ -464,7 +467,7 @@ class KafkaEventBus {
     await kafkaClient.shutdown();
 
     this.isInitialized = false;
-    console.log('[KafkaEventBus] 事件总线已关闭');
+    log.debug('[KafkaEventBus] 事件总线已关闭');
   }
 }
 

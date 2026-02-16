@@ -1,3 +1,6 @@
+import { createModuleLogger } from '../../core/logger';
+const log = createModuleLogger('backpressure');
+
 /**
  * 背压控制模块 - 平台基础设施层
  * 
@@ -13,9 +16,7 @@
  * 依赖: server/core/logger
  */
 
-import { createModuleLogger } from '../../core/logger';
 
-const log = createModuleLogger('backpressure');
 
 // ============================================================
 // 令牌桶限流器

@@ -18,10 +18,13 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import type { Server } from 'http';
 import type { IncomingMessage } from 'http';
+import { createModuleLogger } from '../../core/logger';
+const log = createModuleLogger('gateway.ws');
 
 // ============ 类型定义 ============
 
 export type ChannelType =
+
   | 'kafka-metrics'
   | 'anomaly-alerts'
   | 'device-status'
@@ -68,12 +71,12 @@ class WebSocketGateway {
    */
   init(server: Server, path: string = '/ws/gateway'): void {
     if (this.wss) {
-      console.log('[WSGateway] Already initialized');
+      log.debug('[WSGateway] Already initialized');
       return;
     }
 
     this.wss = new WebSocketServer({ noServer: true });
-    console.log(`[WSGateway] Initialized at ${path}`);
+    log.debug(`[WSGateway] Initialized at ${path}`);
 
     // 手动处理 upgrade 事件
     server.on('upgrade', (request, socket, head) => {
@@ -111,7 +114,7 @@ class WebSocketGateway {
     };
 
     this.clients.set(ws, clientState);
-    console.log(`[WSGateway] Client connected (total: ${this.clients.size})`);
+    log.debug(`[WSGateway] Client connected (total: ${this.clients.size})`);
 
     // 发送欢迎消息
     this.sendToClient(ws, {
@@ -139,11 +142,11 @@ class WebSocketGateway {
 
     ws.on('close', () => {
       this.clients.delete(ws);
-      console.log(`[WSGateway] Client disconnected (total: ${this.clients.size})`);
+      log.debug(`[WSGateway] Client disconnected (total: ${this.clients.size})`);
     });
 
     ws.on('error', (error: Error) => {
-      console.error('[WSGateway] Client error:', error.message);
+      log.error('[WSGateway] Client error:', error.message);
       this.clients.delete(ws);
     });
   }
@@ -231,7 +234,7 @@ class WebSocketGateway {
 
     for (const [ws, client] of Array.from(this.clients.entries())) {
       if (now - client.lastPingAt > timeout) {
-        console.log('[WSGateway] Client timed out, disconnecting');
+        log.debug('[WSGateway] Client timed out, disconnecting');
         ws.terminate();
         this.clients.delete(ws);
       }
@@ -291,7 +294,7 @@ class WebSocketGateway {
       this.wss = null;
     }
 
-    console.log('[WSGateway] Gateway closed');
+    log.debug('[WSGateway] Gateway closed');
   }
 }
 

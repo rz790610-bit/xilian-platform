@@ -4,8 +4,11 @@
  */
 
 import { Kafka, Producer, Consumer, Admin, logLevel, CompressionTypes } from 'kafkajs';
+import { createModuleLogger } from '../../core/logger';
+const log = createModuleLogger('kafka');
 
 // Kafka 配置接口
+
 interface KafkaConfig {
   clientId: string;
   brokers: string[];
@@ -73,8 +76,8 @@ class KafkaClientManager {
       return;
     }
 
-    console.log('[Kafka] 正在初始化 Kafka 客户端...');
-    console.log(`[Kafka] Brokers: ${this.config.brokers.join(', ')}`);
+    log.debug('[Kafka] 正在初始化 Kafka 客户端...');
+    log.debug(`[Kafka] Brokers: ${this.config.brokers.join(', ')}`);
 
     this.kafka = new Kafka({
       clientId: this.config.clientId,
@@ -97,7 +100,7 @@ class KafkaClientManager {
     await this.producer.connect();
 
     this.isConnected = true;
-    console.log('[Kafka] Kafka 客户端初始化完成');
+    log.debug('[Kafka] Kafka 客户端初始化完成');
   }
 
   /**
@@ -198,7 +201,7 @@ class KafkaClientManager {
     });
 
     this.consumers.set(consumerId, consumer);
-    console.log(`[Kafka] 消费者 ${consumerId} 已订阅主题: ${topics.join(', ')}`);
+    log.debug(`[Kafka] 消费者 ${consumerId} 已订阅主题: ${topics.join(', ')}`);
 
     return consumerId;
   }
@@ -211,7 +214,7 @@ class KafkaClientManager {
     if (consumer) {
       await consumer.disconnect();
       this.consumers.delete(consumerId);
-      console.log(`[Kafka] 消费者 ${consumerId} 已断开`);
+      log.debug(`[Kafka] 消费者 ${consumerId} 已断开`);
     }
   }
 
@@ -229,7 +232,7 @@ class KafkaClientManager {
 
     const existingTopics = await this.admin.listTopics();
     if (existingTopics.includes(topic)) {
-      console.log(`[Kafka] 主题 ${topic} 已存在`);
+      log.debug(`[Kafka] 主题 ${topic} 已存在`);
       return;
     }
 
@@ -241,7 +244,7 @@ class KafkaClientManager {
       }],
     });
 
-    console.log(`[Kafka] 主题 ${topic} 创建成功`);
+    log.debug(`[Kafka] 主题 ${topic} 创建成功`);
   }
 
   /**
@@ -253,7 +256,7 @@ class KafkaClientManager {
     }
 
     await this.admin.deleteTopics({ topics: [topic] });
-    console.log(`[Kafka] 主题 ${topic} 已删除`);
+    log.debug(`[Kafka] 主题 ${topic} 已删除`);
   }
 
   /**
@@ -313,12 +316,12 @@ class KafkaClientManager {
    * 关闭所有连接
    */
   async shutdown(): Promise<void> {
-    console.log('[Kafka] 正在关闭 Kafka 连接...');
+    log.debug('[Kafka] 正在关闭 Kafka 连接...');
 
     // 关闭所有消费者
     for (const [consumerId, consumer] of Array.from(this.consumers.entries())) {
       await consumer.disconnect();
-      console.log(`[Kafka] 消费者 ${consumerId} 已断开`);
+      log.debug(`[Kafka] 消费者 ${consumerId} 已断开`);
     }
     this.consumers.clear();
 
@@ -336,7 +339,7 @@ class KafkaClientManager {
 
     this.kafka = null;
     this.isConnected = false;
-    console.log('[Kafka] Kafka 连接已关闭');
+    log.debug('[Kafka] Kafka 连接已关闭');
   }
 
   /**

@@ -11,6 +11,7 @@
  */
 
 import type {
+
   IAlgorithmExecutor,
   AlgorithmInput,
   AlgorithmOutput,
@@ -18,6 +19,8 @@ import type {
   AlgorithmStatus,
 } from './types';
 import { AlgorithmDependencies, DefaultDependencies } from './dependencies';
+import { createModuleLogger } from '../../core/logger';
+const log = createModuleLogger('engine');
 
 // ============================================================
 // 执行上下文
@@ -165,7 +168,7 @@ export class AlgorithmEngine {
   register(registration: AlgorithmRegistration): void {
     const id = registration.executor.id;
     if (this.registry.has(id)) {
-      console.log(`[AlgorithmEngine] Updating algorithm: ${id}`);
+      log.debug(`[AlgorithmEngine] Updating algorithm: ${id}`);
     }
     this.registry.set(id, registration);
   }
@@ -177,7 +180,7 @@ export class AlgorithmEngine {
     for (const reg of registrations) {
       this.register(reg);
     }
-    console.log(`[AlgorithmEngine] Registered ${registrations.length} algorithms, total: ${this.registry.size}`);
+    log.debug(`[AlgorithmEngine] Registered ${registrations.length} algorithms, total: ${this.registry.size}`);
   }
 
   /**
@@ -256,7 +259,7 @@ export class AlgorithmEngine {
       const cacheKey = this.cache.generateKey(algorithmId, input, config);
       const cached = this.cache.get(cacheKey);
       if (cached) {
-        console.log(`[AlgorithmEngine] Cache hit for ${algorithmId}`);
+        log.debug(`[AlgorithmEngine] Cache hit for ${algorithmId}`);
         return cached;
       }
     }
@@ -502,7 +505,7 @@ export class AlgorithmEngine {
         }
       } catch (e) {
         // 依赖获取失败不影响算法执行
-        console.warn(`[AlgorithmEngine] Failed to enrich input from equipment: ${e}`);
+        log.warn(`[AlgorithmEngine] Failed to enrich input from equipment: ${e}`);
       }
     }
 

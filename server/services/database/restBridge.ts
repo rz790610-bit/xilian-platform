@@ -19,6 +19,9 @@
 import { Router, Request, Response, NextFunction } from "express";
 import { tableService, dataService, connectionService, moduleService } from "./workbench.service";
 
+import { createModuleLogger } from '../../core/logger';
+const log = createModuleLogger('restBridge');
+
 const restRouter = Router();
 
 // ============ 中间件 ============
@@ -46,7 +49,7 @@ async function validateTableName(req: Request, res: Response, next: NextFunction
 
 /** 统一错误处理 */
 function handleError(res: Response, error: unknown, operation: string): void {
-  console.error(`[REST Bridge] ${operation} failed:`, error);
+  log.error(`[REST Bridge] ${operation} failed:`, error);
   const message = error instanceof Error ? error.message : 'Unknown error';
   res.status(500).json({ error: message, code: 'INTERNAL_ERROR', operation });
 }

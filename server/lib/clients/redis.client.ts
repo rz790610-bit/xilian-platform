@@ -4,8 +4,11 @@
  */
 
 import Redis from 'ioredis';
+import { createModuleLogger } from '../../core/logger';
+const log = createModuleLogger('redis');
 
 // Redis 配置接口
+
 interface RedisConfig {
   host: string;
   port: number;
@@ -62,11 +65,11 @@ class RedisClientManager {
     const redisUrl = process.env.REDIS_URL;
     
     if (!redisUrl && !process.env.REDIS_HOST) {
-      console.log('[Redis] No Redis configuration found, using memory fallback');
+      log.debug('[Redis] No Redis configuration found, using memory fallback');
       return;
     }
 
-    console.log('[Redis] Initializing Redis client...');
+    log.debug('[Redis] Initializing Redis client...');
 
     try {
       if (redisUrl) {
@@ -75,7 +78,7 @@ class RedisClientManager {
           maxRetriesPerRequest: this.config.maxRetriesPerRequest,
           retryStrategy: (times) => {
             if (times > this.maxConnectionAttempts) {
-              console.error('[Redis] Max connection attempts reached');
+              log.error('[Redis] Max connection attempts reached');
               return null;
             }
             return Math.min(times * this.config.retryDelayMs!, 3000);
@@ -99,26 +102,26 @@ class RedisClientManager {
       }
 
       this.client.on('connect', () => {
-        console.log('[Redis] Connected to Redis server');
+        log.debug('[Redis] Connected to Redis server');
         this.isConnected = true;
         this.connectionAttempts = 0;
       });
 
       this.client.on('error', (err) => {
-        console.error('[Redis] Connection error:', err.message);
+        log.error('[Redis] Connection error:', err.message);
         this.isConnected = false;
       });
 
       this.client.on('close', () => {
-        console.log('[Redis] Connection closed');
+        log.debug('[Redis] Connection closed');
         this.isConnected = false;
       });
 
       // 等待连接就绪
       await this.client.ping();
-      console.log('[Redis] Redis client initialized successfully');
+      log.debug('[Redis] Redis client initialized successfully');
     } catch (error) {
-      console.error('[Redis] Failed to initialize:', error);
+      log.error('[Redis] Failed to initialize:', error);
       this.client = null;
       this.isConnected = false;
     }
@@ -156,7 +159,7 @@ class RedisClientManager {
       }
       return true;
     } catch (error) {
-      console.error('[Redis] Set error:', error);
+      log.error('[Redis] Set error:', error);
       return false;
     }
   }
@@ -180,7 +183,7 @@ class RedisClientManager {
       }
       return value as unknown as T;
     } catch (error) {
-      console.error('[Redis] Get error:', error);
+      log.error('[Redis] Get error:', error);
       return null;
     }
   }
@@ -195,7 +198,7 @@ class RedisClientManager {
       const keys = Array.isArray(key) ? key : [key];
       return await this.client.del(...keys);
     } catch (error) {
-      console.error('[Redis] Del error:', error);
+      log.error('[Redis] Del error:', error);
       return 0;
     }
   }
@@ -210,7 +213,7 @@ class RedisClientManager {
       const result = await this.client.exists(key);
       return result === 1;
     } catch (error) {
-      console.error('[Redis] Exists error:', error);
+      log.error('[Redis] Exists error:', error);
       return false;
     }
   }
@@ -225,7 +228,7 @@ class RedisClientManager {
       const result = await this.client.expire(key, seconds);
       return result === 1;
     } catch (error) {
-      console.error('[Redis] Expire error:', error);
+      log.error('[Redis] Expire error:', error);
       return false;
     }
   }
@@ -239,7 +242,7 @@ class RedisClientManager {
     try {
       return await this.client.ttl(key);
     } catch (error) {
-      console.error('[Redis] TTL error:', error);
+      log.error('[Redis] TTL error:', error);
       return -2;
     }
   }
@@ -335,7 +338,7 @@ class RedisClientManager {
         resetAt: now + windowSeconds * 1000,
       };
     } catch (error) {
-      console.error('[Redis] Rate limit error:', error);
+      log.error('[Redis] Rate limit error:', error);
       return { allowed: true, remaining: limit, resetAt: now + windowSeconds * 1000 };
     }
   }
@@ -356,7 +359,7 @@ class RedisClientManager {
       
       return count;
     } catch (error) {
-      console.error('[Redis] Increment error:', error);
+      log.error('[Redis] Increment error:', error);
       return 0;
     }
   }
@@ -437,7 +440,7 @@ class RedisClientManager {
         }
       });
     } catch (error) {
-      console.error('[Redis] Multi get error:', error);
+      log.error('[Redis] Multi get error:', error);
     }
 
     return result;
@@ -487,7 +490,7 @@ class RedisClientManager {
       // 只保留最近 1 小时的数据
       await this.client.zremrangebyscore(key, 0, timestamp - 3600000);
     } catch (error) {
-      console.error('[Redis] Add metrics error:', error);
+      log.error('[Redis] Add metrics error:', error);
     }
   }
 
@@ -511,7 +514,7 @@ class RedisClientManager {
         }
       }).filter(Boolean);
     } catch (error) {
-      console.error('[Redis] Get metrics history error:', error);
+      log.error('[Redis] Get metrics history error:', error);
       return [];
     }
   }
@@ -531,7 +534,7 @@ class RedisClientManager {
       const result = await this.client.set(key, lockId, 'EX', ttlSeconds, 'NX');
       return result === 'OK' ? lockId : null;
     } catch (error) {
-      console.error('[Redis] Acquire lock error:', error);
+      log.error('[Redis] Acquire lock error:', error);
       return null;
     }
   }
@@ -556,7 +559,7 @@ class RedisClientManager {
       const result = await this.client.eval(script, 1, key, lockId);
       return result === 1;
     } catch (error) {
-      console.error('[Redis] Release lock error:', error);
+      log.error('[Redis] Release lock error:', error);
       return false;
     }
   }
@@ -589,7 +592,7 @@ class RedisClientManager {
       }
       return await (this.client as any).xadd(...args);
     } catch (error) {
-      console.error('[Redis] XADD error:', error);
+      log.error('[Redis] XADD error:', error);
       return null;
     }
   }
@@ -602,7 +605,7 @@ class RedisClientManager {
     try {
       return await (this.client as any).xlen(stream);
     } catch (error) {
-      console.error('[Redis] XLEN error:', error);
+      log.error('[Redis] XLEN error:', error);
       return 0;
     }
   }
@@ -634,7 +637,7 @@ class RedisClientManager {
         return { id, fields };
       });
     } catch (error) {
-      console.error('[Redis] XRANGE error:', error);
+      log.error('[Redis] XRANGE error:', error);
       return [];
     }
   }
@@ -663,7 +666,7 @@ class RedisClientManager {
         return { id, fields };
       });
     } catch (error) {
-      console.error('[Redis] XREVRANGE error:', error);
+      log.error('[Redis] XREVRANGE error:', error);
       return [];
     }
   }
@@ -705,7 +708,7 @@ class RedisClientManager {
         }),
       }));
     } catch (error) {
-      console.error('[Redis] XREAD error:', error);
+      log.error('[Redis] XREAD error:', error);
       return [];
     }
   }
@@ -731,7 +734,7 @@ class RedisClientManager {
         // 消费者组已存在，视为成功
         return true;
       }
-      console.error('[Redis] XGROUP CREATE error:', error);
+      log.error('[Redis] XGROUP CREATE error:', error);
       return false;
     }
   }
@@ -748,7 +751,7 @@ class RedisClientManager {
     try {
       return await (this.client as any).xgroup('DELCONSUMER', stream, group, consumer);
     } catch (error) {
-      console.error('[Redis] XGROUP DELCONSUMER error:', error);
+      log.error('[Redis] XGROUP DELCONSUMER error:', error);
       return 0;
     }
   }
@@ -762,7 +765,7 @@ class RedisClientManager {
       const result = await (this.client as any).xgroup('DESTROY', stream, group);
       return result === 1;
     } catch (error) {
-      console.error('[Redis] XGROUP DESTROY error:', error);
+      log.error('[Redis] XGROUP DESTROY error:', error);
       return false;
     }
   }
@@ -813,7 +816,7 @@ class RedisClientManager {
         }),
       }));
     } catch (error) {
-      console.error('[Redis] XREADGROUP error:', error);
+      log.error('[Redis] XREADGROUP error:', error);
       return [];
     }
   }
@@ -826,7 +829,7 @@ class RedisClientManager {
     try {
       return await (this.client as any).xack(stream, group, ...ids);
     } catch (error) {
-      console.error('[Redis] XACK error:', error);
+      log.error('[Redis] XACK error:', error);
       return 0;
     }
   }
@@ -852,7 +855,7 @@ class RedisClientManager {
         })),
       };
     } catch (error) {
-      console.error('[Redis] XPENDING error:', error);
+      log.error('[Redis] XPENDING error:', error);
       return { count: 0, minId: null, maxId: null, consumers: [] };
     }
   }
@@ -876,7 +879,7 @@ class RedisClientManager {
       args.push(threshold);
       return await (this.client as any).xtrim(...args);
     } catch (error) {
-      console.error('[Redis] XTRIM error:', error);
+      log.error('[Redis] XTRIM error:', error);
       return 0;
     }
   }
@@ -895,7 +898,7 @@ class RedisClientManager {
       }
       return result;
     } catch (error) {
-      console.error('[Redis] XINFO STREAM error:', error);
+      log.error('[Redis] XINFO STREAM error:', error);
       return null;
     }
   }
@@ -916,7 +919,7 @@ class RedisClientManager {
         return obj;
       });
     } catch (error) {
-      console.error('[Redis] XINFO GROUPS error:', error);
+      log.error('[Redis] XINFO GROUPS error:', error);
       return [];
     }
   }
@@ -934,7 +937,7 @@ class RedisClientManager {
       await this.subscriber.ping();
       return this.subscriber;
     } catch (error) {
-      console.error('[Redis] Subscriber init error:', error);
+      log.error('[Redis] Subscriber init error:', error);
       this.subscriber = null;
       return null;
     }
@@ -949,7 +952,7 @@ class RedisClientManager {
       const payload = typeof message === 'object' ? JSON.stringify(message) : message;
       return await this.client.publish(channel, payload);
     } catch (error) {
-      console.error('[Redis] PUBLISH error:', error);
+      log.error('[Redis] PUBLISH error:', error);
       return 0;
     }
   }
@@ -969,7 +972,7 @@ class RedisClientManager {
       sub.on('message', handler);
       return true;
     } catch (error) {
-      console.error('[Redis] SUBSCRIBE error:', error);
+      log.error('[Redis] SUBSCRIBE error:', error);
       return false;
     }
   }
@@ -989,7 +992,7 @@ class RedisClientManager {
       sub.on('pmessage', handler);
       return true;
     } catch (error) {
-      console.error('[Redis] PSUBSCRIBE error:', error);
+      log.error('[Redis] PSUBSCRIBE error:', error);
       return false;
     }
   }
@@ -1003,7 +1006,7 @@ class RedisClientManager {
       await this.subscriber.unsubscribe(...channels);
       return true;
     } catch (error) {
-      console.error('[Redis] UNSUBSCRIBE error:', error);
+      log.error('[Redis] UNSUBSCRIBE error:', error);
       return false;
     }
   }
@@ -1018,7 +1021,7 @@ class RedisClientManager {
     try {
       return await this.client.hset(key, field, String(value));
     } catch (error) {
-      console.error('[Redis] HSET error:', error);
+      log.error('[Redis] HSET error:', error);
       return 0;
     }
   }
@@ -1036,7 +1039,7 @@ class RedisClientManager {
       await this.client.hmset(key, ...flat);
       return true;
     } catch (error) {
-      console.error('[Redis] HMSET error:', error);
+      log.error('[Redis] HMSET error:', error);
       return false;
     }
   }
@@ -1049,7 +1052,7 @@ class RedisClientManager {
     try {
       return await this.client.hget(key, field);
     } catch (error) {
-      console.error('[Redis] HGET error:', error);
+      log.error('[Redis] HGET error:', error);
       return null;
     }
   }
@@ -1062,7 +1065,7 @@ class RedisClientManager {
     try {
       return await this.client.hgetall(key);
     } catch (error) {
-      console.error('[Redis] HGETALL error:', error);
+      log.error('[Redis] HGETALL error:', error);
       return {};
     }
   }
@@ -1075,7 +1078,7 @@ class RedisClientManager {
     try {
       return await this.client.hdel(key, ...fields);
     } catch (error) {
-      console.error('[Redis] HDEL error:', error);
+      log.error('[Redis] HDEL error:', error);
       return 0;
     }
   }
@@ -1132,7 +1135,7 @@ class RedisClientManager {
     try {
       return await this.client.sadd(key, ...members);
     } catch (error) {
-      console.error('[Redis] Sadd error:', error);
+      log.error('[Redis] Sadd error:', error);
       return 0;
     }
   }
@@ -1146,7 +1149,7 @@ class RedisClientManager {
     try {
       return await this.client.smembers(key);
     } catch (error) {
-      console.error('[Redis] Smembers error:', error);
+      log.error('[Redis] Smembers error:', error);
       return [];
     }
   }
@@ -1160,7 +1163,7 @@ class RedisClientManager {
     try {
       return await this.client.keys(pattern);
     } catch (error) {
-      console.error('[Redis] Keys error:', error);
+      log.error('[Redis] Keys error:', error);
       return [];
     }
   }
@@ -1184,7 +1187,7 @@ class RedisClientManager {
 
       return result;
     } catch (error) {
-      console.error('[Redis] Get info error:', error);
+      log.error('[Redis] Get info error:', error);
       return {};
     }
   }
@@ -1193,7 +1196,7 @@ class RedisClientManager {
    * 关闭连接
    */
   async shutdown(): Promise<void> {
-    console.log('[Redis] Shutting down Redis connections...');
+    log.debug('[Redis] Shutting down Redis connections...');
 
     if (this.subscriber) {
       await this.subscriber.quit();
@@ -1206,7 +1209,7 @@ class RedisClientManager {
     }
 
     this.isConnected = false;
-    console.log('[Redis] Redis connections closed');
+    log.debug('[Redis] Redis connections closed');
   }
 }
 

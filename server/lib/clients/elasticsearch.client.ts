@@ -6,8 +6,11 @@
 import http from 'http';
 import https from 'https';
 import type { LogEntry } from "../../core/types/domain";
+import { createModuleLogger } from '../../core/logger';
+const log = createModuleLogger('elasticsearch');
 
 // 配置
+
 const ES_CONFIG = {
   host: process.env.ELASTICSEARCH_HOST || 'localhost',
   port: parseInt(process.env.ELASTICSEARCH_PORT || '9200'),
@@ -184,7 +187,7 @@ export class ElasticsearchClient {
   private static instance: ElasticsearchClient;
 
   private constructor() {
-    console.log('[Elasticsearch] Client initialized');
+    log.debug('[Elasticsearch] Client initialized');
   }
 
   static getInstance(): ElasticsearchClient {

@@ -5,8 +5,11 @@
 
 import http from 'http';
 import https from 'https';
+import { createModuleLogger } from '../../core/logger';
+const log = createModuleLogger('jaeger');
 
 // 配置
+
 const JAEGER_CONFIG = {
   host: process.env.JAEGER_HOST || 'localhost',
   port: parseInt(process.env.JAEGER_PORT || '16686'),
@@ -121,7 +124,7 @@ export class JaegerClient {
   private static instance: JaegerClient;
 
   private constructor() {
-    console.log('[Jaeger] Client initialized');
+    log.debug('[Jaeger] Client initialized');
   }
 
   static getInstance(): JaegerClient {

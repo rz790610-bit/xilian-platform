@@ -1,3 +1,6 @@
+import { createModuleLogger } from '../../core/logger';
+const log = createModuleLogger('opentelemetry');
+
 /**
  * OpenTelemetry 分布式追踪 - 平台基础设施层
  * 
@@ -8,9 +11,7 @@
  * 依赖: @opentelemetry/sdk-node, @opentelemetry/auto-instrumentations-node
  */
 
-import { createModuleLogger } from '../../core/logger';
 
-const log = createModuleLogger('opentelemetry');
 
 // ============================================================
 // 配置

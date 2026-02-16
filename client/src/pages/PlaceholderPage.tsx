@@ -40,15 +40,7 @@ export default function PlaceholderPage({ title, description, icon }: Placeholde
   );
 }
 
-// 预定义的占位页面
-export function DataLabel() {
-  return <PlaceholderPage title="数据标注" description="标注和管理训练数据" icon="🏷️" />;
-}
-
-export function DataInsight() {
-  return <PlaceholderPage title="数据洞察" description="数据分析和可视化" icon="📈" />;
-}
-
+// 占位页面 — 仅保留尚无独立实现的功能
 export function ModelFinetune() {
   return <PlaceholderPage title="模型微调" description="微调和定制化模型" icon="🔧" />;
 }
@@ -57,20 +49,12 @@ export function ModelEval() {
   return <PlaceholderPage title="模型评估" description="评估模型性能" icon="📊" />;
 }
 
-export function ModelRepo() {
-  return <PlaceholderPage title="模型仓库" description="管理模型资源" icon="📦" />;
-}
-
 export function DiagAnalysis() {
   return <PlaceholderPage title="诊断分析" description="智能故障诊断分析" icon="🔍" />;
 }
 
 export function DiagReport() {
   return <PlaceholderPage title="诊断报告" description="生成和管理诊断报告" icon="📝" />;
-}
-
-export function KnowledgeBase() {
-  return <PlaceholderPage title="知识库" description="设备故障知识库" icon="📚" />;
 }
 
 export function FeedbackCenter() {

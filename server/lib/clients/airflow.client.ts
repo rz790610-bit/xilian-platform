@@ -5,8 +5,11 @@
 
 import http from 'http';
 import https from 'https';
+import { createModuleLogger } from '../../core/logger';
+const log = createModuleLogger('airflow');
 
 // 配置
+
 const AIRFLOW_CONFIG = {
   host: process.env.AIRFLOW_HOST || 'localhost',
   port: parseInt(process.env.AIRFLOW_PORT || '8080'),
@@ -204,7 +207,7 @@ export class AirflowClient {
   private static instance: AirflowClient;
 
   private constructor() {
-    console.log('[Airflow] Client initialized');
+    log.debug('[Airflow] Client initialized');
   }
 
   static getInstance(): AirflowClient {

@@ -14,6 +14,7 @@
  */
 
 import {
+
   S3Client,
   PutObjectCommand,
   GetObjectCommand,
@@ -32,6 +33,8 @@ import {
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { Readable } from 'stream';
+import { createModuleLogger } from '../../core/logger';
+const log = createModuleLogger('minio');
 
 // ============ 配置类型 ============
 
@@ -221,7 +224,7 @@ export class MinioStorage {
   async initialize(): Promise<void> {
     if (this.isInitialized) return;
 
-    console.log('[MinIO] Initializing storage service...');
+    log.debug('[MinIO] Initializing storage service...');
 
     // 初始化所有 Buckets
     for (const config of Object.values(BUCKET_CONFIGS)) {
@@ -229,7 +232,7 @@ export class MinioStorage {
     }
 
     this.isInitialized = true;
-    console.log('[MinIO] Storage service initialized');
+    log.debug('[MinIO] Storage service initialized');
   }
 
   /**
@@ -239,19 +242,19 @@ export class MinioStorage {
     try {
       // 检查 Bucket 是否存在
       await this.client.send(new HeadBucketCommand({ Bucket: config.name }));
-      console.log(`[MinIO] Bucket exists: ${config.name}`);
+      log.debug(`[MinIO] Bucket exists: ${config.name}`);
     } catch (error: any) {
       if (error.name === 'NotFound' || error.$metadata?.httpStatusCode === 404) {
         // 创建 Bucket
         await this.client.send(new CreateBucketCommand({ Bucket: config.name }));
-        console.log(`[MinIO] Created bucket: ${config.name}`);
+        log.debug(`[MinIO] Created bucket: ${config.name}`);
 
         // 设置生命周期规则
         if (config.lifecycleRules && config.lifecycleRules.length > 0) {
           await this.setLifecycleRules(config.name, config.lifecycleRules);
         }
       } else {
-        console.error(`[MinIO] Error checking bucket ${config.name}:`, error);
+        log.error(`[MinIO] Error checking bucket ${config.name}:`, error);
       }
     }
   }
@@ -280,9 +283,9 @@ export class MinioStorage {
         },
       }));
 
-      console.log(`[MinIO] Set lifecycle rules for bucket: ${bucket}`);
+      log.debug(`[MinIO] Set lifecycle rules for bucket: ${bucket}`);
     } catch (error) {
-      console.error(`[MinIO] Error setting lifecycle rules for ${bucket}:`, error);
+      log.error(`[MinIO] Error setting lifecycle rules for ${bucket}:`, error);
     }
   }
 
@@ -322,7 +325,7 @@ export class MinioStorage {
         url: `${this.config.endpoint}/${bucket}/${key}`,
       };
     } catch (error) {
-      console.error('[MinIO] Upload file error:', error);
+      log.error('[MinIO] Upload file error:', error);
       return {
         success: false,
         key,
@@ -362,7 +365,7 @@ export class MinioStorage {
         },
       };
     } catch (error) {
-      console.error('[MinIO] Download file error:', error);
+      log.error('[MinIO] Download file error:', error);
       return {
         body: null,
         metadata: null,
@@ -383,7 +386,7 @@ export class MinioStorage {
 
       return true;
     } catch (error) {
-      console.error('[MinIO] Delete file error:', error);
+      log.error('[MinIO] Delete file error:', error);
       return false;
     }
   }
@@ -409,7 +412,7 @@ export class MinioStorage {
         metadata: result.Metadata,
       };
     } catch (error) {
-      console.error('[MinIO] Get file metadata error:', error);
+      log.error('[MinIO] Get file metadata error:', error);
       return null;
     }
   }
@@ -432,7 +435,7 @@ export class MinioStorage {
 
       return true;
     } catch (error) {
-      console.error('[MinIO] Copy file error:', error);
+      log.error('[MinIO] Copy file error:', error);
       return false;
     }
   }
@@ -470,7 +473,7 @@ export class MinioStorage {
         totalCount: result.KeyCount || 0,
       };
     } catch (error) {
-      console.error('[MinIO] List files error:', error);
+      log.error('[MinIO] List files error:', error);
       return {
         files: [],
         isTruncated: false,
@@ -499,7 +502,7 @@ export class MinioStorage {
 
       return await getSignedUrl(this.client, command, { expiresIn });
     } catch (error) {
-      console.error('[MinIO] Get presigned upload URL error:', error);
+      log.error('[MinIO] Get presigned upload URL error:', error);
       return null;
     }
   }
@@ -520,7 +523,7 @@ export class MinioStorage {
 
       return await getSignedUrl(this.client, command, { expiresIn });
     } catch (error) {
-      console.error('[MinIO] Get presigned download URL error:', error);
+      log.error('[MinIO] Get presigned download URL error:', error);
       return null;
     }
   }
@@ -549,7 +552,7 @@ export class MinioStorage {
         parts: [],
       };
     } catch (error) {
-      console.error('[MinIO] Init multipart upload error:', error);
+      log.error('[MinIO] Init multipart upload error:', error);
       return null;
     }
   }
@@ -577,7 +580,7 @@ export class MinioStorage {
 
       return { success: true, etag: result.ETag };
     } catch (error) {
-      console.error('[MinIO] Upload part error:', error);
+      log.error('[MinIO] Upload part error:', error);
       return { success: false };
     }
   }
@@ -607,7 +610,7 @@ export class MinioStorage {
         url: `${this.config.endpoint}/${session.bucket}/${session.key}`,
       };
     } catch (error) {
-      console.error('[MinIO] Complete multipart upload error:', error);
+      log.error('[MinIO] Complete multipart upload error:', error);
       return {
         success: false,
         key: session.key,
@@ -630,7 +633,7 @@ export class MinioStorage {
 
       return true;
     } catch (error) {
-      console.error('[MinIO] Abort multipart upload error:', error);
+      log.error('[MinIO] Abort multipart upload error:', error);
       return false;
     }
   }

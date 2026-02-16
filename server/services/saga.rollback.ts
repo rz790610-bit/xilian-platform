@@ -9,10 +9,13 @@ import { rollbackExecutions } from '../../drizzle/schema';
 import { eq } from 'drizzle-orm';
 import { redisClient } from '../lib/clients/redis.client';
 import { outboxPublisher } from './outbox.publisher';
+import { createModuleLogger } from '../core/logger';
+const log = createModuleLogger('saga');
 
 // ============ 类型定义 ============
 
 export interface RollbackInput {
+
   triggerId: string;
   targetType: 'rule' | 'model' | 'config' | 'firmware';
   targetId: string;
@@ -69,7 +72,7 @@ const prepareRollbackStep: SagaStep<RollbackInput, { executionId: string; device
   maxRetries: 3,
 
   async execute(input, context) {
-    console.log(`[RollbackSaga] Preparing rollback for ${input.targetType}:${input.targetId}`);
+    log.debug(`[RollbackSaga] Preparing rollback for ${input.targetType}:${input.targetId}`);
 
     const executionId = `rollback_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
     const devices = await getAffectedDevices(input);
@@ -96,13 +99,13 @@ const prepareRollbackStep: SagaStep<RollbackInput, { executionId: string; device
       });
     }
 
-    console.log(`[RollbackSaga] Prepared: ${devices.length} devices in ${batches.length} batches`);
+    log.debug(`[RollbackSaga] Prepared: ${devices.length} devices in ${batches.length} batches`);
 
     return { executionId, devices, batches };
   },
 
   async compensate(input, output, context) {
-    console.log(`[RollbackSaga] Compensating prepare step: ${output.executionId}`);
+    log.debug(`[RollbackSaga] Compensating prepare step: ${output.executionId}`);
 
     const db = await getDb();
     if (db) {
@@ -125,7 +128,7 @@ const executeRollbackStep: SagaStep<
   retryable: false, // 不重试整个步骤，内部分批重试
 
   async execute({ input, prepare }, context) {
-    console.log(`[RollbackSaga] Executing rollback for ${prepare.devices.length} devices`);
+    log.debug(`[RollbackSaga] Executing rollback for ${prepare.devices.length} devices`);
 
     const succeeded: string[] = [];
     const failed: Array<{ device: string; error: string }> = [];
@@ -133,7 +136,7 @@ const executeRollbackStep: SagaStep<
 
     for (let batchIndex = 0; batchIndex < prepare.batches.length; batchIndex++) {
       const batch = prepare.batches[batchIndex];
-      console.log(`[RollbackSaga] Processing batch ${batchIndex + 1}/${prepare.batches.length}`);
+      log.debug(`[RollbackSaga] Processing batch ${batchIndex + 1}/${prepare.batches.length}`);
 
       // 并行处理批次内的设备
       const results = await Promise.allSettled(
@@ -194,7 +197,7 @@ const executeRollbackStep: SagaStep<
 
       // 如果配置了遇错停止，检查是否有失败
       if (input.stopOnError && failed.length > 0) {
-        console.warn(`[RollbackSaga] Stopping due to errors (stopOnError=true)`);
+        log.warn(`[RollbackSaga] Stopping due to errors (stopOnError=true)`);
         break;
       }
     }
@@ -203,7 +206,7 @@ const executeRollbackStep: SagaStep<
   },
 
   async compensate({ input, prepare }, output, context) {
-    console.log(`[RollbackSaga] Compensating rollback: reverting ${output.succeeded.length} devices`);
+    log.debug(`[RollbackSaga] Compensating rollback: reverting ${output.succeeded.length} devices`);
 
     // 对已成功回滚的设备进行反向回滚
     for (const deviceCode of output.succeeded) {
@@ -215,9 +218,9 @@ const executeRollbackStep: SagaStep<
           toVersion: input.fromVersion,
         });
 
-        console.log(`[RollbackSaga] Reverted device: ${deviceCode}`);
+        log.debug(`[RollbackSaga] Reverted device: ${deviceCode}`);
       } catch (error) {
-        console.error(`[RollbackSaga] Failed to revert device ${deviceCode}:`, error);
+        log.error(`[RollbackSaga] Failed to revert device ${deviceCode}:`, error);
       }
     }
   },
@@ -236,7 +239,7 @@ const finalizeRollbackStep: SagaStep<
   retryable: true,
 
   async execute({ input, prepare, execute }, context) {
-    console.log(`[RollbackSaga] Finalizing rollback: ${execute.succeeded.length} succeeded, ${execute.failed.length} failed`);
+    log.debug(`[RollbackSaga] Finalizing rollback: ${execute.succeeded.length} succeeded, ${execute.failed.length} failed`);
 
     const db = await getDb();
     const status = execute.failed.length > 0
@@ -336,12 +339,12 @@ export function registerRollbackSaga(): void {
       } as SagaStep,
     ],
     onComplete: async (input, output) => {
-      console.log(`[RollbackSaga] Completed: ${output.succeeded}/${output.total} devices rolled back`);
+      log.debug(`[RollbackSaga] Completed: ${output.succeeded}/${output.total} devices rolled back`);
     },
     onFailed: async (input, error) => {
-      console.error(`[RollbackSaga] Failed:`, error.message);
+      log.error(`[RollbackSaga] Failed:`, error.message);
     },
   });
 
-  console.log('[RollbackSaga] Registered rule_rollback saga');
+  log.debug('[RollbackSaga] Registered rule_rollback saga');
 }

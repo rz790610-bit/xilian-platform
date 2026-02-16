@@ -1,3 +1,6 @@
+import { createModuleLogger } from '../../core/logger';
+const log = createModuleLogger('config-center');
+
 /**
  * 配置中心 - 平台基础设施层
  * 
@@ -12,9 +15,7 @@
  * 依赖: server/core/config, server/lib/clients/redis.client, server/services/eventBus.service
  */
 
-import { createModuleLogger } from '../../core/logger';
 
-const log = createModuleLogger('config-center');
 
 // ============================================================
 // 类型定义

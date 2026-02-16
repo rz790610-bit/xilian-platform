@@ -9,10 +9,13 @@ import { eq, and } from 'drizzle-orm';
 import { kafkaClient } from '../lib/clients/kafka.client';
 import { redisClient } from '../lib/clients/redis.client';
 import os from 'node:os';
+import { createModuleLogger } from '../core/logger';
+const log = createModuleLogger('adaptiveSampling');
 
 // ============ 类型定义 ============
 
 export interface CapacityStatus {
+
   kafkaLag: number;
   dbConnections: number;
   memoryUsagePct: number;
@@ -90,7 +93,7 @@ class AdaptiveSamplingService {
   async start(): Promise<void> {
     if (this.isRunning) return;
 
-    console.log('[AdaptiveSampling] Starting adaptive sampling service...');
+    log.debug('[AdaptiveSampling] Starting adaptive sampling service...');
     this.isRunning = true;
 
     // 初始化默认采样配置
@@ -102,14 +105,14 @@ class AdaptiveSamplingService {
       await this.performCheck();
     }, this.CHECK_INTERVAL_MS);
 
-    console.log('[AdaptiveSampling] Started');
+    log.debug('[AdaptiveSampling] Started');
   }
 
   /**
    * 停止服务
    */
   async stop(): Promise<void> {
-    console.log('[AdaptiveSampling] Stopping...');
+    log.debug('[AdaptiveSampling] Stopping...');
     this.isRunning = false;
 
     if (this.checkTimer) {
@@ -117,7 +120,7 @@ class AdaptiveSamplingService {
       this.checkTimer = null;
     }
 
-    console.log('[AdaptiveSampling] Stopped');
+    log.debug('[AdaptiveSampling] Stopped');
   }
 
   /**
@@ -149,9 +152,9 @@ class AdaptiveSamplingService {
         });
       }
 
-      console.log('[AdaptiveSampling] Initialized default sampling configs');
+      log.debug('[AdaptiveSampling] Initialized default sampling configs');
     } catch (error) {
-      console.error('[AdaptiveSampling] Failed to initialize configs:', error);
+      log.error('[AdaptiveSampling] Failed to initialize configs:', error);
     }
   }
 
@@ -189,7 +192,7 @@ class AdaptiveSamplingService {
         }
       }
     } catch (error) {
-      console.error('[AdaptiveSampling] Check failed:', error);
+      log.error('[AdaptiveSampling] Check failed:', error);
     }
   }
 
@@ -337,10 +340,10 @@ class AdaptiveSamplingService {
         this.metrics.adjustmentsMade += adjustments.length;
         this.metrics.lastAdjustments = adjustments;
         this.lastAdjustmentTime = new Date();
-        console.log(`[AdaptiveSampling] Scaled up ${adjustments.length} sampling intervals (${reason})`);
+        log.debug(`[AdaptiveSampling] Scaled up ${adjustments.length} sampling intervals (${reason})`);
       }
     } catch (error) {
-      console.error('[AdaptiveSampling] Scale up failed:', error);
+      log.error('[AdaptiveSampling] Scale up failed:', error);
     }
   }
 
@@ -396,10 +399,10 @@ class AdaptiveSamplingService {
         this.metrics.adjustmentsMade += adjustments.length;
         this.metrics.lastAdjustments = adjustments;
         this.lastAdjustmentTime = new Date();
-        console.log(`[AdaptiveSampling] Recovered ${adjustments.length} sampling intervals`);
+        log.debug(`[AdaptiveSampling] Recovered ${adjustments.length} sampling intervals`);
       }
     } catch (error) {
-      console.error('[AdaptiveSampling] Recovery failed:', error);
+      log.error('[AdaptiveSampling] Recovery failed:', error);
     }
   }
 

@@ -12,11 +12,14 @@
  */
 
 import type { EditorNodeType } from '../../../shared/pipelineTypes';
+import { createModuleLogger } from '../../core/logger';
+const log = createModuleLogger('resource-discovery');
 
 // ============ 类型定义 ============
 
 /** 发现的组件参数定义 */
 export interface DiscoveredParam {
+
   key: string;
   label: string;
   type: 'string' | 'number' | 'boolean' | 'select' | 'json';
@@ -146,7 +149,7 @@ class MySQLTableScanner implements ResourceScanner {
         });
       }
     } catch (err) {
-      console.warn('[ResourceDiscovery] MySQL scan failed:', (err as Error).message);
+      log.warn('[ResourceDiscovery] MySQL scan failed:', (err as Error).message);
     }
     return components;
   }
@@ -213,7 +216,7 @@ class KafkaTopicScanner implements ResourceScanner {
         });
       }
     } catch (err) {
-      console.warn('[ResourceDiscovery] Kafka scan failed:', (err as Error).message);
+      log.warn('[ResourceDiscovery] Kafka scan failed:', (err as Error).message);
     }
     return components;
   }
@@ -278,7 +281,7 @@ class QdrantCollectionScanner implements ResourceScanner {
         });
       }
     } catch (err) {
-      console.warn('[ResourceDiscovery] Qdrant scan failed:', (err as Error).message);
+      log.warn('[ResourceDiscovery] Qdrant scan failed:', (err as Error).message);
     }
     return components;
   }
@@ -344,7 +347,7 @@ class ClickHouseTableScanner implements ResourceScanner {
         });
       }
     } catch (err) {
-      console.warn('[ResourceDiscovery] ClickHouse scan failed:', (err as Error).message);
+      log.warn('[ResourceDiscovery] ClickHouse scan failed:', (err as Error).message);
     }
     return components;
   }
@@ -399,7 +402,7 @@ class ModelRegistryScanner implements ResourceScanner {
         });
       }
     } catch (err) {
-      console.warn('[ResourceDiscovery] Model scan failed:', (err as Error).message);
+      log.warn('[ResourceDiscovery] Model scan failed:', (err as Error).message);
     }
     return components;
   }
@@ -462,7 +465,7 @@ class RedisScanner implements ResourceScanner {
         discoveredAt: new Date().toISOString(),
       });
     } catch (err) {
-      console.warn('[ResourceDiscovery] Redis scan failed:', (err as Error).message);
+      log.warn('[ResourceDiscovery] Redis scan failed:', (err as Error).message);
     }
     return components;
   }
@@ -516,7 +519,7 @@ class Neo4jScanner implements ResourceScanner {
         discoveredAt: new Date().toISOString(),
       });
     } catch (err) {
-      console.warn('[ResourceDiscovery] Neo4j scan failed:', (err as Error).message);
+      log.warn('[ResourceDiscovery] Neo4j scan failed:', (err as Error).message);
     }
     return components;
   }
@@ -576,7 +579,7 @@ class MinIOScanner implements ResourceScanner {
         });
       }
     } catch (err) {
-      console.warn('[ResourceDiscovery] MinIO scan failed:', (err as Error).message);
+      log.warn('[ResourceDiscovery] MinIO scan failed:', (err as Error).message);
     }
     return components;
   }
@@ -622,7 +625,7 @@ class MQTTScanner implements ResourceScanner {
         });
       }
     } catch (err) {
-      console.warn('[ResourceDiscovery] MQTT scan failed:', (err as Error).message);
+      log.warn('[ResourceDiscovery] MQTT scan failed:', (err as Error).message);
     }
     return components;
   }
@@ -664,7 +667,7 @@ class PluginScanner implements ResourceScanner {
         }
       }
     } catch (err) {
-      console.warn('[ResourceDiscovery] Plugin scan failed:', (err as Error).message);
+      log.warn('[ResourceDiscovery] Plugin scan failed:', (err as Error).message);
     }
     return components;
   }
@@ -692,7 +695,7 @@ export class ResourceDiscoveryService {
       new MQTTScanner(),
       new PluginScanner(),
     ];
-    console.log(`[ResourceDiscovery] 初始化完成，注册 ${this.scanners.length} 个扫描器`);
+    log.debug(`[ResourceDiscovery] 初始化完成，注册 ${this.scanners.length} 个扫描器`);
   }
 
   /** 执行全量扫描 */
@@ -727,7 +730,7 @@ export class ResourceDiscoveryService {
     this.lastScanDurationMs = Date.now() - startTime;
     this.lastErrors = errors;
 
-    console.log(`[ResourceDiscovery] 扫描完成: ${allComponents.length} 个组件, ${errors.length} 个错误, 耗时 ${this.lastScanDurationMs}ms`);
+    log.debug(`[ResourceDiscovery] 扫描完成: ${allComponents.length} 个组件, ${errors.length} 个错误, 耗时 ${this.lastScanDurationMs}ms`);
 
     return allComponents;
   }

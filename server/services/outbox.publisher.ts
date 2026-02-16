@@ -7,10 +7,13 @@ import { getDb } from '../lib/db';
 import { outboxEvents, outboxRoutingConfig } from '../../drizzle/schema';
 import { eq, and, lt, inArray, asc } from 'drizzle-orm';
 import { kafkaClient, KAFKA_TOPICS } from '../lib/clients/kafka.client';
+import { createModuleLogger } from '../core/logger';
+const log = createModuleLogger('outbox');
 
 // ============ 类型定义 ============
 
 export interface RoutingConfig {
+
   eventType: string;
   publishMode: 'cdc' | 'polling';
   cdcEnabled: boolean;
@@ -72,11 +75,11 @@ class RoutingAwareOutboxPublisher {
    */
   async start(): Promise<void> {
     if (this.isRunning) {
-      console.log('[OutboxPublisher] Already running');
+      log.debug('[OutboxPublisher] Already running');
       return;
     }
 
-    console.log('[OutboxPublisher] Starting routing-aware outbox publisher...');
+    log.debug('[OutboxPublisher] Starting routing-aware outbox publisher...');
 
     try {
       // 1. 加载路由配置
@@ -89,9 +92,9 @@ class RoutingAwareOutboxPublisher {
       this.startHealthCheck();
 
       this.isRunning = true;
-      console.log('[OutboxPublisher] Started successfully');
+      log.debug('[OutboxPublisher] Started successfully');
     } catch (error) {
-      console.error('[OutboxPublisher] Failed to start:', error);
+      log.error('[OutboxPublisher] Failed to start:', error);
       throw error;
     }
   }
@@ -100,7 +103,7 @@ class RoutingAwareOutboxPublisher {
    * 停止发布器
    */
   async stop(): Promise<void> {
-    console.log('[OutboxPublisher] Stopping...');
+    log.debug('[OutboxPublisher] Stopping...');
     this.isRunning = false;
 
     if (this.pollingTimer) {
@@ -113,7 +116,7 @@ class RoutingAwareOutboxPublisher {
       this.healthCheckTimer = null;
     }
 
-    console.log('[OutboxPublisher] Stopped');
+    log.debug('[OutboxPublisher] Stopped');
   }
 
   /**
@@ -123,7 +126,7 @@ class RoutingAwareOutboxPublisher {
     try {
       const db = await getDb();
       if (!db) {
-        console.log('[OutboxPublisher] Database not available, using default config');
+        log.debug('[OutboxPublisher] Database not available, using default config');
         this.initializeDefaultConfig();
         return;
       }
@@ -143,14 +146,14 @@ class RoutingAwareOutboxPublisher {
         });
       }
 
-      console.log(`[OutboxPublisher] Loaded ${this.routingConfig.size} routing configs`);
+      log.debug(`[OutboxPublisher] Loaded ${this.routingConfig.size} routing configs`);
 
       // 如果没有配置，初始化默认配置
       if (this.routingConfig.size === 0) {
         await this.initializeDefaultConfig();
       }
     } catch (error) {
-      console.error('[OutboxPublisher] Failed to load routing config:', error);
+      log.error('[OutboxPublisher] Failed to load routing config:', error);
       this.initializeDefaultConfig();
     }
   }
@@ -196,10 +199,10 @@ class RoutingAwareOutboxPublisher {
             set: { updatedAt: new Date() }
           });
         }
-        console.log('[OutboxPublisher] Initialized default routing configs in database');
+        log.debug('[OutboxPublisher] Initialized default routing configs in database');
       }
     } catch (error) {
-      console.log('[OutboxPublisher] Could not persist default configs:', error);
+      log.debug('[OutboxPublisher] Could not persist default configs:', error);
     }
   }
 
@@ -238,7 +241,7 @@ class RoutingAwareOutboxPublisher {
           await this.processStaleEvents();
         }
       } catch (error) {
-        console.error('[OutboxPublisher] Polling processor error:', error);
+        log.error('[OutboxPublisher] Polling processor error:', error);
       }
     }, this.POLL_INTERVAL_MS);
   }
@@ -292,7 +295,7 @@ class RoutingAwareOutboxPublisher {
         await this.publishEvent({ ...event, payload });
         this.metrics.pollingPublished++;
       } catch (error) {
-        console.error(`[OutboxPublisher] Failed to process polling event ${event.eventId}:`, error);
+        log.error(`[OutboxPublisher] Failed to process polling event ${event.eventId}:`, error);
         await this.markEventFailed(event.eventId, String(error));
       }
     }
@@ -321,12 +324,12 @@ class RoutingAwareOutboxPublisher {
     }
 
     if (events.length > 0) {
-      console.warn(`[OutboxPublisher] Found ${events.length} stale events, publishing via polling`);
+      log.warn(`[OutboxPublisher] Found ${events.length} stale events, publishing via polling`);
       for (const event of events) {
         try {
           await this.publishEvent(event);
         } catch (error) {
-          console.error(`[OutboxPublisher] Failed to publish stale event ${event.eventId}:`, error);
+          log.error(`[OutboxPublisher] Failed to publish stale event ${event.eventId}:`, error);
         }
       }
     }
@@ -354,7 +357,7 @@ class RoutingAwareOutboxPublisher {
       try {
         await this.publishEvent(event);
       } catch (error) {
-        console.error(`[OutboxPublisher] Fallback publish failed for ${event.eventId}:`, error);
+        log.error(`[OutboxPublisher] Fallback publish failed for ${event.eventId}:`, error);
       }
     }
   }
@@ -483,7 +486,7 @@ class RoutingAwareOutboxPublisher {
       const pendingCount = pendingEvents.length;
 
       if (pendingCount > 500) {
-        console.warn(`[OutboxPublisher] High backlog: ${pendingCount} pending events`);
+        log.warn(`[OutboxPublisher] High backlog: ${pendingCount} pending events`);
       }
 
       // 检查最老的 pending 事件
@@ -494,7 +497,7 @@ class RoutingAwareOutboxPublisher {
         const ageMs = Date.now() - oldest.createdAt.getTime();
 
         if (ageMs > 300000) { // 5 分钟
-          console.error(`[OutboxPublisher] Stuck event detected: ${oldest.eventId} is ${Math.round(ageMs / 60000)} minutes old`);
+          log.error(`[OutboxPublisher] Stuck event detected: ${oldest.eventId} is ${Math.round(ageMs / 60000)} minutes old`);
         }
       }
 
@@ -504,10 +507,10 @@ class RoutingAwareOutboxPublisher {
         .where(eq(outboxEvents.status, 'failed'));
 
       if (failedEvents.length > 100) {
-        console.warn(`[OutboxPublisher] ${failedEvents.length} failed events require attention`);
+        log.warn(`[OutboxPublisher] ${failedEvents.length} failed events require attention`);
       }
     } catch (error) {
-      console.error('[OutboxPublisher] Health check failed:', error);
+      log.error('[OutboxPublisher] Health check failed:', error);
     }
   }
 
@@ -561,7 +564,7 @@ class RoutingAwareOutboxPublisher {
    */
   setCdcHealth(healthy: boolean): void {
     if (this.cdcHealthy !== healthy) {
-      console.log(`[OutboxPublisher] CDC health changed: ${this.cdcHealthy} -> ${healthy}`);
+      log.debug(`[OutboxPublisher] CDC health changed: ${this.cdcHealthy} -> ${healthy}`);
       this.cdcHealthy = healthy;
     }
   }

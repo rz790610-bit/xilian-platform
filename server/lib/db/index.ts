@@ -1,6 +1,7 @@
 import { eq, and, like, desc, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { 
+
   InsertUser, users,
   kbCollections, kbPoints, kbDocuments,
   kgNodes, kgEdges,
@@ -9,6 +10,8 @@ import {
   KbCollection, KbPoint, KbDocument, KgNode, KgEdge
 } from "../../../drizzle/schema";
 import { ENV } from '../../core/env';
+import { createModuleLogger } from '../../core/logger';
+const log = createModuleLogger('index');
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -18,7 +21,7 @@ export async function getDb() {
     try {
       _db = drizzle(process.env.DATABASE_URL);
     } catch (error) {
-      console.warn("[Database] Failed to connect:", error);
+      log.warn("[Database] Failed to connect:", error);
       _db = null;
     }
   }
@@ -32,7 +35,7 @@ export async function upsertUser(user: InsertUser): Promise<void> {
 
   const db = await getDb();
   if (!db) {
-    console.warn("[Database] Cannot upsert user: database not available");
+    log.warn("[Database] Cannot upsert user: database not available");
     return;
   }
 
@@ -79,7 +82,7 @@ export async function upsertUser(user: InsertUser): Promise<void> {
       set: updateSet,
     });
   } catch (error) {
-    console.error("[Database] Failed to upsert user:", error);
+    log.error("[Database] Failed to upsert user:", error);
     throw error;
   }
 }
@@ -87,7 +90,7 @@ export async function upsertUser(user: InsertUser): Promise<void> {
 export async function getUserByOpenId(openId: string) {
   const db = await getDb();
   if (!db) {
-    console.warn("[Database] Cannot get user: database not available");
+    log.warn("[Database] Cannot get user: database not available");
     return undefined;
   }
 
@@ -107,7 +110,7 @@ export async function createKbCollection(data: InsertKbCollection): Promise<KbCo
     const result = await db.select().from(kbCollections).where(eq(kbCollections.name, data.name)).limit(1);
     return result[0] || null;
   } catch (error) {
-    console.error("[Database] Failed to create collection:", error);
+    log.error("[Database] Failed to create collection:", error);
     return null;
   }
 }
@@ -119,7 +122,7 @@ export async function getKbCollections(): Promise<KbCollection[]> {
   try {
     return await db.select().from(kbCollections).orderBy(desc(kbCollections.createdAt));
   } catch (error) {
-    console.error("[Database] Failed to get collections:", error);
+    log.error("[Database] Failed to get collections:", error);
     return [];
   }
 }
@@ -132,7 +135,7 @@ export async function getKbCollectionByName(name: string): Promise<KbCollection 
     const result = await db.select().from(kbCollections).where(eq(kbCollections.name, name)).limit(1);
     return result[0] || null;
   } catch (error) {
-    console.error("[Database] Failed to get collection:", error);
+    log.error("[Database] Failed to get collection:", error);
     return null;
   }
 }
@@ -153,7 +156,7 @@ export async function deleteKbCollection(id: number): Promise<boolean> {
     }
     return true;
   } catch (error) {
-    console.error("[Database] Failed to delete collection:", error);
+    log.error("[Database] Failed to delete collection:", error);
     return false;
   }
 }
@@ -170,7 +173,7 @@ export async function createKbPoint(data: InsertKbPoint): Promise<KbPoint | null
     const point = await db.select().from(kbPoints).where(eq(kbPoints.id, insertId)).limit(1);
     return point[0] || null;
   } catch (error) {
-    console.error("[Database] Failed to create knowledge point:", error);
+    log.error("[Database] Failed to create knowledge point:", error);
     return null;
   }
 }
@@ -183,7 +186,7 @@ export async function createKbPointsBatch(points: InsertKbPoint[]): Promise<numb
     await db.insert(kbPoints).values(points);
     return points.length;
   } catch (error) {
-    console.error("[Database] Failed to batch create knowledge points:", error);
+    log.error("[Database] Failed to batch create knowledge points:", error);
     return 0;
   }
 }
@@ -216,7 +219,7 @@ export async function getKbPoints(
     const results = await query.orderBy(desc(kbPoints.createdAt)).limit(options?.limit || 100);
     return results;
   } catch (error) {
-    console.error("[Database] Failed to get knowledge points:", error);
+    log.error("[Database] Failed to get knowledge points:", error);
     return [];
   }
 }
@@ -229,7 +232,7 @@ export async function deleteKbPoint(id: number): Promise<boolean> {
     await db.delete(kbPoints).where(eq(kbPoints.id, id));
     return true;
   } catch (error) {
-    console.error("[Database] Failed to delete knowledge point:", error);
+    log.error("[Database] Failed to delete knowledge point:", error);
     return false;
   }
 }
@@ -246,7 +249,7 @@ export async function createKbDocument(data: InsertKbDocument): Promise<KbDocume
     const doc = await db.select().from(kbDocuments).where(eq(kbDocuments.id, insertId)).limit(1);
     return doc[0] || null;
   } catch (error) {
-    console.error("[Database] Failed to create document:", error);
+    log.error("[Database] Failed to create document:", error);
     return null;
   }
 }
@@ -260,7 +263,7 @@ export async function getKbDocuments(collectionId: number): Promise<KbDocument[]
       .where(eq(kbDocuments.collectionId, collectionId))
       .orderBy(desc(kbDocuments.createdAt));
   } catch (error) {
-    console.error("[Database] Failed to get documents:", error);
+    log.error("[Database] Failed to get documents:", error);
     return [];
   }
 }
@@ -288,7 +291,7 @@ export async function updateKbDocumentStatus(
     await db.update(kbDocuments).set(updateData).where(eq(kbDocuments.id, id));
     return true;
   } catch (error) {
-    console.error("[Database] Failed to update document status:", error);
+    log.error("[Database] Failed to update document status:", error);
     return false;
   }
 }
@@ -305,7 +308,7 @@ export async function createKgNode(data: InsertKgNode): Promise<KgNode | null> {
     const node = await db.select().from(kgNodes).where(eq(kgNodes.id, insertId)).limit(1);
     return node[0] || null;
   } catch (error) {
-    console.error("[Database] Failed to create graph node:", error);
+    log.error("[Database] Failed to create graph node:", error);
     return null;
   }
 }
@@ -318,7 +321,7 @@ export async function createKgNodesBatch(nodes: InsertKgNode[]): Promise<number>
     await db.insert(kgNodes).values(nodes);
     return nodes.length;
   } catch (error) {
-    console.error("[Database] Failed to batch create graph nodes:", error);
+    log.error("[Database] Failed to batch create graph nodes:", error);
     return 0;
   }
 }
@@ -330,7 +333,7 @@ export async function getKgNodes(collectionId: number): Promise<KgNode[]> {
   try {
     return await db.select().from(kgNodes).where(eq(kgNodes.collectionId, collectionId));
   } catch (error) {
-    console.error("[Database] Failed to get graph nodes:", error);
+    log.error("[Database] Failed to get graph nodes:", error);
     return [];
   }
 }
@@ -343,7 +346,7 @@ export async function updateKgNodePosition(id: number, x: number, y: number): Pr
     await db.update(kgNodes).set({ x, y }).where(eq(kgNodes.id, id));
     return true;
   } catch (error) {
-    console.error("[Database] Failed to update node position:", error);
+    log.error("[Database] Failed to update node position:", error);
     return false;
   }
 }
@@ -363,7 +366,7 @@ export async function deleteKgNode(id: number): Promise<boolean> {
     }
     return true;
   } catch (error) {
-    console.error("[Database] Failed to delete graph node:", error);
+    log.error("[Database] Failed to delete graph node:", error);
     return false;
   }
 }
@@ -380,7 +383,7 @@ export async function createKgEdge(data: InsertKgEdge): Promise<KgEdge | null> {
     const edge = await db.select().from(kgEdges).where(eq(kgEdges.id, insertId)).limit(1);
     return edge[0] || null;
   } catch (error) {
-    console.error("[Database] Failed to create graph edge:", error);
+    log.error("[Database] Failed to create graph edge:", error);
     return null;
   }
 }
@@ -393,7 +396,7 @@ export async function createKgEdgesBatch(edges: InsertKgEdge[]): Promise<number>
     await db.insert(kgEdges).values(edges);
     return edges.length;
   } catch (error) {
-    console.error("[Database] Failed to batch create graph edges:", error);
+    log.error("[Database] Failed to batch create graph edges:", error);
     return 0;
   }
 }
@@ -405,7 +408,7 @@ export async function getKgEdges(collectionId: number): Promise<KgEdge[]> {
   try {
     return await db.select().from(kgEdges).where(eq(kgEdges.collectionId, collectionId));
   } catch (error) {
-    console.error("[Database] Failed to get graph edges:", error);
+    log.error("[Database] Failed to get graph edges:", error);
     return [];
   }
 }
@@ -418,7 +421,7 @@ export async function deleteKgEdge(id: number): Promise<boolean> {
     await db.delete(kgEdges).where(eq(kgEdges.id, id));
     return true;
   } catch (error) {
-    console.error("[Database] Failed to delete graph edge:", error);
+    log.error("[Database] Failed to delete graph edge:", error);
     return false;
   }
 }
@@ -450,7 +453,7 @@ export async function getKbStats(collectionId: number): Promise<{
       categories: categories.map(c => c.category)
     };
   } catch (error) {
-    console.error("[Database] Failed to get stats:", error);
+    log.error("[Database] Failed to get stats:", error);
     return { pointsCount: 0, documentsCount: 0, nodesCount: 0, edgesCount: 0, categories: [] };
   }
 }
@@ -468,7 +471,7 @@ export async function clearKbCollectionData(collectionId: number): Promise<boole
     await db.delete(kgEdges).where(eq(kgEdges.collectionId, collectionId));
     return true;
   } catch (error) {
-    console.error("[Database] Failed to clear collection data:", error);
+    log.error("[Database] Failed to clear collection data:", error);
     return false;
   }
 }

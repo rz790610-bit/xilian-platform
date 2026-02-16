@@ -18,11 +18,13 @@ const badgeVariants = cva(
         outline:
           "text-foreground [a&]:hover:bg-accent [a&]:hover:text-accent-foreground",
         success:
-          "border-transparent bg-green-600 text-white [a&]:hover:bg-green-700",
+          "border-transparent bg-success/20 text-success",
         warning:
-          "border-transparent bg-yellow-600 text-white [a&]:hover:bg-yellow-700",
+          "border-transparent bg-warning/20 text-warning",
+        danger:
+          "border-transparent bg-danger/20 text-danger",
         info:
-          "border-transparent bg-blue-600 text-white [a&]:hover:bg-blue-700",
+          "border-transparent bg-primary/20 text-primary",
       },
     },
     defaultVariants: {
@@ -31,13 +33,26 @@ const badgeVariants = cva(
   }
 );
 
+const dotColorMap: Record<string, string> = {
+  success: 'bg-success',
+  warning: 'bg-warning',
+  danger: 'bg-danger',
+  info: 'bg-primary',
+  default: 'bg-muted-foreground',
+  secondary: 'bg-muted-foreground',
+  destructive: 'bg-destructive',
+  outline: 'bg-muted-foreground',
+};
+
 function Badge({
   className,
   variant,
   asChild = false,
+  dot = false,
+  children,
   ...props
 }: React.ComponentProps<"span"> &
-  VariantProps<typeof badgeVariants> & { asChild?: boolean }) {
+  VariantProps<typeof badgeVariants> & { asChild?: boolean; dot?: boolean }) {
   const Comp = asChild ? Slot : "span";
 
   return (
@@ -45,7 +60,15 @@ function Badge({
       data-slot="badge"
       className={cn(badgeVariants({ variant }), className)}
       {...props}
-    />
+    >
+      {dot && (
+        <span className={cn(
+          "w-1.5 h-1.5 rounded-full shrink-0",
+          dotColorMap[variant || 'default'] || 'bg-muted-foreground'
+        )} />
+      )}
+      {children}
+    </Comp>
   );
 }
 

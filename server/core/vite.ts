@@ -2,6 +2,8 @@ import express, { type Express } from "express";
 import fs from "fs";
 import { type Server } from "http";
 import path from "path";
+import { createModuleLogger } from './logger';
+const log = createModuleLogger('vite');
 
 /**
  * 获取项目根目录
@@ -11,6 +13,7 @@ import path from "path";
  * 
  * 通过检测 package.json 的存在来确定正确的项目根目录
  */
+
 function getProjectRoot(): string {
   const currentDir = import.meta.dirname;
   
@@ -27,7 +30,7 @@ function getProjectRoot(): string {
   }
   
   // 兜底：使用 process.cwd()
-  console.warn("[Vite] Could not determine project root from import.meta.dirname, falling back to cwd:", process.cwd());
+  log.warn("[Vite] Could not determine project root from import.meta.dirname, falling back to cwd:", process.cwd());
   return process.cwd();
 }
 
@@ -97,7 +100,7 @@ export function serveStatic(app: Express) {
   const distPath = path.resolve(rootDir, "dist", "public");
 
   if (!fs.existsSync(distPath)) {
-    console.error(
+    log.error(
       `Could not find the build directory: ${distPath}, make sure to build the client first`
     );
   }
