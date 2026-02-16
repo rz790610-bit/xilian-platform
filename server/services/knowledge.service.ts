@@ -3,10 +3,8 @@ import { publicProcedure, router } from "../core/trpc";
 import { invokeLLM } from "../core/llm";
 import { PDFParse } from "pdf-parse";
 import mammoth from "mammoth";
-import {
 import { createModuleLogger } from '../core/logger';
-const log = createModuleLogger('knowledge');
-
+import {
   createKbCollection, getKbCollections, getKbCollectionByName, deleteKbCollection,
   createKbPoint, createKbPointsBatch, getKbPoints, deleteKbPoint,
   createKbDocument, getKbDocuments, updateKbDocumentStatus,
@@ -14,6 +12,7 @@ const log = createModuleLogger('knowledge');
   createKgEdge, createKgEdgesBatch, getKgEdges, deleteKgEdge,
   getKbStats, clearKbCollectionData
 } from "../lib/db";
+const log = createModuleLogger('knowledge');
 
 // Qdrant 配置
 const QDRANT_URL = process.env.QDRANT_URL || "http://localhost:6333";
