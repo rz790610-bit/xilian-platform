@@ -111,7 +111,7 @@ export class EnhancedObservabilityService {
   }> {
     const [prometheus, elasticsearch, jaeger] = await Promise.all([
       prometheusClient.checkConnection(),
-      elasticsearchClient.checkConnection(),
+      elasticsearchClient ? elasticsearchClient.checkConnection() : Promise.resolve(false),
       jaegerClient.checkConnection(),
     ]);
 
@@ -212,6 +212,7 @@ export class EnhancedObservabilityService {
    * 获取 ES 集群健康状态
    */
   async getElasticsearchHealth() {
+    if (!elasticsearchClient) return { status: 'unavailable', message: 'Elasticsearch not enabled' };
     return elasticsearchClient.getClusterHealth();
   }
 
@@ -219,6 +220,7 @@ export class EnhancedObservabilityService {
    * 获取 ES 索引列表
    */
   async getElasticsearchIndices(pattern?: string) {
+    if (!elasticsearchClient) return [];
     return elasticsearchClient.getIndices(pattern);
   }
 
@@ -233,6 +235,7 @@ export class EnhancedObservabilityService {
     to?: Date;
     size?: number;
   }): Promise<LogEntry[]> {
+    if (!elasticsearchClient) return [];
     const result = await elasticsearchClient.searchLogs(options);
     
     return result.hits.hits.map((hit) => ({
@@ -251,6 +254,7 @@ export class EnhancedObservabilityService {
    * 获取日志级别统计
    */
   async getLogLevelStats(options?: { from?: Date; to?: Date }) {
+    if (!elasticsearchClient) return {};
     return elasticsearchClient.getLogLevelStats(options || {});
   }
 
@@ -258,6 +262,7 @@ export class EnhancedObservabilityService {
    * 获取服务日志统计
    */
   async getServiceLogStats(options?: { from?: Date; to?: Date }) {
+    if (!elasticsearchClient) return {};
     return elasticsearchClient.getServiceStats(options || {});
   }
 
@@ -269,6 +274,7 @@ export class EnhancedObservabilityService {
     to?: Date;
     interval?: string;
   }) {
+    if (!elasticsearchClient) return {};
     return elasticsearchClient.getLogTrend(options || {});
   }
 
@@ -474,7 +480,7 @@ export class EnhancedObservabilityService {
   }> {
     const [promInfo, esHealth, jaegerServices] = await Promise.all([
       prometheusClient.getBuildInfo(),
-      elasticsearchClient.getClusterHealth(),
+      elasticsearchClient ? elasticsearchClient.getClusterHealth() : Promise.resolve(null),
       jaegerClient.getServices(),
     ]);
 
