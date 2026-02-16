@@ -1,331 +1,192 @@
 /**
  * 安全扫描页面
- * 集成 Trivy、Semgrep、Gitleaks 扫描结果
- *
- * 数据源: 待接入后端 API
- * 当前状态: 优雅降级 — 显示空状态 + 连接提示
+ * 数据源: Trivy / Semgrep / Gitleaks 均未部署 → 显示部署引导
+ * Docker 容器数据来自: trpc.docker.listEngines
  */
-
-import { useState } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Progress } from '@/components/ui/progress';
-import { toast } from 'sonner';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
-  Shield,
-  Bug,
-  Code,
-  Key,
-  Play,
-  RefreshCw,
-  AlertTriangle,
-  CheckCircle,
-  XCircle,
-  Clock,
-  FileSearch,
-  PlugZap,
+  Shield, Bug, Code, Key, RefreshCw, AlertTriangle, Info, ExternalLink, Container,
 } from 'lucide-react';
+import { trpc } from '@/lib/trpc';
 
-const severityColors: Record<string, string> = {
-  Critical: 'bg-red-600',
-  High: 'bg-red-500',
-  Medium: 'bg-yellow-500',
-  Low: 'bg-blue-500',
-  Error: 'bg-red-500',
-  Warning: 'bg-yellow-500',
-  Info: 'bg-blue-500',
-};
-
-// ─── 空状态组件 ───
-function EmptyState({ icon, title, description, action }: {
-  icon: React.ReactNode;
-  title: string;
-  description: string;
-  action?: { label: string; onClick: () => void };
+function ScannerTab({ name, description, icon: Icon, docUrl, features }: {
+  name: string; description: string; icon: any; docUrl: string; features: string[];
 }) {
   return (
-    <div className="flex flex-col items-center justify-center py-16 text-center">
-      <div className="text-muted-foreground mb-4">{icon}</div>
-      <h3 className="text-sm font-medium mb-1">{title}</h3>
-      <p className="text-xs text-muted-foreground max-w-md mb-4">{description}</p>
-      {action && (
-        <Button variant="outline" size="sm" onClick={action.onClick}>
-          <PlugZap className="h-4 w-4 mr-1" />
-          {action.label}
-        </Button>
-      )}
+    <div className="space-y-4">
+      <Card className="border-amber-500/30 bg-amber-500/5">
+        <CardContent className="py-4">
+          <div className="flex items-start gap-3">
+            <Info className="h-5 w-5 text-amber-400 mt-0.5 shrink-0" />
+            <div>
+              <p className="text-sm font-medium text-amber-400">{name} 未部署</p>
+              <p className="text-xs text-muted-foreground mt-1">{description}</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Icon className="h-5 w-5" />
+            {name} 功能概览
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-2 mb-4">
+            {features.map((f, i) => (
+              <div key={i} className="flex items-center gap-2 text-sm">
+                <div className="h-1.5 w-1.5 rounded-full bg-blue-400" />
+                {f}
+              </div>
+            ))}
+          </div>
+          <Button variant="outline" size="sm" asChild>
+            <a href={docUrl} target="_blank" rel="noopener">
+              <ExternalLink className="h-3 w-3 mr-1" />
+              查看部署文档
+            </a>
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   );
 }
 
 export default function SecurityScanner() {
-  const [isScanning, setIsScanning] = useState(false);
-  const [scanProgress, setScanProgress] = useState(0);
-
-  // ─── 数据状态（从后端获取，当前为空） ───
-  const [trivyResults] = useState<any[]>([]);
-  const [semgrepResults] = useState<any[]>([]);
-  const [gitleaksResults] = useState<any[]>([]);
-
-  const handleStartScan = () => {
-    toast.info('扫描服务尚未连接，请先在「系统设置 > 安全集成」中配置扫描工具');
-  };
-
-  const handleConnectService = () => {
-    toast.info('请在「系统设置 > 安全集成」中配置 Trivy / Semgrep / Gitleaks');
-  };
+  const { data: dockerData, isLoading } = trpc.docker.listEngines.useQuery(undefined, { refetchInterval: 30000 });
+  const containers = dockerData?.engines || [];
 
   return (
-    <MainLayout title="安全扫描">
-      <div className="space-y-4">
-        {/* 页面标题 */}
+    <MainLayout>
+      <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-bold flex items-center gap-2">
-              <FileSearch className="h-5 w-5 text-blue-500" />
-              安全扫描中心
+            <h1 className="text-2xl font-bold flex items-center gap-2">
+              <Shield className="h-6 w-6" />
+              安全扫描
             </h1>
-            <p className="text-sm text-muted-foreground">漏洞扫描、代码安全、密钥检测</p>
+            <p className="text-muted-foreground">容器镜像漏洞 · 代码安全审计 · 密钥泄露检测</p>
           </div>
-          <Button onClick={handleStartScan} disabled={isScanning}>
-            {isScanning ? (
-              <>
-                <RefreshCw className="h-4 w-4 mr-1 animate-spin" />
-                扫描中...
-              </>
-            ) : (
-              <>
-                <Play className="h-4 w-4 mr-1" />
-                开始扫描
-              </>
-            )}
-          </Button>
         </div>
 
-        {/* 扫描进度 */}
-        {isScanning && (
+        {/* 扫描工具状态 */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Card>
-            <CardContent className="pt-4">
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span>扫描进度</span>
-                  <span>{scanProgress}%</span>
-                </div>
-                <Progress value={scanProgress} />
+            <CardHeader className="pb-2">
+              <CardDescription className="flex items-center gap-1"><Bug className="h-3 w-3" /> Trivy</CardDescription>
+              <CardTitle className="text-lg">
+                <Badge variant="secondary">未部署</Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-xs text-muted-foreground">容器镜像漏洞扫描</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardDescription className="flex items-center gap-1"><Code className="h-3 w-3" /> Semgrep</CardDescription>
+              <CardTitle className="text-lg">
+                <Badge variant="secondary">未部署</Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-xs text-muted-foreground">静态代码安全分析</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardDescription className="flex items-center gap-1"><Key className="h-3 w-3" /> Gitleaks</CardDescription>
+              <CardTitle className="text-lg">
+                <Badge variant="secondary">未部署</Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-xs text-muted-foreground">Git 密钥泄露检测</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* 待扫描容器列表 */}
+        {containers.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle>待扫描容器镜像</CardTitle>
+              <CardDescription>部署 Trivy 后可自动扫描以下 {containers.length} 个容器镜像的安全漏洞</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                {containers.map((c: any) => (
+                  <div key={c.containerName || c.name} className="flex items-center gap-2 p-2 rounded bg-muted/50 text-sm">
+                    <Container className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <span className="font-medium truncate">{c.containerName || c.name}</span>
+                    <span className="text-muted-foreground font-mono text-xs truncate flex-1">{c.image || '-'}</span>
+                    <Badge variant="outline" className="shrink-0">待扫描</Badge>
+                  </div>
+                ))}
               </div>
             </CardContent>
           </Card>
         )}
 
-        {/* 统计卡片 */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium flex items-center gap-2">
-                <Bug className="h-4 w-4 text-muted-foreground" />
-                漏洞总数
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-muted-foreground">—</div>
-              <p className="text-xs text-muted-foreground">Trivy 扫描</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium flex items-center gap-2">
-                <Code className="h-4 w-4 text-muted-foreground" />
-                代码问题
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-muted-foreground">—</div>
-              <p className="text-xs text-muted-foreground">Semgrep 扫描</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium flex items-center gap-2">
-                <Key className="h-4 w-4 text-muted-foreground" />
-                密钥泄露
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-muted-foreground">—</div>
-              <p className="text-xs text-muted-foreground">Gitleaks 扫描</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium flex items-center gap-2">
-                <Clock className="h-4 w-4 text-muted-foreground" />
-                上次扫描
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-sm font-medium text-muted-foreground">从未扫描</div>
-              <p className="text-xs text-muted-foreground">待连接扫描服务</p>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* 扫描结果 */}
-        <Tabs defaultValue="trivy" className="space-y-4">
+        <Tabs defaultValue="trivy">
           <TabsList>
-            <TabsTrigger value="trivy" className="flex items-center gap-1">
-              <Bug className="h-4 w-4" />
-              Trivy 漏洞
-            </TabsTrigger>
-            <TabsTrigger value="semgrep" className="flex items-center gap-1">
-              <Code className="h-4 w-4" />
-              Semgrep 代码
-            </TabsTrigger>
-            <TabsTrigger value="gitleaks" className="flex items-center gap-1">
-              <Key className="h-4 w-4" />
-              Gitleaks 密钥
-            </TabsTrigger>
+            <TabsTrigger value="trivy"><Bug className="h-4 w-4 mr-1" /> Trivy</TabsTrigger>
+            <TabsTrigger value="semgrep"><Code className="h-4 w-4 mr-1" /> Semgrep</TabsTrigger>
+            <TabsTrigger value="gitleaks"><Key className="h-4 w-4 mr-1" /> Gitleaks</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="trivy">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm font-medium">依赖漏洞扫描结果</CardTitle>
-                <CardDescription>Trivy 扫描发现的安全漏洞</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {trivyResults.length === 0 ? (
-                  <EmptyState
-                    icon={<Bug className="h-12 w-12" />}
-                    title="暂无扫描结果"
-                    description="连接 Trivy 扫描服务后，漏洞检测结果将显示在此处。支持容器镜像和依赖包扫描。"
-                    action={{ label: '配置 Trivy', onClick: handleConnectService }}
-                  />
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>CVE ID</TableHead>
-                        <TableHead>严重程度</TableHead>
-                        <TableHead>包名</TableHead>
-                        <TableHead>当前版本</TableHead>
-                        <TableHead>修复版本</TableHead>
-                        <TableHead>描述</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {trivyResults.map((vuln: any) => (
-                        <TableRow key={vuln.id}>
-                          <TableCell className="font-mono text-sm">{vuln.id}</TableCell>
-                          <TableCell>
-                            <Badge className={severityColors[vuln.severity]}>{vuln.severity}</Badge>
-                          </TableCell>
-                          <TableCell className="font-medium">{vuln.package}</TableCell>
-                          <TableCell className="text-red-500">{vuln.version}</TableCell>
-                          <TableCell className="text-green-500">{vuln.fixedVersion}</TableCell>
-                          <TableCell className="max-w-[200px] truncate">{vuln.description}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                )}
-              </CardContent>
-            </Card>
+          <TabsContent value="trivy" className="mt-4">
+            <ScannerTab
+              name="Trivy"
+              icon={Bug}
+              description="部署 Trivy 后可自动扫描所有 Docker 容器镜像的 CVE 漏洞、OS 包漏洞和语言依赖漏洞。"
+              docUrl="https://aquasecurity.github.io/trivy/"
+              features={[
+                '容器镜像 CVE 漏洞扫描（支持 Alpine、Debian、Ubuntu、CentOS 等）',
+                '语言依赖漏洞检测（npm、pip、maven、go modules 等）',
+                'IaC 配置安全检查（Dockerfile、Kubernetes YAML、Terraform）',
+                '密钥泄露检测（API 密钥、密码、证书等）',
+                'SBOM（软件物料清单）生成',
+              ]}
+            />
           </TabsContent>
 
-          <TabsContent value="semgrep">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm font-medium">代码安全扫描结果</CardTitle>
-                <CardDescription>Semgrep 扫描发现的代码安全问题</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {semgrepResults.length === 0 ? (
-                  <EmptyState
-                    icon={<Code className="h-12 w-12" />}
-                    title="暂无扫描结果"
-                    description="连接 Semgrep 扫描服务后，代码安全问题将显示在此处。支持 SQL 注入、XSS 等检测。"
-                    action={{ label: '配置 Semgrep', onClick: handleConnectService }}
-                  />
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>规则</TableHead>
-                        <TableHead>严重程度</TableHead>
-                        <TableHead>文件</TableHead>
-                        <TableHead>行号</TableHead>
-                        <TableHead>描述</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {semgrepResults.map((issue: any) => (
-                        <TableRow key={issue.id}>
-                          <TableCell className="font-mono text-sm">{issue.rule}</TableCell>
-                          <TableCell>
-                            <Badge className={severityColors[issue.severity]}>{issue.severity}</Badge>
-                          </TableCell>
-                          <TableCell className="font-medium">{issue.file}</TableCell>
-                          <TableCell>{issue.line}</TableCell>
-                          <TableCell className="max-w-[200px] truncate">{issue.message}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                )}
-              </CardContent>
-            </Card>
+          <TabsContent value="semgrep" className="mt-4">
+            <ScannerTab
+              name="Semgrep"
+              icon={Code}
+              description="部署 Semgrep 后可对项目源代码进行静态安全分析，检测 SQL 注入、XSS、SSRF 等安全漏洞。"
+              docUrl="https://semgrep.dev/docs/getting-started/"
+              features={[
+                '支持 30+ 编程语言的安全规则扫描',
+                '内置 2000+ 安全规则（OWASP Top 10 覆盖）',
+                '自定义规则编写（YAML 格式，支持模式匹配）',
+                'CI/CD 集成（GitHub Actions、GitLab CI）',
+                '实时代码审查和修复建议',
+              ]}
+            />
           </TabsContent>
 
-          <TabsContent value="gitleaks">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm font-medium">密钥泄露检测结果</CardTitle>
-                <CardDescription>Gitleaks 扫描发现的密钥泄露</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {gitleaksResults.length === 0 ? (
-                  <EmptyState
-                    icon={<Key className="h-12 w-12" />}
-                    title="暂无扫描结果"
-                    description="连接 Gitleaks 扫描服务后，密钥泄露检测结果将显示在此处。支持 AWS、GitHub 等密钥检测。"
-                    action={{ label: '配置 Gitleaks', onClick: handleConnectService }}
-                  />
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>规则</TableHead>
-                        <TableHead>文件</TableHead>
-                        <TableHead>行号</TableHead>
-                        <TableHead>密钥（部分）</TableHead>
-                        <TableHead>提交</TableHead>
-                        <TableHead className="text-right">操作</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {gitleaksResults.map((leak: any) => (
-                        <TableRow key={leak.id}>
-                          <TableCell className="font-mono text-sm">{leak.rule}</TableCell>
-                          <TableCell className="font-medium">{leak.file}</TableCell>
-                          <TableCell>{leak.line}</TableCell>
-                          <TableCell className="font-mono text-sm text-red-500">{leak.secret}</TableCell>
-                          <TableCell className="font-mono text-xs">{leak.commit}</TableCell>
-                          <TableCell className="text-right">
-                            <Button variant="ghost" size="sm" onClick={() => toast.info('查看详情')}>
-                              查看
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                )}
-              </CardContent>
-            </Card>
+          <TabsContent value="gitleaks" className="mt-4">
+            <ScannerTab
+              name="Gitleaks"
+              icon={Key}
+              description="部署 Gitleaks 后可扫描 Git 仓库提交历史中的密钥泄露，防止敏感信息意外提交。"
+              docUrl="https://github.com/gitleaks/gitleaks"
+              features={[
+                '扫描 Git 提交历史中的 API 密钥、密码、令牌',
+                '支持 150+ 密钥类型检测（AWS、GCP、Azure、GitHub 等）',
+                '自定义规则和白名单配置',
+                'Pre-commit hook 集成（提交前自动检查）',
+                'CI/CD 管道集成',
+              ]}
+            />
           </TabsContent>
         </Tabs>
       </div>
