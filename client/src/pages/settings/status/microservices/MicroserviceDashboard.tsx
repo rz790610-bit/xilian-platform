@@ -335,11 +335,11 @@ function ServiceTopologyTab({ services }: { services: MicroService[] }) {
           style={{ pointerEvents: 'none', zIndex: 1 }}
         >
           <defs>
-            <marker id="arr-n" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-              <path d="M 0 0 L 10 5 L 0 10 z" fill="oklch(0.5 0.08 240 / 0.6)" />
+            <marker id="arr-n" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="oklch(0.7 0.12 200)" />
             </marker>
-            <marker id="arr-d" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-              <path d="M 0 0 L 10 5 L 0 10 z" fill="oklch(0.65 0.12 60 / 0.6)" />
+            <marker id="arr-d" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="oklch(0.75 0.15 60)" />
             </marker>
           </defs>
           {edges.map((edge, i) => {
@@ -352,9 +352,9 @@ function ServiceTopologyTab({ services }: { services: MicroService[] }) {
             return (
               <line key={i}
                 x1={x1} y1={y1} x2={x2} y2={y2}
-                stroke={deg ? 'oklch(0.65 0.12 60 / 0.4)' : 'oklch(0.5 0.08 240 / 0.3)'}
-                strokeWidth={hl ? 0.5 : 0.25}
-                strokeDasharray={deg ? '1.2,0.8' : '0.8,0.6'}
+                stroke={deg ? 'oklch(0.75 0.15 60 / 0.85)' : 'oklch(0.65 0.1 200 / 0.7)'}
+                strokeWidth={hl ? 0.8 : 0.4}
+                strokeDasharray={deg ? '2,1.2' : '1.5,1'}
                 markerEnd={deg ? 'url(#arr-d)' : 'url(#arr-n)'}
                 opacity={hoveredNode && !hl ? 0.15 : 1}
                 style={{ transition: 'all 0.3s' }}
