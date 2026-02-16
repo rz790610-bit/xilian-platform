@@ -6,3 +6,4 @@ export { default as SagaManager } from './SagaManager';
 export { default as AdaptiveSampling } from './AdaptiveSampling';
 export { default as DeduplicationManager } from './DeduplicationManager';
 export { default as ReadReplicaManager } from './ReadReplicaManager';
+export { default as MicroserviceDashboard } from './microservices/MicroserviceDashboard';

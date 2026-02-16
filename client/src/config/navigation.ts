@@ -160,6 +160,7 @@ export const navigationConfig: NavItem[] = [
     icon: '📡',
     children: [
       { id: 'status-topology', label: '系统拓扑', icon: '📊', path: '/settings/status/topology' },
+      { id: 'status-microservices', label: '微服务监控', icon: '🔗', path: '/settings/status/microservices' },
       { id: 'status-observability', label: '可观测性', icon: '👁️', path: '/settings/status/observability' },
       { id: 'status-performance', label: '性能总览', icon: '🚀', path: '/settings/status/performance' },
       { id: 'status-plugins', label: '插件管理', icon: '🧩', path: '/operations/plugins' },
