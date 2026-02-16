@@ -320,8 +320,8 @@ function ServiceTopologyTab({ services }: { services: MicroService[] }) {
       </div>
 
       <PageCard noPadding>
-        <div className="relative overflow-hidden rounded-lg" style={{ height: 560 }}>
-          <svg width="100%" height="100%" viewBox="0 0 900 560" className="select-none">
+        <div className="relative rounded-lg" style={{ height: 560, overflow: 'visible' }}>
+          <svg width="100%" height="100%" viewBox="0 0 900 560" style={{ cursor: 'default' }}>
             <defs>
               <filter id="glow-green"><feGaussianBlur stdDeviation="4" result="blur" /><feComposite in="SourceGraphic" in2="blur" operator="over" /></filter>
               <filter id="glow-amber"><feGaussianBlur stdDeviation="4" result="blur" /><feComposite in="SourceGraphic" in2="blur" operator="over" /></filter>
@@ -331,7 +331,9 @@ function ServiceTopologyTab({ services }: { services: MicroService[] }) {
               <radialGradient id="nbg-d" cx="50%" cy="30%"><stop offset="0%" stopColor="oklch(0.35 0.08 60)" /><stop offset="100%" stopColor="oklch(0.2 0.04 60)" /></radialGradient>
             </defs>
             <pattern id="grid" width="30" height="30" patternUnits="userSpaceOnUse"><path d="M 30 0 L 0 0 0 30" fill="none" stroke="oklch(0.3 0 0 / 0.15)" strokeWidth="0.5" /></pattern>
-            <rect width="100%" height="100%" fill="url(#grid)" />
+            <rect width="100%" height="100%" fill="url(#grid)" style={{ pointerEvents: 'none' }} />
+            {/* 点击背景取消选中 */}
+            <rect width="100%" height="100%" fill="transparent" onClick={() => setSelectedNode(null)} style={{ cursor: 'default' }} />
 
             {edges.map((edge, i) => {
               const from = nodePositions[edge.from], to = nodePositions[edge.to];
@@ -347,7 +349,8 @@ function ServiceTopologyTab({ services }: { services: MicroService[] }) {
                   stroke={deg ? 'oklch(0.7 0.15 60 / 0.5)' : 'oklch(0.6 0.1 240 / 0.35)'}
                   strokeWidth={hl ? 2 : 1} strokeDasharray={deg ? '6,4' : '4,3'}
                   markerEnd={deg ? 'url(#arrow-deg)' : 'url(#arrow)'}
-                  opacity={hoveredNode && !hl ? 0.15 : 1} className="transition-all duration-300"
+                  opacity={hoveredNode && !hl ? 0.15 : 1}
+                  style={{ pointerEvents: 'none', transition: 'all 0.3s' }}
                 />
               );
             })}
@@ -360,18 +363,20 @@ function ServiceTopologyTab({ services }: { services: MicroService[] }) {
               const sc = deg ? 'oklch(0.75 0.15 60)' : 'oklch(0.7 0.15 145)';
               return (
                 <g key={svc.id}
-                  onMouseEnter={() => setHoveredNode(svc.id)} onMouseLeave={() => setHoveredNode(null)}
-                  onClick={() => setSelectedNode(sel ? null : svc.id)}
-                  className="cursor-pointer"
-                  opacity={hoveredNode && !hov ? 0.4 : 1} style={{ transition: 'opacity 0.3s' }}
+                  onMouseEnter={() => setHoveredNode(svc.id)}
+                  onMouseLeave={() => setHoveredNode(null)}
+                  onClick={(e) => { e.stopPropagation(); setSelectedNode(sel ? null : svc.id); }}
+                  style={{ cursor: 'pointer', opacity: hoveredNode && !hov ? 0.4 : 1, transition: 'opacity 0.3s' }}
                 >
-                  {(hov || sel) && <circle cx={pos.x} cy={pos.y} r={R + 8} fill="none" stroke={sc} strokeWidth="1" opacity="0.4" filter={deg ? 'url(#glow-amber)' : 'url(#glow-green)'} />}
-                  <circle cx={pos.x} cy={pos.y} r={R} fill={deg ? 'url(#nbg-d)' : 'url(#nbg-h)'} stroke={sc} strokeWidth={hov || sel ? 2 : 1} />
-                  <text x={pos.x} y={pos.y - 2} textAnchor="middle" dominantBaseline="middle" fontSize="18" className="select-none pointer-events-none">{emojis[svc.id] || '📦'}</text>
-                  <text x={pos.x} y={pos.y + R + 16} textAnchor="middle" fill="oklch(0.8 0 0)" fontSize="11" fontWeight="500" className="select-none pointer-events-none">{svc.name}</text>
-                  <text x={pos.x} y={pos.y + R + 30} textAnchor="middle" fill="oklch(0.6 0 0)" fontSize="9" fontFamily="monospace" className="select-none pointer-events-none">{formatNumber(svc.metrics.requestRate)} req/s</text>
+                  {/* 透明点击热区 */}
+                  <circle cx={pos.x} cy={pos.y} r={R + 12} fill="transparent" stroke="none" style={{ pointerEvents: 'all' }} />
+                  {(hov || sel) && <circle cx={pos.x} cy={pos.y} r={R + 8} fill="none" stroke={sc} strokeWidth="1" opacity="0.4" filter={deg ? 'url(#glow-amber)' : 'url(#glow-green)'} style={{ pointerEvents: 'none' }} />}
+                  <circle cx={pos.x} cy={pos.y} r={R} fill={deg ? 'url(#nbg-d)' : 'url(#nbg-h)'} stroke={sc} strokeWidth={hov || sel ? 2 : 1} style={{ pointerEvents: 'none' }} />
+                  <text x={pos.x} y={pos.y - 2} textAnchor="middle" dominantBaseline="middle" fontSize="18" style={{ pointerEvents: 'none', userSelect: 'none' }}>{emojis[svc.id] || '📦'}</text>
+                  <text x={pos.x} y={pos.y + R + 16} textAnchor="middle" fill="oklch(0.8 0 0)" fontSize="11" fontWeight="500" style={{ pointerEvents: 'none', userSelect: 'none' }}>{svc.name}</text>
+                  <text x={pos.x} y={pos.y + R + 30} textAnchor="middle" fill="oklch(0.6 0 0)" fontSize="9" fontFamily="monospace" style={{ pointerEvents: 'none', userSelect: 'none' }}>{formatNumber(svc.metrics.requestRate)} req/s</text>
                   {Array.from({ length: svc.replicas.total }).map((_, ri) => (
-                    <circle key={ri} cx={pos.x - (svc.replicas.total - 1) * 4 + ri * 8} cy={pos.y + R + 42} r={2.5} fill={ri < svc.replicas.ready ? sc : 'oklch(0.4 0 0)'} />
+                    <circle key={ri} cx={pos.x - (svc.replicas.total - 1) * 4 + ri * 8} cy={pos.y + R + 42} r={2.5} fill={ri < svc.replicas.ready ? sc : 'oklch(0.4 0 0)'} style={{ pointerEvents: 'none' }} />
                   ))}
                 </g>
               );
