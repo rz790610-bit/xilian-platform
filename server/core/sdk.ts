@@ -7,16 +7,15 @@ import { SignJWT, jwtVerify } from "jose";
 import type { User } from "../../drizzle/schema";
 import * as db from "../lib/db";
 import { ENV } from "./env";
-import type {
 import { createModuleLogger } from './logger';
-const log = createModuleLogger('sdk');
-
+import type {
   ExchangeTokenRequest,
   ExchangeTokenResponse,
   GetUserInfoResponse,
   GetUserInfoWithJwtRequest,
   GetUserInfoWithJwtResponse,
 } from "./types/manusTypes";
+const log = createModuleLogger('sdk');
 // Utility function
 const isNonEmptyString = (value: unknown): value is string =>
   typeof value === "string" && value.length > 0;
