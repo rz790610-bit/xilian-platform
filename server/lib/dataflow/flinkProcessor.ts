@@ -9,6 +9,7 @@
 
 import { kafkaCluster, XILIAN_TOPICS } from './kafkaCluster';
 import { SensorReading, AnomalyResult, WindowConfig } from "../../core/types/domain";
+import { detectZScore as unifiedDetectZScore, determineSeverity as unifiedDetermineSeverity } from './anomalyEngine';
 export { SensorReading, AnomalyResult, WindowConfig };
 
 // ============ 类型定义 ============
@@ -268,31 +269,28 @@ export class AnomalyDetector {
       windowEnd: window.endTime,
     };
 
-    // Z-Score 检测
+    // 使用统一异常检测引擎
     if (this.config.algorithms.includes('zscore')) {
-      const { mean, stdDev, zScore } = this.calculateZScore(values, reading.value);
+      const n = values.length;
+      const mean = values.reduce((a, b) => a + b, 0) / n;
+      const variance = values.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / n;
+      const stdDev = Math.sqrt(variance);
+      const detection = unifiedDetectZScore(reading.value, mean, stdDev, this.config.threshold);
       result.mean = mean;
       result.stdDev = stdDev;
-      result.score = zScore;
-      result.isAnomaly = zScore > this.config.threshold;
+      result.score = detection.score;
+      result.isAnomaly = detection.isAnomaly;
     }
 
-    // 确定严重程度
+    // 使用统一严重程度判定
     if (result.isAnomaly) {
-      if (result.score > 5) {
-        result.severity = 'critical';
-      } else if (result.score > 4) {
-        result.severity = 'high';
-      } else if (result.score > 3) {
-        result.severity = 'medium';
-      } else {
-        result.severity = 'low';
-      }
+      result.severity = unifiedDetermineSeverity(result.score);
     }
 
     return result;
   }
 
+  /** @deprecated 已迁移到统一异常检测引擎 (anomalyEngine.ts) */
   private calculateZScore(values: number[], currentValue: number): {
     mean: number;
     stdDev: number;
@@ -302,9 +300,8 @@ export class AnomalyDetector {
     const mean = values.reduce((a, b) => a + b, 0) / n;
     const variance = values.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / n;
     const stdDev = Math.sqrt(variance);
-    const zScore = stdDev > 0 ? Math.abs((currentValue - mean) / stdDev) : 0;
-
-    return { mean, stdDev, zScore };
+    const detection = unifiedDetectZScore(currentValue, mean, stdDev);
+    return { mean, stdDev, zScore: detection.score };
   }
 
   private slideWindows(): void {

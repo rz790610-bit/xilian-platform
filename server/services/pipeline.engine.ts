@@ -148,7 +148,8 @@ class ConnectorFactory {
       case 'loop': return this.execLoop(config, inputRecords);
       case 'delay': return this.execDelay(config, inputRecords);
       case 'notify': return this.execNotify(config, inputRecords);
-      case 'parallel': return inputRecords; // parallel 由 RunExecutor 处理
+      case 'parallel': return this.execParallelFork(config, inputRecords);
+      case 'parallel_join': return this.execParallelJoin(config, inputRecords);
 
       // ======== 目标节点 ========
       case 'mysql_sink': return this.execMySQLSink(config, inputRecords);
@@ -775,6 +776,128 @@ class ConnectorFactory {
     const message = records.length > 0 ? template.replace(/\{\{(\w+)\}\}/g, (_, key) => String(records[0].data[key] ?? '')) : template;
     if (url) { try { await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: message, records: records.length }), signal: AbortSignal.timeout(10000) }); } catch (err: any) { console.warn(`[Pipeline] Notify error: ${err.message}`); } }
     return records;
+  }
+
+  /**
+   * 并行分发 (Fork) — 根据策略将数据分发到多个分支
+   * 策略：
+   * - broadcast: 每个分支收到全部数据（默认）
+   * - round_robin: 按记录轮询分配到各分支
+   * - hash: 按字段值哈希分配
+   * 
+   * 分支标记通过 metadata._forkBranch 传递，供下游节点和 join 节点使用
+   */
+  private static execParallelFork(config: Record<string, unknown>, records: DataRecord[]): DataRecord[] {
+    const branches = (config.branches as number) || 2;
+    const strategy = (config.strategy as string) || 'broadcast';
+    const hashField = config.hashField as string;
+
+    switch (strategy) {
+      case 'round_robin': {
+        // 轮询分配：每条记录标记分支号
+        return records.map((r, i) => ({
+          ...r,
+          metadata: { ...r.metadata, _forkBranch: i % branches, _forkStrategy: 'round_robin' },
+        }));
+      }
+      case 'hash': {
+        // 哈希分配：根据字段值的哈希确定分支
+        return records.map(r => {
+          const val = String(r.data[hashField] ?? '');
+          let hash = 0;
+          for (let i = 0; i < val.length; i++) {
+            hash = ((hash << 5) - hash + val.charCodeAt(i)) | 0;
+          }
+          return {
+            ...r,
+            metadata: { ...r.metadata, _forkBranch: Math.abs(hash) % branches, _forkStrategy: 'hash', _forkHashField: hashField },
+          };
+        });
+      }
+      case 'broadcast':
+      default: {
+        // 广播：每条记录标记为广播模式，所有分支都收到全部数据
+        return records.map(r => ({
+          ...r,
+          metadata: { ...r.metadata, _forkBranch: -1, _forkStrategy: 'broadcast' },
+        }));
+      }
+    }
+  }
+
+  /**
+   * 并行汇聚 (Join) — 合并多个分支的结果
+   * 合并策略：
+   * - concat: 拼接所有分支的记录（默认）
+   * - zip: 按位置配对合并（字段合并）
+   * - first: 取第一个非空分支的结果
+   * 
+   * 输入记录通过 metadata.port 区分来源分支（由 RunExecutor.collectInputs 设置）
+   */
+  private static execParallelJoin(config: Record<string, unknown>, records: DataRecord[]): DataRecord[] {
+    const mergeStrategy = (config.mergeStrategy as string) || 'concat';
+
+    // 按来源端口分组
+    const branches = new Map<number, DataRecord[]>();
+    for (const r of records) {
+      const port = (r.metadata?.port as number) ?? 0;
+      if (!branches.has(port)) branches.set(port, []);
+      branches.get(port)!.push(r);
+    }
+
+    const branchArrays = Array.from(branches.entries())
+      .sort(([a], [b]) => a - b)
+      .map(([, recs]) => recs);
+
+    switch (mergeStrategy) {
+      case 'zip': {
+        // 拉链合并：按位置配对，合并字段
+        const maxLen = Math.max(...branchArrays.map(b => b.length), 0);
+        const result: DataRecord[] = [];
+        for (let i = 0; i < maxLen; i++) {
+          let merged: Record<string, unknown> = {};
+          const lineage: any[] = [];
+          for (const branch of branchArrays) {
+            if (i < branch.length) {
+              merged = { ...merged, ...branch[i].data };
+              lineage.push(...(branch[i]._lineage || []));
+            }
+          }
+          result.push({
+            id: `join-${Date.now()}-${i}`,
+            timestamp: Date.now(),
+            source: 'parallel_join',
+            data: merged,
+            metadata: { joinStrategy: 'zip', position: i },
+            _lineage: lineage,
+          });
+        }
+        return result;
+      }
+      case 'first': {
+        // 取第一个非空分支
+        for (const branch of branchArrays) {
+          if (branch.length > 0) {
+            return branch.map(r => ({
+              ...r,
+              metadata: { ...r.metadata, joinStrategy: 'first' },
+            }));
+          }
+        }
+        return [];
+      }
+      case 'concat':
+      default: {
+        // 拼接所有分支，清除 fork 元数据
+        return records.map(r => {
+          const { _forkBranch, _forkStrategy, _forkHashField, ...restMeta } = (r.metadata || {}) as any;
+          return {
+            ...r,
+            metadata: { ...restMeta, joinStrategy: 'concat' },
+          };
+        });
+      }
+    }
   }
 
   // ======== 目标节点实现 ========

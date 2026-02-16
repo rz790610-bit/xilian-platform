@@ -8,6 +8,13 @@
  * - Redlock 分布式锁
  * - Sliding Window 限流
  * - Pub/Sub 事件总线
+ * 
+ * 职责分工：
+ * - redis.client.ts：底层连接管理 + 原生命令封装（Streams/PubSub/Hash/健康检查）
+ * - redis.storage.ts（本文件）：业务层封装（缓存/会话/分布式锁/限流）
+ * 
+ * 当需要原生 Redis 命令时，使用 redis.client.ts。
+ * 当需要业务级缓存/锁/限流时，使用本文件。
  */
 
 import Redis, { Cluster, ClusterOptions, RedisOptions } from 'ioredis';
@@ -235,12 +242,20 @@ export class RedisStorage {
   }
 
   /**
-   * 获取客户端
+   * 获取内部客户端
    */
   private getClient(): Redis | Cluster {
     if (!this.client) {
       throw new Error('[Redis] Client not initialized');
     }
+    return this.client;
+  }
+
+  /**
+   * 获取底层 ioredis 客户端实例（供需要原生命令的模块使用）
+   * 优先使用 redis.client.ts 的封装方法，仅在必要时使用此方法
+   */
+  getUnderlyingClient(): Redis | Cluster | null {
     return this.client;
   }
 

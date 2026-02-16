@@ -561,6 +561,525 @@ class RedisClientManager {
     }
   }
 
+  // ============ Redis Streams API ============
+
+  /**
+   * XADD — 向 Stream 追加消息
+   * @param stream  Stream 键名
+   * @param fields  消息字段 { field: value, ... }
+   * @param id      消息 ID，默认 '*' 自动生成
+   * @param maxLen  可选 MAXLEN 截断（近似 ~）
+   * @returns 消息 ID 或 null
+   */
+  async xadd(
+    stream: string,
+    fields: Record<string, string | number>,
+    id: string = '*',
+    maxLen?: number
+  ): Promise<string | null> {
+    if (!this.client) return null;
+    try {
+      const args: (string | number)[] = [stream];
+      if (maxLen !== undefined) {
+        args.push('MAXLEN', '~', maxLen);
+      }
+      args.push(id);
+      for (const [k, v] of Object.entries(fields)) {
+        args.push(k, String(v));
+      }
+      return await (this.client as any).xadd(...args);
+    } catch (error) {
+      console.error('[Redis] XADD error:', error);
+      return null;
+    }
+  }
+
+  /**
+   * XLEN — 获取 Stream 长度
+   */
+  async xlen(stream: string): Promise<number> {
+    if (!this.client) return 0;
+    try {
+      return await (this.client as any).xlen(stream);
+    } catch (error) {
+      console.error('[Redis] XLEN error:', error);
+      return 0;
+    }
+  }
+
+  /**
+   * XRANGE — 按 ID 范围读取消息
+   * @param start  起始 ID（'-' 表示最小）
+   * @param end    结束 ID（'+' 表示最大）
+   * @param count  最大返回条数
+   */
+  async xrange(
+    stream: string,
+    start: string = '-',
+    end: string = '+',
+    count?: number
+  ): Promise<Array<{ id: string; fields: Record<string, string> }>> {
+    if (!this.client) return [];
+    try {
+      const args: (string | number)[] = [stream, start, end];
+      if (count !== undefined) {
+        args.push('COUNT', count);
+      }
+      const raw: [string, string[]][] = await (this.client as any).xrange(...args);
+      return (raw || []).map(([id, flat]) => {
+        const fields: Record<string, string> = {};
+        for (let i = 0; i < flat.length; i += 2) {
+          fields[flat[i]] = flat[i + 1];
+        }
+        return { id, fields };
+      });
+    } catch (error) {
+      console.error('[Redis] XRANGE error:', error);
+      return [];
+    }
+  }
+
+  /**
+   * XREVRANGE — 按 ID 范围逆序读取
+   */
+  async xrevrange(
+    stream: string,
+    end: string = '+',
+    start: string = '-',
+    count?: number
+  ): Promise<Array<{ id: string; fields: Record<string, string> }>> {
+    if (!this.client) return [];
+    try {
+      const args: (string | number)[] = [stream, end, start];
+      if (count !== undefined) {
+        args.push('COUNT', count);
+      }
+      const raw: [string, string[]][] = await (this.client as any).xrevrange(...args);
+      return (raw || []).map(([id, flat]) => {
+        const fields: Record<string, string> = {};
+        for (let i = 0; i < flat.length; i += 2) {
+          fields[flat[i]] = flat[i + 1];
+        }
+        return { id, fields };
+      });
+    } catch (error) {
+      console.error('[Redis] XREVRANGE error:', error);
+      return [];
+    }
+  }
+
+  /**
+   * XREAD — 阻塞/非阻塞读取一个或多个 Stream
+   * @param streams  { streamKey: lastId } 映射
+   * @param count    每个 Stream 最大返回条数
+   * @param blockMs  阻塞毫秒数（0 = 永久阻塞，undefined = 非阻塞）
+   */
+  async xread(
+    streams: Record<string, string>,
+    count?: number,
+    blockMs?: number
+  ): Promise<Array<{ stream: string; messages: Array<{ id: string; fields: Record<string, string> }> }>> {
+    if (!this.client) return [];
+    try {
+      const args: (string | number)[] = [];
+      if (count !== undefined) {
+        args.push('COUNT', count);
+      }
+      if (blockMs !== undefined) {
+        args.push('BLOCK', blockMs);
+      }
+      args.push('STREAMS');
+      const keys = Object.keys(streams);
+      const ids = Object.values(streams);
+      args.push(...keys, ...ids);
+      const raw = await (this.client as any).xread(...args);
+      if (!raw) return [];
+      return raw.map(([streamKey, entries]: [string, [string, string[]][]]) => ({
+        stream: streamKey,
+        messages: entries.map(([id, flat]) => {
+          const fields: Record<string, string> = {};
+          for (let i = 0; i < flat.length; i += 2) {
+            fields[flat[i]] = flat[i + 1];
+          }
+          return { id, fields };
+        }),
+      }));
+    } catch (error) {
+      console.error('[Redis] XREAD error:', error);
+      return [];
+    }
+  }
+
+  /**
+   * XGROUP CREATE — 创建消费者组
+   * @param mkstream  如果 Stream 不存在则自动创建
+   */
+  async xgroupCreate(
+    stream: string,
+    group: string,
+    startId: string = '$',
+    mkstream: boolean = true
+  ): Promise<boolean> {
+    if (!this.client) return false;
+    try {
+      const args: string[] = ['CREATE', stream, group, startId];
+      if (mkstream) args.push('MKSTREAM');
+      await (this.client as any).xgroup(...args);
+      return true;
+    } catch (error: any) {
+      if (error.message?.includes('BUSYGROUP')) {
+        // 消费者组已存在，视为成功
+        return true;
+      }
+      console.error('[Redis] XGROUP CREATE error:', error);
+      return false;
+    }
+  }
+
+  /**
+   * XGROUP DELCONSUMER — 删除消费者组中的消费者
+   */
+  async xgroupDelConsumer(
+    stream: string,
+    group: string,
+    consumer: string
+  ): Promise<number> {
+    if (!this.client) return 0;
+    try {
+      return await (this.client as any).xgroup('DELCONSUMER', stream, group, consumer);
+    } catch (error) {
+      console.error('[Redis] XGROUP DELCONSUMER error:', error);
+      return 0;
+    }
+  }
+
+  /**
+   * XGROUP DESTROY — 删除消费者组
+   */
+  async xgroupDestroy(stream: string, group: string): Promise<boolean> {
+    if (!this.client) return false;
+    try {
+      const result = await (this.client as any).xgroup('DESTROY', stream, group);
+      return result === 1;
+    } catch (error) {
+      console.error('[Redis] XGROUP DESTROY error:', error);
+      return false;
+    }
+  }
+
+  /**
+   * XREADGROUP — 消费者组读取
+   * @param group     消费者组名
+   * @param consumer  消费者名
+   * @param streams   { streamKey: '>' 或 lastId }
+   * @param count     最大返回条数
+   * @param blockMs   阻塞毫秒数
+   * @param noAck     是否不需要 ACK
+   */
+  async xreadgroup(
+    group: string,
+    consumer: string,
+    streams: Record<string, string>,
+    count?: number,
+    blockMs?: number,
+    noAck?: boolean
+  ): Promise<Array<{ stream: string; messages: Array<{ id: string; fields: Record<string, string> }> }>> {
+    if (!this.client) return [];
+    try {
+      const args: (string | number)[] = ['GROUP', group, consumer];
+      if (count !== undefined) {
+        args.push('COUNT', count);
+      }
+      if (blockMs !== undefined) {
+        args.push('BLOCK', blockMs);
+      }
+      if (noAck) {
+        args.push('NOACK');
+      }
+      args.push('STREAMS');
+      const keys = Object.keys(streams);
+      const ids = Object.values(streams);
+      args.push(...keys, ...ids);
+      const raw = await (this.client as any).xreadgroup(...args);
+      if (!raw) return [];
+      return raw.map(([streamKey, entries]: [string, [string, string[]][]]) => ({
+        stream: streamKey,
+        messages: entries.map(([id, flat]) => {
+          const fields: Record<string, string> = {};
+          for (let i = 0; i < flat.length; i += 2) {
+            fields[flat[i]] = flat[i + 1];
+          }
+          return { id, fields };
+        }),
+      }));
+    } catch (error) {
+      console.error('[Redis] XREADGROUP error:', error);
+      return [];
+    }
+  }
+
+  /**
+   * XACK — 确认消息已处理
+   */
+  async xack(stream: string, group: string, ...ids: string[]): Promise<number> {
+    if (!this.client) return 0;
+    try {
+      return await (this.client as any).xack(stream, group, ...ids);
+    } catch (error) {
+      console.error('[Redis] XACK error:', error);
+      return 0;
+    }
+  }
+
+  /**
+   * XPENDING — 查询待处理消息摘要
+   */
+  async xpending(
+    stream: string,
+    group: string
+  ): Promise<{ count: number; minId: string | null; maxId: string | null; consumers: Array<{ name: string; pending: number }> }> {
+    if (!this.client) return { count: 0, minId: null, maxId: null, consumers: [] };
+    try {
+      const raw = await (this.client as any).xpending(stream, group);
+      if (!raw || !Array.isArray(raw)) return { count: 0, minId: null, maxId: null, consumers: [] };
+      return {
+        count: raw[0] || 0,
+        minId: raw[1] || null,
+        maxId: raw[2] || null,
+        consumers: (raw[3] || []).map(([name, pending]: [string, string]) => ({
+          name,
+          pending: parseInt(pending),
+        })),
+      };
+    } catch (error) {
+      console.error('[Redis] XPENDING error:', error);
+      return { count: 0, minId: null, maxId: null, consumers: [] };
+    }
+  }
+
+  /**
+   * XTRIM — 截断 Stream
+   * @param strategy  'MAXLEN' 或 'MINID'
+   * @param threshold 最大长度或最小 ID
+   * @param approximate 是否使用近似截断 (~)
+   */
+  async xtrim(
+    stream: string,
+    strategy: 'MAXLEN' | 'MINID',
+    threshold: number | string,
+    approximate: boolean = true
+  ): Promise<number> {
+    if (!this.client) return 0;
+    try {
+      const args: (string | number)[] = [stream, strategy];
+      if (approximate) args.push('~');
+      args.push(threshold);
+      return await (this.client as any).xtrim(...args);
+    } catch (error) {
+      console.error('[Redis] XTRIM error:', error);
+      return 0;
+    }
+  }
+
+  /**
+   * XINFO STREAM — 获取 Stream 信息
+   */
+  async xinfoStream(stream: string): Promise<Record<string, any> | null> {
+    if (!this.client) return null;
+    try {
+      const raw = await (this.client as any).xinfo('STREAM', stream);
+      if (!raw || !Array.isArray(raw)) return null;
+      const result: Record<string, any> = {};
+      for (let i = 0; i < raw.length; i += 2) {
+        result[raw[i]] = raw[i + 1];
+      }
+      return result;
+    } catch (error) {
+      console.error('[Redis] XINFO STREAM error:', error);
+      return null;
+    }
+  }
+
+  /**
+   * XINFO GROUPS — 获取 Stream 的消费者组信息
+   */
+  async xinfoGroups(stream: string): Promise<Array<Record<string, any>>> {
+    if (!this.client) return [];
+    try {
+      const raw = await (this.client as any).xinfo('GROUPS', stream);
+      if (!raw || !Array.isArray(raw)) return [];
+      return raw.map((group: any[]) => {
+        const obj: Record<string, any> = {};
+        for (let i = 0; i < group.length; i += 2) {
+          obj[group[i]] = group[i + 1];
+        }
+        return obj;
+      });
+    } catch (error) {
+      console.error('[Redis] XINFO GROUPS error:', error);
+      return [];
+    }
+  }
+
+  // ============ Pub/Sub API ============
+
+  /**
+   * 初始化 Subscriber 客户端（用于 Pub/Sub）
+   */
+  private async ensureSubscriber(): Promise<Redis | null> {
+    if (this.subscriber) return this.subscriber;
+    if (!this.client) return null;
+    try {
+      this.subscriber = this.client.duplicate();
+      await this.subscriber.ping();
+      return this.subscriber;
+    } catch (error) {
+      console.error('[Redis] Subscriber init error:', error);
+      this.subscriber = null;
+      return null;
+    }
+  }
+
+  /**
+   * PUBLISH — 发布消息到频道
+   */
+  async publish(channel: string, message: string | object): Promise<number> {
+    if (!this.client) return 0;
+    try {
+      const payload = typeof message === 'object' ? JSON.stringify(message) : message;
+      return await this.client.publish(channel, payload);
+    } catch (error) {
+      console.error('[Redis] PUBLISH error:', error);
+      return 0;
+    }
+  }
+
+  /**
+   * SUBSCRIBE — 订阅频道
+   */
+  async subscribe(
+    channels: string | string[],
+    handler: (channel: string, message: string) => void
+  ): Promise<boolean> {
+    const sub = await this.ensureSubscriber();
+    if (!sub) return false;
+    try {
+      const chans = Array.isArray(channels) ? channels : [channels];
+      await sub.subscribe(...chans);
+      sub.on('message', handler);
+      return true;
+    } catch (error) {
+      console.error('[Redis] SUBSCRIBE error:', error);
+      return false;
+    }
+  }
+
+  /**
+   * PSUBSCRIBE — 模式订阅
+   */
+  async psubscribe(
+    patterns: string | string[],
+    handler: (pattern: string, channel: string, message: string) => void
+  ): Promise<boolean> {
+    const sub = await this.ensureSubscriber();
+    if (!sub) return false;
+    try {
+      const pats = Array.isArray(patterns) ? patterns : [patterns];
+      await sub.psubscribe(...pats);
+      sub.on('pmessage', handler);
+      return true;
+    } catch (error) {
+      console.error('[Redis] PSUBSCRIBE error:', error);
+      return false;
+    }
+  }
+
+  /**
+   * UNSUBSCRIBE — 取消订阅
+   */
+  async unsubscribe(...channels: string[]): Promise<boolean> {
+    if (!this.subscriber) return false;
+    try {
+      await this.subscriber.unsubscribe(...channels);
+      return true;
+    } catch (error) {
+      console.error('[Redis] UNSUBSCRIBE error:', error);
+      return false;
+    }
+  }
+
+  // ============ Hash 操作 ============
+
+  /**
+   * HSET — 设置 Hash 字段
+   */
+  async hset(key: string, field: string, value: string | number): Promise<number> {
+    if (!this.client) return 0;
+    try {
+      return await this.client.hset(key, field, String(value));
+    } catch (error) {
+      console.error('[Redis] HSET error:', error);
+      return 0;
+    }
+  }
+
+  /**
+   * HMSET — 批量设置 Hash 字段
+   */
+  async hmset(key: string, fields: Record<string, string | number>): Promise<boolean> {
+    if (!this.client) return false;
+    try {
+      const flat: string[] = [];
+      for (const [k, v] of Object.entries(fields)) {
+        flat.push(k, String(v));
+      }
+      await this.client.hmset(key, ...flat);
+      return true;
+    } catch (error) {
+      console.error('[Redis] HMSET error:', error);
+      return false;
+    }
+  }
+
+  /**
+   * HGET — 获取 Hash 字段
+   */
+  async hget(key: string, field: string): Promise<string | null> {
+    if (!this.client) return null;
+    try {
+      return await this.client.hget(key, field);
+    } catch (error) {
+      console.error('[Redis] HGET error:', error);
+      return null;
+    }
+  }
+
+  /**
+   * HGETALL — 获取 Hash 所有字段
+   */
+  async hgetall(key: string): Promise<Record<string, string>> {
+    if (!this.client) return {};
+    try {
+      return await this.client.hgetall(key);
+    } catch (error) {
+      console.error('[Redis] HGETALL error:', error);
+      return {};
+    }
+  }
+
+  /**
+   * HDEL — 删除 Hash 字段
+   */
+  async hdel(key: string, ...fields: string[]): Promise<number> {
+    if (!this.client) return 0;
+    try {
+      return await this.client.hdel(key, ...fields);
+    } catch (error) {
+      console.error('[Redis] HDEL error:', error);
+      return 0;
+    }
+  }
+
   // ============ 健康检查 ============
 
   /**

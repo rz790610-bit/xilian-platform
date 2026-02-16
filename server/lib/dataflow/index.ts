@@ -52,3 +52,20 @@ export {
   type DataflowEventType,
   type DataflowEvent,
 } from './dataflowManager';
+
+// 统一异常检测引擎
+export {
+  anomalyEngine,
+  UnifiedAnomalyEngine,
+  detectZScore,
+  detectIQR,
+  detectMAD,
+  determineSeverity,
+  computeStats,
+  type AnomalyDetectionResult,
+  type AnomalyAlgorithm,
+  type AnomalySeverity,
+  type AnomalyEngineConfig,
+  type DataPoint as AnomalyDataPoint,
+  type SlidingWindowConfig,
+} from './anomalyEngine';

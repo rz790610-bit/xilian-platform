@@ -10,6 +10,7 @@
  */
 
 import { Kafka, Admin, Producer, Consumer, logLevel, CompressionTypes, ITopicConfig } from 'kafkajs';
+import { KAFKA_TOPICS, KAFKA_TOPIC_CLUSTER_CONFIGS, type TopicClusterConfig } from '../../shared/constants/kafka-topics.const';
 
 // ============ 配置类型 ============
 
@@ -41,128 +42,27 @@ export interface TopicConfig {
   configs?: Record<string, string>;
 }
 
-// ============ 预定义 Topic 配置 ============
+// ============ Topic 配置（从统一定义桥接） ============
 
-export const XILIAN_TOPICS: Record<string, TopicConfig> = {
-  // 传感器数据 - 高吞吐量
-  SENSOR_DATA: {
-    name: 'xilian.sensor-data',
-    partitions: 128,
-    replicationFactor: 2,
-    retentionMs: 7 * 24 * 60 * 60 * 1000, // 7天
-    compressionType: 'lz4',
-    minInsyncReplicas: 1,
-    configs: {
-      'segment.bytes': '1073741824', // 1GB
-      'segment.ms': '3600000', // 1小时
-      'max.message.bytes': '10485760', // 10MB
-    },
-  },
-
-  // AIS 船舶数据 - 中等吞吐量
-  AIS_VESSEL: {
-    name: 'xilian.ais-vessel',
-    partitions: 16,
-    replicationFactor: 2,
-    retentionMs: 7 * 24 * 60 * 60 * 1000,
-    compressionType: 'snappy',
-    minInsyncReplicas: 1,
-    configs: {
-      'segment.bytes': '536870912', // 512MB
-      'segment.ms': '3600000',
-    },
-  },
-
-  // TOS 作业数据 - 中等吞吐量
-  TOS_JOB: {
-    name: 'xilian.tos-job',
-    partitions: 32,
-    replicationFactor: 2,
-    retentionMs: 7 * 24 * 60 * 60 * 1000,
-    compressionType: 'snappy',
-    minInsyncReplicas: 1,
-    configs: {
-      'segment.bytes': '536870912',
-      'segment.ms': '3600000',
-    },
-  },
-
-  // 故障事件 - 低吞吐量高可靠性
-  FAULT_EVENTS: {
-    name: 'xilian.fault-events',
-    partitions: 8,
-    replicationFactor: 2,
-    retentionMs: 30 * 24 * 60 * 60 * 1000, // 30天（故障事件保留更长）
-    compressionType: 'gzip',
-    minInsyncReplicas: 2, // 高可靠性
-    configs: {
-      'segment.bytes': '268435456', // 256MB
-      'segment.ms': '86400000', // 1天
-    },
-  },
-
-  // 异常检测结果
-  ANOMALY_RESULTS: {
-    name: 'xilian.anomaly-results',
-    partitions: 16,
-    replicationFactor: 2,
-    retentionMs: 7 * 24 * 60 * 60 * 1000,
-    compressionType: 'snappy',
-    minInsyncReplicas: 1,
-  },
-
-  // 聚合数据（1分钟）
-  AGGREGATIONS_1M: {
-    name: 'xilian.aggregations-1m',
-    partitions: 32,
-    replicationFactor: 2,
-    retentionMs: 30 * 24 * 60 * 60 * 1000, // 30天
-    compressionType: 'lz4',
-    minInsyncReplicas: 1,
-  },
-
-  // 聚合数据（1小时）
-  AGGREGATIONS_1H: {
-    name: 'xilian.aggregations-1h',
-    partitions: 16,
-    replicationFactor: 2,
-    retentionMs: 365 * 24 * 60 * 60 * 1000, // 1年
-    compressionType: 'gzip',
-    minInsyncReplicas: 1,
-  },
-
-  // CDC 变更数据
-  CDC_EVENTS: {
-    name: 'xilian.cdc-events',
-    partitions: 16,
-    replicationFactor: 2,
-    retentionMs: 7 * 24 * 60 * 60 * 1000,
-    cleanupPolicy: 'compact',
-    compressionType: 'snappy',
-    minInsyncReplicas: 1,
-  },
-
-  // 知识图谱实体
-  KG_ENTITIES: {
-    name: 'xilian.kg-entities',
-    partitions: 8,
-    replicationFactor: 2,
-    retentionMs: 30 * 24 * 60 * 60 * 1000,
-    cleanupPolicy: 'compact',
-    compressionType: 'gzip',
-    minInsyncReplicas: 1,
-  },
-
-  // 归档通知
-  ARCHIVE_NOTIFICATIONS: {
-    name: 'xilian.archive-notifications',
-    partitions: 4,
-    replicationFactor: 2,
-    retentionMs: 7 * 24 * 60 * 60 * 1000,
-    compressionType: 'gzip',
-    minInsyncReplicas: 1,
-  },
-};
+/**
+ * XILIAN_TOPICS 桥接层
+ * 将统一的 KAFKA_TOPIC_CLUSTER_CONFIGS 转换为本模块使用的 TopicConfig 格式
+ */
+export const XILIAN_TOPICS: Record<string, TopicConfig> = Object.fromEntries(
+  Object.entries(KAFKA_TOPIC_CLUSTER_CONFIGS).map(([key, cfg]) => [
+    key,
+    {
+      name: cfg.name,
+      partitions: cfg.partitions,
+      replicationFactor: cfg.replicationFactor,
+      retentionMs: cfg.retentionMs,
+      compressionType: cfg.compressionType,
+      cleanupPolicy: cfg.cleanupPolicy,
+      minInsyncReplicas: cfg.minInsyncReplicas,
+      configs: cfg.configs,
+    } as TopicConfig,
+  ])
+);
 
 // ============ 默认集群配置 ============
 
@@ -928,34 +828,358 @@ export interface ArchiveFile {
 
 export class KafkaArchiver {
   private config: ArchiveConfig;
+  private archiveRecords: ArchiveRecord[] = [];
+  private recentFiles: ArchiveFile[] = [];
+  private archiveCallbacks: Array<(file: ArchiveFile) => void> = [];
+  private _isRunning = false;
+  private _filesCreated = 0;
+  private scheduledTimer: NodeJS.Timeout | null = null;
+
   constructor(config?: Partial<ArchiveConfig>) {
     this.config = {
       enabled: false,
-      storagePath: '/data/kafka-archives',
+      storagePath: process.env.KAFKA_ARCHIVE_PATH || '/data/kafka-archives',
       retentionDays: 30,
+      compressionType: 'gzip',
+      maxFileSizeMB: 256,
       ...config,
     };
   }
+
+  /**
+   * 归档指定 Topic 的消息到文件系统
+   * 通过 KafkaCluster 消费消息，写入 NDJSON + gzip 压缩文件
+   */
   async archive(topic: string): Promise<ArchiveFile | null> {
-    console.log(`[KafkaArchiver] Archive topic: ${topic}`);
-    return null;
+    if (!this.config.enabled) {
+      console.warn('[KafkaArchiver] Archiver is disabled');
+      return null;
+    }
+
+    const fs = await import('fs');
+    const path = await import('path');
+    const zlib = await import('zlib');
+    const { promisify } = await import('util');
+    const gzip = promisify(zlib.gzip);
+
+    const partition = 0;
+    const timestamp = new Date();
+    const dateStr = timestamp.toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const topicDir = path.join(this.config.storagePath, topic);
+    const fileName = `${topic}-p${partition}-${dateStr}.ndjson${this.config.compressionType === 'gzip' ? '.gz' : ''}`;
+    const filePath = path.join(topicDir, fileName);
+
+    try {
+      // 确保目录存在
+      fs.mkdirSync(topicDir, { recursive: true });
+
+      // 从 Kafka 消费消息（批量拉取，最多 10000 条或 maxFileSizeMB）
+      const messages: Array<{ offset: string; key: string | null; value: string | null; timestamp: string; headers: Record<string, string> }> = [];
+      const maxMessages = 10000;
+      const maxBytes = (this.config.maxFileSizeMB || 256) * 1024 * 1024;
+      let totalBytes = 0;
+
+      // 尝试通过 kafkaCluster 消费，如果不可用则创建空归档文件
+      try {
+        const consumerId = await kafkaCluster.createConsumer(
+          `archiver-${topic}-${Date.now()}`,
+          [topic],
+          async (msg) => {
+            if (messages.length < maxMessages && totalBytes < maxBytes) {
+              const line = JSON.stringify({
+                offset: msg.offset,
+                key: msg.key,
+                value: msg.value,
+                timestamp: msg.timestamp,
+                headers: msg.headers,
+              });
+              messages.push(msg);
+              totalBytes += Buffer.byteLength(line);
+            }
+          },
+          { fromBeginning: false, autoCommit: true }
+        );
+
+        // 等待消费一段时间（最多 30 秒）
+        await new Promise(resolve => setTimeout(resolve, Math.min(30000, 5000)));
+        await kafkaCluster.stopConsumer(consumerId);
+      } catch (kafkaErr) {
+        console.warn(`[KafkaArchiver] Kafka not available for topic ${topic}, creating empty archive:`, kafkaErr);
+      }
+
+      if (messages.length === 0) {
+        console.log(`[KafkaArchiver] No messages to archive for topic: ${topic}`);
+        return null;
+      }
+
+      // 序列化为 NDJSON
+      const ndjson = messages.map(m => JSON.stringify({
+        offset: m.offset,
+        key: m.key,
+        value: m.value,
+        timestamp: m.timestamp,
+        headers: m.headers,
+      })).join('\n') + '\n';
+
+      // 压缩并写入
+      let fileContent: Buffer;
+      if (this.config.compressionType === 'gzip') {
+        fileContent = await gzip(Buffer.from(ndjson));
+      } else {
+        fileContent = Buffer.from(ndjson);
+      }
+
+      fs.writeFileSync(filePath, fileContent);
+      const fileStats = fs.statSync(filePath);
+
+      const startOffset = parseInt(messages[0]?.offset || '0');
+      const endOffset = parseInt(messages[messages.length - 1]?.offset || '0');
+
+      const archiveFile: ArchiveFile = {
+        path: filePath,
+        topic,
+        partition,
+        startOffset,
+        endOffset,
+        messageCount: messages.length,
+        sizeBytes: fileStats.size,
+        createdAt: timestamp,
+      };
+
+      // 记录元数据
+      const record: ArchiveRecord = {
+        id: `archive-${topic}-${dateStr}`,
+        topic,
+        partition,
+        startOffset,
+        endOffset,
+        messageCount: messages.length,
+        filePath,
+        fileSize: totalBytes,
+        createdAt: timestamp,
+        compressedSize: fileStats.size,
+      };
+      this.archiveRecords.push(record);
+      this.recentFiles.unshift(archiveFile);
+      if (this.recentFiles.length > 100) this.recentFiles.pop();
+      this._filesCreated++;
+
+      // 触发回调
+      for (const cb of this.archiveCallbacks) {
+        try { cb(archiveFile); } catch (e) { console.warn('[KafkaArchiver] Callback error:', e); }
+      }
+
+      // 保存元数据到 JSON 索引文件
+      const indexPath = path.join(this.config.storagePath, 'archive-index.json');
+      try {
+        let index: ArchiveRecord[] = [];
+        if (fs.existsSync(indexPath)) {
+          index = JSON.parse(fs.readFileSync(indexPath, 'utf-8'));
+        }
+        index.push(record);
+        fs.writeFileSync(indexPath, JSON.stringify(index, null, 2));
+      } catch (e) {
+        console.warn('[KafkaArchiver] Failed to update index:', e);
+      }
+
+      console.log(`[KafkaArchiver] Archived ${messages.length} messages from ${topic} to ${filePath} (${(fileStats.size / 1024).toFixed(1)} KB)`);
+      return archiveFile;
+    } catch (error) {
+      console.error(`[KafkaArchiver] Archive failed for topic ${topic}:`, error);
+      return null;
+    }
   }
+
+  /**
+   * 获取归档统计信息
+   */
   async getStats(): Promise<ArchiveStats> {
-    return { totalFiles: 0, totalMessages: 0, totalSizeBytes: 0, topicStats: {} };
+    const fs = await import('fs');
+    const path = await import('path');
+
+    const stats: ArchiveStats = {
+      totalFiles: 0,
+      totalMessages: 0,
+      totalSizeBytes: 0,
+      topicStats: {},
+    };
+
+    // 从内存记录和索引文件中汇总
+    const indexPath = path.join(this.config.storagePath, 'archive-index.json');
+    let allRecords = [...this.archiveRecords];
+    try {
+      if (fs.existsSync(indexPath)) {
+        const diskRecords: ArchiveRecord[] = JSON.parse(fs.readFileSync(indexPath, 'utf-8'));
+        // 合并去重
+        const seenIds = new Set(allRecords.map(r => r.id));
+        for (const r of diskRecords) {
+          if (!seenIds.has(r.id)) {
+            allRecords.push(r);
+            seenIds.add(r.id);
+          }
+        }
+      }
+    } catch (e) {
+      // 索引文件不存在或损坏，仅使用内存记录
+    }
+
+    for (const record of allRecords) {
+      stats.totalFiles++;
+      stats.totalMessages += record.messageCount;
+      stats.totalSizeBytes += record.compressedSize || record.fileSize;
+
+      if (!stats.topicStats[record.topic]) {
+        stats.topicStats[record.topic] = { files: 0, messages: 0, sizeBytes: 0 };
+      }
+      stats.topicStats[record.topic].files++;
+      stats.topicStats[record.topic].messages += record.messageCount;
+      stats.topicStats[record.topic].sizeBytes += record.compressedSize || record.fileSize;
+
+      const createdAt = new Date(record.createdAt);
+      if (!stats.oldestArchive || createdAt < stats.oldestArchive) stats.oldestArchive = createdAt;
+      if (!stats.newestArchive || createdAt > stats.newestArchive) stats.newestArchive = createdAt;
+    }
+
+    return stats;
   }
+
+  /**
+   * 列出归档记录
+   */
   async listArchives(topic?: string): Promise<ArchiveRecord[]> {
-    return [];
+    const fs = await import('fs');
+    const path = await import('path');
+
+    let allRecords = [...this.archiveRecords];
+    const indexPath = path.join(this.config.storagePath, 'archive-index.json');
+    try {
+      if (fs.existsSync(indexPath)) {
+        const diskRecords: ArchiveRecord[] = JSON.parse(fs.readFileSync(indexPath, 'utf-8'));
+        const seenIds = new Set(allRecords.map(r => r.id));
+        for (const r of diskRecords) {
+          if (!seenIds.has(r.id)) {
+            allRecords.push(r);
+            seenIds.add(r.id);
+          }
+        }
+      }
+    } catch (e) { /* ignore */ }
+
+    if (topic) {
+      allRecords = allRecords.filter(r => r.topic === topic);
+    }
+
+    return allRecords.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }
+
+  /**
+   * 从归档文件恢复消息到 Kafka Topic
+   */
   async restore(archiveId: string): Promise<boolean> {
-    return false;
+    const fs = await import('fs');
+    const zlib = await import('zlib');
+    const { promisify } = await import('util');
+    const gunzip = promisify(zlib.gunzip);
+
+    const record = this.archiveRecords.find(r => r.id === archiveId)
+      || (await this.listArchives()).find(r => r.id === archiveId);
+
+    if (!record) {
+      console.error(`[KafkaArchiver] Archive not found: ${archiveId}`);
+      return false;
+    }
+
+    try {
+      if (!fs.existsSync(record.filePath)) {
+        console.error(`[KafkaArchiver] Archive file not found: ${record.filePath}`);
+        return false;
+      }
+
+      const raw = fs.readFileSync(record.filePath);
+      let content: string;
+      if (record.filePath.endsWith('.gz')) {
+        const decompressed = await gunzip(raw);
+        content = decompressed.toString('utf-8');
+      } else {
+        content = raw.toString('utf-8');
+      }
+
+      const lines = content.trim().split('\n').filter(Boolean);
+      const messages = lines.map(line => {
+        const parsed = JSON.parse(line);
+        return {
+          key: parsed.key || undefined,
+          value: parsed.value || '',
+          headers: parsed.headers || {},
+        };
+      });
+
+      if (messages.length > 0) {
+        try {
+          await kafkaCluster.produce(record.topic, messages);
+          console.log(`[KafkaArchiver] Restored ${messages.length} messages to topic ${record.topic}`);
+        } catch (kafkaErr) {
+          console.error(`[KafkaArchiver] Failed to produce restored messages:`, kafkaErr);
+          return false;
+        }
+      }
+
+      return true;
+    } catch (error) {
+      console.error(`[KafkaArchiver] Restore failed for ${archiveId}:`, error);
+      return false;
+    }
   }
+
+  /**
+   * 清理过期归档文件
+   */
   async cleanup(beforeDate?: Date): Promise<number> {
-    return 0;
+    const fs = await import('fs');
+    const path = await import('path');
+
+    const cutoff = beforeDate || new Date(Date.now() - this.config.retentionDays * 86400000);
+    let cleaned = 0;
+
+    const allRecords = await this.listArchives();
+    const toRemove: string[] = [];
+
+    for (const record of allRecords) {
+      if (new Date(record.createdAt) < cutoff) {
+        try {
+          if (fs.existsSync(record.filePath)) {
+            fs.unlinkSync(record.filePath);
+          }
+          toRemove.push(record.id);
+          cleaned++;
+        } catch (e) {
+          console.warn(`[KafkaArchiver] Failed to delete ${record.filePath}:`, e);
+        }
+      }
+    }
+
+    // 更新内存记录
+    this.archiveRecords = this.archiveRecords.filter(r => !toRemove.includes(r.id));
+    this.recentFiles = this.recentFiles.filter(f => {
+      const matchRecord = allRecords.find(r => r.filePath === f.path);
+      return !matchRecord || !toRemove.includes(matchRecord.id);
+    });
+
+    // 更新索引文件
+    const indexPath = path.join(this.config.storagePath, 'archive-index.json');
+    try {
+      if (fs.existsSync(indexPath)) {
+        const diskRecords: ArchiveRecord[] = JSON.parse(fs.readFileSync(indexPath, 'utf-8'));
+        const filtered = diskRecords.filter(r => !toRemove.includes(r.id));
+        fs.writeFileSync(indexPath, JSON.stringify(filtered, null, 2));
+      }
+    } catch (e) { /* ignore */ }
+
+    console.log(`[KafkaArchiver] Cleaned up ${cleaned} expired archives (before ${cutoff.toISOString()})`);
+    return cleaned;
   }
 
   // ============ dataflowManager 所需方法 ============
-  private archiveCallbacks: Array<(file: ArchiveFile) => void> = [];
-  private _isRunning = false;
 
   onArchive(callback: (file: ArchiveFile) => void): void {
     this.archiveCallbacks.push(callback);
@@ -964,24 +1188,45 @@ export class KafkaArchiver {
   async start(): Promise<void> {
     this._isRunning = true;
     console.log('[KafkaArchiver] Started');
+
+    // 启动定时归档（每小时归档一次配置的 topics）
+    if (this.config.enabled && this.config.topics && this.config.topics.length > 0) {
+      this.scheduledTimer = setInterval(async () => {
+        for (const topic of this.config.topics || []) {
+          try {
+            await this.archive(topic);
+          } catch (e) {
+            console.error(`[KafkaArchiver] Scheduled archive failed for ${topic}:`, e);
+          }
+        }
+      }, 3600000); // 每小时
+    }
   }
 
   async stop(): Promise<void> {
     this._isRunning = false;
+    if (this.scheduledTimer) {
+      clearInterval(this.scheduledTimer);
+      this.scheduledTimer = null;
+    }
     console.log('[KafkaArchiver] Stopped');
   }
 
   getStatus(): { isRunning: boolean; stats: { filesCreated: number } } {
-    return { isRunning: this._isRunning, stats: { filesCreated: 0 } };
+    return { isRunning: this._isRunning, stats: { filesCreated: this._filesCreated } };
   }
 
   getRecentArchives(limit: number = 10): ArchiveFile[] {
-    return [];
+    return this.recentFiles.slice(0, limit);
   }
 
   async triggerArchive(topic?: string): Promise<void> {
     if (topic) {
       await this.archive(topic);
+    } else if (this.config.topics) {
+      for (const t of this.config.topics) {
+        await this.archive(t);
+      }
     }
   }
 

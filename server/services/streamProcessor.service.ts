@@ -5,6 +5,12 @@
 
 import { eventBus, TOPICS, Event } from './eventBus.service';
 import { getDb } from '../lib/db';
+import {
+  detectZScore as anomalyEngineDetectZScore,
+  detectIQR as anomalyEngineDetectIQR,
+  detectMAD as anomalyEngineDetectMAD,
+  determineSeverity as anomalyEngineDetermineSeverity,
+} from '../lib/dataflow/anomalyEngine';
 import { 
   assetNodes,
   assetSensors, 
@@ -133,98 +139,38 @@ class SlidingWindowManager {
 
 // ============ 异常检测算法 ============
 
+/**
+ * AnomalyDetector — 委托给统一异常检测引擎
+ * @see server/lib/dataflow/anomalyEngine.ts
+ */
 class AnomalyDetector {
-  /**
-   * Z-Score 异常检测
-   */
   detectZScore(
     currentValue: number,
     mean: number,
     stdDev: number,
     threshold: number = 3
   ): { isAnomaly: boolean; score: number; deviation: number } {
-    if (stdDev === 0) {
-      return { isAnomaly: false, score: 0, deviation: 0 };
-    }
-    
-    const zScore = Math.abs((currentValue - mean) / stdDev);
-    const deviation = currentValue - mean;
-    
-    return {
-      isAnomaly: zScore > threshold,
-      score: zScore,
-      deviation,
-    };
+    return anomalyEngineDetectZScore(currentValue, mean, stdDev, threshold);
   }
 
-  /**
-   * IQR (四分位距) 异常检测
-   */
   detectIQR(
     currentValue: number,
     values: number[],
     multiplier: number = 1.5
   ): { isAnomaly: boolean; score: number; deviation: number } {
-    if (values.length < 4) {
-      return { isAnomaly: false, score: 0, deviation: 0 };
-    }
-
-    const sorted = [...values].sort((a, b) => a - b);
-    const q1 = sorted[Math.floor(sorted.length * 0.25)];
-    const q3 = sorted[Math.floor(sorted.length * 0.75)];
-    const iqr = q3 - q1;
-    const lowerBound = q1 - multiplier * iqr;
-    const upperBound = q3 + multiplier * iqr;
-    const median = sorted[Math.floor(sorted.length * 0.5)];
-
-    const isAnomaly = currentValue < lowerBound || currentValue > upperBound;
-    const deviation = currentValue - median;
-    const score = iqr > 0 ? Math.abs(deviation) / iqr : 0;
-
-    return { isAnomaly, score, deviation };
+    return anomalyEngineDetectIQR(currentValue, values, multiplier);
   }
 
-  /**
-   * MAD (中位数绝对偏差) 异常检测
-   */
   detectMAD(
     currentValue: number,
     values: number[],
     threshold: number = 3.5
   ): { isAnomaly: boolean; score: number; deviation: number } {
-    if (values.length < 3) {
-      return { isAnomaly: false, score: 0, deviation: 0 };
-    }
-
-    const sorted = [...values].sort((a, b) => a - b);
-    const median = sorted[Math.floor(sorted.length / 2)];
-    const absoluteDeviations = values.map(v => Math.abs(v - median));
-    const sortedDeviations = [...absoluteDeviations].sort((a, b) => a - b);
-    const mad = sortedDeviations[Math.floor(sortedDeviations.length / 2)];
-
-    if (mad === 0) {
-      return { isAnomaly: false, score: 0, deviation: currentValue - median };
-    }
-
-    const modifiedZScore = 0.6745 * (currentValue - median) / mad;
-    const score = Math.abs(modifiedZScore);
-    const deviation = currentValue - median;
-
-    return {
-      isAnomaly: score > threshold,
-      score,
-      deviation,
-    };
+    return anomalyEngineDetectMAD(currentValue, values, threshold);
   }
 
-  /**
-   * 确定异常严重程度
-   */
   determineSeverity(score: number): 'low' | 'medium' | 'high' | 'critical' {
-    if (score >= 5) return 'critical';
-    if (score >= 4) return 'high';
-    if (score >= 3) return 'medium';
-    return 'low';
+    return anomalyEngineDetermineSeverity(score);
   }
 }
 

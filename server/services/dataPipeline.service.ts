@@ -1,6 +1,21 @@
 /**
  * 增强版数据管道服务
  * 集成真实 Airflow 和 Kafka Connect API
+ * 
+ * 职责边界：
+ * - dataPipeline.service.ts（本文件）：外部编排引擎集成层
+ *   负责与 Airflow DAG 和 Kafka Connect 的 REST API 交互，
+ *   提供统一的管道概览、运行历史、任务监控。
+ *   适用于已有 Airflow/Kafka Connect 集群的生产环境。
+ * 
+ * - pipeline.engine.ts：内置 DAG 执行引擎
+ *   负责平台内部的管道定义、拓扑排序、分层并行执行、
+ *   重试、资产追踪（Lineage）。支持 50+ 节点类型。
+ *   适用于平台内部的算法编排、数据处理流程。
+ * 
+ * 两者不是重复建设，而是互补关系：
+ * - 外部编排（Airflow/Kafka Connect）用于大规模数据工程任务
+ * - 内置引擎（PipelineEngine）用于平台内部的轻量级实时管道
  */
 
 import { airflowClient, AirflowDAG, AirflowDAGRun, AirflowTaskInstance } from '../lib/clients/airflow.client';

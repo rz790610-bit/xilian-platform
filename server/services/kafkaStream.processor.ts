@@ -9,6 +9,7 @@
 
 import { kafkaClient, KAFKA_TOPICS, KafkaMessage, MessageHandler } from '../lib/clients/kafka.client';
 import { getDb } from '../lib/db';
+import { detectZScore as unifiedDetectZScore, determineSeverity as unifiedDetermineSeverity } from '../lib/dataflow/anomalyEngine';
 import { anomalyDetections, eventStore } from '../../drizzle/schema';
 import { eq, desc, and, gte, lte, sql } from 'drizzle-orm';
 
@@ -277,7 +278,7 @@ export class KafkaStreamProcessor {
       return result;
     }
 
-    // 计算统计量
+    // 使用统一异常检测引擎
     const values = window.points.map(p => p.value);
     const mean = values.reduce((a, b) => a + b, 0) / values.length;
     const variance = values.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / values.length;
@@ -286,10 +287,9 @@ export class KafkaStreamProcessor {
     result.mean = mean;
     result.stdDev = stdDev;
 
-    if (stdDev > 0) {
-      result.zScore = Math.abs((point.value - mean) / stdDev);
-      result.isAnomaly = result.zScore > this.config.anomalyThreshold;
-    }
+    const detection = unifiedDetectZScore(point.value, mean, stdDev, this.config.anomalyThreshold);
+    result.zScore = detection.score;
+    result.isAnomaly = detection.isAnomaly;
 
     return result;
   }

@@ -7,6 +7,7 @@ import { EventEmitter } from 'events';
 import { getDb } from '../lib/db';
 import { eventLogs } from '../../drizzle/schema';
 import { eq, desc, and, gte, lte } from 'drizzle-orm';
+import { redisClient } from '../lib/clients/redis.client';
 
 // ============ 类型定义 ============
 
@@ -88,6 +89,8 @@ class EventBus {
   private eventBuffer: Event[] = [];
   private bufferSize: number = 1000;
   private persistEnabled: boolean = true;
+  private redisPubSubEnabled: boolean = false;
+  private redisSubscribedTopics: Set<string> = new Set();
   private metrics: {
     totalEvents: number;
     eventsByTopic: Map<string, number>;
@@ -105,6 +108,48 @@ class EventBus {
       eventsBySeverity: new Map(),
       lastEventTime: null,
     };
+  }
+
+  /**
+   * 启用 Redis Pub/Sub 跨进程事件分发
+   * 当 Redis 可用时，事件会同时通过本地 EventEmitter 和 Redis Pub/Sub 分发
+   * 其他进程的 EventBus 实例会通过 Redis 订阅收到事件
+   */
+  async enableRedisPubSub(): Promise<boolean> {
+    try {
+      const client = redisClient.getClient();
+      if (!client) {
+        console.log('[EventBus] Redis 不可用，继续使用内存模式');
+        return false;
+      }
+
+      // 订阅 eventbus:* 模式
+      await redisClient.psubscribe('eventbus:*', (pattern, channel, message) => {
+        try {
+          const event: Event = JSON.parse(message);
+          // 只分发到本地订阅者，不再转发到 Redis（避免循环）
+          const topic = channel.replace('eventbus:', '');
+          this.emitter.emit(topic, event);
+          this.emitter.emit('*', event);
+        } catch (err) {
+          console.error('[EventBus] Redis 消息解析失败:', err);
+        }
+      });
+
+      this.redisPubSubEnabled = true;
+      console.log('[EventBus] Redis Pub/Sub 跨进程模式已启用');
+      return true;
+    } catch (error) {
+      console.error('[EventBus] 启用 Redis Pub/Sub 失败:', error);
+      return false;
+    }
+  }
+
+  /**
+   * 获取当前事件分发模式
+   */
+  getMode(): 'memory' | 'redis_pubsub' {
+    return this.redisPubSubEnabled ? 'redis_pubsub' : 'memory';
   }
 
   /**
@@ -163,9 +208,18 @@ class EventBus {
       await this.persistEvent(event);
     }
 
-    // 发送到订阅者
+    // 发送到本地订阅者
     this.emitter.emit(topic, event);
     this.emitter.emit('*', event); // 通配符订阅
+
+    // 跨进程分发（Redis Pub/Sub）
+    if (this.redisPubSubEnabled) {
+      try {
+        await redisClient.publish(`eventbus:${topic}`, JSON.stringify(event));
+      } catch (err) {
+        console.error('[EventBus] Redis publish 失败:', err);
+      }
+    }
 
     return event;
   }
@@ -455,7 +509,6 @@ export const eventBusRouter = router({
 
   // 获取 Kafka 状态
   getKafkaStatus: publicProcedure.query(async () => {
-    // 返回 Kafka 连接状态
     const kafkaBrokers = process.env.KAFKA_BROKERS || 'localhost:9092';
     const isKafkaConfigured = !!process.env.KAFKA_BROKERS;
     return {
@@ -463,6 +516,7 @@ export const eventBusRouter = router({
       brokers: kafkaBrokers.split(','),
       status: isKafkaConfigured ? 'configured' : 'using_memory_fallback',
       mode: isKafkaConfigured ? 'kafka' : 'memory',
+      eventBusMode: eventBus.getMode(),
       topics: Object.values(TOPICS),
     };
   }),

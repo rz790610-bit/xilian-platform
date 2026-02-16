@@ -33,8 +33,8 @@ export type LLMProcessorType =
 
 export type ProcessorType = DataEngineeringProcessorType | MLProcessorType | LLMProcessorType;
 
-// ============ 流程控制类型（5个） ============
-export type ControlType = 'condition' | 'loop' | 'delay' | 'notify' | 'parallel';
+// ============ 流程控制类型（6个） ============
+export type ControlType = 'condition' | 'loop' | 'delay' | 'notify' | 'parallel' | 'parallel_join';
 
 // ============ 目标类型（9个） ============
 export type SinkType =
@@ -451,11 +451,30 @@ export const CONTROL_NODES: NodeTypeInfo[] = [
   },
   {
     type: 'parallel', nodeType: 'control', domain: 'control',
-    name: '并行', description: '并行执行多个分支，等待全部完成', icon: '🔀',
-    inputs: 1, outputs: 2,
+    name: '并行分发 (Fork)', description: '将数据分发到多个并行分支执行', icon: '🔀',
+    inputs: 1, outputs: 4,
     configFields: [
       { name: 'branches', label: '并行分支数', type: 'number', default: 2 },
-      { name: 'waitAll', label: '等待全部完成', type: 'boolean', default: true },
+      { name: 'strategy', label: '分发策略', type: 'select', default: 'broadcast', options: [
+        { value: 'broadcast', label: '广播（每个分支收到全部数据）' },
+        { value: 'round_robin', label: '轮询（按记录分配到各分支）' },
+        { value: 'hash', label: '哈希（按字段值分配）' },
+      ]},
+      { name: 'hashField', label: '哈希字段', type: 'string', placeholder: '仅哈希策略时需要' },
+    ],
+  },
+  {
+    type: 'parallel_join', nodeType: 'control', domain: 'control',
+    name: '并行汇聚 (Join)', description: '汇聚多个并行分支的结果', icon: '🔁',
+    inputs: 4, outputs: 1,
+    configFields: [
+      { name: 'mergeStrategy', label: '合并策略', type: 'select', default: 'concat', options: [
+        { value: 'concat', label: '拼接（合并所有记录）' },
+        { value: 'zip', label: '拉链（按位置配对）' },
+        { value: 'first', label: '取第一个完成的分支' },
+      ]},
+      { name: 'waitAll', label: '等待全部分支', type: 'boolean', default: true },
+      { name: 'timeout', label: '超时(ms)', type: 'number', default: 300000 },
     ],
   },
 ];

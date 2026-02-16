@@ -49,27 +49,8 @@ const DEFAULT_CONFIG: KafkaConfig = {
   },
 };
 
-// PortAI Nexus Kafka 主题定义
-export const KAFKA_TOPICS = {
-  // 传感器数据
-  SENSOR_READINGS: 'xilian.sensor.readings',
-  // 遥测数据
-  TELEMETRY: 'xilian.telemetry',
-  // 设备事件
-  DEVICE_EVENTS: 'xilian.device.events',
-  // 异常告警
-  ANOMALY_ALERTS: 'xilian.anomaly.alerts',
-  // 异常检测结果
-  ANOMALIES: 'xilian.anomalies',
-  // 数据聚合
-  AGGREGATIONS: 'xilian.aggregations',
-  // 诊断任务
-  DIAGNOSIS_TASKS: 'xilian.diagnosis.tasks',
-  // 工作流事件
-  WORKFLOW_EVENTS: 'xilian.workflow.events',
-  // 系统日志
-  SYSTEM_LOGS: 'xilian.system.logs',
-} as const;
+// Kafka Topics 统一从 kafka-topics.const.ts 导入
+export { KAFKA_TOPICS } from '../../shared/constants/kafka-topics.const';
 
 // Kafka 客户端单例
 class KafkaClientManager {
