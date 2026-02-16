@@ -1,7 +1,7 @@
 /**
  * 机械算法模块 — 8个完整实现
  * 
- * 1. FFT频谱分析 — Cooley-Tukey FFT + ISO 10816/20816评估
+ * 1. FFT频谱分析 v3.0 — 多窗函数 + 滑动窗口 + 特征频率检测(转频谐波/油膜/轴承倍频/齿轮边带) + 规则故障诊断(不平衡/不对中/松动/轴承边带验证/齿轮对称性) + 多数投票聚合 + ISO 10816/20816
  * 2. 倒频谱分析 — 功率/复倒频谱 + 齿轮箱故障检测
  * 3. 包络解调分析 v3.6.0 — 快速峨度图 + Hilbert包络 + 正负频镜像修复 + Parseval全谱能量 + 峭度/谐波融合评分 + D5推理链路
  * 4. 小波包分解 — 多层分解 + 能量分布 + Shannon熵
@@ -62,32 +62,355 @@ function getSignalData(input: AlgorithmInput): number[] {
 // 1. FFT频谱分析
 // ============================================================
 
+// ── FFT 辅助函数（移植自 Python FFTAnalyzer / FeatureFrequencyDetector / FaultDiagnoser）──
+
+/** 生成窗函数数组 */
+function fftMakeWindow(type: string, n: number): number[] {
+  const w = new Array<number>(n);
+  switch (type) {
+    case 'hanning':
+      for (let i = 0; i < n; i++) w[i] = 0.5 * (1 - Math.cos(2 * Math.PI * i / (n - 1)));
+      break;
+    case 'hamming':
+      for (let i = 0; i < n; i++) w[i] = 0.54 - 0.46 * Math.cos(2 * Math.PI * i / (n - 1));
+      break;
+    case 'flattop':
+      for (let i = 0; i < n; i++) {
+        const t = 2 * Math.PI * i / (n - 1);
+        w[i] = 0.21557895 - 0.41663158 * Math.cos(t) + 0.277263158 * Math.cos(2 * t)
+          - 0.083578947 * Math.cos(3 * t) + 0.006947368 * Math.cos(4 * t);
+      }
+      break;
+    default: // rectangular
+      for (let i = 0; i < n; i++) w[i] = 1;
+  }
+  return w;
+}
+
+/** 信号预处理：去均值 + 线性去趋势 + 加窗 */
+function fftPreprocess(signal: number[], windowType: string): { windowed: number[]; winSum: number } {
+  const n = signal.length;
+  // 去均值
+  let sum = 0;
+  for (let i = 0; i < n; i++) sum += signal[i];
+  const mean = sum / n;
+  const centered = new Array<number>(n);
+  for (let i = 0; i < n; i++) centered[i] = signal[i] - mean;
+  // 线性去趋势
+  let sx = 0, sy = 0, sxy = 0, sx2 = 0;
+  for (let i = 0; i < n; i++) { sx += i; sy += centered[i]; sxy += i * centered[i]; sx2 += i * i; }
+  const denom = n * sx2 - sx * sx;
+  let detrended: number[];
+  if (Math.abs(denom) > 1e-15) {
+    const a = (n * sxy - sx * sy) / denom;
+    const b = (sy - a * sx) / n;
+    detrended = centered.map((v, i) => v - (a * i + b));
+  } else {
+    detrended = centered;
+  }
+  // 加窗
+  const win = fftMakeWindow(windowType, n);
+  let winSum = 0;
+  const windowed = new Array<number>(n);
+  for (let i = 0; i < n; i++) {
+    winSum += win[i];
+    windowed[i] = detrended[i] * win[i];
+  }
+  return { windowed, winSum };
+}
+
+/** 计算幅值谱（rfft 正频半谱） */
+function fftComputeSpectrum(signal: number[], fs: number, nfft: number, winSum: number): { freqs: number[]; amplitude: number[] } {
+  const spectrum = dsp.fft(signal); // 返回 Complex[]
+  const halfN = Math.floor(nfft / 2) + 1;
+  const freqs = new Array<number>(halfN);
+  const amplitude = new Array<number>(halfN);
+  for (let i = 0; i < halfN; i++) {
+    freqs[i] = (i * fs) / nfft;
+    const mag = Math.sqrt(spectrum[i].re * spectrum[i].re + spectrum[i].im * spectrum[i].im);
+    amplitude[i] = (mag * 2) / winSum;
+  }
+  // DC 不乘 2
+  amplitude[0] /= 2;
+  return { freqs, amplitude };
+}
+
+/** 峰值检测（移植自 scipy.signal.find_peaks） */
+function fftFindPeaks(
+  freqs: number[], amplitude: number[], threshold: number, minDistance: number
+): { peakFreqs: number[]; peakAmps: number[] } {
+  if (freqs.length < 3) return { peakFreqs: [], peakAmps: [] };
+  const freqStep = freqs.length > 1 ? freqs[1] - freqs[0] : 1;
+  const distSamples = Math.max(1, Math.round(minDistance / freqStep));
+  const maxAmp = Math.max(...amplitude);
+  const heightThresh = threshold * maxAmp;
+  // 找所有局部极大值
+  const candidates: Array<{ idx: number; amp: number }> = [];
+  for (let i = 1; i < amplitude.length - 1; i++) {
+    if (amplitude[i] > amplitude[i - 1] && amplitude[i] > amplitude[i + 1] && amplitude[i] >= heightThresh) {
+      candidates.push({ idx: i, amp: amplitude[i] });
+    }
+  }
+  // 按幅值降序，贪心保留满足最小距离的峰
+  candidates.sort((a, b) => b.amp - a.amp);
+  const kept: number[] = [];
+  for (const c of candidates) {
+    if (kept.every(k => Math.abs(c.idx - k) >= distSamples)) {
+      kept.push(c.idx);
+    }
+  }
+  kept.sort((a, b) => a - b);
+  return {
+    peakFreqs: kept.map(i => freqs[i]),
+    peakAmps: kept.map(i => amplitude[i]),
+  };
+}
+
+/** 在容差范围内取最大幅值 */
+function fftGetAmplitudeAtFreq(freqs: number[], amplitude: number[], target: number, tolerance: number): number {
+  let maxAmp = 0;
+  for (let i = 0; i < freqs.length; i++) {
+    if (Math.abs(freqs[i] - target) <= tolerance && amplitude[i] > maxAmp) {
+      maxAmp = amplitude[i];
+    }
+  }
+  return maxAmp;
+}
+
+/** 特征频率检测结果 */
+interface FeatureEntry { freq: number; amp: number }
+
+/** 计算轴承特征频率（使用用户公式：d/D 比值，单位无关） */
+function fftBearingFrequencies(
+  Z: number, d: number, D: number, alpha: number, fr: number
+): { BPFO: number; BPFI: number; BSF: number; FTF: number } {
+  const cosA = Math.cos(alpha * Math.PI / 180);
+  const beta = (d / D) * cosA;
+  return {
+    BPFO: (Z / 2) * (1 - beta) * fr,
+    BPFI: (Z / 2) * (1 + beta) * fr,
+    BSF: (D / (2 * d)) * (1 - beta * beta) * fr,
+    FTF: 0.5 * (1 - beta) * fr,
+  };
+}
+
+/** 齿轮啮合频率 + 边带 */
+function fftGearFrequencies(Z: number, fr: number): Record<string, number> {
+  const GMF = Z * fr;
+  return {
+    'GMF': GMF,
+    'GMF-1fr': GMF - fr,
+    'GMF+1fr': GMF + fr,
+    'GMF-2fr': GMF - 2 * fr,
+    'GMF+2fr': GMF + 2 * fr,
+  };
+}
+
+/** 特征频率全量检测（转频谐波 + 油膜 + 轴承 + 齿轮） */
+function fftDetectFeatures(
+  freqs: number[], amplitude: number[], fr: number, toleranceBase: number,
+  bearingParams: { Z: number; d: number; D: number; alpha: number } | null,
+  gearParams: { Z: number } | null
+): Record<string, FeatureEntry> {
+  const features: Record<string, FeatureEntry> = {};
+  const tol = toleranceBase;
+
+  // 转频谐波: 0.5X, 1X, 2X, 3X, 4X~10X
+  const harmonics = [0.5, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+  for (const h of harmonics) {
+    const target = h * fr;
+    const amp = fftGetAmplitudeAtFreq(freqs, amplitude, target, tol);
+    const label = Number.isInteger(h) ? `${h}X` : `${h.toFixed(2)}X`;
+    features[label] = { freq: target, amp };
+  }
+
+  // 油膜范围峰值 0.42~0.48X
+  const oilLow = 0.42 * fr, oilHigh = 0.48 * fr;
+  let oilMax = 0;
+  for (let i = 0; i < freqs.length; i++) {
+    if (freqs[i] >= oilLow && freqs[i] <= oilHigh && amplitude[i] > oilMax) {
+      oilMax = amplitude[i];
+    }
+  }
+  if (oilMax > 0) features['0.45X_oil'] = { freq: 0.45 * fr, amp: oilMax };
+
+  // 轴承特征频率 + 2x~5x 倍频
+  if (bearingParams) {
+    const bf = fftBearingFrequencies(bearingParams.Z, bearingParams.d, bearingParams.D, bearingParams.alpha, fr);
+    for (const [key, freq] of Object.entries(bf)) {
+      features[key] = { freq, amp: fftGetAmplitudeAtFreq(freqs, amplitude, freq, tol) };
+      for (let m = 2; m <= 5; m++) {
+        features[`${m}x_${key}`] = { freq: m * freq, amp: fftGetAmplitudeAtFreq(freqs, amplitude, m * freq, tol) };
+      }
+    }
+  }
+
+  // 齿轮啮合频率 + 边带
+  if (gearParams) {
+    const gf = fftGearFrequencies(gearParams.Z, fr);
+    for (const [key, freq] of Object.entries(gf)) {
+      features[key] = { freq, amp: fftGetAmplitudeAtFreq(freqs, amplitude, freq, tol) };
+    }
+  }
+
+  return features;
+}
+
+/** 规则故障诊断（单帧） */
+function fftDiagnoseSingle(
+  features: Record<string, FeatureEntry>,
+  peakFreqs: number[], peakAmps: number[],
+  fr: number,
+  bearingParams: { Z: number; d: number; D: number; alpha: number } | null,
+  specFreqs: number[], specAmplitude: number[], deltaF: number
+): string[] {
+  const diagnosis = new Set<string>();
+  const maxPeak = peakAmps.length > 0 ? Math.max(...peakAmps) : 1.0;
+
+  // ── 不平衡 / 不对中 ──
+  if (features['1X'] && features['2X']) {
+    const ratio1x2x = features['1X'].amp / Math.max(features['2X'].amp, 1e-6);
+    if (ratio1x2x > 4) {
+      diagnosis.add('质量不平衡 (1X/2X >4)');
+    } else if (features['2X'].amp / features['1X'].amp > 0.5) {
+      diagnosis.add('不对中 (2X/1X >0.5)');
+    }
+  }
+
+  // ── 机械松动：整数倍频 ≥4X 超过 3 个 ──
+  let highHarms = 0;
+  for (const [k, v] of Object.entries(features)) {
+    if (k.endsWith('X') && !k.includes('_')) {
+      const numStr = k.slice(0, -1);
+      const num = parseFloat(numStr);
+      if (!isNaN(num) && num >= 4 && Number.isInteger(num) && v.amp > 0.2 * maxPeak) {
+        highHarms++;
+      }
+    }
+  }
+  if (highHarms > 3) diagnosis.add('机械松动 (多倍频丰富)');
+
+  // ── 轴承故障 + 倍频 + 边带验证 ──
+  if (bearingParams) {
+    const bf = fftBearingFrequencies(bearingParams.Z, bearingParams.d, bearingParams.D, bearingParams.alpha, fr);
+    const bearingFaults: Record<string, { desc: string; interval: number; intervalType: string | null }> = {
+      'BPFO': { desc: '外圈', interval: bf.FTF, intervalType: 'FTF' },
+      'BPFI': { desc: '内圈', interval: fr, intervalType: 'fr' },
+      'BSF':  { desc: '滚动体', interval: 0, intervalType: null },
+      'FTF':  { desc: '保持架', interval: 0, intervalType: null },
+    };
+    for (const [key, info] of Object.entries(bearingFaults)) {
+      if (features[key] && features[key].amp > 0.3 * maxPeak) {
+        let desc = info.desc;
+        // 检查 3x~5x 倍频
+        const multAmps = [2, 3, 4, 5].map(m => (features[`${m}x_${key}`]?.amp ?? 0));
+        if (Math.max(multAmps[1], multAmps[2], multAmps[3]) > 0.4 * maxPeak) {
+          desc += ' (3x-5x 倍频突出)';
+        }
+        // 边带验证
+        let sidebandConfirmed = false;
+        if (info.interval > 0 && info.intervalType) {
+          const center = features[key].freq;
+          const sideAmps = [-1, 1, -2, 2].map(offset => {
+            const sideFreq = center + offset * info.interval;
+            return fftGetAmplitudeAtFreq(specFreqs, specAmplitude, sideFreq, deltaF);
+          });
+          const avgSide = sideAmps.reduce((s, v) => s + v, 0) / sideAmps.length;
+          if (avgSide > 0.2 * features[key].amp) sidebandConfirmed = true;
+        }
+        let fullDesc = `轴承 ${desc} 故障`;
+        if (sidebandConfirmed) fullDesc += ` + 边带确认 (间隔=${info.intervalType})`;
+        diagnosis.add(fullDesc);
+      }
+    }
+  }
+
+  // ── 齿轮故障 ──
+  if (features['GMF'] && features['GMF'].amp > 0.7 * maxPeak) {
+    let sideCount = 0;
+    for (const k of Object.keys(features)) {
+      if (k.startsWith('GMF') && k.includes('fr') && features[k].amp > 0.2 * maxPeak) sideCount++;
+    }
+    if (sideCount > 1) {
+      const ampMinus = features['GMF-1fr']?.amp ?? 0;
+      const ampPlus = features['GMF+1fr']?.amp ?? 0;
+      const asymmetry = Math.abs(ampMinus - ampPlus) / Math.max(features['GMF'].amp, 1e-6);
+      if (asymmetry > 0.2) {
+        diagnosis.add('齿轮单齿损伤 (边带不对称)');
+      } else {
+        diagnosis.add('齿轮磨损 (边带增多，对称)');
+      }
+    } else {
+      diagnosis.add('齿轮啮合冲击 (GMF 增大)');
+    }
+  }
+
+  // ── 油膜振荡 ──
+  if (features['0.45X_oil'] && features['0.45X_oil'].amp > 0.3 * maxPeak) {
+    diagnosis.add('油膜振荡');
+  }
+
+  return Array.from(diagnosis);
+}
+
+/** 滑动窗口多数投票聚合诊断 */
+function fftDiagnoseAggregated(
+  slidingResults: Array<{ freqs: number[]; amplitude: number[]; deltaF: number }>,
+  fr: number,
+  bearingParams: { Z: number; d: number; D: number; alpha: number } | null,
+  gearParams: { Z: number } | null
+): string[] {
+  const allDiags: string[] = [];
+  for (const res of slidingResults) {
+    const feats = fftDetectFeatures(res.freqs, res.amplitude, fr, res.deltaF, bearingParams, gearParams);
+    const { peakFreqs, peakAmps } = fftFindPeaks(res.freqs, res.amplitude, 0.05, res.deltaF);
+    const single = fftDiagnoseSingle(feats, peakFreqs, peakAmps, fr, bearingParams, res.freqs, res.amplitude, res.deltaF);
+    allDiags.push(...single);
+  }
+  // 多数投票：出现次数 > 50% 窗口数
+  const counts: Record<string, number> = {};
+  for (const d of allDiags) counts[d] = (counts[d] || 0) + 1;
+  const threshold = slidingResults.length * 0.5;
+  const voted = Object.entries(counts).filter(([, c]) => c > threshold).map(([d]) => d);
+  return voted.length > 0 ? voted : ['正常 (聚合无显著故障)'];
+}
+
 export class FFTSpectrumAnalyzer implements IAlgorithmExecutor {
   readonly id = 'fft_spectrum';
   readonly name = 'FFT频谱分析';
-  readonly version = '2.1.0';
+  readonly version = '3.0.0';
   readonly category = 'mechanical';
 
   getDefaultConfig() {
     return {
-      windowFunction: 'hanning' as dsp.WindowFunction,
-      fftSize: 0, // 0 = auto
-      frequencyRange: [0, 0], // [0,0] = full range
-      averagingCount: 1,
-      overlapPercent: 50,
-      outputType: 'amplitude', // amplitude | power | psd
-      // ISO 评估参数
+      // FFT 核心
+      windowFunction: 'hanning' as string,
+      nfft: 0,                    // 0 = auto (next power of 2)
+      frequencyRange: [0, 0],     // [0,0] = full range
+      // 滑动窗口
+      sliding: false,
+      windowSize: 1024,
+      overlap: 0.5,
+      // 峰值检测
+      peakThreshold: 0.1,         // 相对最大值的比例
+      peakMinDistance: 5,         // Hz
+      // ISO 评估
       enableISO: true,
       machineGroup: 'group2' as dsp.MachineGroup,
       mountType: 'rigid' as dsp.MountType,
-      // 特征频率标注
-      enableCharacteristicFreqs: true,
-      shaftRPM: 0, // 0 = auto from input
+      // 特征频率 & 故障诊断
+      enableFeatureDetection: true,
+      enableFaultDiagnosis: true,
+      shaftRPM: 0,
       bearingModel: '',
+      // 用户自定义轴承参数 (优先于 bearingModel)
+      bearingParams: null as { Z: number; d: number; D: number; alpha: number } | null,
+      // 齿轮参数
+      gearParams: null as { Z: number } | null,
     };
   }
 
-  validateInput(input: AlgorithmInput, config: Record<string, any>) {
+  validateInput(input: AlgorithmInput, _config: Record<string, any>) {
     const signal = getSignalData(input);
     if (!signal || signal.length < 64) {
       return { valid: false, errors: ['信号长度不足，至少需要64个采样点'] };
@@ -103,111 +426,225 @@ export class FFTSpectrumAnalyzer implements IAlgorithmExecutor {
     const cfg = { ...this.getDefaultConfig(), ...config };
     const signal = getSignalData(input);
     const fs = input.sampleRate!;
+    const rpm = cfg.shaftRPM || input.operatingCondition?.speed || input.equipment?.ratedSpeed || 0;
+    const fr = rpm / 60; // 转频 Hz
 
-    // 应用窗函数
-    const winFn = dsp.getWindowFunction(cfg.windowFunction);
-    const win = winFn(signal.length);
-    const windowed = signal.map((v, i) => v * win[i]);
+    // ── 解析轴承参数 ──
+    let bearingParams = cfg.bearingParams;
+    if (!bearingParams && cfg.bearingModel) {
+      const bearing = getDefaultBearing(cfg.bearingModel) || (CRANE_BEARING_DB[cfg.bearingModel] ?? null);
+      if (bearing) {
+        bearingParams = {
+          Z: bearing.numberOfBalls,
+          d: bearing.ballDiameter,
+          D: bearing.pitchDiameter,
+          alpha: bearing.contactAngle,
+        };
+      }
+    }
+    const gearParams = cfg.gearParams;
 
-    // FFT + 窗函数幅值补偿
-    const { frequencies, amplitudes: rawAmps } = dsp.amplitudeSpectrum(windowed, fs);
-    const coherentGain = dsp.windowCoherentGain(cfg.windowFunction);
-    const amplitudes = rawAmps.map(a => a / coherentGain);
+    // ── 滑动窗口 / 单帧分析 ──
+    type SpecResult = { freqs: number[]; amplitude: number[]; deltaF: number };
+    let slidingResults: SpecResult[] | null = null;
+    let mainResult: SpecResult;
 
-    // 频率范围截取
-    let fLow = cfg.frequencyRange[0] || 0;
-    let fHigh = cfg.frequencyRange[1] || fs / 2;
+    if (cfg.sliding) {
+      // 滑动窗口模式
+      const step = Math.max(1, Math.round(cfg.windowSize * (1 - cfg.overlap)));
+      slidingResults = [];
+      for (let i = 0; i <= signal.length - cfg.windowSize; i += step) {
+        let seg = signal.slice(i, i + cfg.windowSize);
+        if (seg.length < cfg.windowSize) {
+          const padded = new Array(cfg.windowSize).fill(0);
+          for (let j = 0; j < seg.length; j++) padded[j] = seg[j];
+          seg = padded;
+        }
+        const { windowed, winSum } = fftPreprocess(seg, cfg.windowFunction);
+        const nfft = cfg.nfft || (1 << Math.ceil(Math.log2(Math.max(seg.length, 1))));
+        // 补零到 nfft
+        const padded = new Array(nfft).fill(0);
+        for (let j = 0; j < windowed.length; j++) padded[j] = windowed[j];
+        const { freqs, amplitude } = fftComputeSpectrum(padded, fs, nfft, winSum);
+        const deltaF = freqs.length > 1 ? freqs[1] - freqs[0] : 0;
+        slidingResults.push({ freqs, amplitude, deltaF });
+      }
+      // 主结果取第一帧（或平均）
+      mainResult = slidingResults[0] || { freqs: [], amplitude: [], deltaF: 0 };
+    } else {
+      // 单帧模式
+      const { windowed, winSum } = fftPreprocess(signal, cfg.windowFunction);
+      const nfft = cfg.nfft || (1 << Math.ceil(Math.log2(Math.max(signal.length, 1))));
+      const padded = new Array(nfft).fill(0);
+      for (let j = 0; j < windowed.length; j++) padded[j] = windowed[j];
+      const { freqs, amplitude } = fftComputeSpectrum(padded, fs, nfft, winSum);
+      const deltaF = freqs.length > 1 ? freqs[1] - freqs[0] : 0;
+      mainResult = { freqs, amplitude, deltaF };
+    }
+
+    // ── 频率范围截取 ──
+    const fLow = cfg.frequencyRange[0] || 0;
+    const fHigh = cfg.frequencyRange[1] || fs / 2;
     const filteredFreqs: number[] = [];
     const filteredAmps: number[] = [];
-    for (let i = 0; i < frequencies.length; i++) {
-      if (frequencies[i] >= fLow && frequencies[i] <= fHigh) {
-        filteredFreqs.push(frequencies[i]);
-        filteredAmps.push(amplitudes[i]);
+    for (let i = 0; i < mainResult.freqs.length; i++) {
+      if (mainResult.freqs[i] >= fLow && mainResult.freqs[i] <= fHigh) {
+        filteredFreqs.push(mainResult.freqs[i]);
+        filteredAmps.push(mainResult.amplitude[i]);
       }
     }
 
-    // 找峰值频率 (Top 10)
-    const indexed = filteredAmps.map((a, i) => ({ freq: filteredFreqs[i], amp: a, idx: i }));
-    indexed.sort((a, b) => b.amp - a.amp);
-    const peaks = indexed.slice(0, 10).map(p => ({
-      frequency: Math.round(p.freq * 100) / 100,
-      amplitude: Math.round(p.amp * 1000) / 1000,
-    }));
+    // ── 峰值检测 ──
+    const { peakFreqs, peakAmps } = fftFindPeaks(
+      filteredFreqs, filteredAmps, cfg.peakThreshold, cfg.peakMinDistance
+    );
+    // 按幅值降序排列取 Top 20
+    const peakPairs = peakFreqs.map((f, i) => ({ frequency: Math.round(f * 100) / 100, amplitude: Math.round(peakAmps[i] * 1000) / 1000 }));
+    peakPairs.sort((a, b) => b.amplitude - a.amplitude);
+    const peaks = peakPairs.slice(0, 20);
 
-    // 计算整体指标
+    // ── 整体指标 ──
     const overallRMS = dsp.rms(signal);
     const velocityRMS = dsp.rmsVelocity(signal, fs, 10, 1000);
 
-    // ISO 10816 评估
-    let isoResult = null;
+    // ── ISO 10816 评估 ──
+    let isoResult: { zone: string; description: string; limit: number } | null = null;
     if (cfg.enableISO) {
-      isoResult = dsp.evaluateVibrationSeverity(velocityRMS, cfg.machineGroup, cfg.mountType);
+      isoResult = dsp.evaluateVibrationSeverity(velocityRMS, cfg.machineGroup, cfg.mountType) as any;
     }
 
-    // 轴承特征频率
-    let bearingFreqs = null;
-    const rpm = cfg.shaftRPM || input.operatingCondition?.speed || input.equipment?.ratedSpeed || 0;
-    if (cfg.enableCharacteristicFreqs && rpm > 0) {
-      const markLines: any[] = [];
-      // 1X, 2X, 3X 转频
-      const shaftFreq = rpm / 60;
-      markLines.push({ value: shaftFreq, label: '1X', color: '#ff4444' });
-      markLines.push({ value: 2 * shaftFreq, label: '2X', color: '#ff8844' });
-      markLines.push({ value: 3 * shaftFreq, label: '3X', color: '#ffaa44' });
+    // ── 特征频率检测 ──
+    let features: Record<string, FeatureEntry> = {};
+    if (cfg.enableFeatureDetection && fr > 0) {
+      features = fftDetectFeatures(
+        filteredFreqs, filteredAmps, fr, mainResult.deltaF || 1,
+        bearingParams, gearParams
+      );
+    }
 
-      // 轴承故障频率 (如果有轴承参数)
-      if (cfg.bearingModel) {
-        // 使用默认轴承库
-        const bearing = getDefaultBearing(cfg.bearingModel);
-        if (bearing) {
-          bearingFreqs = dsp.bearingFaultFrequencies(bearing, rpm);
-          markLines.push({ value: bearingFreqs.BPFO, label: 'BPFO', color: '#44aaff' });
-          markLines.push({ value: bearingFreqs.BPFI, label: 'BPFI', color: '#44ffaa' });
-          markLines.push({ value: bearingFreqs.BSF, label: 'BSF', color: '#aa44ff' });
-          markLines.push({ value: bearingFreqs.FTF, label: 'FTF', color: '#ff44aa' });
-        }
+    // ── 规则故障诊断 ──
+    let faultDiagnosis: string[] = [];
+    if (cfg.enableFaultDiagnosis && fr > 0) {
+      if (slidingResults && slidingResults.length > 1) {
+        // 滑动窗口多数投票聚合
+        faultDiagnosis = fftDiagnoseAggregated(slidingResults, fr, bearingParams, gearParams);
+      } else {
+        faultDiagnosis = fftDiagnoseSingle(
+          features, peakFreqs, peakAmps, fr, bearingParams,
+          filteredFreqs, filteredAmps, mainResult.deltaF || 1
+        );
+      }
+    }
+    const hasFault = faultDiagnosis.length > 0 && !faultDiagnosis.every(d => d.includes('正常'));
+
+    // ── 构建标注线 ──
+    const markLines: Array<{ value: number; label: string; color: string }> = [];
+    if (fr > 0) {
+      markLines.push({ value: fr, label: '1X', color: '#ff4444' });
+      markLines.push({ value: 2 * fr, label: '2X', color: '#ff8844' });
+      markLines.push({ value: 3 * fr, label: '3X', color: '#ffaa44' });
+      if (bearingParams) {
+        const bf = fftBearingFrequencies(bearingParams.Z, bearingParams.d, bearingParams.D, bearingParams.alpha, fr);
+        markLines.push({ value: bf.BPFO, label: 'BPFO', color: '#44aaff' });
+        markLines.push({ value: bf.BPFI, label: 'BPFI', color: '#44ffaa' });
+        markLines.push({ value: bf.BSF, label: 'BSF', color: '#aa44ff' });
+        markLines.push({ value: bf.FTF, label: 'FTF', color: '#ff44aa' });
+      }
+      if (gearParams) {
+        const GMF = gearParams.Z * fr;
+        markLines.push({ value: GMF, label: 'GMF', color: '#f59e0b' });
       }
     }
 
-    // 诊断结论
+    // ── 诊断结论 ──
     let severity: AlgorithmOutput['diagnosis']['severity'] = 'normal';
     let summary = '';
     if (isoResult) {
       severity = isoResult.zone === 'A' ? 'normal' :
         isoResult.zone === 'B' ? 'attention' :
         isoResult.zone === 'C' ? 'warning' : 'critical';
-      summary = `振动速度RMS=${velocityRMS.toFixed(2)}mm/s，ISO评估区域${isoResult.zone}：${isoResult.description}。主频${peaks[0]?.frequency}Hz(${peaks[0]?.amplitude.toFixed(3)})`;
-    } else {
-      summary = `频谱分析完成。主频${peaks[0]?.frequency}Hz，幅值${peaks[0]?.amplitude.toFixed(3)}，整体RMS=${overallRMS.toFixed(3)}`;
+    }
+    // 故障诊断可以提升严重度
+    if (hasFault) {
+      if (severity === 'normal') severity = 'warning';
+      summary = `FFT v3.0 诊断: ${faultDiagnosis.join('; ')}。`;
+    }
+    if (isoResult) {
+      summary += `振动速度RMS=${velocityRMS.toFixed(2)}mm/s, ISO区域${isoResult.zone}: ${isoResult.description}。`;
+    }
+    summary += `主频${peaks[0]?.frequency ?? 0}Hz(${peaks[0]?.amplitude?.toFixed(3) ?? 0}), 分辨率${mainResult.deltaF.toFixed(2)}Hz`;
+    if (cfg.sliding && slidingResults) {
+      summary += `, 滑动窗口${slidingResults.length}帧(窗长${cfg.windowSize},重叠${(cfg.overlap * 100).toFixed(0)}%)`;
+    }
+
+    // 关键特征摘要
+    const keyFeatures: Record<string, string> = {};
+    for (const [k, v] of Object.entries(features)) {
+      if (v.amp > 0.1 * (peaks[0]?.amplitude ?? 1)) {
+        keyFeatures[k] = `${v.freq.toFixed(1)}Hz (amp: ${v.amp.toFixed(3)})`;
+      }
     }
 
     return createOutput(this.id, this.version, input, cfg, startTime, {
       summary,
       severity,
-      urgency: severity === 'critical' ? 'immediate' : severity === 'warning' ? 'scheduled' : 'monitoring',
-      confidence: (() => { const s = getSignalData(input); const lenS = Math.min(1, s.length / 8192); const pkS = peaks.length > 0 ? Math.min(1, peaks.length / 5) : 0.2; return Math.min(0.97, Math.max(0.4, 0.35 + lenS * 0.3 + pkS * 0.3)); })(),
+      urgency: severity === 'critical' ? 'immediate' : severity === 'warning' ? 'scheduled' : hasFault ? 'attention' : 'monitoring',
+      confidence: (() => {
+        const lenS = Math.min(1, signal.length / 8192);
+        const pkS = peaks.length > 0 ? Math.min(1, peaks.length / 5) : 0.2;
+        const diagS = hasFault ? 0.1 : 0;
+        return Math.min(0.97, Math.max(0.4, 0.35 + lenS * 0.3 + pkS * 0.25 + diagS));
+      })(),
+      faultType: hasFault ? faultDiagnosis.join(', ') : undefined,
       referenceStandard: 'ISO 10816-3 / ISO 20816-1',
-      recommendations: severity === 'critical'
+      recommendations: hasFault
+        ? [
+            ...faultDiagnosis.map(d => `确认: ${d}`),
+            '建议增加监测频率',
+            '检查设备运行工况',
+            severity === 'critical' ? '建议立即停机检查' : '安排维护计划',
+          ]
+        : severity === 'critical'
         ? ['建议立即停机检查', '检查轴承和对中状态', '记录振动数据用于趋势分析']
         : severity === 'warning'
         ? ['安排维护计划', '增加监测频率', '检查松动和不平衡']
         : ['继续正常监测'],
     }, {
+      // 频谱数据
       frequencies: filteredFreqs,
       amplitudes: filteredAmps,
+      deltaF: mainResult.deltaF,
+      nyquist: fs / 2,
+      // 峰值
       peaks,
+      // 整体指标
       overallRMS,
       velocityRMS,
+      // ISO
       isoEvaluation: isoResult,
-      bearingFaultFrequencies: bearingFreqs,
+      // 特征频率
+      features,
+      keyFeatures,
+      // 故障诊断
+      faultDiagnosis,
+      hasFault,
+      // 轴承/齿轮参数
+      bearingParams,
+      gearParams,
       shaftRPM: rpm,
-    }, [{
-      type: 'spectrum',
-      title: 'FFT频谱图',
-      xAxis: { label: '频率', unit: 'Hz', data: filteredFreqs },
-      yAxis: { label: '幅值', unit: 'mm/s' },
-      series: [{ name: '频谱', data: filteredAmps, color: '#3b82f6' }],
-    }]);
+      shaftFreq: fr,
+      // 滑动窗口
+      slidingFrameCount: slidingResults?.length ?? 0,
+    }, [
+      {
+        type: 'spectrum',
+        title: 'FFT频谱图',
+        xAxis: { label: '频率', unit: 'Hz', data: filteredFreqs },
+        yAxis: { label: '幅值', unit: 'mm/s' },
+        series: [{ name: '频谱', data: filteredAmps, color: '#3b82f6' }],
+        markLines: markLines.length > 0 ? markLines : undefined,
+      },
+    ]);
   }
 }
 
@@ -1719,8 +2156,8 @@ export function getMechanicalAlgorithms(): AlgorithmRegistration[] {
     {
       executor: new FFTSpectrumAnalyzer(),
       metadata: {
-        description: '基于Cooley-Tukey FFT的频谱分析，支持多种窗函数、ISO 10816/20816振动严重度评估、特征频率自动标注',
-        tags: ['频谱', 'FFT', '振动', 'ISO10816', '故障诊断'],
+        description: 'FFT频谱分析 v3.0 — 多窗函数 + 滑动窗口 + 特征频率检测(转频谐波/油膜/轴承倍频/齿轮边带) + 规则故障诊断 + 多数投票聚合 + ISO 10816/20816',
+        tags: ['频谱', 'FFT', '振动', 'ISO10816', '故障诊断', '特征频率', '滑动窗口', '轴承', '齿轮'],
         inputFields: [
           { name: 'data', type: 'number[]', description: '振动时域信号', required: true },
           { name: 'sampleRate', type: 'number', description: '采样率(Hz)', required: true },
