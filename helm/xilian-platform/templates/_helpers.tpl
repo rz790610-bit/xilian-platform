@@ -122,6 +122,25 @@ ServiceAccount 名称
     secretKeyRef:
       name: xilian-secrets
       key: jwt-secret
+{{- if .Values.ai.grok.enabled }}
+- name: FEATURE_GROK_ENABLED
+  value: "true"
+- name: XAI_API_URL
+  value: {{ .Values.ai.grok.apiUrl | quote }}
+- name: XAI_MODEL
+  value: {{ .Values.ai.grok.model | quote }}
+- name: XAI_TIMEOUT
+  value: {{ .Values.ai.grok.timeout | quote }}
+- name: XAI_TEMPERATURE
+  value: {{ .Values.ai.grok.temperature | quote }}
+- name: XAI_FALLBACK_OLLAMA
+  value: {{ .Values.ai.grok.fallbackToOllama | quote }}
+- name: XAI_API_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.ai.grok.apiKeySecret }}
+      key: {{ .Values.ai.grok.apiKeySecretKey }}
+{{- end }}
 {{- end }}
 
 {{/*

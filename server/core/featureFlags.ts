@@ -29,8 +29,10 @@ export interface FeatureFlags {
   kafkaConnect: boolean;
   /** Elasticsearch 日志/搜索引擎 */
   elasticsearch: boolean;
-  /** Apache Flink 流处理引擎（预留） */
+  /** Apache Flink 流处理引擎 */
   flink: boolean;
+  /** xAI Grok 诊断 Agent */
+  grok: boolean;
 }
 
 // ============================================================
@@ -47,6 +49,7 @@ export const featureFlags: FeatureFlags = {
   kafkaConnect: parseBool(process.env.FEATURE_KAFKA_CONNECT_ENABLED, false),
   elasticsearch: parseBool(process.env.FEATURE_ELASTICSEARCH_ENABLED, false),
   flink: parseBool(process.env.FEATURE_FLINK_ENABLED, false),
+  grok: parseBool(process.env.FEATURE_GROK_ENABLED, false) || (process.env.XAI_API_KEY !== undefined && process.env.XAI_API_KEY !== ''),
 };
 
 // 启动时打印 feature flags 状态
@@ -55,6 +58,7 @@ log.info('Feature flags loaded:', {
   kafkaConnect: featureFlags.kafkaConnect,
   elasticsearch: featureFlags.elasticsearch,
   flink: featureFlags.flink,
+  grok: featureFlags.grok,
 });
 
 // ============================================================
