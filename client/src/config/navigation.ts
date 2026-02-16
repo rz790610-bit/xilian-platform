@@ -117,17 +117,7 @@ export const navigationConfig: NavItem[] = [
       { id: 'evolution-board', label: '进化看板', icon: '📊', path: '/evolution/board' }
     ]
   },
-  {
-    id: 'edge-computing',
-    label: '边缘计算',
-    icon: '🌐',
-    children: [
-      { id: 'edge-nodes', label: '边缘节点', icon: '📡', path: '/edge/nodes' },
-      { id: 'edge-inference', label: '边缘推理', icon: '🧠', path: '/edge/inference' },
-      { id: 'edge-gateway', label: '边缘网关', icon: '🚪', path: '/edge/gateway' },
-      { id: 'edge-tsn', label: '5G TSN', icon: '📶', path: '/edge/tsn' }
-    ]
-  },
+
 
   // ━━━ 平台管理 ━━━
   {
@@ -174,7 +164,6 @@ export const navigationConfig: NavItem[] = [
     label: '安全运维',
     icon: '🛡️',
     children: [
-      { id: 'security-ops-dashboard', label: '运维概览', icon: '🛠️', path: '/settings/security/ops' },
       { id: 'security-falco', label: '安全中心', icon: '🔍', path: '/settings/security/falco' },
       { id: 'security-audit-logs', label: '审计日志', icon: '📋', path: '/platform/audit-logs' },
       { id: 'security-data-permissions', label: '数据权限', icon: '🔒', path: '/business/data-permissions' },

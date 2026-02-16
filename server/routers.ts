@@ -16,7 +16,6 @@ import { pluginRouter } from "./api/plugin.router";
 import { infrastructureRouter } from "./api/infrastructure.router";
 import { observabilityRouter } from "./api/observability.router";
 import { dataPipelineRouter } from "./api/dataPipeline.router";
-import { opsRouter } from "./api/ops.router";
 import { monitoringRouter } from "./api/monitoring.router";
 // ============ v1.9 性能优化模块路由 ============
 import { outboxRouter } from "./api/outbox.router";
@@ -110,9 +109,6 @@ export const appRouter = router({
 
   // 数据管道路由（Airflow DAGs + Kafka Connect）
   dataPipeline: dataPipelineRouter,
-
-  // 运维管理路由（仪表盘、自动化、边缘计算）
-  ops: opsRouter,
 
   // 智能监控路由
   monitoring: monitoringRouter,

@@ -34,7 +34,6 @@ import VectorAdmin from "./pages/VectorAdmin";
 
 // 新增模块页面
 import DeviceList from "./pages/device/DeviceList";
-import EdgeNodes from "./pages/edge/EdgeNodes";
 // 算法库
 import { AlgorithmOverview, AlgorithmDetail, AlgorithmCategory } from "./pages/algorithm";
 
@@ -97,7 +96,6 @@ import {
 
 // 平台管理 - 安全运维（精简：移除 SmartMonitoring、SecurityScanner、VaultManager、PkiManager）
 import {
-  OpsDashboard,
   FalcoSecurityCenter
 } from "./pages/settings/security";
 
@@ -185,11 +183,6 @@ function Router() {
       <Route path="/evolution/train" component={AutoTrain} />
       <Route path="/evolution/board" component={EvolutionBoard} />
       
-      {/* 边缘计算 - 4路由，组件内根据路径切换Tab */}
-      <Route path="/edge/nodes" component={EdgeNodes} />
-      <Route path="/edge/inference" component={EdgeNodes} />
-      <Route path="/edge/gateway" component={EdgeNodes} />
-      <Route path="/edge/tsn" component={EdgeNodes} />
 
       {/* ━━━ 平台管理 ━━━ */}
       {/* 设计工具 */}
@@ -216,7 +209,6 @@ function Router() {
       <Route path="/settings/status/performance/replica" component={ReadReplicaManager} />
 
       {/* 安全运维 */}
-      <Route path="/settings/security/ops" component={OpsDashboard} />
       <Route path="/settings/security/falco" component={FalcoSecurityCenter} />
 
       {/* V4.0 新增 - Platform 平台底座 */}
@@ -241,7 +233,7 @@ function Router() {
 
       {/* Settings redirect */}
       <Route path="/settings">
-        <Redirect to="/settings/security/ops" />
+        <Redirect to="/settings/security/falco" />
       </Route>
 
       {/* Legacy route redirects for backward compatibility */}
@@ -272,16 +264,16 @@ function Router() {
       </Route>
       <Route path="/settings/status/microservices" component={MicroserviceDashboard} />
       <Route path="/settings/security/monitoring">
-        <Redirect to="/settings/security/ops" />
+        <Redirect to="/settings/security/falco" />
       </Route>
       <Route path="/settings/security/scanner">
         <Redirect to="/settings/security/falco" />
       </Route>
       <Route path="/settings/security/vault">
-        <Redirect to="/settings/security/ops" />
+        <Redirect to="/settings/security/falco" />
       </Route>
       <Route path="/settings/security/pki">
-        <Redirect to="/settings/security/ops" />
+        <Redirect to="/settings/security/falco" />
       </Route>
       <Route path="/security/falco">
         <Redirect to="/settings/security/falco" />
@@ -290,10 +282,10 @@ function Router() {
         <Redirect to="/settings/security/falco" />
       </Route>
       <Route path="/security/vault">
-        <Redirect to="/settings/security/ops" />
+        <Redirect to="/settings/security/falco" />
       </Route>
       <Route path="/security/pki">
-        <Redirect to="/settings/security/ops" />
+        <Redirect to="/settings/security/falco" />
       </Route>
       <Route path="/services/ingestion">
         <Redirect to="/settings/status/topology" />
