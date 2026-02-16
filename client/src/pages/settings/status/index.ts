@@ -1,5 +1,4 @@
 export { default as SystemTopology } from './SystemTopology';
-export { default as Observability } from './Observability';
 export { default as PerformanceOverview } from './PerformanceOverview';
 export { default as OutboxManager } from './OutboxManager';
 export { default as SagaManager } from './SagaManager';

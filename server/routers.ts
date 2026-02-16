@@ -16,7 +16,6 @@ import { pluginRouter } from "./api/plugin.router";
 import { infrastructureRouter } from "./api/infrastructure.router";
 import { observabilityRouter } from "./api/observability.router";
 import { dataPipelineRouter } from "./api/dataPipeline.router";
-import { monitoringRouter } from "./api/monitoring.router";
 // ============ v1.9 性能优化模块路由 ============
 import { outboxRouter } from "./api/outbox.router";
 import { sagaRouter } from "./api/saga.router";
@@ -30,12 +29,6 @@ import { databaseRouter } from "./api/database.router";
 // ============ V4.0 三层架构路由 ============
 import { systemRoutes } from "./platform/routes/system.routes";
 import { authRoutes } from "./platform/routes/auth.routes";
-import { deviceRoutes } from "./operations/routes/device.routes";
-import { governanceRoutes } from "./operations/routes/governance.routes";
-import { pluginRoutes } from "./operations/routes/plugin.routes";
-import { assetsRoutes } from "./business/routes/assets.routes";
-import { diagnosisRoutes } from "./business/routes/diagnosis.routes";
-import { knowledgeRoutes } from "./business/routes/knowledge.routes";
 import { monitoringRoutes } from "./business/routes/monitoring.routes";
 // ============ Docker 引擎管理 ============
 import { dockerRouter } from "./api/docker.router";
@@ -110,9 +103,6 @@ export const appRouter = router({
   // 数据管道路由（Airflow DAGs + Kafka Connect）
   dataPipeline: dataPipelineRouter,
 
-  // 智能监控路由
-  monitoring: monitoringRouter,
-
   // ============ v1.9 性能优化模块 ============
 
   // Outbox 混合发布器（CDC + 轮询）
@@ -141,18 +131,6 @@ export const appRouter = router({
   platformSystem: systemRoutes,
   // 平台认证层
   platformAuth: authRoutes,
-  // 运维中心 - 设备运维（采样配置/协议配置/规则版本/回滚触发器）
-  opsDevice: deviceRoutes,
-  // 运维中心 - 数据治理（导出任务/血缘/合成数据集/生命周期策略）
-  opsGovernance: governanceRoutes,
-  // 运维中心 - 插件管理（注册表/实例/事件）
-  opsPlugin: pluginRoutes,
-  // 业务应用 - 资产树
-  bizAssets: assetsRoutes,
-  // 业务应用 - 诊断
-  bizDiagnosis: diagnosisRoutes,
-  // 业务应用 - 知识图谱
-  bizKnowledge: knowledgeRoutes,
   // 业务应用 - 监控（遥测/ClickHouse仪表盘）
   bizMonitoring: monitoringRoutes,
 

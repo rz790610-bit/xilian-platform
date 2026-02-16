@@ -220,94 +220,11 @@ const scheduledTasksRouter = router({
     }),
 });
 
-// ============ 数据权限管理 ============
-const dataPermissionsRouter = router({
-  listUsers: publicProcedure
-    .input(z.object({ page: z.number().default(1), pageSize: z.number().default(20) }).optional())
-    .query(async ({ input }) => {
-      const db = (await getDb())!;
-      const p = input || { page: 1, pageSize: 20 };
-      const rows = await db.select().from(schema.users).limit(p.pageSize).offset((p.page - 1) * p.pageSize);
-      const total = await db.select({ count: count() }).from(schema.users);
-      return { rows, total: total[0]?.count || 0 };
-    }),
-  recentAuditLogs: publicProcedure.query(async () => {
-    const db = (await getDb())!;
-    return db.select().from(schema.auditLogs).orderBy(desc(schema.auditLogs.createdAt)).limit(50);
-  }),
-  configChangeLogs: publicProcedure
-    .input(z.object({ page: z.number().default(1), pageSize: z.number().default(20) }).optional())
-    .query(async ({ input }) => {
-      const db = (await getDb())!;
-      const p = input || { page: 1, pageSize: 20 };
-      const rows = await db.select().from(schema.configChangeLogs).orderBy(desc(schema.configChangeLogs.changedAt)).limit(p.pageSize).offset((p.page - 1) * p.pageSize);
-      const total = await db.select({ count: count() }).from(schema.configChangeLogs);
-      return { rows, total: total[0]?.count || 0 };
-    }),
-});
-
-// ============ 审批流程 ============
-const approvalRouter = router({
-  listJobs: publicProcedure
-    .input(z.object({
-      page: z.number().default(1), pageSize: z.number().default(20),
-      status: z.string().optional(), jobType: z.string().optional(),
-    }).optional())
-    .query(async ({ input }) => {
-      const db = (await getDb())!;
-      const p = input || { page: 1, pageSize: 20 };
-      const conditions: any[] = [];
-      if (p.status) conditions.push(eq(schema.dataGovernanceJobs.status, p.status));
-      if (p.jobType) conditions.push(eq(schema.dataGovernanceJobs.jobType, p.jobType));
-      const where = conditions.length > 0 ? and(...conditions) : undefined;
-      const [rows, total] = await Promise.all([
-        db.select().from(schema.dataGovernanceJobs).where(where).orderBy(desc(schema.dataGovernanceJobs.createdAt)).limit(p.pageSize).offset((p.page - 1) * p.pageSize),
-        db.select({ count: count() }).from(schema.dataGovernanceJobs).where(where),
-      ]);
-      return { rows, total: total[0]?.count || 0, page: p.page, pageSize: p.pageSize };
-    }),
-  createJob: publicProcedure
-    .input(z.object({
-      jobId: z.string(), policyId: z.number(), jobType: z.string(),
-      targetTable: z.string(), filterCondition: z.any(),
-    }))
-    .mutation(async ({ input }) => {
-      const db = (await getDb())!;
-      return db.insert(schema.dataGovernanceJobs).values(input as any);
-    }),
-  updateJobStatus: publicProcedure
-    .input(z.object({ id: z.number(), status: z.string(), errorMessage: z.string().optional() }))
-    .mutation(async ({ input }) => {
-      const db = (await getDb())!;
-      const { id, ...data } = input;
-      const updates: any = { status: data.status };
-      if (data.status === "running") updates.startedAt = new Date();
-      if (data.status === "completed" || data.status === "failed") updates.completedAt = new Date();
-      if (data.errorMessage) updates.errorMessage = data.errorMessage;
-      return db.update(schema.dataGovernanceJobs).set(updates).where(eq(schema.dataGovernanceJobs.id, id));
-    }),
-  listPolicies: publicProcedure.query(async () => {
-    const db = (await getDb())!;
-    return db.select().from(schema.dataLifecyclePolicies);
-  }),
-  stats: publicProcedure.query(async () => {
-    const db = (await getDb())!;
-    const [total, pending, running, completed, failed] = await Promise.all([
-      db.select({ count: count() }).from(schema.dataGovernanceJobs),
-      db.select({ count: count() }).from(schema.dataGovernanceJobs).where(eq(schema.dataGovernanceJobs.status, "pending")),
-      db.select({ count: count() }).from(schema.dataGovernanceJobs).where(eq(schema.dataGovernanceJobs.status, "running")),
-      db.select({ count: count() }).from(schema.dataGovernanceJobs).where(eq(schema.dataGovernanceJobs.status, "completed")),
-      db.select({ count: count() }).from(schema.dataGovernanceJobs).where(eq(schema.dataGovernanceJobs.status, "failed")),
-    ]);
-    return { total: total[0]?.count || 0, pending: pending[0]?.count || 0, running: running[0]?.count || 0, completed: completed[0]?.count || 0, failed: failed[0]?.count || 0 };
-  }),
-});
 
 export const systemRoutes = router({
   health: healthRouter,
   alertRules: alertRulesRouter,
   auditLogs: auditLogsRouter,
   scheduledTasks: scheduledTasksRouter,
-  dataPermissions: dataPermissionsRouter,
-  approval: approvalRouter,
+
 });

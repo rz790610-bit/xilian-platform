@@ -46,7 +46,7 @@ export default function PerformanceOverview() {
         { label: '已发布', value: outboxStats.published },
         { label: '失败', value: outboxStats.failed },
       ] : [],
-      path: '/performance/outbox',
+      path: '/settings/status/performance/outbox',
     },
     {
       name: 'Saga 补偿',
@@ -57,7 +57,7 @@ export default function PerformanceOverview() {
         { label: '已完成', value: sagaStats.completed },
         { label: '死信', value: sagaStats.deadLetters },
       ] : [],
-      path: '/performance/saga',
+      path: '/settings/status/performance/saga',
     },
     {
       name: '自适应采样',
@@ -68,7 +68,7 @@ export default function PerformanceOverview() {
         { label: '调整次数', value: samplingStatus.adjustmentsMade },
         { label: '状态', value: samplingStatus.currentOverallStatus },
       ] : [],
-      path: '/performance/sampling',
+      path: '/settings/status/performance/sampling',
     },
     {
       name: '事件去重',
@@ -79,7 +79,7 @@ export default function PerformanceOverview() {
         { label: '重复发现', value: dedupStatus.duplicatesFound },
         { label: '命中率', value: dedupStatus.hitRate },
       ] : [],
-      path: '/performance/dedup',
+      path: '/settings/status/performance/dedup',
     },
     {
       name: '读写分离',
@@ -90,7 +90,7 @@ export default function PerformanceOverview() {
         { label: '总写入', value: replicaStats.totalWrites },
         { label: '副本数', value: replicaStats.replicaCount },
       ] : [],
-      path: '/performance/replica',
+      path: '/settings/status/performance/replica',
     },
     {
       name: '图查询优化',
@@ -101,7 +101,7 @@ export default function PerformanceOverview() {
         { label: '缓存命中', value: graphStats.cacheHits },
         { label: '索引数', value: graphStats.indexCount },
       ] : [],
-      path: '/performance/graph',
+      path: '/settings/status/performance/graph',
     },
   ];
 
