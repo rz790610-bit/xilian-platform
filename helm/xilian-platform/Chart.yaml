@@ -1,16 +1,16 @@
 apiVersion: v2
 name: xilian-platform
-description: 西联智能平台 — 港口设备智能运维赋能平台（7 微服务 + 基础设施）
+description: 西联智能平台 — 港口设备智能运维赋能平台（单体部署 + 基础设施）
 type: application
-version: 4.0.0
-appVersion: "4.0.0"
+version: 4.1.0
+appVersion: "4.1.0"
 keywords:
   - iot
   - industrial
   - predictive-maintenance
   - digital-twin
   - ai-platform
-  - microservices
+  - monolith
 maintainers:
   - name: xilian-team
 home: https://github.com/xilian/xilian-platform

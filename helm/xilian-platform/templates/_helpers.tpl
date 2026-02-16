@@ -79,39 +79,12 @@ ServiceAccount 名称
 {{- end }}
 
 {{/* ============================================================ */}}
-{{/* 微服务模板函数（v4.0 新增）                                    */}}
+{{/* v4.1: 微服务模板已移除，改为单体部署                      */}}
+{{/* 保留 commonEnv 供 app-deployment.yaml 使用              */}}
 {{/* ============================================================ */}}
 
 {{/*
-微服务名称生成
-用法: {{ include "xilian.msName" (dict "Release" .Release "name" "device") }}
-*/}}
-{{- define "xilian.msName" -}}
-{{- printf "%s-%s" .Release.Name .name | trunc 63 | trimSuffix "-" }}
-{{- end }}
-
-{{/*
-微服务选择器标签
-用法: {{ include "xilian.msSelectorLabels" (dict "Release" .Release "name" "device") }}
-*/}}
-{{- define "xilian.msSelectorLabels" -}}
-app.kubernetes.io/name: {{ .name }}
-app.kubernetes.io/instance: {{ .Release.Name }}
-app.kubernetes.io/component: microservice
-{{- end }}
-
-{{/*
-微服务通用标签
-*/}}
-{{- define "xilian.msLabels" -}}
-{{ include "xilian.msSelectorLabels" . }}
-app.kubernetes.io/part-of: xilian-platform
-app.kubernetes.io/version: {{ .appVersion | default "4.0.0" | quote }}
-app.kubernetes.io/managed-by: Helm
-{{- end }}
-
-{{/*
-通用环境变量 — 所有微服务共享的基础设施连接信息
+通用环境变量 — 基础设施连接信息
 */}}
 {{- define "xilian.commonEnv" -}}
 - name: NODE_ENV
@@ -122,6 +95,18 @@ app.kubernetes.io/managed-by: Helm
   value: {{ .Values.global.tracingEnabled | quote }}
 - name: OTLP_ENDPOINT
   value: {{ .Values.global.otlpEndpoint | quote }}
+- name: KAFKA_BROKERS
+  value: {{ printf "%s-kafka:9092" .Release.Name | quote }}
+- name: CLICKHOUSE_URL
+  value: {{ printf "http://%s-clickhouse:8123" .Release.Name | quote }}
+- name: QDRANT_URL
+  value: "http://qdrant:6333"
+- name: NEO4J_URI
+  value: "bolt://neo4j:7687"
+- name: ELASTICSEARCH_URL
+  value: {{ printf "http://%s-elasticsearch:9200" .Release.Name | quote }}
+- name: MINIO_ENDPOINT
+  value: {{ printf "%s-minio:9000" .Release.Name | quote }}
 - name: REDIS_URL
   valueFrom:
     secretKeyRef:
@@ -137,18 +122,6 @@ app.kubernetes.io/managed-by: Helm
     secretKeyRef:
       name: xilian-secrets
       key: jwt-secret
-- name: KAFKA_BROKERS
-  value: {{ printf "%s-kafka:9092" .Release.Name | quote }}
-- name: CLICKHOUSE_URL
-  value: {{ printf "http://%s-clickhouse:8123" .Release.Name | quote }}
-- name: QDRANT_URL
-  value: "http://qdrant:6333"
-- name: NEO4J_URI
-  value: "bolt://neo4j:7687"
-- name: ELASTICSEARCH_URL
-  value: {{ printf "http://%s-elasticsearch:9200" .Release.Name | quote }}
-- name: MINIO_ENDPOINT
-  value: {{ printf "%s-minio:9000" .Release.Name | quote }}
 {{- end }}
 
 {{/*

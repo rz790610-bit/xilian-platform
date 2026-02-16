@@ -1,0 +1,14 @@
+# Grafana Dashboard Provisioning — 自动加载仪表板
+apiVersion: 1
+providers:
+  - name: 'xilian-platform'
+    orgId: 1
+    folder: '西联智能平台'
+    type: file
+    disableDeletion: false
+    editable: true
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false

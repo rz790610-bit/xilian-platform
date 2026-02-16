@@ -1,15 +1,23 @@
-# PortAI Nexus - Prometheus Configuration
+# ============================================================
+# 西联智能平台 — Prometheus 配置（v4.1）
+# ============================================================
+# 审计修复: 完善拨取目标、告警规则、Alertmanager 集成
+# ============================================================
 
 global:
   scrape_interval: 15s
   evaluation_interval: 15s
+  scrape_timeout: 10s
 
+# ── Alertmanager 集成 ──
 alerting:
   alertmanagers:
     - static_configs:
-        - targets: []
+        - targets: ['alertmanager:9093']
 
-rule_files: []
+# ── 告警规则 ──
+rule_files:
+  - /etc/prometheus/rules/*.yml
 
 scrape_configs:
   # Prometheus self-monitoring
@@ -17,26 +25,35 @@ scrape_configs:
     static_configs:
       - targets: ['localhost:9090']
 
-  # PortAI Nexus Application
-  - job_name: 'portai-nexus'
+  # 西联平台应用（单体部署）
+  - job_name: 'xilian-app'
     static_configs:
       - targets: ['app:3000']
     metrics_path: '/api/metrics'
+    scrape_interval: 10s
 
-  # MySQL Exporter (if enabled)
+  # MySQL Exporter
   - job_name: 'mysql'
     static_configs:
-      - targets: ['mysql:9104']
+      - targets: ['mysql-exporter:9104']
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        replacement: 'mysql:3306'
 
-  # Redis Exporter (if enabled)
+  # Redis Exporter
   - job_name: 'redis'
     static_configs:
-      - targets: ['redis:9121']
+      - targets: ['redis-exporter:9121']
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        replacement: 'redis:6379'
 
-  # Kafka Exporter (if enabled)
+  # Kafka Exporter
   - job_name: 'kafka'
     static_configs:
-      - targets: ['kafka:9308']
+      - targets: ['kafka-exporter:9308']
 
   # ClickHouse
   - job_name: 'clickhouse'
@@ -44,7 +61,18 @@ scrape_configs:
       - targets: ['clickhouse:8123']
     metrics_path: '/metrics'
 
-  # Node Exporter (if enabled)
+  # Node Exporter（主机级指标）
   - job_name: 'node'
     static_configs:
       - targets: ['node-exporter:9100']
+
+  # cAdvisor（容器级指标）
+  - job_name: 'cadvisor'
+    static_configs:
+      - targets: ['cadvisor:8080']
+    metrics_path: '/metrics'
+
+  # Jaeger（追踪系统自身指标）
+  - job_name: 'jaeger'
+    static_configs:
+      - targets: ['jaeger:14269']

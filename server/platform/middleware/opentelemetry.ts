@@ -33,7 +33,7 @@ export interface OTelConfig {
 function getConfig(): OTelConfig {
   return {
     enabled: process.env.OTEL_ENABLED !== 'false',
-    serviceName: process.env.OTEL_SERVICE_NAME || 'portai-nexus',
+    serviceName: process.env.OTEL_SERVICE_NAME || 'xilian-platform',
     traceExporterUrl: process.env.OTEL_EXPORTER_OTLP_ENDPOINT || 'http://jaeger:4318',
     samplingRatio: parseFloat(process.env.OTEL_SAMPLING_RATIO || '0.1'),
     autoInstrumentation: process.env.OTEL_AUTO_INSTRUMENT !== 'false',
@@ -79,10 +79,58 @@ export async function initOpenTelemetry(): Promise<void> {
       url: `${config.traceExporterUrl}/v1/traces`,
     });
 
+    // Metrics 导出器 — 使用 Prometheus 拉取模式（/api/metrics 端点）
+    // 注意：不使用 OTLP push 到 Jaeger，因为 Jaeger 不支持 OTLP Metrics
+    let metricReader: any = undefined;
+    try {
+      const { PrometheusExporter } = await import('@opentelemetry/exporter-prometheus');
+      const prometheusExporter = new PrometheusExporter({
+        port: undefined, // 不单独监听端口，由 Express 路由挂载
+        preventServerStart: true, // 防止启动独立 HTTP 服务器
+      });
+      metricReader = prometheusExporter;
+      log.info('OTel Metrics configured (Prometheus pull mode via /api/metrics)');
+    } catch {
+      // 降级：尝试 OTLP push 模式（需要 OTel Collector 中转）
+      try {
+        const { OTLPMetricExporter } = await import('@opentelemetry/exporter-metrics-otlp-http');
+        const { PeriodicExportingMetricReader } = await import('@opentelemetry/sdk-metrics');
+        const otlpCollectorUrl = process.env.OTEL_COLLECTOR_ENDPOINT || 'http://otel-collector:4318';
+        const metricExporter = new OTLPMetricExporter({
+          url: `${otlpCollectorUrl}/v1/metrics`,
+        });
+        metricReader = new PeriodicExportingMetricReader({
+          exporter: metricExporter,
+          exportIntervalMillis: 30000,
+        });
+        log.info(`OTel Metrics configured (OTLP push to ${otlpCollectorUrl})`);
+      } catch (err) {
+        log.warn('OTel Metrics exporter not available:', (err as Error).message);
+      }
+    }
+
+    // 采样策略
+    let sampler: any = undefined;
+    try {
+      const traceModule = await import('@opentelemetry/sdk-trace-node');
+      const ParentBasedSampler = (traceModule as any).ParentBasedSampler;
+      const TraceIdRatioBasedSampler = (traceModule as any).TraceIdRatioBasedSampler;
+      if (ParentBasedSampler && TraceIdRatioBasedSampler) {
+        sampler = new ParentBasedSampler({
+          root: new TraceIdRatioBasedSampler(config.samplingRatio),
+        });
+        log.info(`OTel sampling ratio: ${config.samplingRatio}`);
+      }
+    } catch {
+      log.warn('OTel sampler configuration skipped');
+    }
+
     // 构建 SDK 配置
     const sdkConfig: any = {
       resource,
       spanProcessors: [new BatchSpanProcessor(traceExporter)],
+      ...(metricReader ? { metricReader } : {}),
+      ...(sampler ? { sampler } : {}),
     };
 
     // 自动插桩（可选，因为依赖较重）
@@ -95,6 +143,16 @@ export async function initOpenTelemetry(): Promise<void> {
             '@opentelemetry/instrumentation-fs': { enabled: false },
             // 禁用 dns 插桩
             '@opentelemetry/instrumentation-dns': { enabled: false },
+            // 启用 HTTP 插桩（核心）
+            '@opentelemetry/instrumentation-http': {
+              ignoreIncomingPaths: ['/healthz', '/healthz/ready', '/api/metrics'],
+            },
+            // 启用 Express 插桩
+            '@opentelemetry/instrumentation-express': { enabled: true },
+            // 启用 MySQL2 插桩
+            '@opentelemetry/instrumentation-mysql2': { enabled: true },
+            // 启用 Redis 插桩
+            '@opentelemetry/instrumentation-redis-4': { enabled: true },
           }),
         ];
       } catch (err) {
@@ -109,7 +167,7 @@ export async function initOpenTelemetry(): Promise<void> {
     const { trace } = await import('@opentelemetry/api');
     tracerInstance = trace.getTracer(config.serviceName, '4.0.0');
 
-    log.info(`OpenTelemetry initialized (service=${config.serviceName}, endpoint=${config.traceExporterUrl}, sampling=${config.samplingRatio})`);
+    log.info(`OpenTelemetry initialized (service=${config.serviceName}, endpoint=${config.traceExporterUrl}, sampling=${config.samplingRatio}, metrics=${metricReader ? 'enabled' : 'disabled'})`);
   } catch (err) {
     log.error('Failed to initialize OpenTelemetry:', String(err));
     log.warn('Continuing without distributed tracing');
@@ -261,5 +319,48 @@ export async function traceAlgorithm<T>(
   return withSpan(`algorithm.${algorithmName}`, {
     'algorithm.name': algorithmName,
     'algorithm.input_size': inputSize,
+  }, fn);
+}
+
+/**
+ * 追踪 Redis 操作
+ */
+export async function traceRedis<T>(
+  operation: string,
+  key: string,
+  fn: (span: any) => Promise<T>,
+): Promise<T> {
+  return withSpan(`redis.${operation}`, {
+    'db.system': 'redis',
+    'db.operation': operation,
+    'db.redis.key': key,
+  }, fn);
+}
+
+/**
+ * 追踪外部 HTTP 调用
+ */
+export async function traceHttpCall<T>(
+  method: string,
+  url: string,
+  fn: (span: any) => Promise<T>,
+): Promise<T> {
+  return withSpan(`http.client.${method}`, {
+    'http.method': method,
+    'http.url': url,
+  }, fn);
+}
+
+/**
+ * 追踪管道执行
+ */
+export async function tracePipeline<T>(
+  pipelineName: string,
+  stageCount: number,
+  fn: (span: any) => Promise<T>,
+): Promise<T> {
+  return withSpan(`pipeline.${pipelineName}`, {
+    'pipeline.name': pipelineName,
+    'pipeline.stage_count': stageCount,
   }, fn);
 }

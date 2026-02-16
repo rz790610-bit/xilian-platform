@@ -33,6 +33,9 @@ export {
   traceKafkaMessage,
   traceDbQuery,
   traceAlgorithm,
+  traceRedis,
+  traceHttpCall,
+  tracePipeline,
   createTrpcTracingMiddleware,
 } from './opentelemetry';
 

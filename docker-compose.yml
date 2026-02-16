@@ -17,7 +17,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: portai-nexus
+    container_name: xilian-nexus
     restart: unless-stopped
     ports:
       - "${PORT:-3000}:3000"
@@ -64,7 +64,7 @@ services:
   # 关系型数据库 — 存储所有核心业务数据
   mysql:
     image: mysql:8.0
-    container_name: portai-mysql
+    container_name: xilian-mysql
     restart: unless-stopped
     ports:
       - "${MYSQL_PORT:-3306}:3306"
@@ -98,7 +98,7 @@ services:
   # 缓存层 — 设备状态缓存、会话管理、事件去重、分布式锁
   redis:
     image: redis:7-alpine
-    container_name: portai-redis
+    container_name: xilian-redis
     restart: unless-stopped
     ports:
       - "${REDIS_PORT:-6379}:6379"
@@ -123,7 +123,7 @@ services:
   # 时序数据库 — 存储高频传感器数据和聚合指标
   clickhouse:
     image: clickhouse/clickhouse-server:24.3
-    container_name: portai-clickhouse
+    container_name: xilian-clickhouse
     restart: unless-stopped
     ports:
       - "${CLICKHOUSE_HTTP_PORT:-8123}:8123"
@@ -154,7 +154,7 @@ services:
   # 对象存储 — 波形文件、频谱图、模型文件等大文件
   minio:
     image: minio/minio:latest
-    container_name: portai-minio
+    container_name: xilian-minio
     restart: unless-stopped
     ports:
       - "${MINIO_API_PORT:-9010}:9000"
@@ -177,7 +177,7 @@ services:
   # MinIO 初始化：自动创建默认存储桶
   minio-init:
     image: minio/mc:latest
-    container_name: portai-minio-init
+    container_name: xilian-minio-init
     depends_on:
       minio:
         condition: service_healthy
@@ -199,7 +199,7 @@ services:
   # 向量数据库 — 相似故障检索和语义搜索 (RAG)
   qdrant:
     image: qdrant/qdrant:v1.9.0
-    container_name: portai-qdrant
+    container_name: xilian-qdrant
     restart: unless-stopped
     ports:
       - "${QDRANT_PORT:-6333}:6333"
@@ -221,7 +221,7 @@ services:
   # 消息队列 — 事件总线、数据流处理（KRaft 模式，无需 Zookeeper）
   kafka:
     image: apache/kafka:3.7.0
-    container_name: portai-kafka
+    container_name: xilian-kafka
     restart: unless-stopped
     ports:
       - "${KAFKA_PORT:-9092}:9092"
@@ -258,7 +258,7 @@ services:
   # 图数据库 — 知识图谱和设备关系拓扑（替代 NebulaGraph，原生支持 ARM64）
   neo4j:
     image: neo4j:5.18-community
-    container_name: portai-neo4j
+    container_name: xilian-neo4j
     restart: unless-stopped
     ports:
       - "${NEO4J_HTTP_PORT:-7474}:7474"
@@ -286,7 +286,7 @@ services:
   # 大模型推理引擎
   ollama:
     image: ollama/ollama:latest
-    container_name: portai-ollama
+    container_name: xilian-ollama
     profiles: ["llm", "full"]
     restart: unless-stopped
     ports:
@@ -306,26 +306,48 @@ services:
 
   # ==================== Monitoring: Prometheus ====================
   prometheus:
-    image: prom/prometheus:v2.50.0
-    container_name: portai-prometheus
+    image: prom/prometheus:v2.51.0
+    container_name: xilian-prometheus
     restart: unless-stopped
     ports:
       - "${PROMETHEUS_PORT:-9090}:9090"
     volumes:
       - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./monitoring/prometheus/rules:/etc/prometheus/rules
       - prometheus_data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
       - '--storage.tsdb.retention.time=30d'
       - '--web.enable-lifecycle'
+      - '--web.enable-admin-api'
+    networks:
+      - portai-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "-O", "/dev/null", "http://localhost:9090/-/healthy"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  # ==================== Monitoring: Alertmanager ====================
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: xilian-alertmanager
+    restart: unless-stopped
+    ports:
+      - "${ALERTMANAGER_PORT:-9093}:9093"
+    volumes:
+      - ./docker/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
     networks:
       - portai-network
 
   # ==================== Monitoring: Grafana ====================
   grafana:
-    image: grafana/grafana:10.3.0
-    container_name: portai-grafana
+    image: grafana/grafana:10.4.0
+    container_name: xilian-grafana
     restart: unless-stopped
     ports:
       - "${GRAFANA_PORT:-3001}:3000"
@@ -333,11 +355,137 @@ services:
       - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin123}
       - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_INSTALL_PLUGINS=grafana-clickhouse-datasource
     volumes:
       - grafana_data:/var/lib/grafana
       - ./docker/grafana/provisioning:/etc/grafana/provisioning
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards
     depends_on:
       - prometheus
+    networks:
+      - portai-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "-O", "/dev/null", "http://localhost:3000/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  # ==================== Monitoring: Node Exporter ====================
+  node-exporter:
+    image: prom/node-exporter:v1.7.0
+    container_name: xilian-node-exporter
+    restart: unless-stopped
+    ports:
+      - "${NODE_EXPORTER_PORT:-9100}:9100"
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.rootfs=/rootfs'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    networks:
+      - portai-network
+
+  # ==================== Monitoring: cAdvisor ====================
+  # 安全说明: cAdvisor 需要 privileged 模式访问宿主机容器指标
+  # 仅限开发/测试环境使用；生产 K8s 环境应使用 DaemonSet + PodSecurityStandard 豁免
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.49.1
+    container_name: xilian-cadvisor
+    restart: unless-stopped
+    ports:
+      - "${CADVISOR_PORT:-8080}:8080"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    privileged: true
+    devices:
+      - /dev/kmsg
+    networks:
+      - portai-network
+
+  # ==================== Tracing: Jaeger ====================
+  jaeger:
+    image: jaegertracing/all-in-one:1.53
+    container_name: xilian-jaeger
+    restart: unless-stopped
+    ports:
+      - "${JAEGER_UI_PORT:-16686}:16686"     # Jaeger UI
+      - "${JAEGER_OTLP_PORT:-4318}:4318"     # OTLP HTTP
+      - "${JAEGER_OTLP_GRPC_PORT:-4317}:4317" # OTLP gRPC
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+      - SPAN_STORAGE_TYPE=badger
+      - BADGER_EPHEMERAL=false
+      - BADGER_DIRECTORY_VALUE=/badger/data
+      - BADGER_DIRECTORY_KEY=/badger/key
+    volumes:
+      - jaeger_data:/badger
+    networks:
+      - portai-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "-O", "/dev/null", "http://localhost:14269/"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  # ==================== Exporter: MySQL ====================
+  mysql-exporter:
+    image: prom/mysqld-exporter:v0.15.1
+    container_name: xilian-mysql-exporter
+    restart: unless-stopped
+    ports:
+      - "${MYSQL_EXPORTER_PORT:-9104}:9104"
+    environment:
+      - DATA_SOURCE_NAME=${MYSQL_EXPORTER_DSN:-root:xilian2024@(mysql:3306)/}
+    depends_on:
+      - mysql
+    networks:
+      - portai-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "-O", "/dev/null", "http://localhost:9104/metrics"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # ==================== Exporter: Redis ====================
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.58.0
+    container_name: xilian-redis-exporter
+    restart: unless-stopped
+    ports:
+      - "${REDIS_EXPORTER_PORT:-9121}:9121"
+    environment:
+      - REDIS_ADDR=redis://redis:6379
+    depends_on:
+      - redis
+    networks:
+      - portai-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "-O", "/dev/null", "http://localhost:9121/metrics"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # ==================== Exporter: Kafka ====================
+  kafka-exporter:
+    image: danielqsj/kafka-exporter:v1.7.0
+    container_name: xilian-kafka-exporter
+    restart: unless-stopped
+    ports:
+      - "${KAFKA_EXPORTER_PORT:-9308}:9308"
+    command:
+      - '--kafka.server=kafka:9092'
+      - '--topic.filter=.*'
+      - '--group.filter=.*'
+    depends_on:
+      - kafka
     networks:
       - portai-network
 
@@ -373,3 +521,5 @@ volumes:
     name: portai-prometheus-data
   grafana_data:
     name: portai-grafana-data
+  jaeger_data:
+    name: xilian-jaeger-data

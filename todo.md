@@ -166,3 +166,10 @@
 - [ ] API端点测试通过
 - [ ] 前端页面渲染正常
 - [ ] 同步代码到GitHub
+
+## 六、P0 审计修复任务
+
+- [ ] 1. Helm Chart 改单体部署（1 Deployment + HPA，删除微服务循环模板）
+- [ ] 2. GitHub Actions CI（tsc --noEmit + ESLint + smoke test）
+- [ ] 3. Prometheus/Grafana 部署配置完善（docker-compose + 抓取目标 + 数据源）
+- [ ] 4. 初始化 OpenTelemetry traces（利用已安装依赖，配置 trace 导出）
