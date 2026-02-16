@@ -3,7 +3,7 @@
  * 
  * 1. FFT频谱分析 — Cooley-Tukey FFT + ISO 10816/20816评估
  * 2. 倒频谱分析 — 功率/复倒频谱 + 齿轮箱故障检测
- * 3. 包络解调分析 v3.0 — 快速峭度图 + Hilbert包络 + 多方法故障检测 + 谐波分析 + D5推理链路
+ * 3. 包络解调分析 v3.6.0 — 快速峨度图 + Hilbert包络 + 正负频镜像修复 + Parseval全谱能量 + 峭度/谐波融合评分 + D5推理链路
  * 4. 小波包分解 — 多层分解 + 能量分布 + Shannon熵
  * 5. 带通滤波 — Butterworth/Chebyshev IIR + 零相位滤波
  * 6. 谱峭度SK — Fast Kurtogram (Antoni 2006)
@@ -492,6 +492,41 @@ function envHilbertEnvelope(signal: Float64Array): Float64Array {
   return envelope;
 }
 
+// v3.6.0: Butterworth 高通滤波
+function envButterworthHighPass(signal: Float64Array, fs: number, cutoff: number): Float64Array {
+  const omega = 2 * Math.PI * cutoff / fs;
+  const tanHalf = Math.tan(omega / 2);
+  if (tanHalf === 0 || !Number.isFinite(tanHalf)) return new Float64Array(signal);
+  const alpha = (1 - tanHalf) / (1 + tanHalf);
+  const result = new Float64Array(signal.length);
+  result[0] = signal[0];
+  for (let i = 1; i < signal.length; i++) {
+    result[i] = alpha * result[i - 1] + (1 + alpha) / 2 * (signal[i] - signal[i - 1]);
+    if (!Number.isFinite(result[i])) result[i] = 0;
+  }
+  return result;
+}
+
+// v3.6.0: 峭度计算（非 Fisher 校正版，返回原始峭度）
+function envComputeKurtosis(data: number[]): number {
+  const n = data.length;
+  if (n < 4) return 0;
+  let sum = 0;
+  for (let i = 0; i < n; i++) sum += data[i];
+  const mean = sum / n;
+  let m2 = 0, m4 = 0;
+  for (let i = 0; i < n; i++) {
+    const d = data[i] - mean;
+    const d2 = d * d;
+    m2 += d2;
+    m4 += d2 * d2;
+  }
+  m2 /= n;
+  m4 /= n;
+  if (m2 < 1e-15) return 0;
+  return m4 / (m2 * m2); // 原始峭度（高斯=3）
+}
+
 function envApplyBiquad(
   signal: Float64Array, b0: number, b1: number, b2: number, a1: number, a2: number
 ): Float64Array {
@@ -701,7 +736,7 @@ function envComputeKurtogram(
 export class EnvelopeDemodAnalyzer implements IAlgorithmExecutor {
   readonly id = 'envelope_demod';
   readonly name = '包络解调分析';
-  readonly version = '3.0.0';
+  readonly version = '3.6.0';
   readonly category = 'mechanical';
 
   getDefaultConfig() {
@@ -717,6 +752,9 @@ export class EnvelopeDemodAnalyzer implements IAlgorithmExecutor {
       manualBandHigh: null as number | null,
       // 包络
       envelopeDcRemove: true,
+      // v3.6.0 新增
+      cutoffFreq: 10,
+      faultThreshold: 5.5,
       // 故障检测
       faultDetectionMethod: 'adaptive_threshold' as 'adaptive_threshold' | 'fixed_threshold' | 'snr',
       fixedThresholdMultiplier: 3.0,
@@ -735,8 +773,8 @@ export class EnvelopeDemodAnalyzer implements IAlgorithmExecutor {
 
   validateInput(input: AlgorithmInput, _config: Record<string, any>) {
     const signal = getSignalData(input);
-    if (!signal || signal.length < 64) {
-      return { valid: false, errors: ['包络分析至少需要64个采样点'] };
+    if (!signal || signal.length < 512) {
+      return { valid: false, errors: ['包络分析 v3.6.0 至少需要512个采样点'] };
     }
     if (!input.sampleRate) {
       return { valid: false, errors: ['必须提供采样率'] };
@@ -747,7 +785,7 @@ export class EnvelopeDemodAnalyzer implements IAlgorithmExecutor {
   async execute(input: AlgorithmInput, config: Record<string, any>): Promise<AlgorithmOutput> {
     const startTime = Date.now();
     const cfg: EnvDemodConfig = { ...ENV_DEFAULT_CONFIG, ...config };
-    const signal = getSignalData(input);
+    let signal = getSignalData(input);
     const fs = input.sampleRate!;
     const rpm = cfg.shaftRPM || input.operatingCondition?.speed || input.equipment?.ratedSpeed || 0;
 
@@ -770,6 +808,10 @@ export class EnvelopeDemodAnalyzer implements IAlgorithmExecutor {
     if (sig.length > cfg.maxSignalLength) {
       warnings.push(`信号长度 ${sig.length} 超过限制 ${cfg.maxSignalLength}, 截断处理`);
       sig = sig.slice(0, cfg.maxSignalLength);
+    }
+    // v3.6.0: 截尾到偶数长度（避免泄漏）
+    if (sig.length % 2 === 1) {
+      sig = sig.slice(0, sig.length - 1);
     }
     // NaN/Infinity 清洗
     let nanCount = 0;
@@ -796,12 +838,15 @@ export class EnvelopeDemodAnalyzer implements IAlgorithmExecutor {
       durationMs: Date.now() - startTime,
     });
 
-    // ── Step 1: 预处理 (去趋势) ──
+    // ── Step 1: 预处理 (去趋势 + v3.6.0 高通滤波) ──
     let tStep = Date.now();
     let processed = sig;
     if (cfg.detrend) {
       processed = envDetrend(sig, cfg.detrendMethod);
     }
+    // v3.6.0: Butterworth 高通滤波（截止频率可配置，默认 10Hz）
+    const cutoffFreq = (config as any).cutoffFreq || 10;
+    processed = envButterworthHighPass(processed, fs, cutoffFreq);
     if (!envIsSignalValid(processed)) {
       warnings.push('预处理后信号含无效值, 回退到原始信号');
       processed = sig;
@@ -810,8 +855,8 @@ export class EnvelopeDemodAnalyzer implements IAlgorithmExecutor {
     trace.push({
       step: stepCounter.v++,
       operation: 'preprocess',
-      finding: `去趋势(${cfg.detrendMethod}), 预处理后 RMS=${envRms(processed).toFixed(4)}`,
-      evidence: { method: cfg.detrendMethod, rmsAfter: envRms(processed) },
+      finding: `去趋势(${cfg.detrendMethod}) + 高通滤波(${cutoffFreq}Hz), 预处理后 RMS=${envRms(processed).toFixed(4)}`,
+      evidence: { method: cfg.detrendMethod, cutoffFreq, rmsAfter: envRms(processed) },
       durationMs: perf.preprocessMs,
     });
 
@@ -835,7 +880,7 @@ export class EnvelopeDemodAnalyzer implements IAlgorithmExecutor {
       });
     }
 
-    // ── Step 3: 最佳解调频带选择 (快速峭度图) ──
+    // ── Step 3: 最佳解调频带选择 (快速峨度图) ──
     tStep = Date.now();
     let optimalBand: KurtogramBand | null = null;
     let kurtogramTop5: KurtogramBand[] = [];
@@ -850,7 +895,7 @@ export class EnvelopeDemodAnalyzer implements IAlgorithmExecutor {
         bandLow = optimalBand.fLow;
         bandHigh = optimalBand.fHigh;
       } else {
-        warnings.push('谱峭度未找到明显冲击频带, 使用全频带分析');
+        warnings.push('谱峨度未找到明显冲击频带, 使用全频带分析');
       }
     } else if (cfg.manualBandLow !== null && cfg.manualBandHigh !== null) {
       bandLow = cfg.manualBandLow;
@@ -893,34 +938,67 @@ export class EnvelopeDemodAnalyzer implements IAlgorithmExecutor {
       for (let i = 0; i < envSignal.length; i++) envSignal[i] -= mean;
     }
     perf.hilbertMs = Date.now() - tStep;
+
+    // v3.6.0: 计算峨度和超额峨度
+    const envArray = Array.from(envSignal);
+    const kurtosis = envComputeKurtosis(envArray);
+    const excessKurtosis = kurtosis - 3;
+
     trace.push({
       step: stepCounter.v++,
       operation: 'hilbert_envelope',
-      finding: `Hilbert变换完成, 包络 RMS=${envRms(envSignal).toFixed(6)}, DC已${cfg.envelopeDcRemove ? '移除' : '保留'}`,
-      evidence: { envelopeRms: envRms(envSignal), dcRemoved: cfg.envelopeDcRemove },
+      finding: `Hilbert变换完成, 包络 RMS=${envRms(envSignal).toFixed(6)}, DC已${cfg.envelopeDcRemove ? '移除' : '保留'}, 峨度=${kurtosis.toFixed(2)} (超额=${excessKurtosis.toFixed(2)})`,
+      evidence: { envelopeRms: envRms(envSignal), dcRemoved: cfg.envelopeDcRemove, kurtosis, excessKurtosis },
       durationMs: perf.hilbertMs,
     });
 
-    // ── Step 6: 包络谱 (FFT) ──
+    // ── Step 6: 包络谱 (FFT) + v3.6.0 正频半谱谐波提取 ──
     tStep = Date.now();
     const n = envSignal.length;
     const { re: envRe, im: envIm } = envFft(envSignal);
     const fftLen = envRe.length;
     const halfLen = fftLen >> 1;
     const envelopeSpectrum = new Float64Array(halfLen);
+    const mag = new Float64Array(fftLen); // v3.6.0: 全谱幅值用于 Parseval
+    for (let i = 0; i < fftLen; i++) {
+      mag[i] = Math.sqrt(envRe[i] * envRe[i] + envIm[i] * envIm[i]);
+    }
     for (let i = 0; i < halfLen; i++) {
-      envelopeSpectrum[i] = (2 / n) * Math.sqrt(envRe[i] * envRe[i] + envIm[i] * envIm[i]);
+      envelopeSpectrum[i] = (2 / n) * mag[i];
     }
     const frequencyAxis = new Float64Array(halfLen);
     for (let i = 0; i < halfLen; i++) {
       frequencyAxis[i] = (i * fs) / fftLen;
     }
+
+    // v3.6.0: Parseval 全谱总能量 + 正频谐波提取
+    let totalEnergy = 0;
+    for (let i = 0; i < fftLen; i++) totalEnergy += mag[i] * mag[i];
+    totalEnergy /= fftLen;
+
+    const df = fs / fftLen;
+    const positiveHarmonics: Array<{ freq: number; amplitude: number }> = [];
+    const maxMag = Math.max(...Array.from(mag).slice(0, halfLen));
+    for (let i = 1; i < halfLen - 1; i++) {
+      if (mag[i] > mag[i - 1] && mag[i] > mag[i + 1] && mag[i] > maxMag * 0.1) {
+        // v3.6.0: 抛物线插值精确峰值频率
+        const a = mag[i - 1], b = mag[i], c = mag[i + 1];
+        const denom = a - 2 * b + c;
+        const delta = denom !== 0 ? 0.5 * (a - c) / denom : 0;
+        const peakFreq = i * df + delta * df;
+        positiveHarmonics.push({ freq: peakFreq, amplitude: b });
+        if (positiveHarmonics.length >= 5) break;
+      }
+    }
+    const harmEnergy = positiveHarmonics.reduce((sum, h) => sum + h.amplitude * h.amplitude, 0);
+    const harmRatio = totalEnergy > 0 ? harmEnergy / totalEnergy : 0;
+
     perf.fftMs = Date.now() - tStep;
     trace.push({
       step: stepCounter.v++,
       operation: 'envelope_spectrum',
-      finding: `包络谱计算完成, 频率分辨率 ${(fs / fftLen).toFixed(3)}Hz, 频谱长度 ${halfLen}`,
-      evidence: { freqResolution: fs / fftLen, spectrumLength: halfLen },
+      finding: `包络谱计算完成, 频率分辨率 ${df.toFixed(3)}Hz, 频谱长度 ${halfLen}, 检测到 ${positiveHarmonics.length} 个正频谐波 (能量占比 ${(harmRatio * 100).toFixed(1)}%)`,
+      evidence: { freqResolution: df, spectrumLength: halfLen, harmonics: positiveHarmonics, harmRatio, totalEnergy },
       durationMs: perf.fftMs,
     });
 
@@ -962,38 +1040,62 @@ export class EnvelopeDemodAnalyzer implements IAlgorithmExecutor {
     }
     perf.detectionMs = Date.now() - tStep;
     const detectedFaults = faults.filter(f => f.detected);
+
+    // v3.6.0: 融合峨度+谐波占比的故障评分
+    const faultThreshold = (config as any).faultThreshold || 5.5;
+    const safeThreshold = Math.max(faultThreshold - 3, 0.1);
+    const kurtScore = Math.min(Math.max(excessKurtosis / safeThreshold, 0), 1);
+    const harmScore = Math.min(harmRatio, 1);
+    const faultScore = 0.7 * kurtScore + 0.3 * harmScore;
+    const faultLevel: 'normal' | 'warning' | 'fault' = faultScore < 0.4 ? 'normal' : faultScore < 0.7 ? 'warning' : 'fault';
+
     trace.push({
       step: stepCounter.v++,
       operation: 'fault_detection',
       finding: detectedFaults.length > 0
-        ? `检测到 ${detectedFaults.length} 种故障: ${detectedFaults.map(f => `${f.faultName}(${f.expectedFreq.toFixed(1)}Hz, SNR=${f.snrDb.toFixed(1)}dB, ${f.severity})`).join(', ')}`
-        : '未检测到故障特征频率',
+        ? `检测到 ${detectedFaults.length} 种轴承故障: ${detectedFaults.map(f => `${f.faultName}(${f.expectedFreq.toFixed(1)}Hz, SNR=${f.snrDb.toFixed(1)}dB, ${f.severity})`).join(', ')}`
+        : `v3.6.0 融合评分: faultScore=${faultScore.toFixed(3)} (峨度分=${kurtScore.toFixed(3)}, 谐波分=${harmScore.toFixed(3)}), 等级=${faultLevel}`,
       evidence: {
         method: cfg.faultDetectionMethod,
         tolerance: cfg.frequencyTolerancePercent,
         faults: faults.map(f => ({ type: f.faultType, detected: f.detected, amplitude: f.amplitude, snrDb: f.snrDb, confidence: f.confidence })),
+        v360: { faultScore, faultLevel, kurtScore, harmScore, excessKurtosis, harmRatio },
       },
       durationMs: perf.detectionMs,
     });
 
-    // ── 综合结论 ──
-    const overallStatus = envDetermineOverallStatus(faults);
+    // ── 综合结论 (v3.6.0: 融合轴承检测 + 峨度/谐波评分) ──
+    const bearingStatus = envDetermineOverallStatus(faults);
+    // v3.6.0: 当无轴承参数时，使用 faultLevel 作为主要判据
+    const overallStatus = faultFreqs
+      ? bearingStatus
+      : (faultLevel === 'fault' ? 'critical' : faultLevel === 'warning' ? 'warning' : 'normal') as 'normal' | 'attention' | 'warning' | 'critical';
     const overallConfidence = detectedFaults.length > 0
       ? detectedFaults.reduce((sum, f) => sum + f.confidence, 0) / detectedFaults.length
-      : 1.0;
+      : Math.max(0.5, 1 - faultScore); // v3.6.0: 无轴承参数时用 faultScore 反推置信度
     perf.totalMs = Date.now() - startTime;
     perf.memoryEstimateMb = (sig.length * 5 + fftLen * 4) * 8 / (1024 * 1024);
+
+    // v3.6.0: 综合推理说明
+    let reasoning = `原始峨度=${kurtosis.toFixed(2)} (超额=${excessKurtosis.toFixed(2)})；检测到 ${positiveHarmonics.length} 个显著正频谐波 (能量占比 ${(harmRatio * 100).toFixed(1)}%)。`;
+    if (faultLevel === 'fault') {
+      reasoning += ' 高超额峨度 + 高谐波占比，疑似轴承故障。';
+    } else if (faultLevel === 'warning') {
+      reasoning += ' 轻微异常，建议监测。';
+    } else {
+      reasoning += ' 信号正常。';
+    }
 
     trace.push({
       step: stepCounter.v++,
       operation: 'conclusion',
-      finding: `综合诊断: ${overallStatus}, 置信度 ${(overallConfidence * 100).toFixed(1)}%, 总耗时 ${perf.totalMs}ms`,
-      evidence: { overallStatus, overallConfidence, performance: perf },
+      finding: `综合诊断: ${overallStatus}, 置信度 ${(overallConfidence * 100).toFixed(1)}%, 总耗时 ${perf.totalMs}ms. ${reasoning}`,
+      evidence: { overallStatus, overallConfidence, performance: perf, faultScore, faultLevel, reasoning },
       durationMs: 0,
     });
 
     // ── 构建平台标准输出 ──
-    const hasFault = detectedFaults.length > 0;
+    const hasFault = detectedFaults.length > 0 || faultLevel === 'fault';
     const envFreqs = Array.from(frequencyAxis);
     const envAmps = Array.from(envelopeSpectrum);
     const envArr = Array.from(envSignal);
@@ -1004,12 +1106,12 @@ export class EnvelopeDemodAnalyzer implements IAlgorithmExecutor {
 
     return createOutput(this.id, this.version, input, cfg, startTime, {
       summary: hasFault
-        ? `包络解调检测到轴承故障特征: ${detectedFaults.map(f => `${f.faultName}(${f.expectedFreq.toFixed(1)}Hz, SNR=${f.snrDb.toFixed(1)}dB, ${f.severity})`).join(', ')}。${optimalBand ? `最佳解调频带: ${optimalBand.fLow.toFixed(0)}-${optimalBand.fHigh.toFixed(0)}Hz` : '全频带分析'}`
-        : `包络解调分析正常，${optimalBand ? `最佳解调频带 ${optimalBand.fLow.toFixed(0)}-${optimalBand.fHigh.toFixed(0)}Hz` : '全频带分析'}，未检测到显著轴承故障特征`,
+        ? `包络解调 v3.6.0 检测到异常: ${detectedFaults.length > 0 ? detectedFaults.map(f => `${f.faultName}(${f.expectedFreq.toFixed(1)}Hz, SNR=${f.snrDb.toFixed(1)}dB, ${f.severity})`).join(', ') : `峨度评分=${faultScore.toFixed(3)}, 等级=${faultLevel}`}。${optimalBand ? `最佳解调频带: ${optimalBand.fLow.toFixed(0)}-${optimalBand.fHigh.toFixed(0)}Hz` : '全频带分析'}`
+        : `包络解调 v3.6.0 分析正常，${optimalBand ? `最佳解调频带 ${optimalBand.fLow.toFixed(0)}-${optimalBand.fHigh.toFixed(0)}Hz` : '全频带分析'}，未检测到显著故障特征`,
       severity: overallStatus === 'critical' ? 'critical' : overallStatus === 'warning' ? 'warning' : overallStatus === 'attention' ? 'warning' : 'normal',
       urgency: hasFault ? 'scheduled' : 'monitoring',
       confidence: Math.max(0.35, Math.min(0.98, overallConfidence)),
-      faultType: detectedFaults.map(f => f.faultName).join(', ') || undefined,
+      faultType: detectedFaults.map(f => f.faultName).join(', ') || (faultLevel !== 'normal' ? `峨度异常(${faultLevel})` : undefined),
       referenceStandard: 'ISO 15243 (轴承损伤分类)',
       recommendations: hasFault
         ? ['确认轴承型号和转速参数', '安排轴承更换计划', '检查润滑状态', '记录趋势数据', '缩短监测周期']
@@ -1025,6 +1127,16 @@ export class EnvelopeDemodAnalyzer implements IAlgorithmExecutor {
       detectedFaults,
       overallStatus,
       overallConfidence,
+      // v3.6.0 新增字段
+      kurtosis,
+      excessKurtosis,
+      positiveHarmonics,
+      harmEnergy,
+      totalEnergy,
+      harmRatio,
+      faultScore,
+      faultLevel,
+      reasoning,
       reasoningTrace: trace,
       performance: perf,
       inputSummary,
@@ -1046,6 +1158,17 @@ export class EnvelopeDemodAnalyzer implements IAlgorithmExecutor {
             ),
             color: f.severity === 'critical' ? '#ef4444' : f.severity === 'warning' ? '#f97316' : '#eab308',
           })),
+          // v3.6.0: 标注正频谐波
+          ...(positiveHarmonics.length > 0 ? [{
+            name: '正频谐波',
+            data: envFreqs.slice(0, maxSpecLen).map((freq: number) => {
+              for (const h of positiveHarmonics) {
+                if (Math.abs(freq - h.freq) < df * 2) return h.amplitude * (2 / n);
+              }
+              return 0;
+            }),
+            color: '#10b981',
+          }] : []),
         ],
       },
       {
@@ -1057,11 +1180,11 @@ export class EnvelopeDemodAnalyzer implements IAlgorithmExecutor {
       },
       ...(kurtogramTop5.length > 0 ? [{
         type: 'bar' as const,
-        title: '峭度图 Top5 频带',
+        title: '峨度图 Top5 频带',
         xAxis: { label: '频带', unit: 'Hz' },
-        yAxis: { label: '峭度值' },
+        yAxis: { label: '峨度值' },
         series: [{
-          name: '峭度',
+          name: '峨度',
           data: kurtogramTop5.map(b => b.kurtosis),
           color: '#8b5cf6',
           labels: kurtogramTop5.map(b => `${b.fLow.toFixed(0)}-${b.fHigh.toFixed(0)}Hz`),
@@ -1652,7 +1775,7 @@ export function getMechanicalAlgorithms(): AlgorithmRegistration[] {
     {
       executor: new EnvelopeDemodAnalyzer(),
       metadata: {
-        description: '生产级包络解调分析 v3.0 — 快速峭度图自动选频 + Hilbert变换包络提取 + 多方法故障检测(自适应阈值/固定阈值/SNR) + 谐波分析 + 严重度分级 + D5推理链路',
+        description: '包络解调分析 v3.6.0 — 快速峨度图自动选频 + Hilbert变换包络提取 + 正负频镜像修复 + Parseval全谱能量 + 峭度/谐波融合评分 + 多方法故障检测 + 严重度分级 + D5推理链路',
         tags: ['包络', '解调', '轴承', 'Hilbert', '故障诊断', '峭度图', '谐波分析', 'D5合规'],
         inputFields: [
           { name: 'data', type: 'number[]', description: '振动时域信号(加速度)', required: true },

@@ -310,10 +310,17 @@ function AlgorithmComposePage() {
     });
   }, []);
 
+  // compCode 校验（与后端正则一致）
+  const isValidCompCode = useCallback((code: string) => /^[a-z][a-z0-9_]*$/.test(code), []);
+
   // 提交创建
   const handleCreate = useCallback(() => {
     if (!compCode || !compName) {
       toast.error("请填写编排编码和名称");
+      return;
+    }
+    if (!isValidCompCode(compCode)) {
+      toast.error("编排编码格式错误：必须以小写字母开头，只能包含小写字母、数字和下划线");
       return;
     }
     if (nodes.length === 0) {
@@ -326,21 +333,25 @@ function AlgorithmComposePage() {
       description,
       steps: { nodes, edges },
     });
-  }, [compCode, compName, description, nodes, edges, createMutation]);
+  }, [compCode, compName, description, nodes, edges, createMutation, isValidCompCode]);
 
-  // 自动生成编码
+  // 自动生成编码（确保以小写字母开头，满足 /^[a-z][a-z0-9_]*$/）
   const autoGenerateCode = useCallback((name: string) => {
-    const pinyin = name
+    let code = name
       .replace(/[\u4e00-\u9fa5]/g, (ch) => {
-        const code = ch.charCodeAt(0);
-        return String.fromCharCode(97 + (code % 26));
+        const c = ch.charCodeAt(0);
+        return String.fromCharCode(97 + (c % 26));
       })
       .replace(/[^a-z0-9]/g, "_")
       .replace(/_+/g, "_")
       .replace(/^_|_$/g, "")
       .toLowerCase()
       .slice(0, 30);
-    return pinyin || "comp_" + Date.now().toString(36);
+    // 确保以小写字母开头
+    if (code && !/^[a-z]/.test(code)) {
+      code = "comp_" + code;
+    }
+    return code || "comp_" + Date.now().toString(36);
   }, []);
 
   return (
@@ -470,11 +481,14 @@ function AlgorithmComposePage() {
                 <Label htmlFor="compCode">编排编码 *</Label>
                 <Input
                   id="compCode"
-                  placeholder="小写字母+数字+下划线，如 vibration_diagnosis"
+                  placeholder="小写字母开头，如 vibration_diagnosis"
                   value={compCode}
                   onChange={(e) => setCompCode(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""))}
-                  className="font-mono"
+                  className={`font-mono ${compCode && !isValidCompCode(compCode) ? "border-destructive" : ""}`}
                 />
+                {compCode && !isValidCompCode(compCode) && (
+                  <p className="text-xs text-destructive">编码必须以小写字母开头，只能包含小写字母、数字和下划线</p>
+                )}
                 <p className="text-xs text-muted-foreground">唯一标识，创建后不可修改</p>
               </div>
               <div className="space-y-2">
