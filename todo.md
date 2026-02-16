@@ -169,7 +169,16 @@
 
 ## 六、P0 审计修复任务
 
-- [ ] 1. Helm Chart 改单体部署（1 Deployment + HPA，删除微服务循环模板）
-- [ ] 2. GitHub Actions CI（tsc --noEmit + ESLint + smoke test）
-- [ ] 3. Prometheus/Grafana 部署配置完善（docker-compose + 抓取目标 + 数据源）
-- [ ] 4. 初始化 OpenTelemetry traces（利用已安装依赖，配置 trace 导出）
+- [x] 1. Helm Chart 改单体部署（1 Deployment + HPA，删除微服务循环模板）
+- [x] 2. GitHub Actions CI（tsc --noEmit + ESLint + smoke test + MySQL service）
+- [x] 3. Prometheus/Grafana 部署配置完善（docker-compose + 3 Exporter + Alertmanager + cAdvisor + Jaeger）
+- [x] 4. 初始化 OpenTelemetry traces（Prometheus 拉取模式 + 采样策略 + 自动插桩增强）
+
+### 6.1 影响分析修复（7 项风险全部修复）
+- [x] 高风险: 添加 /data emptyDir 卷挂载解决 readOnlyRootFilesystem 与 Kafka 归档冲突
+- [x] 高风险: 添加 mysql-exporter/redis-exporter/kafka-exporter 到 docker-compose
+- [x] 中风险: OTel Metrics 改为 Prometheus 拉取模式（不再推送到 Jaeger）
+- [x] 中风险: 统一所有容器名为 xilian-* 前缀
+- [x] 中风险: 恢复 commonEnv 中 REDIS_URL/DATABASE_URL/JWT_SECRET secret 注入
+- [x] 低风险: CI 冒烟测试添加 MySQL service container
+- [x] 低风险: cAdvisor 添加安全说明注释
