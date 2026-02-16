@@ -3,9 +3,44 @@
  * 整合 Kubernetes、Vault、ArgoCD 真实客户端
  */
 
-import { kubernetesClient } from '../lib/clients/kubernetes.client';
-import { vaultClient } from '../lib/clients/vault.client';
-import { argoCDClient } from '../lib/clients/argoCD.client';
+// Stub clients — 原始 kubernetes/vault/argoCD 客户端已移除
+// 保留服务层接口供前端 Infrastructure 页面调用，返回未连接状态
+const kubernetesClient = {
+  async checkConnection() { return false; },
+  async getNodes() { return []; },
+  async getPods() { return []; },
+  async getDeployments() { return []; },
+  async getServices() { return []; },
+  async getNamespaces() { return []; },
+  async getStorageClasses() { return []; },
+  async getNetworkPolicies() { return []; },
+  async createNetworkPolicy(_ns: string, _p: any) { return { name: '', namespace: _ns }; },
+  async deleteNetworkPolicy(_ns: string, _n: string) { return true; },
+  async getRBACRoles() { return []; },
+} as any;
+
+const vaultClient = {
+  async checkConnection() { return false; },
+  async getHealth() { return { sealed: true, version: null }; },
+  async listMounts() { return []; },
+  async listPolicies() { return []; },
+  async listSecrets(_path: string) { return []; },
+  async getSecret(_path: string) { return null; },
+  async putSecret(_path: string, _data: any) { return true; },
+  async deleteSecret(_path: string) { return true; },
+  async getSecurityPolicies() { return []; },
+} as any;
+
+const argoCDClient = {
+  async checkConnection() { return false; },
+  async getVersion() { return null; },
+  async listApplications() { return []; },
+  async getApplication(_name: string) { return null; },
+  async syncApplication(_name: string) { return { status: 'unknown' }; },
+  async listProjects() { return []; },
+  async listRepositories() { return []; },
+  async getCICDPipelines() { return []; },
+} as any;
 
 // ============================================================
 // 类型定义
