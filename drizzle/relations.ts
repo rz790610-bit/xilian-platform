@@ -2,37 +2,60 @@ import { relations } from "drizzle-orm";
 import {
   users,
   // 知识库
-  kbCollections, kbPoints, kbDocuments,
+  kbCollections, kbPoints, kbDocuments, kbChunks, kbEmbeddings,
+  kbConversations, kbConversationMessages, kbQaPairs,
   // 知识图谱
-  kgNodes, kgEdges,
+  kgNodes, kgEdges, kgGraphs, kgGraphNodes, kgGraphEdges,
+  kgDiagnosisRuns, kgDiagnosisPaths, kgEvolutionLog,
   // AI 模型
   models, modelFineTuneTasks, modelEvaluations, modelUsageLogs,
-  modelConversations, modelMessages,
+  modelConversations, modelMessages, modelDeployments, modelInferenceLogs,
+  modelTrainingJobs, modelRegistry,
+  // 算法域
+  algorithmDefinitions, algorithmCompositions, algorithmDeviceBindings,
+  algorithmExecutions, algorithmRoutingRules,
   // 诊断
-  diagnosisRules, diagnosisTasks, anomalyDetections, sensorCalibrations,
+  diagnosisRules, diagnosisTasks, diagnosisResults, anomalyDetections, anomalyModels,
+  sensorCalibrations,
   // 设备运维
   deviceAlerts, deviceMaintenanceRecords, deviceKpis, deviceOperationLogs,
   deviceSamplingConfig, deviceSpareParts, deviceProtocolConfig, deviceRuleVersions,
+  deviceDailySummary, deviceMaintenanceLogs, deviceStatusLog, deviceFirmwareVersions,
+  edgeGateways, edgeGatewayConfig,
   // 基础配置
   baseNodeTemplates, baseMpTemplates, baseDictCategories, baseDictItems,
-  baseLabelDimensions,
+  baseLabelDimensions, baseLabelOptions,
   // 资产管理
   assetNodes, assetMeasurementPoints, assetSensors, sensorMpMapping,
-  // 数据治理
+  // 数据域
   dataSlices, dataSliceLabelHistory, dataCleanTasks, dataCleanLogs,
-  dataQualityReports, dataGovernanceJobs, minioCleanupLog, dataLineage,
+  dataQualityReports, dataGovernanceJobs, dataLineage,
+  dataAssets, dataBindings, dataCleanResults, dataCollectionTasks,
+  dataConnectors, dataEndpoints, dataExportTasks, dataLifecyclePolicies,
+  dataCollectionMetrics,
+  // 实时数据
+  realtimeDataLatest, realtimeTelemetry, vibration1hourAgg,
   // 消息与任务
-  eventLogs, messageQueueLog, asyncTaskLog,
+  eventLogs, eventStore, eventSnapshots, messageQueueLog, asyncTaskLog,
   // 插件引擎
   pluginRegistry, pluginInstances, pluginEvents,
   // 配置中心
   systemConfigs, configChangeLogs,
   // 运营管理
-  alertRules, auditLogs, dataExportTasks,
+  alertRules, alertEventLog, auditLogs, auditLogsSensitive,
   // 调度管理
-  scheduledTasks, rollbackTriggers,
+  scheduledTasks, rollbackTriggers, rollbackExecutions,
+  // Saga
+  sagaInstances, sagaSteps, sagaDeadLetters,
+  // Outbox
+  outboxEvents, outboxRoutingConfig, processedEvents,
+  // Pipeline
+  pipelines, pipelineRuns, pipelineNodeMetrics,
   // 系统拓扑
-  topoNodes, topoEdges, topoLayouts, systemCapacityMetrics,
+  topoNodes, topoEdges, topoLayouts, topoLayers, topoAlerts, topoSnapshots,
+  systemCapacityMetrics,
+  // MinIO
+  minioFileMetadata, minioUploadLogs,
 } from "./schema";
 
 // ============ 用户关系 ============
@@ -173,11 +196,7 @@ export const dataCleanLogsRelations = relations(dataCleanLogs, ({ one }) => ({
 }));
 
 export const dataGovernanceJobsRelations = relations(dataGovernanceJobs, ({ many }) => ({
-  cleanupLogs: many(minioCleanupLog),
-}));
-
-export const minioCleanupLogRelations = relations(minioCleanupLog, ({ one }) => ({
-  job: one(dataGovernanceJobs, { fields: [minioCleanupLog.jobId], references: [dataGovernanceJobs.id] }),
+  cleanTasks: many(dataCleanTasks),
 }));
 
 // ============ 基础配置关系 ============
@@ -223,4 +242,245 @@ export const topoNodesRelations = relations(topoNodes, ({ many }) => ({
 
 export const topoEdgesRelations = relations(topoEdges, ({ one }) => ({
   sourceNode: one(topoNodes, { fields: [topoEdges.sourceNodeId], references: [topoNodes.nodeId] }),
+}));
+
+// ============================================================
+// 补全 relations — 覆盖剩余 69 张表的外键关系
+// 生成规则：基于字段命名约定 + 注释中的引用关系
+// ============================================================
+
+// ============ 告警域 ============
+export const alertEventLogRelations = relations(alertEventLog, ({ one }) => ({
+  rule: one(alertRules, { fields: [alertEventLog.ruleId], references: [alertRules.id] }),
+  device: one(assetNodes, { fields: [alertEventLog.deviceCode], references: [assetNodes.code] }),
+}));
+
+// ============ 算法域 ============
+export const algorithmDeviceBindingsRelations = relations(algorithmDeviceBindings, ({ one, many }) => ({
+  device: one(assetNodes, { fields: [algorithmDeviceBindings.deviceCode], references: [assetNodes.code] }),
+  sensor: one(assetSensors, { fields: [algorithmDeviceBindings.sensorCode], references: [assetSensors.sensorId] }),
+  algorithm: one(algorithmDefinitions, { fields: [algorithmDeviceBindings.algoCode], references: [algorithmDefinitions.algoCode] }),
+  routingRules: many(algorithmRoutingRules),
+  executions: many(algorithmExecutions),
+}));
+
+export const algorithmExecutionsRelations = relations(algorithmExecutions, ({ one }) => ({
+  binding: one(algorithmDeviceBindings, { fields: [algorithmExecutions.bindingId], references: [algorithmDeviceBindings.id] }),
+  algorithm: one(algorithmDefinitions, { fields: [algorithmExecutions.algoCode], references: [algorithmDefinitions.algoCode] }),
+  device: one(assetNodes, { fields: [algorithmExecutions.deviceCode], references: [assetNodes.code] }),
+}));
+
+export const algorithmRoutingRulesRelations = relations(algorithmRoutingRules, ({ one }) => ({
+  binding: one(algorithmDeviceBindings, { fields: [algorithmRoutingRules.bindingId], references: [algorithmDeviceBindings.id] }),
+}));
+
+export const algorithmDefinitionsRelations = relations(algorithmDefinitions, ({ many }) => ({
+  bindings: many(algorithmDeviceBindings),
+  executions: many(algorithmExecutions),
+}));
+
+export const algorithmCompositionsRelations = relations(algorithmCompositions, ({ many }) => ({
+  // 组合编排引用的算法通过 JSON steps 字段关联，非外键
+}));
+
+// ============ 审计域 ============
+export const auditLogsRelations = relations(auditLogs, ({ many }) => ({
+  sensitiveRecords: many(auditLogsSensitive),
+}));
+
+export const auditLogsSensitiveRelations = relations(auditLogsSensitive, ({ one }) => ({
+  auditLog: one(auditLogs, { fields: [auditLogsSensitive.auditLogId], references: [auditLogs.id] }),
+}));
+
+// ============ 知识库补全 ============
+export const kbChunksRelations = relations(kbChunks, ({ one, many }) => ({
+  document: one(kbDocuments, { fields: [kbChunks.documentId], references: [kbDocuments.id] }),
+  embeddings: many(kbEmbeddings),
+}));
+
+export const kbEmbeddingsRelations = relations(kbEmbeddings, ({ one }) => ({
+  chunk: one(kbChunks, { fields: [kbEmbeddings.chunkId], references: [kbChunks.id] }),
+}));
+
+export const kbConversationsRelations = relations(kbConversations, ({ one, many }) => ({
+  collection: one(kbCollections, { fields: [kbConversations.collectionId], references: [kbCollections.id] }),
+  user: one(users, { fields: [kbConversations.userId], references: [users.id] }),
+  messages: many(kbConversationMessages),
+}));
+
+export const kbConversationMessagesRelations = relations(kbConversationMessages, ({ one }) => ({
+  conversation: one(kbConversations, { fields: [kbConversationMessages.conversationId], references: [kbConversations.id] }),
+}));
+
+export const kbQaPairsRelations = relations(kbQaPairs, ({ one }) => ({
+  collection: one(kbCollections, { fields: [kbQaPairs.collectionId], references: [kbCollections.id] }),
+  sourceDocument: one(kbDocuments, { fields: [kbQaPairs.sourceDocumentId], references: [kbDocuments.id] }),
+}));
+
+// ============ 知识图谱补全 ============
+export const kgGraphsRelations = relations(kgGraphs, ({ many }) => ({
+  nodes: many(kgGraphNodes),
+  edges: many(kgGraphEdges),
+  diagnosisRuns: many(kgDiagnosisRuns),
+  evolutionLogs: many(kgEvolutionLog),
+}));
+
+export const kgGraphNodesRelations = relations(kgGraphNodes, ({ one }) => ({
+  graph: one(kgGraphs, { fields: [kgGraphNodes.graphId], references: [kgGraphs.graphId] }),
+}));
+
+export const kgGraphEdgesRelations = relations(kgGraphEdges, ({ one }) => ({
+  graph: one(kgGraphs, { fields: [kgGraphEdges.graphId], references: [kgGraphs.graphId] }),
+}));
+
+export const kgDiagnosisRunsRelations = relations(kgDiagnosisRuns, ({ one, many }) => ({
+  graph: one(kgGraphs, { fields: [kgDiagnosisRuns.graphId], references: [kgGraphs.graphId] }),
+  paths: many(kgDiagnosisPaths),
+}));
+
+export const kgDiagnosisPathsRelations = relations(kgDiagnosisPaths, ({ one }) => ({
+  run: one(kgDiagnosisRuns, { fields: [kgDiagnosisPaths.runId], references: [kgDiagnosisRuns.runId] }),
+  graph: one(kgGraphs, { fields: [kgDiagnosisPaths.graphId], references: [kgGraphs.graphId] }),
+}));
+
+export const kgEvolutionLogRelations = relations(kgEvolutionLog, ({ one }) => ({
+  graph: one(kgGraphs, { fields: [kgEvolutionLog.graphId], references: [kgGraphs.graphId] }),
+}));
+
+export const kgEdgesRelations = relations(kgEdges, ({ one }) => ({
+  collection: one(kbCollections, { fields: [kgEdges.collectionId], references: [kbCollections.id] }),
+}));
+
+export const kgNodesRelations = relations(kgNodes, ({ one }) => ({
+  collection: one(kbCollections, { fields: [kgNodes.collectionId], references: [kbCollections.id] }),
+}));
+
+// ============ 模型域补全 ============
+export const modelDeploymentsRelations = relations(modelDeployments, ({ one, many }) => ({
+  model: one(models, { fields: [modelDeployments.modelId], references: [models.id] }),
+  inferenceLogs: many(modelInferenceLogs),
+}));
+
+export const modelInferenceLogsRelations = relations(modelInferenceLogs, ({ one }) => ({
+  deployment: one(modelDeployments, { fields: [modelInferenceLogs.deploymentId], references: [modelDeployments.id] }),
+}));
+
+export const modelTrainingJobsRelations = relations(modelTrainingJobs, ({ one }) => ({
+  model: one(models, { fields: [modelTrainingJobs.modelId], references: [models.id] }),
+}));
+
+// ============ 设备域补全 ============
+export const deviceDailySummaryRelations = relations(deviceDailySummary, ({ one }) => ({
+  device: one(assetNodes, { fields: [deviceDailySummary.deviceCode], references: [assetNodes.code] }),
+}));
+
+export const deviceMaintenanceLogsRelations = relations(deviceMaintenanceLogs, ({ one }) => ({
+  device: one(assetNodes, { fields: [deviceMaintenanceLogs.deviceCode], references: [assetNodes.code] }),
+}));
+
+export const deviceStatusLogRelations = relations(deviceStatusLog, ({ one }) => ({
+  device: one(assetNodes, { fields: [deviceStatusLog.deviceCode], references: [assetNodes.code] }),
+}));
+
+export const diagnosisResultsRelations = relations(diagnosisResults, ({ one }) => ({
+  device: one(assetNodes, { fields: [diagnosisResults.deviceCode], references: [assetNodes.code] }),
+}));
+
+export const anomalyDetectionsRelations = relations(anomalyDetections, ({ one }) => ({
+  sensor: one(assetSensors, { fields: [anomalyDetections.sensorId], references: [assetSensors.sensorId] }),
+}));
+
+export const eventLogsRelations = relations(eventLogs, ({ one }) => ({
+  sensor: one(assetSensors, { fields: [eventLogs.sensorId], references: [assetSensors.sensorId] }),
+}));
+
+// ============ 数据域补全 ============
+export const dataEndpointsRelations = relations(dataEndpoints, ({ one, many }) => ({
+  connector: one(dataConnectors, { fields: [dataEndpoints.connectorId], references: [dataConnectors.connectorId] }),
+  sensor: one(assetSensors, { fields: [dataEndpoints.sensorId], references: [assetSensors.sensorId] }),
+  bindings: many(dataBindings),
+}));
+
+export const dataBindingsRelations = relations(dataBindings, ({ one }) => ({
+  endpoint: one(dataEndpoints, { fields: [dataBindings.endpointId], references: [dataEndpoints.endpointId] }),
+}));
+
+export const dataQualityReportsRelations = relations(dataQualityReports, ({ one }) => ({
+  device: one(assetNodes, { fields: [dataQualityReports.deviceCode], references: [assetNodes.code] }),
+  sensor: one(assetSensors, { fields: [dataQualityReports.sensorId], references: [assetSensors.sensorId] }),
+}));
+
+export const dataCollectionTasksRelations = relations(dataCollectionTasks, ({ many }) => ({
+  metrics: many(dataCollectionMetrics),
+}));
+
+// ============ 实时数据域 ============
+export const realtimeDataLatestRelations = relations(realtimeDataLatest, ({ one }) => ({
+  device: one(assetNodes, { fields: [realtimeDataLatest.deviceCode], references: [assetNodes.code] }),
+  measurementPoint: one(assetMeasurementPoints, { fields: [realtimeDataLatest.mpCode], references: [assetMeasurementPoints.mpCode] }),
+}));
+
+export const realtimeTelemetryRelations = relations(realtimeTelemetry, ({ one }) => ({
+  device: one(assetNodes, { fields: [realtimeTelemetry.deviceCode], references: [assetNodes.code] }),
+  measurementPoint: one(assetMeasurementPoints, { fields: [realtimeTelemetry.mpCode], references: [assetMeasurementPoints.mpCode] }),
+}));
+
+export const vibration1hourAggRelations = relations(vibration1hourAgg, ({ one }) => ({
+  device: one(assetNodes, { fields: [vibration1hourAgg.deviceCode], references: [assetNodes.code] }),
+  measurementPoint: one(assetMeasurementPoints, { fields: [vibration1hourAgg.mpCode], references: [assetMeasurementPoints.mpCode] }),
+}));
+
+// ============ Pipeline 域 ============
+export const pipelinesRelations = relations(pipelines, ({ many }) => ({
+  runs: many(pipelineRuns),
+}));
+
+export const pipelineRunsRelations = relations(pipelineRuns, ({ one, many }) => ({
+  pipeline: one(pipelines, { fields: [pipelineRuns.pipelineId], references: [pipelines.pipelineId] }),
+  nodeMetrics: many(pipelineNodeMetrics),
+}));
+
+export const pipelineNodeMetricsRelations = relations(pipelineNodeMetrics, ({ one }) => ({
+  run: one(pipelineRuns, { fields: [pipelineNodeMetrics.runId], references: [pipelineRuns.runId] }),
+  pipeline: one(pipelines, { fields: [pipelineNodeMetrics.pipelineId], references: [pipelines.pipelineId] }),
+}));
+
+// ============ Saga 域 ============
+export const sagaInstancesRelations = relations(sagaInstances, ({ many }) => ({
+  steps: many(sagaSteps),
+  deadLetters: many(sagaDeadLetters),
+}));
+
+export const sagaStepsRelations = relations(sagaSteps, ({ one }) => ({
+  saga: one(sagaInstances, { fields: [sagaSteps.sagaId], references: [sagaInstances.sagaId] }),
+}));
+
+export const sagaDeadLettersRelations = relations(sagaDeadLetters, ({ one }) => ({
+  saga: one(sagaInstances, { fields: [sagaDeadLetters.sagaId], references: [sagaInstances.sagaId] }),
+}));
+
+// ============ Rollback 域 ============
+export const rollbackExecutionsRelations = relations(rollbackExecutions, ({ one }) => ({
+  saga: one(sagaInstances, { fields: [rollbackExecutions.sagaId], references: [sagaInstances.sagaId] }),
+  trigger: one(rollbackTriggers, { fields: [rollbackExecutions.triggerId], references: [rollbackTriggers.id] }),
+}));
+
+// ============ 拓扑补全 ============
+export const topoLayoutsRelations = relations(topoLayouts, ({ one }) => ({
+  user: one(users, { fields: [topoLayouts.userId], references: [users.id] }),
+}));
+
+export const topoAlertsRelations = relations(topoAlerts, ({ one }) => ({
+  node: one(topoNodes, { fields: [topoAlerts.nodeId], references: [topoNodes.nodeId] }),
+}));
+
+// ============ 基础配置补全 ============
+export const baseLabelOptionsRelations = relations(baseLabelOptions, ({ one }) => ({
+  dimension: one(baseLabelDimensions, { fields: [baseLabelOptions.dimensionCode], references: [baseLabelDimensions.id] }),
+}));
+
+// ============ 边缘网关 ============
+export const edgeGatewaysRelations = relations(edgeGateways, ({ many }) => ({
+  configs: many(edgeGatewayConfig),
+  collectionTasks: many(dataCollectionTasks),
 }));
