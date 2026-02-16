@@ -28,6 +28,15 @@ export async function getDb() {
   return _db;
 }
 
+/**
+ * 重置数据库连接（一键启动 MySQL 后调用）
+ * 清除缓存的连接实例，下次 getDb() 会用新的 DATABASE_URL 重新连接
+ */
+export function resetDb() {
+  _db = null;
+  log.info('[Database] Connection reset, will reconnect on next getDb() call');
+}
+
 export async function upsertUser(user: InsertUser): Promise<void> {
   if (!user.openId) {
     throw new Error("User openId is required for upsert");

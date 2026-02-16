@@ -14,7 +14,6 @@ import DataManage from "./pages/DataManage";
 import ModelInference from "./pages/ModelInference";
 import DataLabel from "./pages/DataLabel";
 import DataInsight from "./pages/DataInsight";
-import DataAccess from "./pages/DataAccess";
 import DataStandard from "./pages/DataStandard";
 import ModelRepo from "./pages/ModelRepo";
 import ModelCenter from "./pages/ModelCenter";
@@ -56,10 +55,6 @@ import {
   GraphQueryManager,
   KGOrchestrator,
 } from "./pages/settings/design";
-// V4.0 新增页面 - Platform
-import AlertRules from "./pages/platform/AlertRules";
-import AuditLogs from "./pages/platform/AuditLogs";
-import ScheduledTasks from "./pages/platform/ScheduledTasks";
 // V4.0 新增页面 - Monitoring
 import ClickHouseDashboard from "./pages/monitoring/ClickHouseDashboard";
 
@@ -67,8 +62,6 @@ import ClickHouseDashboard from "./pages/monitoring/ClickHouseDashboard";
 import {
   Infrastructure,
   KafkaMonitor,
-  AccessLayerManager,
-  SHMDataPreview
 } from "./pages/settings/config";
 
 // 平台管理 - 状态监控（精简：移除 PluginsManager、EnginesManager、ModelsManager、ServicesOverview）
@@ -121,7 +114,6 @@ function Router() {
       <Route path="/data/manage" component={DataManage} />
       <Route path="/data/label" component={DataLabel} />
       <Route path="/data/insight" component={DataInsight} />
-      <Route path="/data/access" component={DataAccess} />
       <Route path="/data/standard" component={DataStandard} />
       
       {/* 数据库模块 v1.5 */}
@@ -185,8 +177,6 @@ function Router() {
       {/* 配置中心 */}
       <Route path="/settings/config/infrastructure" component={Infrastructure} />
       <Route path="/settings/config/kafka" component={KafkaMonitor} />
-      <Route path="/settings/config/access-layer" component={AccessLayerManager} />
-      <Route path="/settings/config/shm-data-preview" component={SHMDataPreview} />
 
       {/* 状态监控 */}
       <Route path="/settings/status/topology" component={SystemTopology} />
@@ -200,13 +190,7 @@ function Router() {
       {/* 安全运维 */}
       <Route path="/settings/security/falco" component={FalcoSecurityCenter} />
 
-      {/* V4.0 新增 - Platform 平台底座 */}
-      <Route path="/platform/alert-rules" component={AlertRules} />
-      <Route path="/platform/audit-logs" component={AuditLogs} />
-      <Route path="/platform/scheduled-tasks" component={ScheduledTasks} />
-
-
-      {/* V4.0 新增 - Monitoring 监控大屏 */}
+      {/* 监控大屏 */}
       <Route path="/monitoring/clickhouse" component={ClickHouseDashboard} />
 
       {/* Settings redirect */}

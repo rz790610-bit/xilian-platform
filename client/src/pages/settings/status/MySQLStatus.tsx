@@ -1,13 +1,12 @@
 /**
  * MySQL 状态监控页面
- * 简单明了展示 MySQL 真实连接状态，顶部一键启动按钮
+ * 真实展示 MySQL 连接状态 + 一键启动（容器+配置+迁移+重连）
  * 
  * API 依赖:
  * - platformSystem.health.check → 快速健康检查
  * - database.workbench.connection.getStatus → 连接详情
- * - database.workbench.connection.testConnection → 测试连接
- * - docker.startEngine → 启动 MySQL 容器 (portai-mysql)
- * - docker.listEngines → 检查容器状态
+ * - docker.bootstrapMySQL → 一键启动闭环
+ * - docker.listEngines → 容器状态
  */
 import { useState } from 'react';
 import { trpc } from '@/lib/trpc';
@@ -24,8 +23,11 @@ function formatUptime(seconds: number): string {
   return `${m}分钟`;
 }
 
+type BootstrapStep = { step: string; status: 'ok' | 'fail' | 'skip'; detail?: string };
+
 export default function MySQLStatus() {
-  const [starting, setStarting] = useState(false);
+  const [bootstrapping, setBootstrapping] = useState(false);
+  const [steps, setSteps] = useState<BootstrapStep[]>([]);
 
   // 1. 快速健康检查
   const { data: health, isLoading: loadingHealth, refetch: refetchHealth } =
@@ -35,49 +37,37 @@ export default function MySQLStatus() {
   const { data: connStatus, isLoading: loadingConn, refetch: refetchConn } =
     trpc.database.workbench.connection.getStatus.useQuery(undefined, { refetchInterval: 15000 });
 
-  // 3. Docker 容器列表 — 查看 MySQL 容器状态
+  // 3. Docker 容器列表
   const { data: engines, refetch: refetchEngines } =
     trpc.docker.listEngines.useQuery(undefined, { refetchInterval: 15000 });
 
-  // 4. 启动 MySQL 容器
-  const startMutation = trpc.docker.startEngine.useMutation({
+  // 4. 一键启动 MySQL（完整闭环）
+  const bootstrapMutation = trpc.docker.bootstrapMySQL.useMutation({
     onSuccess: (result: any) => {
-      if (result?.success) {
-        toast.success('MySQL 容器启动成功，等待服务就绪...');
-        // 延迟刷新，等 MySQL 启动
-        setTimeout(() => {
-          refetchHealth();
-          refetchConn();
-          refetchEngines();
-        }, 3000);
+      setSteps(result.steps || []);
+      if (result.success) {
+        toast.success('MySQL 一键启动完成，数据库已就绪');
       } else {
-        toast.error(`启动失败: ${result?.error || '未知错误'}`);
+        toast.error(`启动未完全成功: ${result.error || '部分步骤失败'}`);
       }
-      setStarting(false);
+      // 刷新所有状态
+      setTimeout(() => {
+        refetchHealth();
+        refetchConn();
+        refetchEngines();
+      }, 1000);
+      setBootstrapping(false);
     },
     onError: (err: any) => {
       toast.error(`启动失败: ${err.message}`);
-      setStarting(false);
+      setBootstrapping(false);
     },
   });
 
-  // 5. 测试连接
-  const testMutation = trpc.database.workbench.connection.testConnection.useMutation({
-    onSuccess: (result) => {
-      if (result.success) {
-        toast.success(`连接正常，延迟 ${result.latency}ms`);
-      } else {
-        toast.error(`连接失败: ${result.error || '未知错误'}`);
-      }
-    },
-    onError: (err: any) => {
-      toast.error(`测试失败: ${err.message}`);
-    },
-  });
-
-  const handleStart = () => {
-    setStarting(true);
-    startMutation.mutate({ containerName: 'portai-mysql' });
+  const handleBootstrap = () => {
+    setBootstrapping(true);
+    setSteps([]);
+    bootstrapMutation.mutate();
   };
 
   const handleRefresh = () => {
@@ -96,7 +86,7 @@ export default function MySQLStatus() {
   const mysqlContainer = engines?.engines?.find(
     (e: any) => e.containerName === 'portai-mysql' || e.serviceName === 'mysql'
   );
-  const containerState = mysqlContainer?.state || mysqlContainer?.status || '未知';
+  const containerState = mysqlContainer?.state || mysqlContainer?.status || '未检测到';
 
   return (
     <MainLayout>
@@ -106,7 +96,7 @@ export default function MySQLStatus() {
           <div>
             <h1 className="text-2xl font-bold text-foreground">MySQL 状态</h1>
             <p className="text-sm text-muted-foreground mt-1">
-              实时监控 MySQL 数据库连接状态
+              实时监控 · 一键启动容器 + 配置 + 建表 + 连接
             </p>
           </div>
           <div className="flex gap-2">
@@ -114,28 +104,41 @@ export default function MySQLStatus() {
               onClick={handleRefresh}
               className="px-4 py-2 text-sm rounded-md border border-border bg-background hover:bg-accent text-foreground transition-colors"
             >
-              🔄 刷新
+              刷新
             </button>
             <button
-              onClick={() => testMutation.mutate()}
-              disabled={testMutation.isPending}
-              className="px-4 py-2 text-sm rounded-md border border-border bg-background hover:bg-accent text-foreground transition-colors disabled:opacity-50"
-            >
-              🔍 测试连接
-            </button>
-            <button
-              onClick={handleStart}
-              disabled={starting || isOnline}
+              onClick={handleBootstrap}
+              disabled={bootstrapping || isOnline}
               className={`px-5 py-2 text-sm font-medium rounded-md transition-colors ${
                 isOnline
                   ? 'bg-green-600/20 text-green-400 border border-green-600/30 cursor-default'
                   : 'bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50'
               }`}
             >
-              {starting ? '⏳ 启动中...' : isOnline ? '✅ 运行中' : '🚀 一键启动 MySQL'}
+              {bootstrapping ? '⏳ 启动中...' : isOnline ? '✅ 运行中' : '🚀 一键启动 MySQL'}
             </button>
           </div>
         </div>
+
+        {/* 启动步骤进度 */}
+        {steps.length > 0 && (
+          <div className="rounded-lg border border-border bg-card p-4 space-y-2">
+            <div className="text-sm font-medium text-foreground mb-2">启动流程</div>
+            {steps.map((s, i) => (
+              <div key={i} className="flex items-center gap-3 text-sm">
+                <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold ${
+                  s.status === 'ok' ? 'bg-green-600/20 text-green-400' :
+                  s.status === 'skip' ? 'bg-yellow-600/20 text-yellow-400' :
+                  'bg-red-600/20 text-red-400'
+                }`}>
+                  {s.status === 'ok' ? '✓' : s.status === 'skip' ? '—' : '✗'}
+                </span>
+                <span className="text-foreground font-medium w-36">{s.step}</span>
+                <span className="text-muted-foreground">{s.detail}</span>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* 状态总览 */}
         {isLoading ? (
@@ -158,8 +161,8 @@ export default function MySQLStatus() {
                   </div>
                   <div className="text-sm text-muted-foreground">
                     {isOnline
-                      ? `延迟 ${mysqlHealth?.latency ?? '-'}ms · 容器状态: ${containerState}`
-                      : `容器状态: ${containerState} · 请检查 DATABASE_URL 环境变量或启动 MySQL 容器`
+                      ? `延迟 ${mysqlHealth?.latency ?? '-'}ms · 容器: ${containerState}`
+                      : `容器: ${containerState} · 点击「一键启动 MySQL」自动完成全部配置`
                     }
                   </div>
                 </div>

@@ -39,7 +39,6 @@ export const navigationConfig: NavItem[] = [
     label: '数据中心',
     icon: '💾',
     children: [
-      { id: 'data-access', label: '数据接入', icon: '🔌', path: '/data/access' },
       { id: 'data-standard', label: '数据标准化', icon: '📏', path: '/data/standard' },
       { id: 'data-manage', label: '数据管理', icon: '📁', path: '/data/manage' },
       { id: 'data-label', label: '数据标注', icon: '🏷️', path: '/data/label' },
@@ -136,12 +135,8 @@ export const navigationConfig: NavItem[] = [
     label: '配置中心',
     icon: '⚙️',
     children: [
-      { id: 'config-access-layer', label: '接入层管理', icon: '🔌', path: '/settings/config/access-layer' },
-      { id: 'config-shm-data', label: 'SHM数据预览', icon: '📈', path: '/settings/config/shm-data-preview' },
       { id: 'config-infrastructure', label: '基础设施', icon: '🏛️', path: '/settings/config/infrastructure' },
-      { id: 'config-kafka', label: 'Kafka 监控', icon: '📡', path: '/settings/config/kafka' },
-      { id: 'config-alert-rules', label: '告警规则', icon: '🔔', path: '/platform/alert-rules' },
-      { id: 'config-scheduled-tasks', label: '定时任务', icon: '⏰', path: '/platform/scheduled-tasks' }
+      { id: 'config-kafka', label: 'Kafka 监控', icon: '📡', path: '/settings/config/kafka' }
     ]
   },
   {
@@ -163,8 +158,7 @@ export const navigationConfig: NavItem[] = [
     label: '安全运维',
     icon: '🛡️',
     children: [
-      { id: 'security-falco', label: '安全中心', icon: '🔍', path: '/settings/security/falco' },
-      { id: 'security-audit-logs', label: '审计日志', icon: '📋', path: '/platform/audit-logs' }
+      { id: 'security-falco', label: '安全中心', icon: '🔍', path: '/settings/security/falco' }
     ]
   },
 
