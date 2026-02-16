@@ -80,6 +80,9 @@ function createLimiter(name: string, options: Partial<Options>): RateLimitReques
     skip: (req: Request) => {
       // 健康检查端点不限流
       if (req.path === '/api/metrics' || req.path === '/health') return true;
+      // Docker 管理操作不限流（bootstrapAll / bootstrapOptionalService / startAll 等长耗时操作）
+      const url = req.originalUrl || req.url || '';
+      if (url.includes('docker.bootstrap') || url.includes('docker.startAll') || url.includes('docker.startEngine')) return true;
       return false;
     },
     ...options,
