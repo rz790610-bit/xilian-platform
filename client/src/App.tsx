@@ -80,7 +80,8 @@ import {
   AdaptiveSampling,
   DeduplicationManager,
   ReadReplicaManager,
-  MicroserviceDashboard
+  MicroserviceDashboard,
+  MySQLStatus
 } from "./pages/settings/status";
 
 // 平台管理 - 安全运维（精简：移除 SmartMonitoring、SecurityScanner、VaultManager、PkiManager）
@@ -240,6 +241,7 @@ function Router() {
         <Redirect to="/settings/status/topology" />
       </Route>
       <Route path="/settings/status/microservices" component={MicroserviceDashboard} />
+      <Route path="/settings/status/mysql" component={MySQLStatus} />
       <Route path="/settings/security/monitoring">
         <Redirect to="/settings/security/falco" />
       </Route>

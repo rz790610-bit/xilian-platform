@@ -6,3 +6,4 @@ export { default as AdaptiveSampling } from './AdaptiveSampling';
 export { default as DeduplicationManager } from './DeduplicationManager';
 export { default as ReadReplicaManager } from './ReadReplicaManager';
 export { default as MicroserviceDashboard } from './microservices/MicroserviceDashboard';
+export { default as MySQLStatus } from './MySQLStatus';

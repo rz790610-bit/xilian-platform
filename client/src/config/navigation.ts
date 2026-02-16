@@ -154,7 +154,8 @@ export const navigationConfig: NavItem[] = [
       { id: 'status-performance', label: '性能总览', icon: '🚀', path: '/settings/status/performance' },
       { id: 'status-clickhouse', label: 'ClickHouse 监控', icon: '📊', path: '/monitoring/clickhouse' },
       { id: 'status-datastream', label: '数据流监控', icon: '⚡', path: '/settings/design/datastream' },
-      { id: 'status-graph-query', label: '图查询优化', icon: '🗂️', path: '/settings/design/graph-query' }
+      { id: 'status-graph-query', label: '图查询优化', icon: '🗂️', path: '/settings/design/graph-query' },
+      { id: 'status-mysql', label: 'MySQL 状态', icon: '🐬', path: '/settings/status/mysql' }
     ]
   },
   {
