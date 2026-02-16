@@ -57,6 +57,8 @@ services:
       - FEATURE_KAFKA_CONNECT_ENABLED=${FEATURE_KAFKA_CONNECT_ENABLED:-false}
       - FEATURE_AIRFLOW_ENABLED=${FEATURE_AIRFLOW_ENABLED:-false}
       - FEATURE_FLINK_ENABLED=${FEATURE_FLINK_ENABLED:-false}
+      - VAULT_ADDR=http://vault:8200
+      - VAULT_TOKEN=${VAULT_DEV_TOKEN:-xilian-dev-root-token}
       - LOG_LEVEL=${LOG_LEVEL:-info}
     depends_on:
       mysql:
@@ -618,6 +620,57 @@ services:
     networks:
       - portai-network
 
+  # ==================== HashiCorp Vault (Secrets Management) ====================
+  vault:
+    image: hashicorp/vault:1.15
+    container_name: xilian-vault
+    restart: unless-stopped
+    cap_add:
+      - IPC_LOCK
+    ports:
+      - "${VAULT_PORT:-8200}:8200"
+    environment:
+      VAULT_DEV_ROOT_TOKEN_ID: ${VAULT_DEV_TOKEN:-xilian-dev-root-token}
+      VAULT_DEV_LISTEN_ADDRESS: 0.0.0.0:8200
+      VAULT_ADDR: http://127.0.0.1:8200
+      VAULT_TOKEN: ${VAULT_DEV_TOKEN:-xilian-dev-root-token}
+    volumes:
+      - vault_data:/vault/data
+      - vault_logs:/vault/logs
+      - ./docker/vault/vault-config.hcl:/vault/config/vault-config.hcl:ro
+      - ./docker/vault/init-vault.sh:/vault/config/init-vault.sh:ro
+    networks:
+      - portai-network
+    healthcheck:
+      test: ["CMD", "vault", "status"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  vault-init:
+    image: hashicorp/vault:1.15
+    container_name: xilian-vault-init
+    entrypoint: /bin/sh
+    command: ["-c", "sleep 5 && /vault/config/init-vault.sh"]
+    environment:
+      VAULT_ADDR: http://vault:8200
+      VAULT_TOKEN: ${VAULT_DEV_TOKEN:-xilian-dev-root-token}
+      DB_PASSWORD: ${DB_PASSWORD:-xilian_secret}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root_password}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      ES_PASSWORD: ${ES_PASSWORD:-changeme}
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
+      JWT_SECRET: ${JWT_SECRET:-}
+    volumes:
+      - ./docker/vault/init-vault.sh:/vault/config/init-vault.sh:ro
+    depends_on:
+      vault:
+        condition: service_healthy
+    networks:
+      - portai-network
+
   # ==================== Apache Flink (Streaming) ====================
   # Profile: bigdata — 仅在 docker compose --profile bigdata up 时启动
   flink-jobmanager:
@@ -840,3 +893,7 @@ volumes:
     name: xilian-airflow-postgres-data
   airflow_logs:
     name: xilian-airflow-logs
+  vault_data:
+    name: xilian-vault-data
+  vault_logs:
+    name: xilian-vault-logs
