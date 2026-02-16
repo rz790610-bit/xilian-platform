@@ -74,10 +74,9 @@ function createLimiter(name: string, options: Partial<Options>): RateLimitReques
   const limiter = rateLimit({
     standardHeaders: true,  // 返回 RateLimit-* 头
     legacyHeaders: false,   // 不返回 X-RateLimit-* 头
-    keyGenerator: (req: Request) => {
-      // 优先使用 X-Forwarded-For（反向代理后）
-      return req.ip || req.socket.remoteAddress || 'unknown';
-    },
+    // 使用 express-rate-limit 默认的 keyGenerator（自动处理 IPv6）
+    // 默认使用 req.ip，已内置 IPv6 规范化处理
+    validate: { xForwardedForHeader: false, default: true },
     skip: (req: Request) => {
       // 健康检查端点不限流
       if (req.path === '/api/metrics' || req.path === '/health') return true;
