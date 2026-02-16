@@ -1,0 +1,152 @@
+{{- if .Values.security.networkPolicy.enabled }}
+---
+# App 服务网络策略 — 只允许 Ingress 和内部服务访问
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "xilian.fullname" . }}-app
+  namespace: {{ include "xilian.namespace" . }}
+  labels:
+    {{- include "xilian.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: app
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # 允许 Ingress Controller 访问
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 3000
+    # 允许 Prometheus 抓取
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - protocol: TCP
+          port: 3000
+    # 允许同命名空间内部通信
+    - from:
+        - podSelector: {}
+      ports:
+        - protocol: TCP
+          port: 3000
+  egress:
+    # 允许访问 MySQL
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: mysql
+      ports:
+        - protocol: TCP
+          port: 3306
+    # 允许访问 Redis
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: redis
+      ports:
+        - protocol: TCP
+          port: 6379
+    # 允许访问 Kafka
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: kafka
+      ports:
+        - protocol: TCP
+          port: 9092
+    # 允许访问 ClickHouse
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: clickhouse
+      ports:
+        - protocol: TCP
+          port: 8123
+        - protocol: TCP
+          port: 9000
+    # 允许访问 Jaeger
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: jaeger
+      ports:
+        - protocol: TCP
+          port: 4318
+    # 允许 DNS 解析
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+---
+# Sensor Ingestion 网络策略 — 限制只能访问 Kafka 和 App
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "xilian.fullname" . }}-sensor-ingestion
+  namespace: {{ include "xilian.namespace" . }}
+spec:
+  podSelector:
+    matchLabels:
+      app: sensor-ingestion
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector: {}
+      ports:
+        - protocol: TCP
+          port: 8080
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: kafka
+      ports:
+        - protocol: TCP
+          port: 9092
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: UDP
+          port: 53
+---
+# 数据库服务网络策略 — 只允许 App 和微服务访问
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "xilian.fullname" . }}-database
+  namespace: {{ include "xilian.namespace" . }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: mysql
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: app
+        - podSelector:
+            matchLabels:
+              app: event-dispatcher
+        - podSelector:
+            matchLabels:
+              app: realtime-aggregator
+      ports:
+        - protocol: TCP
+          port: 3306
+{{- end }}

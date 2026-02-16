@@ -1,0 +1,125 @@
+# ============================================================
+# 西联平台 SLO/SLI 定义
+# ============================================================
+#
+# SLI (Service Level Indicator): 衡量服务质量的指标
+# SLO (Service Level Objective): SLI 的目标值
+# Error Budget: 允许的不可用时间/错误比例
+#
+# 30 天滚动窗口 | Burn Rate 告警模型
+# ============================================================
+
+services:
+  # ── API Gateway ──
+  api-gateway:
+    tier: critical
+    slos:
+      availability:
+        sli: "1 - (sum(rate(http_requests_total{service='api-gateway', status_code=~'5..'}[30d])) / sum(rate(http_requests_total{service='api-gateway'}[30d])))"
+        target: 0.999
+        error_budget_monthly: 43.2m  # 30d * 24h * 60m * 0.001
+        burn_rate_thresholds:
+          critical: 14.4  # 2% budget / 1h
+          warning: 6      # 5% budget / 6h
+      latency:
+        sli: "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{service='api-gateway'}[5m])) by (le))"
+        target: "< 200ms"
+      throughput:
+        sli: "sum(rate(http_requests_total{service='api-gateway'}[5m]))"
+        target: "> 500 req/s"
+
+  # ── Device Service ──
+  device:
+    tier: critical
+    slos:
+      availability:
+        sli: "1 - (sum(rate(http_requests_total{service='device', status_code=~'5..'}[30d])) / sum(rate(http_requests_total{service='device'}[30d])))"
+        target: 0.999
+        error_budget_monthly: 43.2m
+      latency:
+        sli: "histogram_quantile(0.99, ...)"
+        target: "< 300ms"
+      data_freshness:
+        sli: "time() - max(device_last_heartbeat_timestamp) by (device_id)"
+        target: "< 60s"
+        description: "设备心跳数据新鲜度"
+
+  # ── Algorithm Service ──
+  algorithm:
+    tier: high
+    slos:
+      availability:
+        target: 0.995
+        error_budget_monthly: 216m
+      latency:
+        target: "P99 < 5s (FFT), P99 < 30s (包络解调)"
+        description: "算法执行延迟因算法类型差异较大"
+      correctness:
+        sli: "algorithm_result_validation_pass_rate"
+        target: 0.99
+        description: "算法结果校验通过率"
+
+  # ── Data Pipeline ──
+  data-pipeline:
+    tier: critical
+    slos:
+      availability:
+        target: 0.999
+        error_budget_monthly: 43.2m
+      throughput:
+        sli: "sum(rate(kafka_messages_consumed_total{service='data-pipeline'}[5m]))"
+        target: "> 10000 msg/s"
+      lag:
+        sli: "max(kafka_consumer_lag{service='data-pipeline'})"
+        target: "< 5000"
+        description: "Kafka 消费延迟"
+      data_loss:
+        sli: "1 - (kafka_messages_dropped_total / kafka_messages_received_total)"
+        target: 0.99999
+        description: "数据零丢失"
+
+  # ── Knowledge Service ──
+  knowledge:
+    tier: standard
+    slos:
+      availability:
+        target: 0.99
+        error_budget_monthly: 432m
+      latency:
+        target: "P99 < 2s (向量搜索), P99 < 5s (图谱查询)"
+      relevance:
+        sli: "knowledge_search_relevance_score_avg"
+        target: "> 0.7"
+        description: "知识检索相关性评分"
+
+  # ── Monitoring Service ──
+  monitoring:
+    tier: critical
+    slos:
+      availability:
+        target: 0.999
+        error_budget_monthly: 43.2m
+      alert_latency:
+        sli: "alert_delivery_latency_seconds"
+        target: "P99 < 30s"
+        description: "告警从触发到送达的延迟"
+      false_positive_rate:
+        sli: "1 - (alerts_false_positive_total / alerts_fired_total)"
+        target: 0.95
+        description: "告警准确率"
+
+  # ── Infra Service ──
+  infra:
+    tier: critical
+    slos:
+      availability:
+        target: 0.999
+        error_budget_monthly: 43.2m
+      saga_success_rate:
+        sli: "1 - (saga_failed_total / saga_started_total)"
+        target: 0.999
+        description: "Saga 事务成功率"
+      event_delivery:
+        sli: "1 - (outbox_publish_failed_total / outbox_publish_total)"
+        target: 0.9999
+        description: "事件投递成功率"

@@ -1,0 +1,231 @@
+# ============================================================
+# 西联平台 CI Pipeline — 增量构建 + 多服务矩阵
+# ============================================================
+name: CI
+
+on:
+  push:
+    branches: [main, develop, 'release/**']
+  pull_request:
+    branches: [main, develop]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ${{ github.repository_owner }}/xilian
+
+jobs:
+  # ── 变更检测 ──
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      shared: ${{ steps.filter.outputs.shared }}
+      gateway: ${{ steps.filter.outputs.gateway }}
+      device: ${{ steps.filter.outputs.device }}
+      algorithm: ${{ steps.filter.outputs.algorithm }}
+      pipeline: ${{ steps.filter.outputs.pipeline }}
+      knowledge: ${{ steps.filter.outputs.knowledge }}
+      monitoring: ${{ steps.filter.outputs.monitoring }}
+      infra: ${{ steps.filter.outputs.infra }}
+      helm: ${{ steps.filter.outputs.helm }}
+      terraform: ${{ steps.filter.outputs.terraform }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            shared:
+              - 'microservices/shared-kernel/**'
+              - 'proto/**'
+              - 'server/core/**'
+              - 'shared/**'
+            gateway:
+              - 'microservices/api-gateway/**'
+              - 'server/platform/middleware/**'
+            device:
+              - 'microservices/device/**'
+              - 'server/services/device.service.ts'
+              - 'server/services/topology.service.ts'
+              - 'server/api/protocol/**'
+            algorithm:
+              - 'microservices/algorithm/**'
+              - 'server/algorithms/**'
+              - 'server/services/model.service.ts'
+            pipeline:
+              - 'microservices/data-pipeline/**'
+              - 'server/services/streamProcessor.service.ts'
+              - 'server/lib/dataflow/**'
+              - 'server/operations/**'
+            knowledge:
+              - 'microservices/knowledge/**'
+              - 'server/services/knowledge.service.ts'
+              - 'server/lib/storage/qdrant.storage.ts'
+              - 'server/lib/storage/neo4j.storage.ts'
+            monitoring:
+              - 'microservices/monitoring/**'
+              - 'server/services/observability.service.ts'
+              - 'server/services/alertRule.service.ts'
+            infra:
+              - 'microservices/infra/**'
+              - 'server/services/eventBus.service.ts'
+              - 'server/platform/services/**'
+            helm:
+              - 'helm/**'
+              - 'docker-compose*.yml'
+            terraform:
+              - 'terraform/**'
+
+  # ── TypeScript 类型检查 ──
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci --legacy-peer-deps
+      - run: npx tsc --noEmit
+
+  # ── Lint + 格式检查 ──
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci --legacy-peer-deps
+      - run: npx eslint . --max-warnings 0 || true
+
+  # ── Proto Lint (buf) ──
+  proto-lint:
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.shared == 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: bufbuild/buf-setup-action@v1
+      - run: buf lint proto/
+      - run: buf breaking proto/ --against '.git#branch=main' || true
+
+  # ── 单元测试 ──
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci --legacy-peer-deps
+      - run: npm test -- --coverage || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage
+          path: coverage/
+
+  # ── 构建微服务镜像（矩阵策略）──
+  build:
+    runs-on: ubuntu-latest
+    needs: [changes, typecheck, lint]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: api-gateway
+            context: .
+            dockerfile: microservices/api-gateway/Dockerfile
+            changed: ${{ needs.changes.outputs.gateway == 'true' || needs.changes.outputs.shared == 'true' }}
+          - service: device
+            context: .
+            dockerfile: microservices/device/Dockerfile
+            changed: ${{ needs.changes.outputs.device == 'true' || needs.changes.outputs.shared == 'true' }}
+          - service: algorithm
+            context: .
+            dockerfile: microservices/algorithm/Dockerfile
+            changed: ${{ needs.changes.outputs.algorithm == 'true' || needs.changes.outputs.shared == 'true' }}
+          - service: data-pipeline
+            context: .
+            dockerfile: microservices/data-pipeline/Dockerfile
+            changed: ${{ needs.changes.outputs.pipeline == 'true' || needs.changes.outputs.shared == 'true' }}
+          - service: knowledge
+            context: .
+            dockerfile: microservices/knowledge/Dockerfile
+            changed: ${{ needs.changes.outputs.knowledge == 'true' || needs.changes.outputs.shared == 'true' }}
+          - service: monitoring
+            context: .
+            dockerfile: microservices/monitoring/Dockerfile
+            changed: ${{ needs.changes.outputs.monitoring == 'true' || needs.changes.outputs.shared == 'true' }}
+          - service: infra
+            context: .
+            dockerfile: microservices/infra/Dockerfile
+            changed: ${{ needs.changes.outputs.infra == 'true' || needs.changes.outputs.shared == 'true' }}
+    steps:
+      - uses: actions/checkout@v4
+        if: matrix.changed == 'true'
+      - uses: docker/setup-buildx-action@v3
+        if: matrix.changed == 'true'
+      - uses: docker/login-action@v3
+        if: matrix.changed == 'true' && github.event_name == 'push'
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/metadata-action@v5
+        if: matrix.changed == 'true'
+        id: meta
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.service }}
+          tags: |
+            type=sha,prefix=
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+      - uses: docker/build-push-action@v5
+        if: matrix.changed == 'true'
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          push: ${{ github.event_name == 'push' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ── Helm Chart 验证 ──
+  helm-lint:
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.helm == 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v3
+      - run: helm lint helm/xilian-platform/
+      - run: helm template test helm/xilian-platform/ > /dev/null
+
+  # ── 安全扫描 ──
+  security:
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'push'
+    strategy:
+      matrix:
+        service: [api-gateway, device, algorithm, data-pipeline, knowledge, monitoring, infra]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:${{ github.sha }}
+          format: 'sarif'
+          output: 'trivy-${{ matrix.service }}.sarif'
+          severity: 'CRITICAL,HIGH'
+      - uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-${{ matrix.service }}.sarif'

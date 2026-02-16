@@ -1,0 +1,50 @@
+# ============================================================
+# ArgoCD Application — Production 环境
+# ============================================================
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: xilian-platform-production
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: xilian-platform
+    environment: production
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: xilian
+
+  source:
+    repoURL: https://github.com/xilian/xilian-platform.git
+    targetRevision: deploy/production
+    path: helm/xilian-platform
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-prod.yaml
+      parameters:
+        - name: global.environment
+          value: production
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: xilian-production
+
+  syncPolicy:
+    # Production 不自动同步，需要手动审批
+    syncOptions:
+      - CreateNamespace=true
+      - PrunePropagationPolicy=foreground
+      - PruneLast=true
+    retry:
+      limit: 3
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas

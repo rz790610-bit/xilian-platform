@@ -1,0 +1,40 @@
+{{/*
+通用微服务 Service 模板
+*/}}
+{{- $services := dict
+  "api-gateway" .Values.apiGateway
+  "device" .Values.deviceService
+  "algorithm" .Values.algorithmService
+  "data-pipeline" .Values.dataPipeline
+  "knowledge" .Values.knowledgeService
+  "monitoring" .Values.monitoringService
+  "infra" .Values.infraService
+}}
+
+{{- range $name, $svc := $services }}
+{{- if $svc.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ printf "%s-%s" $.Release.Name $name | trunc 63 }}
+  namespace: {{ include "xilian.namespace" $ }}
+  labels:
+    {{- include "xilian.msLabels" (dict "Release" $.Release "name" $name "appVersion" $.Chart.AppVersion) | nindent 4 }}
+spec:
+  type: {{ $svc.service.type | default "ClusterIP" }}
+  ports:
+    - name: http
+      port: {{ $svc.service.httpPort | default 3000 }}
+      targetPort: http
+      protocol: TCP
+    {{- if $svc.service.grpcPort }}
+    - name: grpc
+      port: {{ $svc.service.grpcPort }}
+      targetPort: grpc
+      protocol: TCP
+    {{- end }}
+  selector:
+    {{- include "xilian.msSelectorLabels" (dict "Release" $.Release "name" $name) | nindent 4 }}
+{{- end }}
+{{- end }}

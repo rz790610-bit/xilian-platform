@@ -1,0 +1,49 @@
+# ============================================================
+# ArgoCD Project — 西联平台项目隔离
+# ============================================================
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: xilian
+  namespace: argocd
+spec:
+  description: 西联工业 IoT 平台微服务项目
+
+  sourceRepos:
+    - 'https://github.com/xilian/xilian-platform.git'
+    - 'https://charts.bitnami.com/bitnami'
+
+  destinations:
+    - namespace: xilian-staging
+      server: https://kubernetes.default.svc
+    - namespace: xilian-production
+      server: https://kubernetes.default.svc
+
+  clusterResourceWhitelist:
+    - group: ''
+      kind: Namespace
+    - group: 'rbac.authorization.k8s.io'
+      kind: ClusterRole
+    - group: 'rbac.authorization.k8s.io'
+      kind: ClusterRoleBinding
+
+  namespaceResourceBlacklist:
+    - group: ''
+      kind: ResourceQuota
+    - group: ''
+      kind: LimitRange
+
+  roles:
+    - name: admin
+      description: 平台管理员
+      policies:
+        - p, proj:xilian:admin, applications, *, xilian/*, allow
+      groups:
+        - xilian-admins
+    - name: developer
+      description: 开发者（只读 + Staging 同步）
+      policies:
+        - p, proj:xilian:developer, applications, get, xilian/*, allow
+        - p, proj:xilian:developer, applications, sync, xilian/xilian-platform-staging, allow
+      groups:
+        - xilian-developers

@@ -1,0 +1,312 @@
+syntax = "proto3";
+
+package xilian.platform;
+
+option java_package = "com.xilian.platform.grpc";
+option go_package = "github.com/xilian/platform/proto";
+
+// ============================================================
+// 西联智能平台 - 微服务间 gRPC 通信协议
+// 
+// 服务拆分后，各微服务通过此协议进行同步 RPC 调用。
+// 异步通信仍使用 Kafka（EventBus / Outbox 模式）。
+// ============================================================
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/struct.proto";
+
+// ── 通用类型 ──
+
+message Pagination {
+  int32 page = 1;
+  int32 page_size = 2;
+  string sort_by = 3;
+  string sort_order = 4;  // "asc" | "desc"
+}
+
+message PaginatedResponse {
+  int32 total = 1;
+  int32 page = 2;
+  int32 page_size = 3;
+  int32 total_pages = 4;
+}
+
+message HealthCheckRequest {}
+
+message HealthCheckResponse {
+  enum ServingStatus {
+    UNKNOWN = 0;
+    SERVING = 1;
+    NOT_SERVING = 2;
+  }
+  ServingStatus status = 1;
+  string version = 2;
+  google.protobuf.Timestamp uptime_since = 3;
+  map<string, string> metadata = 4;
+}
+
+// ── 设备管理服务 ──
+
+service DeviceService {
+  // 获取设备信息
+  rpc GetDevice(GetDeviceRequest) returns (Device);
+  // 批量获取设备
+  rpc ListDevices(ListDevicesRequest) returns (ListDevicesResponse);
+  // 获取设备实时状态
+  rpc GetDeviceStatus(GetDeviceStatusRequest) returns (DeviceStatus);
+  // 设备状态流（Server-side streaming）
+  rpc WatchDeviceStatus(WatchDeviceStatusRequest) returns (stream DeviceStatus);
+  // 健康检查
+  rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse);
+}
+
+message GetDeviceRequest {
+  string device_id = 1;
+}
+
+message Device {
+  string id = 1;
+  string name = 2;
+  string type = 3;
+  string model = 4;
+  string location = 5;
+  string status = 6;  // "online" | "offline" | "warning" | "error"
+  map<string, string> metadata = 7;
+  google.protobuf.Timestamp created_at = 8;
+  google.protobuf.Timestamp updated_at = 9;
+}
+
+message ListDevicesRequest {
+  Pagination pagination = 1;
+  string type_filter = 2;
+  string status_filter = 3;
+  string location_filter = 4;
+}
+
+message ListDevicesResponse {
+  repeated Device devices = 1;
+  PaginatedResponse pagination = 2;
+}
+
+message GetDeviceStatusRequest {
+  string device_id = 1;
+}
+
+message DeviceStatus {
+  string device_id = 1;
+  string status = 2;
+  double cpu_usage = 3;
+  double memory_usage = 4;
+  double temperature = 5;
+  map<string, double> sensor_values = 6;
+  google.protobuf.Timestamp timestamp = 7;
+}
+
+message WatchDeviceStatusRequest {
+  repeated string device_ids = 1;
+  int32 interval_ms = 2;  // 推送间隔
+}
+
+// ── 算法执行服务 ──
+
+service AlgorithmService {
+  // 执行算法
+  rpc Execute(ExecuteAlgorithmRequest) returns (ExecuteAlgorithmResponse);
+  // 批量执行
+  rpc BatchExecute(BatchExecuteRequest) returns (stream ExecuteAlgorithmResponse);
+  // 获取算法列表
+  rpc ListAlgorithms(ListAlgorithmsRequest) returns (ListAlgorithmsResponse);
+  // 健康检查
+  rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse);
+}
+
+message ExecuteAlgorithmRequest {
+  string algorithm_id = 1;
+  string algorithm_name = 2;
+  google.protobuf.Struct parameters = 3;
+  bytes input_data = 4;  // 二进制输入数据（如传感器时序数据）
+  string input_format = 5;  // "json" | "binary" | "csv"
+  map<string, string> metadata = 6;
+  string correlation_id = 7;
+}
+
+message ExecuteAlgorithmResponse {
+  string execution_id = 1;
+  string algorithm_id = 2;
+  string status = 3;  // "success" | "error" | "timeout"
+  google.protobuf.Struct result = 4;
+  bytes output_data = 5;
+  string output_format = 6;
+  int64 execution_time_ms = 7;
+  string error_message = 8;
+  map<string, string> metadata = 9;
+}
+
+message BatchExecuteRequest {
+  repeated ExecuteAlgorithmRequest requests = 1;
+  int32 max_concurrency = 2;
+}
+
+message ListAlgorithmsRequest {
+  Pagination pagination = 1;
+  string category_filter = 2;
+}
+
+message ListAlgorithmsResponse {
+  repeated AlgorithmInfo algorithms = 1;
+  PaginatedResponse pagination = 2;
+}
+
+message AlgorithmInfo {
+  string id = 1;
+  string name = 2;
+  string category = 3;
+  string description = 4;
+  string version = 5;
+  repeated string input_types = 6;
+  repeated string output_types = 7;
+}
+
+// ── 数据采集服务 ──
+
+service DataIngestionService {
+  // 推送传感器数据
+  rpc IngestSensorData(stream SensorDataPoint) returns (IngestResponse);
+  // 推送批量数据
+  rpc IngestBatch(IngestBatchRequest) returns (IngestResponse);
+  // 健康检查
+  rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse);
+}
+
+message SensorDataPoint {
+  string device_id = 1;
+  string sensor_id = 2;
+  string metric_name = 3;
+  double value = 4;
+  google.protobuf.Timestamp timestamp = 5;
+  map<string, string> tags = 6;
+}
+
+message IngestBatchRequest {
+  repeated SensorDataPoint data_points = 1;
+}
+
+message IngestResponse {
+  int64 accepted = 1;
+  int64 rejected = 2;
+  repeated string errors = 3;
+}
+
+// ── 告警服务 ──
+
+service AlertService {
+  // 创建告警
+  rpc CreateAlert(CreateAlertRequest) returns (Alert);
+  // 查询告警
+  rpc ListAlerts(ListAlertsRequest) returns (ListAlertsResponse);
+  // 确认告警
+  rpc AcknowledgeAlert(AcknowledgeAlertRequest) returns (Alert);
+  // 告警流
+  rpc WatchAlerts(WatchAlertsRequest) returns (stream Alert);
+  // 健康检查
+  rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse);
+}
+
+message Alert {
+  string id = 1;
+  string device_id = 2;
+  string rule_id = 3;
+  string severity = 4;  // "critical" | "warning" | "info"
+  string title = 5;
+  string description = 6;
+  string status = 7;  // "active" | "acknowledged" | "resolved"
+  google.protobuf.Struct context = 8;
+  google.protobuf.Timestamp created_at = 9;
+  google.protobuf.Timestamp acknowledged_at = 10;
+  string acknowledged_by = 11;
+}
+
+message CreateAlertRequest {
+  string device_id = 1;
+  string rule_id = 2;
+  string severity = 3;
+  string title = 4;
+  string description = 5;
+  google.protobuf.Struct context = 6;
+}
+
+message ListAlertsRequest {
+  Pagination pagination = 1;
+  string severity_filter = 2;
+  string status_filter = 3;
+  string device_id_filter = 4;
+}
+
+message ListAlertsResponse {
+  repeated Alert alerts = 1;
+  PaginatedResponse pagination = 2;
+}
+
+message AcknowledgeAlertRequest {
+  string alert_id = 1;
+  string acknowledged_by = 2;
+}
+
+message WatchAlertsRequest {
+  repeated string severity_filter = 1;
+  repeated string device_ids = 2;
+}
+
+// ── 知识图谱服务 ──
+
+service KnowledgeGraphService {
+  // 查询知识
+  rpc Query(KGQueryRequest) returns (KGQueryResponse);
+  // 添加知识三元组
+  rpc AddTriple(AddTripleRequest) returns (AddTripleResponse);
+  // 相似性搜索（向量检索）
+  rpc SimilaritySearch(SimilaritySearchRequest) returns (SimilaritySearchResponse);
+  // 健康检查
+  rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse);
+}
+
+message KGQueryRequest {
+  string cypher_query = 1;
+  map<string, string> parameters = 2;
+  int32 limit = 3;
+}
+
+message KGQueryResponse {
+  repeated google.protobuf.Struct records = 1;
+  int32 total = 2;
+  int64 execution_time_ms = 3;
+}
+
+message AddTripleRequest {
+  string subject = 1;
+  string predicate = 2;
+  string object = 3;
+  map<string, string> properties = 4;
+}
+
+message AddTripleResponse {
+  bool success = 1;
+  string triple_id = 2;
+}
+
+message SimilaritySearchRequest {
+  repeated float query_vector = 1;
+  string collection = 2;
+  int32 top_k = 3;
+  float score_threshold = 4;
+}
+
+message SimilaritySearchResponse {
+  repeated SimilarityResult results = 1;
+}
+
+message SimilarityResult {
+  string id = 1;
+  float score = 2;
+  google.protobuf.Struct payload = 3;
+}

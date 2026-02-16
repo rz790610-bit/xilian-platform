@@ -1,0 +1,47 @@
+{
+  "name": "@xilian/shared-kernel",
+  "version": "1.0.0",
+  "description": "西联智能平台 - 微服务共享内核（类型、事件、工具、健康检查、配置、日志、追踪、指标）",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js",
+    "./types": "./dist/types/index.js",
+    "./events": "./dist/events/index.js",
+    "./config": "./dist/config/index.js",
+    "./logger": "./dist/logger/index.js",
+    "./tracing": "./dist/tracing/index.js",
+    "./metrics": "./dist/metrics/index.js",
+    "./health": "./dist/health/index.js",
+    "./utils": "./dist/utils/index.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc -w",
+    "clean": "rm -rf dist",
+    "test": "vitest run",
+    "lint": "eslint src/"
+  },
+  "dependencies": {
+    "zod": "^3.23.0",
+    "prom-client": "^15.1.0",
+    "@opentelemetry/api": "^1.9.0",
+    "@opentelemetry/sdk-node": "^0.52.0",
+    "@opentelemetry/sdk-trace-base": "^1.25.0",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.52.0",
+    "@opentelemetry/resources": "^1.25.0",
+    "@opentelemetry/semantic-conventions": "^1.25.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "@types/node": "^22.0.0",
+    "vitest": "^1.2.0"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "license": "UNLICENSED",
+  "private": true
+}

@@ -1,0 +1,29 @@
+{
+  "name": "@xilian/api-gateway",
+  "version": "1.0.0",
+  "description": "API 网关 — tRPC 路由聚合、认证、限流、Strangler Fig 路由",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "test": "vitest run",
+    "lint": "eslint src/"
+  },
+  "dependencies": {
+    "@xilian/shared-kernel": "workspace:*",
+    "express": "^4.21.0",
+    "helmet": "^7.1.0",
+    "express-rate-limit": "^7.4.0",
+    "ioredis": "^5.4.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "tsx": "^4.19.0",
+    "vitest": "^1.2.0",
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.0.0"
+  }
+}

@@ -1,0 +1,182 @@
+syntax = "proto3";
+
+package xilian.knowledge;
+
+option java_package = "com.xilian.knowledge.grpc";
+option go_package = "github.com/xilian/platform/proto/knowledge";
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/struct.proto";
+import "common/types.proto";
+
+// ============================================================
+// 知识服务 — gRPC 接口
+// 映射: server/services/knowledge.service.ts + Neo4j + Qdrant
+// ============================================================
+
+service KnowledgeGraphService {
+  rpc Query(KGQueryRequest) returns (KGQueryResponse);
+  rpc AddTriple(AddTripleRequest) returns (AddTripleResponse);
+  rpc BatchAddTriples(BatchAddTriplesRequest) returns (BatchAddTriplesResponse);
+  rpc DeleteTriple(DeleteTripleRequest) returns (xilian.common.OperationResult);
+  rpc GetSubgraph(GetSubgraphRequest) returns (Subgraph);
+  rpc HealthCheck(xilian.common.HealthCheckRequest) returns (xilian.common.HealthCheckResponse);
+}
+
+service VectorSearchService {
+  rpc SimilaritySearch(SimilaritySearchRequest) returns (SimilaritySearchResponse);
+  rpc Upsert(UpsertVectorRequest) returns (UpsertVectorResponse);
+  rpc Delete(DeleteVectorRequest) returns (xilian.common.OperationResult);
+  rpc HealthCheck(xilian.common.HealthCheckRequest) returns (xilian.common.HealthCheckResponse);
+}
+
+service KnowledgeBaseService {
+  rpc CreateArticle(CreateArticleRequest) returns (Article);
+  rpc GetArticle(GetArticleRequest) returns (Article);
+  rpc SearchArticles(SearchArticlesRequest) returns (SearchArticlesResponse);
+  rpc HealthCheck(xilian.common.HealthCheckRequest) returns (xilian.common.HealthCheckResponse);
+}
+
+// ── 知识图谱消息 ──
+
+message KGQueryRequest {
+  string cypher_query = 1;
+  map<string, string> parameters = 2;
+  int32 limit = 3;
+}
+
+message KGQueryResponse {
+  repeated google.protobuf.Struct records = 1;
+  int32 total = 2;
+  int64 execution_time_ms = 3;
+}
+
+message AddTripleRequest {
+  string subject = 1;
+  string predicate = 2;
+  string object = 3;
+  map<string, string> properties = 4;
+  string source = 5;
+  double confidence = 6;
+}
+
+message AddTripleResponse {
+  bool success = 1;
+  string triple_id = 2;
+}
+
+message BatchAddTriplesRequest {
+  repeated AddTripleRequest triples = 1;
+}
+
+message BatchAddTriplesResponse {
+  int32 success_count = 1;
+  int32 failure_count = 2;
+  repeated string errors = 3;
+}
+
+message DeleteTripleRequest {
+  string triple_id = 1;
+}
+
+message GetSubgraphRequest {
+  string center_node = 1;
+  int32 depth = 2;
+  int32 max_nodes = 3;
+  repeated string relationship_types = 4;
+}
+
+message Subgraph {
+  repeated GraphNode nodes = 1;
+  repeated GraphEdge edges = 2;
+}
+
+message GraphNode {
+  string id = 1;
+  string label = 2;
+  map<string, string> properties = 3;
+}
+
+message GraphEdge {
+  string id = 1;
+  string source = 2;
+  string target = 3;
+  string type = 4;
+  map<string, string> properties = 5;
+}
+
+// ── 向量检索消息 ──
+
+message SimilaritySearchRequest {
+  repeated float query_vector = 1;
+  string collection = 2;
+  int32 top_k = 3;
+  float score_threshold = 4;
+  google.protobuf.Struct filter = 5;
+}
+
+message SimilaritySearchResponse {
+  repeated SimilarityResult results = 1;
+  int64 search_time_ms = 2;
+}
+
+message SimilarityResult {
+  string id = 1;
+  float score = 2;
+  google.protobuf.Struct payload = 3;
+}
+
+message UpsertVectorRequest {
+  string collection = 1;
+  repeated VectorPoint points = 2;
+}
+
+message VectorPoint {
+  string id = 1;
+  repeated float vector = 2;
+  google.protobuf.Struct payload = 3;
+}
+
+message UpsertVectorResponse {
+  int32 upserted = 1;
+}
+
+message DeleteVectorRequest {
+  string collection = 1;
+  repeated string ids = 2;
+}
+
+// ── 知识库消息 ──
+
+message Article {
+  string id = 1;
+  string title = 2;
+  string content = 3;
+  string category = 4;
+  repeated string tags = 5;
+  string author = 6;
+  google.protobuf.Timestamp created_at = 7;
+  google.protobuf.Timestamp updated_at = 8;
+}
+
+message CreateArticleRequest {
+  string title = 1;
+  string content = 2;
+  string category = 3;
+  repeated string tags = 4;
+}
+
+message GetArticleRequest {
+  string article_id = 1;
+}
+
+message SearchArticlesRequest {
+  string query = 1;
+  string category = 2;
+  xilian.common.Pagination pagination = 3;
+}
+
+message SearchArticlesResponse {
+  repeated Article articles = 1;
+  xilian.common.PaginatedResponse pagination = 2;
+}

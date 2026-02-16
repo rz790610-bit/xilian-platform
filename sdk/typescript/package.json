@@ -1,0 +1,30 @@
+{
+  "name": "@xilian/sdk",
+  "version": "1.0.0",
+  "description": "西联工业物联网平台 TypeScript/JavaScript SDK",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format cjs,esm --dts",
+    "test": "vitest run",
+    "lint": "eslint src/"
+  },
+  "keywords": ["xilian", "iot", "industrial", "sdk"],
+  "license": "Proprietary",
+  "devDependencies": {
+    "tsup": "^8.0.0",
+    "typescript": "^5.3.0",
+    "vitest": "^1.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

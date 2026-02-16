@@ -1,0 +1,43 @@
+apiVersion: v2
+name: xilian-platform
+description: 西联智能平台 — 港口设备智能运维赋能平台（7 微服务 + 基础设施）
+type: application
+version: 4.0.0
+appVersion: "4.0.0"
+keywords:
+  - iot
+  - industrial
+  - predictive-maintenance
+  - digital-twin
+  - ai-platform
+  - microservices
+maintainers:
+  - name: xilian-team
+home: https://github.com/xilian/xilian-platform
+sources:
+  - https://github.com/xilian/xilian-platform
+dependencies:
+  - name: mysql
+    version: "9.x.x"
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: mysql.enabled
+  - name: redis
+    version: "18.x.x"
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: redis.enabled
+  - name: kafka
+    version: "26.x.x"
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: kafka.enabled
+  - name: minio
+    version: "13.x.x"
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: minio.enabled
+  - name: clickhouse
+    version: "5.x.x"
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: clickhouse.enabled
+  - name: elasticsearch
+    version: "19.x.x"
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: elasticsearch.enabled

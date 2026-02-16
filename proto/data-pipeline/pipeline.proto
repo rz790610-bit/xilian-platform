@@ -1,0 +1,199 @@
+syntax = "proto3";
+
+package xilian.pipeline;
+
+option java_package = "com.xilian.pipeline.grpc";
+option go_package = "github.com/xilian/platform/proto/pipeline";
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/struct.proto";
+import "common/types.proto";
+
+// ============================================================
+// 数据管道服务 — gRPC 接口
+// 映射: server/services/streamProcessor.service.ts + pipeline.engine.ts
+// ============================================================
+
+service DataPipelineService {
+  rpc IngestSensorData(stream SensorDataPoint) returns (IngestResponse);
+  rpc IngestBatch(IngestBatchRequest) returns (IngestResponse);
+  rpc CreatePipeline(CreatePipelineRequest) returns (Pipeline);
+  rpc GetPipeline(GetPipelineRequest) returns (Pipeline);
+  rpc ListPipelines(ListPipelinesRequest) returns (ListPipelinesResponse);
+  rpc StartPipeline(StartPipelineRequest) returns (PipelineExecution);
+  rpc StopPipeline(StopPipelineRequest) returns (xilian.common.OperationResult);
+  rpc GetPipelineMetrics(GetPipelineMetricsRequest) returns (PipelineMetrics);
+  rpc HealthCheck(xilian.common.HealthCheckRequest) returns (xilian.common.HealthCheckResponse);
+}
+
+// CQRS 查询服务（映射 ClickHouse 物化视图）
+service DataQueryService {
+  rpc QueryTimeSeries(TimeSeriesQueryRequest) returns (TimeSeriesQueryResponse);
+  rpc QueryAggregation(AggregationQueryRequest) returns (AggregationQueryResponse);
+  rpc ExportData(ExportDataRequest) returns (stream DataChunk);
+  rpc HealthCheck(xilian.common.HealthCheckRequest) returns (xilian.common.HealthCheckResponse);
+}
+
+// ── 数据采集消息 ──
+
+message SensorDataPoint {
+  string device_id = 1;
+  string sensor_id = 2;
+  string metric_name = 3;
+  double value = 4;
+  google.protobuf.Timestamp timestamp = 5;
+  map<string, string> tags = 6;
+  int32 quality = 7;
+}
+
+message IngestBatchRequest {
+  repeated SensorDataPoint data_points = 1;
+  string source = 2;
+}
+
+message IngestResponse {
+  int64 accepted = 1;
+  int64 rejected = 2;
+  repeated string errors = 3;
+  int64 processing_time_ms = 4;
+}
+
+// ── Pipeline 消息 ──
+
+message Pipeline {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  string status = 4;  // "draft" | "active" | "paused" | "error"
+  repeated PipelineStage stages = 5;
+  google.protobuf.Struct config = 6;
+  google.protobuf.Timestamp created_at = 7;
+  google.protobuf.Timestamp updated_at = 8;
+}
+
+message PipelineStage {
+  string id = 1;
+  string name = 2;
+  string type = 3;  // "ingest" | "transform" | "enrich" | "output" | "algorithm"
+  google.protobuf.Struct config = 4;
+  repeated string input_from = 5;
+  int32 order = 6;
+}
+
+message CreatePipelineRequest {
+  string name = 1;
+  string description = 2;
+  repeated PipelineStage stages = 3;
+  google.protobuf.Struct config = 4;
+}
+
+message GetPipelineRequest {
+  string pipeline_id = 1;
+}
+
+message ListPipelinesRequest {
+  xilian.common.Pagination pagination = 1;
+  string status_filter = 2;
+}
+
+message ListPipelinesResponse {
+  repeated Pipeline pipelines = 1;
+  xilian.common.PaginatedResponse pagination = 2;
+}
+
+message StartPipelineRequest {
+  string pipeline_id = 1;
+  google.protobuf.Struct runtime_params = 2;
+}
+
+message StopPipelineRequest {
+  string pipeline_id = 1;
+  bool force = 2;
+}
+
+message PipelineExecution {
+  string execution_id = 1;
+  string pipeline_id = 2;
+  string status = 3;
+  google.protobuf.Timestamp started_at = 4;
+}
+
+message GetPipelineMetricsRequest {
+  string pipeline_id = 1;
+  xilian.common.TimeRange time_range = 2;
+}
+
+message PipelineMetrics {
+  string pipeline_id = 1;
+  int64 total_records_processed = 2;
+  double throughput_per_second = 3;
+  double avg_latency_ms = 4;
+  double error_rate = 5;
+  map<string, StageMetrics> stage_metrics = 6;
+}
+
+message StageMetrics {
+  string stage_id = 1;
+  int64 records_processed = 2;
+  double avg_latency_ms = 3;
+  double error_rate = 4;
+}
+
+// ── CQRS 查询消息 ──
+
+message TimeSeriesQueryRequest {
+  string device_id = 1;
+  string sensor_id = 2;
+  xilian.common.TimeRange time_range = 3;
+  string aggregation = 4;  // "raw" | "1m" | "5m" | "1h" | "1d"
+  int32 limit = 5;
+}
+
+message TimeSeriesQueryResponse {
+  repeated TimeSeriesPoint points = 1;
+  int32 total = 2;
+  int64 query_time_ms = 3;
+}
+
+message TimeSeriesPoint {
+  google.protobuf.Timestamp timestamp = 1;
+  double value = 2;
+  double min = 3;
+  double max = 4;
+  double avg = 5;
+  int64 count = 6;
+}
+
+message AggregationQueryRequest {
+  repeated string device_ids = 1;
+  xilian.common.TimeRange time_range = 2;
+  string metric = 3;
+  string group_by = 4;  // "device" | "sensor" | "hour" | "day"
+}
+
+message AggregationQueryResponse {
+  repeated AggregationBucket buckets = 1;
+  int64 query_time_ms = 2;
+}
+
+message AggregationBucket {
+  string key = 1;
+  double sum = 2;
+  double avg = 3;
+  double min = 4;
+  double max = 5;
+  int64 count = 6;
+  double p95 = 7;
+}
+
+message ExportDataRequest {
+  string device_id = 1;
+  xilian.common.TimeRange time_range = 2;
+  string format = 3;  // "csv" | "parquet" | "json"
+}
+
+message DataChunk {
+  bytes data = 1;
+  int64 offset = 2;
+  bool is_last = 3;
+}

@@ -1,0 +1,206 @@
+{
+  "dashboard": {
+    "id": null,
+    "uid": "xilian-overview",
+    "title": "西联平台 — 总览",
+    "tags": ["xilian", "overview"],
+    "timezone": "browser",
+    "refresh": "30s",
+    "time": { "from": "now-1h", "to": "now" },
+    "templating": {
+      "list": [
+        {
+          "name": "service",
+          "type": "query",
+          "datasource": "Prometheus",
+          "query": "label_values(http_requests_total, service)",
+          "multi": true,
+          "includeAll": true,
+          "current": { "text": "All", "value": "$__all" }
+        },
+        {
+          "name": "namespace",
+          "type": "query",
+          "datasource": "Prometheus",
+          "query": "label_values(kube_pod_info, namespace)",
+          "regex": "/xilian.*/",
+          "current": { "text": "xilian-production", "value": "xilian-production" }
+        }
+      ]
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "服务健康状态",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+        "targets": [
+          {
+            "expr": "count(up{job=~\"xilian-.*\"} == 1)",
+            "legendFormat": "健康"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "steps": [
+                { "color": "red", "value": 0 },
+                { "color": "yellow", "value": 5 },
+                { "color": "green", "value": 7 }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 2,
+        "title": "总请求量 (QPS)",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 6, "y": 0 },
+        "targets": [
+          {
+            "expr": "sum(rate(http_requests_total{service=~\"$service\"}[5m])) by (service)",
+            "legendFormat": "{{service}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "reqps",
+            "custom": { "drawStyle": "line", "fillOpacity": 15 }
+          }
+        }
+      },
+      {
+        "id": 3,
+        "title": "P99 延迟",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 6, "x": 18, "y": 0 },
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{service=~\"$service\"}[5m])) by (le, service))",
+            "legendFormat": "{{service}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s",
+            "custom": { "drawStyle": "line" },
+            "thresholds": {
+              "steps": [
+                { "color": "green", "value": 0 },
+                { "color": "yellow", "value": 0.5 },
+                { "color": "red", "value": 1 }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 4,
+        "title": "错误率",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+        "targets": [
+          {
+            "expr": "sum(rate(http_requests_total{service=~\"$service\", status_code=~\"5..\"}[5m])) by (service) / sum(rate(http_requests_total{service=~\"$service\"}[5m])) by (service) * 100",
+            "legendFormat": "{{service}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "custom": { "drawStyle": "line", "fillOpacity": 10 },
+            "thresholds": {
+              "steps": [
+                { "color": "green", "value": 0 },
+                { "color": "yellow", "value": 1 },
+                { "color": "red", "value": 5 }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 5,
+        "title": "断路器状态",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 12, "x": 12, "y": 8 },
+        "targets": [
+          {
+            "expr": "circuit_breaker_state{service=~\"$service\"}",
+            "legendFormat": "{{service}} → {{target}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "mappings": [
+              { "type": "value", "options": { "0": { "text": "CLOSED", "color": "green" } } },
+              { "type": "value", "options": { "1": { "text": "HALF-OPEN", "color": "yellow" } } },
+              { "type": "value", "options": { "2": { "text": "OPEN", "color": "red" } } }
+            ]
+          }
+        }
+      },
+      {
+        "id": 6,
+        "title": "Kafka 消费者延迟",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+        "targets": [
+          {
+            "expr": "kafka_consumer_lag{service=~\"$service\"}",
+            "legendFormat": "{{service}} / {{topic}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "custom": { "drawStyle": "bars", "fillOpacity": 50 }
+          }
+        }
+      },
+      {
+        "id": 7,
+        "title": "Pod CPU / Memory",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+        "targets": [
+          {
+            "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=~\"$namespace\", container!=\"\"}[5m])) by (container)",
+            "legendFormat": "CPU: {{container}}"
+          },
+          {
+            "expr": "sum(container_memory_working_set_bytes{namespace=~\"$namespace\", container!=\"\"}) by (container) / 1024 / 1024",
+            "legendFormat": "Mem(MB): {{container}}"
+          }
+        ]
+      },
+      {
+        "id": 8,
+        "title": "数据库连接池",
+        "type": "gauge",
+        "gridPos": { "h": 4, "w": 6, "x": 0, "y": 4 },
+        "targets": [
+          {
+            "expr": "db_pool_active_connections{service=~\"$service\"} / db_pool_max_connections{service=~\"$service\"} * 100",
+            "legendFormat": "{{service}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "min": 0,
+            "max": 100,
+            "thresholds": {
+              "steps": [
+                { "color": "green", "value": 0 },
+                { "color": "yellow", "value": 70 },
+                { "color": "red", "value": 90 }
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,83 @@
+syntax = "proto3";
+
+package xilian.common;
+
+option java_package = "com.xilian.common.grpc";
+option go_package = "github.com/xilian/platform/proto/common";
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/struct.proto";
+
+// ============================================================
+// 西联智能平台 - 公共 Proto 类型
+// 所有微服务共享的消息定义
+// ============================================================
+
+// 分页请求
+message Pagination {
+  int32 page = 1;
+  int32 page_size = 2;
+  string sort_by = 3;
+  string sort_order = 4;  // "asc" | "desc"
+}
+
+// 分页响应
+message PaginatedResponse {
+  int32 total = 1;
+  int32 page = 2;
+  int32 page_size = 3;
+  int32 total_pages = 4;
+}
+
+// 健康检查（gRPC Health Checking Protocol 扩展）
+message HealthCheckRequest {
+  string service = 1;  // 可选：指定子服务
+}
+
+message HealthCheckResponse {
+  enum ServingStatus {
+    UNKNOWN = 0;
+    SERVING = 1;
+    NOT_SERVING = 2;
+    SERVICE_UNKNOWN = 3;
+  }
+  ServingStatus status = 1;
+  string version = 2;
+  google.protobuf.Timestamp uptime_since = 3;
+  map<string, string> metadata = 4;
+  repeated DependencyHealth dependencies = 5;
+}
+
+message DependencyHealth {
+  string name = 1;
+  string status = 2;  // "healthy" | "degraded" | "unhealthy"
+  int32 latency_ms = 3;
+  string message = 4;
+}
+
+// 通用错误
+message ErrorDetail {
+  string code = 1;
+  string message = 2;
+  string field = 3;
+  google.protobuf.Struct metadata = 4;
+}
+
+// 操作结果
+message OperationResult {
+  bool success = 1;
+  string message = 2;
+  repeated ErrorDetail errors = 3;
+}
+
+// 时间范围
+message TimeRange {
+  google.protobuf.Timestamp start = 1;
+  google.protobuf.Timestamp end = 2;
+}
+
+// 标签过滤
+message LabelSelector {
+  map<string, string> match_labels = 1;
+  repeated string match_expressions = 2;
+}

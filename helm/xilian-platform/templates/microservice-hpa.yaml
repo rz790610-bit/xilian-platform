@@ -1,0 +1,65 @@
+{{/*
+通用微服务 HPA 模板
+*/}}
+{{- $services := dict
+  "api-gateway" .Values.apiGateway
+  "device" .Values.deviceService
+  "algorithm" .Values.algorithmService
+  "data-pipeline" .Values.dataPipeline
+  "knowledge" .Values.knowledgeService
+  "monitoring" .Values.monitoringService
+  "infra" .Values.infraService
+}}
+
+{{- range $name, $svc := $services }}
+{{- if and $svc.enabled (and $svc.autoscaling $svc.autoscaling.enabled) }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ printf "%s-%s" $.Release.Name $name | trunc 63 }}
+  namespace: {{ include "xilian.namespace" $ }}
+  labels:
+    {{- include "xilian.msLabels" (dict "Release" $.Release "name" $name "appVersion" $.Chart.AppVersion) | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ printf "%s-%s" $.Release.Name $name | trunc 63 }}
+  minReplicas: {{ $svc.autoscaling.minReplicas | default 2 }}
+  maxReplicas: {{ $svc.autoscaling.maxReplicas | default 10 }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ $svc.autoscaling.targetCPUUtilizationPercentage | default 70 }}
+    {{- if $svc.autoscaling.targetMemoryUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: {{ $svc.autoscaling.targetMemoryUtilizationPercentage }}
+    {{- end }}
+  {{- if $svc.autoscaling.behavior }}
+  behavior:
+    {{- toYaml $svc.autoscaling.behavior | nindent 4 }}
+  {{- else }}
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+        - type: Pods
+          value: 2
+          periodSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 120
+  {{- end }}
+{{- end }}
+{{- end }}

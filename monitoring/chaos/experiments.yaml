@@ -1,0 +1,225 @@
+# ============================================================
+# 西联平台 — LitmusChaos 混沌工程实验定义
+# ============================================================
+# 
+# 8 类故障注入实验，覆盖网络、Pod、CPU、内存、磁盘、Kafka、数据库、DNS
+# 映射平台文件: server/platform/middleware/circuitBreaker.ts 的降级验证
+#
+# 执行方式: kubectl apply -f experiments.yaml
+# 前提条件: LitmusChaos Operator 已部署
+# ============================================================
+
+apiVersion: litmuschaos.io/v1alpha1
+kind: ChaosEngine
+metadata:
+  name: xilian-chaos-engine
+  namespace: xilian-staging
+spec:
+  engineState: active
+  appinfo:
+    appns: xilian-staging
+    applabel: app.kubernetes.io/part-of=xilian-platform
+    appkind: deployment
+  chaosServiceAccount: litmus-admin
+  experiments:
+
+    # ── 实验 1: Pod 故障（验证 HPA 自动恢复）──
+    - name: pod-delete
+      spec:
+        components:
+          env:
+            - name: TOTAL_CHAOS_DURATION
+              value: "60"
+            - name: CHAOS_INTERVAL
+              value: "10"
+            - name: FORCE
+              value: "true"
+            - name: TARGET_PODS
+              value: ""  # 随机选择
+            - name: PODS_AFFECTED_PERC
+              value: "30"
+        probe:
+          - name: api-gateway-health
+            type: httpProbe
+            httpProbe/inputs:
+              url: http://api-gateway.xilian-staging.svc:3000/health
+              method:
+                get:
+                  criteria: ==
+                  responseCode: "200"
+            mode: Continuous
+            runProperties:
+              probeTimeout: 5
+              interval: 5
+              retry: 3
+
+    # ── 实验 2: 网络延迟（验证断路器超时阈值）──
+    - name: pod-network-latency
+      spec:
+        components:
+          env:
+            - name: TOTAL_CHAOS_DURATION
+              value: "120"
+            - name: NETWORK_LATENCY
+              value: "2000"  # 2s 延迟
+            - name: NETWORK_INTERFACE
+              value: "eth0"
+            - name: TARGET_CONTAINER
+              value: ""
+            - name: DESTINATION_IPS
+              value: ""  # 所有出站
+            - name: PODS_AFFECTED_PERC
+              value: "50"
+        probe:
+          - name: circuit-breaker-activation
+            type: promProbe
+            promProbe/inputs:
+              endpoint: http://prometheus.xilian-staging.svc:9090
+              query: circuit_breaker_state{service=~".*"} == 2
+              comparator:
+                type: int
+                criteria: ">="
+                value: "1"
+            mode: EOT
+            runProperties:
+              probeTimeout: 10
+              interval: 10
+
+    # ── 实验 3: 网络丢包（验证重试机制）──
+    - name: pod-network-loss
+      spec:
+        components:
+          env:
+            - name: TOTAL_CHAOS_DURATION
+              value: "60"
+            - name: NETWORK_PACKET_LOSS_PERCENTAGE
+              value: "30"
+            - name: NETWORK_INTERFACE
+              value: "eth0"
+            - name: PODS_AFFECTED_PERC
+              value: "30"
+
+    # ── 实验 4: CPU 压力（验证 HPA 扩容）──
+    - name: pod-cpu-hog
+      spec:
+        components:
+          env:
+            - name: TOTAL_CHAOS_DURATION
+              value: "180"
+            - name: CPU_CORES
+              value: "2"
+            - name: PODS_AFFECTED_PERC
+              value: "50"
+        probe:
+          - name: hpa-scale-up
+            type: k8sProbe
+            k8sProbe/inputs:
+              group: autoscaling
+              version: v2
+              resource: horizontalpodautoscalers
+              namespace: xilian-staging
+              fieldSelector: metadata.name=algorithm-service
+              operation: present
+            mode: EOT
+            runProperties:
+              probeTimeout: 30
+              interval: 15
+
+    # ── 实验 5: 内存压力（验证 OOM 恢复）──
+    - name: pod-memory-hog
+      spec:
+        components:
+          env:
+            - name: TOTAL_CHAOS_DURATION
+              value: "120"
+            - name: MEMORY_CONSUMPTION
+              value: "500"  # 500MB
+            - name: PODS_AFFECTED_PERC
+              value: "30"
+
+    # ── 实验 6: DNS 故障（验证服务发现降级）──
+    - name: pod-dns-error
+      spec:
+        components:
+          env:
+            - name: TOTAL_CHAOS_DURATION
+              value: "60"
+            - name: TARGET_HOSTNAMES
+              value: "mysql.xilian-staging.svc.cluster.local,redis.xilian-staging.svc.cluster.local"
+            - name: PODS_AFFECTED_PERC
+              value: "30"
+
+    # ── 实验 7: 磁盘 I/O 压力 ──
+    - name: disk-fill
+      spec:
+        components:
+          env:
+            - name: TOTAL_CHAOS_DURATION
+              value: "120"
+            - name: FILL_PERCENTAGE
+              value: "80"
+            - name: EPHEMERAL_STORAGE_MEBIBYTES
+              value: "256"
+
+    # ── 实验 8: 容器杀死（验证优雅关闭）──
+    - name: container-kill
+      spec:
+        components:
+          env:
+            - name: TOTAL_CHAOS_DURATION
+              value: "60"
+            - name: CHAOS_INTERVAL
+              value: "15"
+            - name: SIGNAL
+              value: "SIGTERM"  # 验证优雅关闭
+            - name: TARGET_CONTAINER
+              value: ""
+        probe:
+          - name: graceful-shutdown-check
+            type: promProbe
+            promProbe/inputs:
+              endpoint: http://prometheus.xilian-staging.svc:9090
+              query: increase(graceful_shutdown_completed_total[5m])
+              comparator:
+                type: int
+                criteria: ">="
+                value: "1"
+            mode: EOT
+            runProperties:
+              probeTimeout: 30
+              interval: 10
+
+---
+# ── 混沌调度（CI 集成 — 审核意见6 优化5）──
+apiVersion: litmuschaos.io/v1alpha1
+kind: ChaosSchedule
+metadata:
+  name: xilian-weekly-chaos
+  namespace: xilian-staging
+spec:
+  schedule:
+    type: repeat
+    repeat:
+      properties:
+        minChaosInterval: 168h  # 每周一次
+      workDays:
+        includedDays: "Wed"  # 周三执行
+      startTime:
+        hour: 2
+        minute: 0
+  engineTemplateSpec:
+    engineState: active
+    appinfo:
+      appns: xilian-staging
+      applabel: app.kubernetes.io/part-of=xilian-platform
+      appkind: deployment
+    chaosServiceAccount: litmus-admin
+    experiments:
+      - name: pod-delete
+        spec:
+          components:
+            env:
+              - name: TOTAL_CHAOS_DURATION
+                value: "60"
+              - name: PODS_AFFECTED_PERC
+                value: "20"

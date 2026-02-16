@@ -1,0 +1,16 @@
+{{- if .Values.app.podDisruptionBudget.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "xilian.fullname" . }}-app
+  namespace: {{ include "xilian.namespace" . }}
+  labels:
+    {{- include "xilian.labels" . | nindent 4 }}
+    app.kubernetes.io/component: app
+spec:
+  minAvailable: {{ .Values.app.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "xilian.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: app
+{{- end }}

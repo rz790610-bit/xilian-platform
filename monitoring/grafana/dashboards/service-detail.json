@@ -1,0 +1,154 @@
+{
+  "dashboard": {
+    "id": null,
+    "uid": "xilian-service-detail",
+    "title": "西联平台 — 微服务详情",
+    "tags": ["xilian", "service"],
+    "timezone": "browser",
+    "refresh": "15s",
+    "templating": {
+      "list": [
+        {
+          "name": "service",
+          "type": "query",
+          "datasource": "Prometheus",
+          "query": "label_values(http_requests_total, service)",
+          "current": { "text": "api-gateway", "value": "api-gateway" }
+        }
+      ]
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "请求速率 (按方法)",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+        "targets": [
+          {
+            "expr": "sum(rate(http_requests_total{service=\"$service\"}[5m])) by (method, path)",
+            "legendFormat": "{{method}} {{path}}"
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "title": "延迟分布 (P50/P90/P99)",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket{service=\"$service\"}[5m])) by (le))",
+            "legendFormat": "P50"
+          },
+          {
+            "expr": "histogram_quantile(0.90, sum(rate(http_request_duration_seconds_bucket{service=\"$service\"}[5m])) by (le))",
+            "legendFormat": "P90"
+          },
+          {
+            "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{service=\"$service\"}[5m])) by (le))",
+            "legendFormat": "P99"
+          }
+        ],
+        "fieldConfig": { "defaults": { "unit": "s" } }
+      },
+      {
+        "id": 3,
+        "title": "错误率 (按状态码)",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+        "targets": [
+          {
+            "expr": "sum(rate(http_requests_total{service=\"$service\", status_code=~\"4..\"}[5m]))",
+            "legendFormat": "4xx"
+          },
+          {
+            "expr": "sum(rate(http_requests_total{service=\"$service\", status_code=~\"5..\"}[5m]))",
+            "legendFormat": "5xx"
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "断路器事件",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+        "targets": [
+          {
+            "expr": "sum(rate(circuit_breaker_fire_total{service=\"$service\"}[5m])) by (target)",
+            "legendFormat": "fire: {{target}}"
+          },
+          {
+            "expr": "sum(rate(circuit_breaker_reject_total{service=\"$service\"}[5m])) by (target)",
+            "legendFormat": "reject: {{target}}"
+          },
+          {
+            "expr": "sum(rate(circuit_breaker_timeout_total{service=\"$service\"}[5m])) by (target)",
+            "legendFormat": "timeout: {{target}}"
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "title": "Node.js 事件循环延迟",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+        "targets": [
+          {
+            "expr": "nodejs_eventloop_lag_seconds{service=\"$service\"}",
+            "legendFormat": "Event Loop Lag"
+          },
+          {
+            "expr": "nodejs_eventloop_lag_p99_seconds{service=\"$service\"}",
+            "legendFormat": "P99 Lag"
+          }
+        ],
+        "fieldConfig": { "defaults": { "unit": "s" } }
+      },
+      {
+        "id": 6,
+        "title": "内存使用",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+        "targets": [
+          {
+            "expr": "nodejs_heap_size_used_bytes{service=\"$service\"}",
+            "legendFormat": "Heap Used"
+          },
+          {
+            "expr": "nodejs_heap_size_total_bytes{service=\"$service\"}",
+            "legendFormat": "Heap Total"
+          },
+          {
+            "expr": "process_resident_memory_bytes{service=\"$service\"}",
+            "legendFormat": "RSS"
+          }
+        ],
+        "fieldConfig": { "defaults": { "unit": "bytes" } }
+      },
+      {
+        "id": 7,
+        "title": "gRPC 调用 (按方法)",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
+        "targets": [
+          {
+            "expr": "sum(rate(grpc_server_handled_total{service=\"$service\"}[5m])) by (grpc_method)",
+            "legendFormat": "{{grpc_method}}"
+          }
+        ]
+      },
+      {
+        "id": 8,
+        "title": "Kafka 消费延迟",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
+        "targets": [
+          {
+            "expr": "kafka_consumer_lag{service=\"$service\"}",
+            "legendFormat": "{{topic}} / {{partition}}"
+          }
+        ]
+      }
+    ]
+  }
+}

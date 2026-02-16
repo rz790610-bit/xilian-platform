@@ -1,0 +1,117 @@
+{
+  "dashboard": {
+    "id": null,
+    "uid": "xilian-cost",
+    "title": "西联平台 — 成本监控",
+    "tags": ["xilian", "cost", "finops"],
+    "timezone": "browser",
+    "refresh": "5m",
+    "panels": [
+      {
+        "id": 1,
+        "title": "各服务 CPU 成本占比",
+        "type": "piechart",
+        "gridPos": { "h": 8, "w": 8, "x": 0, "y": 0 },
+        "targets": [
+          {
+            "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=~\"xilian.*\", container!=\"\"}[1h])) by (container) * 0.048",
+            "legendFormat": "{{container}}"
+          }
+        ],
+        "fieldConfig": { "defaults": { "unit": "currencyUSD" } }
+      },
+      {
+        "id": 2,
+        "title": "各服务内存成本占比",
+        "type": "piechart",
+        "gridPos": { "h": 8, "w": 8, "x": 8, "y": 0 },
+        "targets": [
+          {
+            "expr": "sum(container_memory_working_set_bytes{namespace=~\"xilian.*\", container!=\"\"}) by (container) / 1073741824 * 0.006",
+            "legendFormat": "{{container}}"
+          }
+        ],
+        "fieldConfig": { "defaults": { "unit": "currencyUSD" } }
+      },
+      {
+        "id": 3,
+        "title": "资源利用率效率",
+        "type": "gauge",
+        "gridPos": { "h": 8, "w": 8, "x": 16, "y": 0 },
+        "targets": [
+          {
+            "expr": "avg(sum(rate(container_cpu_usage_seconds_total{namespace=~\"xilian.*\", container!=\"\"}[5m])) by (pod) / sum(kube_pod_container_resource_requests{namespace=~\"xilian.*\", resource=\"cpu\"}) by (pod)) * 100",
+            "legendFormat": "CPU 利用率"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "min": 0,
+            "max": 100,
+            "thresholds": {
+              "steps": [
+                { "color": "red", "value": 0 },
+                { "color": "yellow", "value": 30 },
+                { "color": "green", "value": 50 },
+                { "color": "yellow", "value": 85 }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 4,
+        "title": "月度成本趋势 (预估)",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 24, "x": 0, "y": 8 },
+        "targets": [
+          {
+            "expr": "(sum(rate(container_cpu_usage_seconds_total{namespace=~\"xilian.*\", container!=\"\"}[1h])) * 0.048 + sum(container_memory_working_set_bytes{namespace=~\"xilian.*\", container!=\"\"}) / 1073741824 * 0.006) * 730",
+            "legendFormat": "计算成本"
+          },
+          {
+            "expr": "sum(kubelet_volume_stats_used_bytes{namespace=~\"xilian.*\"}) / 1073741824 * 0.1",
+            "legendFormat": "存储成本"
+          }
+        ],
+        "fieldConfig": { "defaults": { "unit": "currencyUSD" } }
+      },
+      {
+        "id": 5,
+        "title": "HPA 扩缩事件",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+        "targets": [
+          {
+            "expr": "sum(kube_horizontalpodautoscaler_status_current_replicas{namespace=~\"xilian.*\"}) by (horizontalpodautoscaler)",
+            "legendFormat": "{{horizontalpodautoscaler}}"
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "title": "闲置资源检测",
+        "type": "table",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+        "targets": [
+          {
+            "expr": "sum(kube_pod_container_resource_requests{namespace=~\"xilian.*\", resource=\"cpu\"}) by (container) - sum(rate(container_cpu_usage_seconds_total{namespace=~\"xilian.*\", container!=\"\"}[1h])) by (container)",
+            "legendFormat": "{{container}}",
+            "format": "table",
+            "instant": true
+          }
+        ],
+        "fieldConfig": {
+          "defaults": { "unit": "short" },
+          "overrides": [
+            {
+              "matcher": { "id": "byName", "options": "Value" },
+              "properties": [{ "id": "displayName", "value": "闲置 CPU (cores)" }]
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

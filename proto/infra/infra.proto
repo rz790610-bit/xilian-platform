@@ -1,0 +1,204 @@
+syntax = "proto3";
+
+package xilian.infra;
+
+option java_package = "com.xilian.infra.grpc";
+option go_package = "github.com/xilian/platform/proto/infra";
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/struct.proto";
+import "common/types.proto";
+
+// ============================================================
+// 基础设施服务 — gRPC 接口
+// 映射: server/services/eventBus.service.ts + saga.orchestrator.ts
+//       + outbox.publisher.ts + idempotency.service.ts
+// ============================================================
+
+// Saga 编排器
+service SagaService {
+  rpc StartSaga(StartSagaRequest) returns (SagaExecution);
+  rpc GetSagaStatus(GetSagaStatusRequest) returns (SagaExecution);
+  rpc CompensateSaga(CompensateSagaRequest) returns (xilian.common.OperationResult);
+  rpc ListSagas(ListSagasRequest) returns (ListSagasResponse);
+  rpc HealthCheck(xilian.common.HealthCheckRequest) returns (xilian.common.HealthCheckResponse);
+}
+
+// 事件路由器
+service EventRouterService {
+  rpc Publish(PublishEventRequest) returns (PublishEventResponse);
+  rpc Subscribe(SubscribeRequest) returns (stream EventMessage);
+  rpc GetTopicInfo(GetTopicInfoRequest) returns (TopicInfo);
+  rpc ListTopics(ListTopicsRequest) returns (ListTopicsResponse);
+  rpc HealthCheck(xilian.common.HealthCheckRequest) returns (xilian.common.HealthCheckResponse);
+}
+
+// 去重服务
+service IdempotencyService {
+  rpc Check(IdempotencyCheckRequest) returns (IdempotencyCheckResponse);
+  rpc Register(IdempotencyRegisterRequest) returns (xilian.common.OperationResult);
+  rpc HealthCheck(xilian.common.HealthCheckRequest) returns (xilian.common.HealthCheckResponse);
+}
+
+// 配置中心
+service ConfigService {
+  rpc GetConfig(GetConfigRequest) returns (ConfigEntry);
+  rpc SetConfig(SetConfigRequest) returns (xilian.common.OperationResult);
+  rpc WatchConfig(WatchConfigRequest) returns (stream ConfigChangeEvent);
+  rpc HealthCheck(xilian.common.HealthCheckRequest) returns (xilian.common.HealthCheckResponse);
+}
+
+// ── Saga 消息 ──
+
+message StartSagaRequest {
+  string saga_type = 1;
+  google.protobuf.Struct payload = 2;
+  string correlation_id = 3;
+  int32 timeout_seconds = 4;
+}
+
+message SagaExecution {
+  string saga_id = 1;
+  string saga_type = 2;
+  string status = 3;  // "running" | "completed" | "failed" | "compensating" | "compensated"
+  repeated SagaStep steps = 4;
+  google.protobuf.Struct payload = 5;
+  google.protobuf.Timestamp started_at = 6;
+  google.protobuf.Timestamp completed_at = 7;
+  string error_message = 8;
+}
+
+message SagaStep {
+  string name = 1;
+  string status = 2;
+  int64 duration_ms = 3;
+  string error_message = 4;
+  google.protobuf.Timestamp executed_at = 5;
+}
+
+message GetSagaStatusRequest {
+  string saga_id = 1;
+}
+
+message CompensateSagaRequest {
+  string saga_id = 1;
+  string reason = 2;
+}
+
+message ListSagasRequest {
+  xilian.common.Pagination pagination = 1;
+  string status_filter = 2;
+  string type_filter = 3;
+  xilian.common.TimeRange time_range = 4;
+}
+
+message ListSagasResponse {
+  repeated SagaExecution sagas = 1;
+  xilian.common.PaginatedResponse pagination = 2;
+}
+
+// ── 事件路由消息 ──
+
+message PublishEventRequest {
+  string topic = 1;
+  string key = 2;
+  bytes payload = 3;
+  map<string, string> headers = 4;
+  string idempotency_key = 5;
+}
+
+message PublishEventResponse {
+  string event_id = 1;
+  int32 partition = 2;
+  int64 offset = 3;
+}
+
+message SubscribeRequest {
+  repeated string topics = 1;
+  string group_id = 2;
+  string start_from = 3;  // "earliest" | "latest" | offset
+}
+
+message EventMessage {
+  string event_id = 1;
+  string topic = 2;
+  int32 partition = 3;
+  int64 offset = 4;
+  string key = 5;
+  bytes payload = 6;
+  map<string, string> headers = 7;
+  google.protobuf.Timestamp timestamp = 8;
+}
+
+message GetTopicInfoRequest {
+  string topic = 1;
+}
+
+message TopicInfo {
+  string name = 1;
+  int32 partition_count = 2;
+  int32 replication_factor = 3;
+  int64 total_messages = 4;
+  map<string, string> config = 5;
+}
+
+message ListTopicsRequest {
+  string prefix = 1;
+}
+
+message ListTopicsResponse {
+  repeated TopicInfo topics = 1;
+}
+
+// ── 去重消息 ──
+
+message IdempotencyCheckRequest {
+  string key = 1;
+}
+
+message IdempotencyCheckResponse {
+  bool exists = 1;
+  google.protobuf.Struct result = 2;
+  google.protobuf.Timestamp created_at = 3;
+}
+
+message IdempotencyRegisterRequest {
+  string key = 1;
+  google.protobuf.Struct result = 2;
+  int32 ttl_seconds = 3;
+}
+
+// ── 配置中心消息 ──
+
+message GetConfigRequest {
+  string key = 1;
+  string namespace = 2;
+}
+
+message ConfigEntry {
+  string key = 1;
+  string value = 2;
+  string namespace = 3;
+  int32 version = 4;
+  google.protobuf.Timestamp updated_at = 5;
+}
+
+message SetConfigRequest {
+  string key = 1;
+  string value = 2;
+  string namespace = 3;
+}
+
+message WatchConfigRequest {
+  repeated string keys = 1;
+  string namespace = 2;
+}
+
+message ConfigChangeEvent {
+  string key = 1;
+  string old_value = 2;
+  string new_value = 3;
+  string namespace = 4;
+  int32 version = 5;
+  google.protobuf.Timestamp changed_at = 6;
+}

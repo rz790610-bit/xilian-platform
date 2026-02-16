@@ -1,0 +1,174 @@
+syntax = "proto3";
+
+package xilian.monitoring;
+
+option java_package = "com.xilian.monitoring.grpc";
+option go_package = "github.com/xilian/platform/proto/monitoring";
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/struct.proto";
+import "common/types.proto";
+
+// ============================================================
+// 监控告警服务 — gRPC 接口
+// 映射: server/services/observability.service.ts + alertRule
+// ============================================================
+
+service AlertService {
+  rpc CreateAlert(CreateAlertRequest) returns (Alert);
+  rpc ListAlerts(ListAlertsRequest) returns (ListAlertsResponse);
+  rpc AcknowledgeAlert(AcknowledgeAlertRequest) returns (Alert);
+  rpc ResolveAlert(ResolveAlertRequest) returns (Alert);
+  rpc WatchAlerts(WatchAlertsRequest) returns (stream Alert);
+  rpc HealthCheck(xilian.common.HealthCheckRequest) returns (xilian.common.HealthCheckResponse);
+}
+
+service DiagnosticService {
+  rpc RunDiagnosis(RunDiagnosisRequest) returns (DiagnosisResult);
+  rpc GetDiagnosisHistory(GetDiagnosisHistoryRequest) returns (DiagnosisHistoryResponse);
+  rpc HealthCheck(xilian.common.HealthCheckRequest) returns (xilian.common.HealthCheckResponse);
+}
+
+service ObservabilityService {
+  rpc GetServiceHealth(GetServiceHealthRequest) returns (ServiceHealthResponse);
+  rpc GetSystemMetrics(GetSystemMetricsRequest) returns (SystemMetricsResponse);
+  rpc HealthCheck(xilian.common.HealthCheckRequest) returns (xilian.common.HealthCheckResponse);
+}
+
+// ── 告警消息 ──
+
+message Alert {
+  string id = 1;
+  string device_id = 2;
+  string rule_id = 3;
+  string severity = 4;
+  string title = 5;
+  string description = 6;
+  string status = 7;
+  google.protobuf.Struct context = 8;
+  google.protobuf.Timestamp created_at = 9;
+  google.protobuf.Timestamp acknowledged_at = 10;
+  string acknowledged_by = 11;
+  google.protobuf.Timestamp resolved_at = 12;
+}
+
+message CreateAlertRequest {
+  string device_id = 1;
+  string rule_id = 2;
+  string severity = 3;
+  string title = 4;
+  string description = 5;
+  google.protobuf.Struct context = 6;
+}
+
+message ListAlertsRequest {
+  xilian.common.Pagination pagination = 1;
+  string severity_filter = 2;
+  string status_filter = 3;
+  string device_id_filter = 4;
+  xilian.common.TimeRange time_range = 5;
+}
+
+message ListAlertsResponse {
+  repeated Alert alerts = 1;
+  xilian.common.PaginatedResponse pagination = 2;
+}
+
+message AcknowledgeAlertRequest {
+  string alert_id = 1;
+  string acknowledged_by = 2;
+  string comment = 3;
+}
+
+message ResolveAlertRequest {
+  string alert_id = 1;
+  string resolved_by = 2;
+  string resolution = 3;
+}
+
+message WatchAlertsRequest {
+  repeated string severity_filter = 1;
+  repeated string device_ids = 2;
+}
+
+// ── 诊断消息 ──
+
+message RunDiagnosisRequest {
+  string device_id = 1;
+  string diagnosis_type = 2;
+  google.protobuf.Struct parameters = 3;
+}
+
+message DiagnosisResult {
+  string diagnosis_id = 1;
+  string device_id = 2;
+  string status = 3;
+  repeated FaultFinding findings = 4;
+  repeated string recommendations = 5;
+  int64 duration_ms = 6;
+  google.protobuf.Timestamp completed_at = 7;
+}
+
+message FaultFinding {
+  string fault_type = 1;
+  double confidence = 2;
+  string severity = 3;
+  string description = 4;
+  string component = 5;
+  google.protobuf.Struct evidence = 6;
+}
+
+message GetDiagnosisHistoryRequest {
+  string device_id = 1;
+  xilian.common.Pagination pagination = 2;
+  xilian.common.TimeRange time_range = 3;
+}
+
+message DiagnosisHistoryResponse {
+  repeated DiagnosisResult results = 1;
+  xilian.common.PaginatedResponse pagination = 2;
+}
+
+// ── 可观测性消息 ──
+
+message GetServiceHealthRequest {
+  string service_name = 1;
+}
+
+message ServiceHealthResponse {
+  repeated ServiceStatus services = 1;
+  string overall_status = 2;
+}
+
+message ServiceStatus {
+  string name = 1;
+  string status = 2;
+  string version = 3;
+  int64 uptime_seconds = 4;
+  double cpu_usage = 5;
+  double memory_usage = 6;
+  int64 request_count = 7;
+  double error_rate = 8;
+  double avg_latency_ms = 9;
+}
+
+message GetSystemMetricsRequest {
+  xilian.common.TimeRange time_range = 1;
+  repeated string metric_names = 2;
+}
+
+message SystemMetricsResponse {
+  map<string, MetricSeries> metrics = 1;
+}
+
+message MetricSeries {
+  string name = 1;
+  string unit = 2;
+  repeated MetricDataPoint data_points = 3;
+}
+
+message MetricDataPoint {
+  google.protobuf.Timestamp timestamp = 1;
+  double value = 2;
+  map<string, string> labels = 3;
+}

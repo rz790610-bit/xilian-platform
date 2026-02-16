@@ -1,0 +1,87 @@
+{{/*
+通用微服务 Deployment 模板
+通过 range 循环为 7 个微服务生成独立的 Deployment
+*/}}
+{{- $services := dict
+  "api-gateway" .Values.apiGateway
+  "device" .Values.deviceService
+  "algorithm" .Values.algorithmService
+  "data-pipeline" .Values.dataPipeline
+  "knowledge" .Values.knowledgeService
+  "monitoring" .Values.monitoringService
+  "infra" .Values.infraService
+}}
+
+{{- range $name, $svc := $services }}
+{{- if $svc.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ printf "%s-%s" $.Release.Name $name | trunc 63 }}
+  namespace: {{ include "xilian.namespace" $ }}
+  labels:
+    {{- include "xilian.msLabels" (dict "Release" $.Release "name" $name "appVersion" $.Chart.AppVersion) | nindent 4 }}
+spec:
+  replicas: {{ $svc.replicaCount | default 2 }}
+  selector:
+    matchLabels:
+      {{- include "xilian.msSelectorLabels" (dict "Release" $.Release "name" $name) | nindent 6 }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        {{- include "xilian.msLabels" (dict "Release" $.Release "name" $name "appVersion" $.Chart.AppVersion) | nindent 8 }}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: {{ $svc.service.httpPort | default 3000 | quote }}
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: {{ include "xilian.serviceAccountName" $ }}
+      securityContext:
+        {{- include "xilian.podSecurityContext" $ | nindent 8 }}
+      {{- include "xilian.antiAffinity" (dict "name" $name) | nindent 6 }}
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: {{ $name }}
+          image: {{ printf "%s:%s" $svc.image.repository ($svc.image.tag | default $.Chart.AppVersion) }}
+          imagePullPolicy: {{ $svc.image.pullPolicy | default "IfNotPresent" }}
+          securityContext:
+            {{- include "xilian.containerSecurityContext" $ | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: {{ $svc.service.httpPort | default 3000 }}
+              protocol: TCP
+            {{- if $svc.service.grpcPort }}
+            - name: grpc
+              containerPort: {{ $svc.service.grpcPort }}
+              protocol: TCP
+            {{- end }}
+          env:
+            {{- include "xilian.commonEnv" $ | nindent 12 }}
+            {{- range $key, $val := $svc.env }}
+            - name: {{ $key }}
+              value: {{ $val | quote }}
+            {{- end }}
+            {{- range $svc.envFromSecret }}
+            - name: {{ .name }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .secretName }}
+                  key: {{ .key }}
+            {{- end }}
+          {{- include "xilian.probes" $ | nindent 10 }}
+          resources:
+            {{- toYaml $svc.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+{{- end }}
+{{- end }}

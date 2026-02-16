@@ -1,0 +1,173 @@
+syntax = "proto3";
+
+package xilian.algorithm;
+
+option java_package = "com.xilian.algorithm.grpc";
+option go_package = "github.com/xilian/platform/proto/algorithm";
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/struct.proto";
+import "common/types.proto";
+
+// ============================================================
+// 算法执行服务 — gRPC 接口
+// 映射: server/algorithms/ + server/services/algorithm.service.ts
+// ============================================================
+
+service AlgorithmService {
+  rpc Execute(ExecuteRequest) returns (ExecuteResponse);
+  rpc BatchExecute(BatchExecuteRequest) returns (stream ExecuteResponse);
+  rpc ListAlgorithms(ListAlgorithmsRequest) returns (ListAlgorithmsResponse);
+  rpc GetAlgorithm(GetAlgorithmRequest) returns (AlgorithmInfo);
+  rpc GetExecutionStatus(GetExecutionStatusRequest) returns (ExecutionStatus);
+  rpc HealthCheck(xilian.common.HealthCheckRequest) returns (xilian.common.HealthCheckResponse);
+}
+
+// 模型管理服务
+service ModelService {
+  rpc DeployModel(DeployModelRequest) returns (DeployModelResponse);
+  rpc ListModels(ListModelsRequest) returns (ListModelsResponse);
+  rpc GetModelMetrics(GetModelMetricsRequest) returns (ModelMetrics);
+  rpc RetireModel(RetireModelRequest) returns (xilian.common.OperationResult);
+  rpc HealthCheck(xilian.common.HealthCheckRequest) returns (xilian.common.HealthCheckResponse);
+}
+
+// ── 算法执行消息 ──
+
+message ExecuteRequest {
+  string algorithm_id = 1;
+  string algorithm_name = 2;
+  google.protobuf.Struct parameters = 3;
+  bytes input_data = 4;
+  string input_format = 5;  // "json" | "binary" | "csv" | "float64array"
+  map<string, string> metadata = 6;
+  string correlation_id = 7;
+  string device_id = 8;
+  string sensor_id = 9;
+  int32 timeout_ms = 10;
+}
+
+message ExecuteResponse {
+  string execution_id = 1;
+  string algorithm_id = 2;
+  string status = 3;  // "success" | "error" | "timeout" | "partial"
+  google.protobuf.Struct result = 4;
+  bytes output_data = 5;
+  string output_format = 6;
+  int64 execution_time_ms = 7;
+  string error_message = 8;
+  map<string, string> metadata = 9;
+  repeated DiagnosticResult diagnostics = 10;
+}
+
+message DiagnosticResult {
+  string fault_type = 1;
+  double confidence = 2;
+  string severity = 3;
+  string description = 4;
+  google.protobuf.Struct details = 5;
+}
+
+message BatchExecuteRequest {
+  repeated ExecuteRequest requests = 1;
+  int32 max_concurrency = 2;
+  bool fail_fast = 3;
+}
+
+message ListAlgorithmsRequest {
+  xilian.common.Pagination pagination = 1;
+  string category_filter = 2;
+  string type_filter = 3;
+}
+
+message ListAlgorithmsResponse {
+  repeated AlgorithmInfo algorithms = 1;
+  xilian.common.PaginatedResponse pagination = 2;
+}
+
+message AlgorithmInfo {
+  string id = 1;
+  string name = 2;
+  string category = 3;
+  string description = 4;
+  string version = 5;
+  repeated string input_types = 6;
+  repeated string output_types = 7;
+  google.protobuf.Struct config_schema = 8;
+  bool gpu_required = 9;
+  int64 avg_execution_ms = 10;
+}
+
+message GetAlgorithmRequest {
+  string algorithm_id = 1;
+}
+
+message GetExecutionStatusRequest {
+  string execution_id = 1;
+}
+
+message ExecutionStatus {
+  string execution_id = 1;
+  string status = 2;
+  double progress = 3;
+  string current_stage = 4;
+  google.protobuf.Timestamp started_at = 5;
+  google.protobuf.Timestamp completed_at = 6;
+}
+
+// ── 模型管理消息 ──
+
+message DeployModelRequest {
+  string model_id = 1;
+  string model_name = 2;
+  string model_type = 3;
+  string model_path = 4;
+  google.protobuf.Struct config = 5;
+  map<string, string> labels = 6;
+}
+
+message DeployModelResponse {
+  string deployment_id = 1;
+  string status = 2;
+  string endpoint = 3;
+}
+
+message ListModelsRequest {
+  xilian.common.Pagination pagination = 1;
+  string type_filter = 2;
+  string status_filter = 3;
+}
+
+message ListModelsResponse {
+  repeated ModelInfo models = 1;
+  xilian.common.PaginatedResponse pagination = 2;
+}
+
+message ModelInfo {
+  string id = 1;
+  string name = 2;
+  string type = 3;
+  string version = 4;
+  string status = 5;
+  string endpoint = 6;
+  google.protobuf.Timestamp deployed_at = 7;
+}
+
+message GetModelMetricsRequest {
+  string model_id = 1;
+  xilian.common.TimeRange time_range = 2;
+}
+
+message ModelMetrics {
+  string model_id = 1;
+  int64 total_predictions = 2;
+  double avg_latency_ms = 3;
+  double p99_latency_ms = 4;
+  double error_rate = 5;
+  double accuracy = 6;
+}
+
+message RetireModelRequest {
+  string model_id = 1;
+  string reason = 2;
+}

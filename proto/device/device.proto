@@ -1,0 +1,172 @@
+syntax = "proto3";
+
+package xilian.device;
+
+option java_package = "com.xilian.device.grpc";
+option go_package = "github.com/xilian/platform/proto/device";
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/struct.proto";
+import "common/types.proto";
+
+// ============================================================
+// 设备管理服务 — gRPC 接口
+// 映射: server/services/device.service.ts
+// ============================================================
+
+service DeviceService {
+  rpc GetDevice(GetDeviceRequest) returns (Device);
+  rpc ListDevices(ListDevicesRequest) returns (ListDevicesResponse);
+  rpc CreateDevice(CreateDeviceRequest) returns (Device);
+  rpc UpdateDevice(UpdateDeviceRequest) returns (Device);
+  rpc DeleteDevice(DeleteDeviceRequest) returns (xilian.common.OperationResult);
+  rpc GetDeviceStatus(GetDeviceStatusRequest) returns (DeviceStatus);
+  rpc WatchDeviceStatus(WatchDeviceStatusRequest) returns (stream DeviceStatus);
+  rpc GetDeviceTopology(GetDeviceTopologyRequest) returns (DeviceTopology);
+  rpc HealthCheck(xilian.common.HealthCheckRequest) returns (xilian.common.HealthCheckResponse);
+}
+
+// 传感器管理（嵌入设备服务）
+service SensorService {
+  rpc GetSensor(GetSensorRequest) returns (Sensor);
+  rpc ListSensors(ListSensorsRequest) returns (ListSensorsResponse);
+  rpc GetSensorReading(GetSensorReadingRequest) returns (SensorReading);
+  rpc WatchSensorReadings(WatchSensorReadingsRequest) returns (stream SensorReading);
+  rpc HealthCheck(xilian.common.HealthCheckRequest) returns (xilian.common.HealthCheckResponse);
+}
+
+// ── 设备消息 ──
+
+message Device {
+  string id = 1;
+  string name = 2;
+  string type = 3;
+  string model = 4;
+  string manufacturer = 5;
+  string location = 6;
+  string status = 7;
+  string parent_id = 8;
+  map<string, string> metadata = 9;
+  repeated string tags = 10;
+  google.protobuf.Timestamp created_at = 11;
+  google.protobuf.Timestamp updated_at = 12;
+}
+
+message GetDeviceRequest {
+  string device_id = 1;
+}
+
+message CreateDeviceRequest {
+  string name = 1;
+  string type = 2;
+  string model = 3;
+  string manufacturer = 4;
+  string location = 5;
+  string parent_id = 6;
+  map<string, string> metadata = 7;
+  repeated string tags = 8;
+}
+
+message UpdateDeviceRequest {
+  string device_id = 1;
+  string name = 2;
+  string location = 3;
+  map<string, string> metadata = 4;
+  repeated string tags = 5;
+}
+
+message DeleteDeviceRequest {
+  string device_id = 1;
+}
+
+message ListDevicesRequest {
+  xilian.common.Pagination pagination = 1;
+  string type_filter = 2;
+  string status_filter = 3;
+  string location_filter = 4;
+  string parent_id = 5;
+}
+
+message ListDevicesResponse {
+  repeated Device devices = 1;
+  xilian.common.PaginatedResponse pagination = 2;
+}
+
+message GetDeviceStatusRequest {
+  string device_id = 1;
+}
+
+message DeviceStatus {
+  string device_id = 1;
+  string status = 2;
+  double cpu_usage = 3;
+  double memory_usage = 4;
+  double temperature = 5;
+  map<string, double> sensor_values = 6;
+  google.protobuf.Timestamp timestamp = 7;
+}
+
+message WatchDeviceStatusRequest {
+  repeated string device_ids = 1;
+  int32 interval_ms = 2;
+}
+
+message GetDeviceTopologyRequest {
+  string root_device_id = 1;
+  int32 depth = 2;
+}
+
+message DeviceTopology {
+  Device device = 1;
+  repeated DeviceTopology children = 2;
+  int32 total_descendants = 3;
+}
+
+// ── 传感器消息 ──
+
+message Sensor {
+  string id = 1;
+  string device_id = 2;
+  string name = 3;
+  string type = 4;
+  string unit = 5;
+  double min_value = 6;
+  double max_value = 7;
+  double sample_rate = 8;
+  map<string, string> metadata = 9;
+}
+
+message GetSensorRequest {
+  string sensor_id = 1;
+}
+
+message ListSensorsRequest {
+  string device_id = 1;
+  xilian.common.Pagination pagination = 2;
+}
+
+message ListSensorsResponse {
+  repeated Sensor sensors = 1;
+  xilian.common.PaginatedResponse pagination = 2;
+}
+
+message SensorReading {
+  string sensor_id = 1;
+  string device_id = 2;
+  double value = 3;
+  string unit = 4;
+  int32 quality = 5;
+  google.protobuf.Timestamp timestamp = 6;
+  map<string, string> tags = 7;
+}
+
+message GetSensorReadingRequest {
+  string sensor_id = 1;
+  xilian.common.TimeRange time_range = 2;
+  int32 limit = 3;
+}
+
+message WatchSensorReadingsRequest {
+  repeated string sensor_ids = 1;
+  int32 interval_ms = 2;
+}

@@ -1,0 +1,174 @@
+{
+  "dashboard": {
+    "id": null,
+    "uid": "xilian-slo",
+    "title": "西联平台 — SLO Burn Rate",
+    "tags": ["xilian", "slo", "reliability"],
+    "timezone": "browser",
+    "refresh": "1m",
+    "templating": {
+      "list": [
+        {
+          "name": "service",
+          "type": "query",
+          "datasource": "Prometheus",
+          "query": "label_values(http_requests_total, service)",
+          "multi": true,
+          "includeAll": true
+        },
+        {
+          "name": "slo_target",
+          "type": "custom",
+          "options": [
+            { "text": "99.9%", "value": "0.999" },
+            { "text": "99.5%", "value": "0.995" },
+            { "text": "99.0%", "value": "0.99" }
+          ],
+          "current": { "text": "99.9%", "value": "0.999" }
+        }
+      ]
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "错误预算剩余 (30 天窗口)",
+        "type": "gauge",
+        "gridPos": { "h": 6, "w": 24, "x": 0, "y": 0 },
+        "targets": [
+          {
+            "expr": "1 - ((sum(increase(http_requests_total{service=~\"$service\", status_code=~\"5..\"}[30d])) / sum(increase(http_requests_total{service=~\"$service\"}[30d]))) / (1 - $slo_target)) ",
+            "legendFormat": "{{service}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percentunit",
+            "min": 0,
+            "max": 1,
+            "thresholds": {
+              "steps": [
+                { "color": "red", "value": 0 },
+                { "color": "orange", "value": 0.25 },
+                { "color": "yellow", "value": 0.5 },
+                { "color": "green", "value": 0.75 }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 2,
+        "title": "Burn Rate — 1h / 6h 窗口",
+        "description": "Burn Rate > 14.4 = 1h 告警, > 6 = 6h 告警, > 1 = 超出预算速率",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+        "targets": [
+          {
+            "expr": "(sum(rate(http_requests_total{service=~\"$service\", status_code=~\"5..\"}[1h])) / sum(rate(http_requests_total{service=~\"$service\"}[1h]))) / (1 - $slo_target)",
+            "legendFormat": "Burn Rate (1h)"
+          },
+          {
+            "expr": "(sum(rate(http_requests_total{service=~\"$service\", status_code=~\"5..\"}[6h])) / sum(rate(http_requests_total{service=~\"$service\"}[6h]))) / (1 - $slo_target)",
+            "legendFormat": "Burn Rate (6h)"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "custom": { "drawStyle": "line", "fillOpacity": 10 },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "color": "green", "value": 0 },
+                { "color": "yellow", "value": 1 },
+                { "color": "orange", "value": 6 },
+                { "color": "red", "value": 14.4 }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 3,
+        "title": "延迟 SLO — P99 < 500ms",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{service=~\"$service\"}[5m])) by (le, service))",
+            "legendFormat": "P99: {{service}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s",
+            "thresholds": {
+              "steps": [
+                { "color": "green", "value": 0 },
+                { "color": "yellow", "value": 0.3 },
+                { "color": "red", "value": 0.5 }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 4,
+        "title": "错误预算消耗速率趋势",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 24, "x": 0, "y": 14 },
+        "targets": [
+          {
+            "expr": "sum(increase(http_requests_total{service=~\"$service\", status_code=~\"5..\"}[1d])) / sum(increase(http_requests_total{service=~\"$service\"}[1d])) / (1 - $slo_target) * 30",
+            "legendFormat": "月度预测 Burn Rate"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "custom": { "drawStyle": "line", "fillOpacity": 20 },
+            "thresholds": {
+              "steps": [
+                { "color": "green", "value": 0 },
+                { "color": "red", "value": 1 }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 5,
+        "title": "各服务 SLO 合规状态",
+        "type": "table",
+        "gridPos": { "h": 8, "w": 24, "x": 0, "y": 22 },
+        "targets": [
+          {
+            "expr": "1 - (sum(rate(http_requests_total{status_code=~\"5..\"}[30d])) by (service) / sum(rate(http_requests_total[30d])) by (service))",
+            "legendFormat": "{{service}}",
+            "format": "table",
+            "instant": true
+          }
+        ],
+        "fieldConfig": {
+          "defaults": { "unit": "percentunit" },
+          "overrides": [
+            {
+              "matcher": { "id": "byName", "options": "Value" },
+              "properties": [
+                { "id": "displayName", "value": "可用性" },
+                {
+                  "id": "thresholds",
+                  "value": {
+                    "steps": [
+                      { "color": "red", "value": 0 },
+                      { "color": "yellow", "value": 0.995 },
+                      { "color": "green", "value": 0.999 }
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

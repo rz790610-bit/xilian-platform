@@ -1,0 +1,21 @@
+version: v2
+modules:
+  - path: .
+    name: buf.build/xilian/platform
+lint:
+  use:
+    - STANDARD
+    - COMMENTS
+  except:
+    - PACKAGE_VERSION_SUFFIX
+  enum_zero_value_suffix: _UNSPECIFIED
+  rpc_allow_same_request_response: false
+  rpc_allow_google_protobuf_empty_requests: true
+  rpc_allow_google_protobuf_empty_responses: false
+  service_suffix: Service
+breaking:
+  use:
+    - FILE
+  except:
+    - EXTENSION_NO_DELETE
+    - FIELD_SAME_DEFAULT

@@ -1,0 +1,482 @@
+# ============================================================
+# 西联智能平台 Helm Values — 7 微服务架构
+# ============================================================
+
+# ── 全局配置 ──
+global:
+  namespace: xilian
+  imageRegistry: ""
+  imagePullSecrets: []
+  storageClass: ""
+  environment: production
+  logLevel: info
+  tracingEnabled: true
+  otlpEndpoint: "http://jaeger:4318"
+
+# ============================================================
+# 应用层 — 7 个微服务
+# ============================================================
+
+apiGateway:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: xilian-platform/api-gateway
+    tag: "4.0.0"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    httpPort: 3000
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  env:
+    SERVICE_NAME: api-gateway
+    HTTP_PORT: "3000"
+    CIRCUIT_BREAKER_ENABLED: "true"
+    RATE_LIMIT_ENABLED: "true"
+    RATE_LIMIT_GLOBAL: "300"
+    RATE_LIMIT_API: "100"
+  envFromSecret:
+    - name: JWT_SECRET
+      secretName: xilian-secrets
+      key: jwt-secret
+    - name: REDIS_URL
+      secretName: xilian-secrets
+      key: redis-url
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 8
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+    behavior:
+      scaleUp:
+        stabilizationWindowSeconds: 60
+        policies:
+          - type: Pods
+            value: 2
+            periodSeconds: 60
+      scaleDown:
+        stabilizationWindowSeconds: 300
+        policies:
+          - type: Pods
+            value: 1
+            periodSeconds: 120
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+  stranglerFig:
+    defaultMode: legacy
+    shadowSampleRate: 0.1
+  ingress:
+    enabled: true
+    className: nginx
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+      nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+      nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+      nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+      nginx.ingress.kubernetes.io/websocket-services: xilian-api-gateway
+    hosts:
+      - host: platform.xilian.io
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - secretName: xilian-tls
+        hosts:
+          - platform.xilian.io
+
+deviceService:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: xilian-platform/device-service
+    tag: "4.0.0"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    httpPort: 3001
+    grpcPort: 50051
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+  env:
+    SERVICE_NAME: device
+    HTTP_PORT: "3001"
+    GRPC_PORT: "50051"
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 6
+    targetCPUUtilizationPercentage: 70
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+
+algorithmService:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: xilian-platform/algorithm-service
+    tag: "4.0.0"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    httpPort: 3002
+    grpcPort: 50052
+  resources:
+    requests:
+      cpu: 1000m
+      memory: 1Gi
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+  env:
+    SERVICE_NAME: algorithm
+    HTTP_PORT: "3002"
+    GRPC_PORT: "50052"
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 60
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+
+dataPipeline:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: xilian-platform/data-pipeline
+    tag: "4.0.0"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    httpPort: 3003
+    grpcPort: 50053
+  resources:
+    requests:
+      cpu: 1000m
+      memory: 1Gi
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+  env:
+    SERVICE_NAME: data-pipeline
+    HTTP_PORT: "3003"
+    GRPC_PORT: "50053"
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 8
+    targetCPUUtilizationPercentage: 65
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+
+knowledgeService:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: xilian-platform/knowledge-service
+    tag: "4.0.0"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    httpPort: 3004
+    grpcPort: 50054
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+  env:
+    SERVICE_NAME: knowledge
+    HTTP_PORT: "3004"
+    GRPC_PORT: "50054"
+  autoscaling:
+    enabled: true
+    minReplicas: 1
+    maxReplicas: 4
+    targetCPUUtilizationPercentage: 70
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 0
+
+monitoringService:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: xilian-platform/monitoring-service
+    tag: "4.0.0"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    httpPort: 3005
+    grpcPort: 50055
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+  env:
+    SERVICE_NAME: monitoring
+    HTTP_PORT: "3005"
+    GRPC_PORT: "50055"
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 6
+    targetCPUUtilizationPercentage: 70
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+
+infraService:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: xilian-platform/infra-service
+    tag: "4.0.0"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    httpPort: 3006
+    grpcPort: 50056
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+  env:
+    SERVICE_NAME: infra
+    HTTP_PORT: "3006"
+    GRPC_PORT: "50056"
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 4
+    targetCPUUtilizationPercentage: 75
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+
+# ── 边缘服务（保留现有配置）──
+edge:
+  gateway:
+    enabled: true
+    replicaCount: 2
+    image:
+      repository: xilian-platform/edge-gateway
+      tag: "4.0.0"
+    resources:
+      requests:
+        cpu: 250m
+        memory: 256Mi
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+    autoscaling:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 8
+      targetCPUUtilizationPercentage: 60
+  inference:
+    enabled: true
+    replicaCount: 1
+    image:
+      repository: xilian-platform/edge-inference
+      tag: "4.0.0"
+    resources:
+      requests:
+        cpu: 1000m
+        memory: 2Gi
+        nvidia.com/gpu: 1
+      limits:
+        cpu: 4000m
+        memory: 8Gi
+        nvidia.com/gpu: 1
+  tsn:
+    enabled: false
+    replicaCount: 1
+
+# ============================================================
+# 可观测性
+# ============================================================
+
+observability:
+  prometheus:
+    enabled: true
+    scrapeInterval: 15s
+    serviceMonitor:
+      enabled: true
+  jaeger:
+    enabled: true
+    image:
+      repository: jaegertracing/all-in-one
+      tag: "1.53"
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+    storage:
+      type: elasticsearch
+    collector:
+      otlp:
+        enabled: true
+  grafana:
+    enabled: true
+    adminPassword: ""
+    dashboardProviders:
+      enabled: true
+  loki:
+    enabled: true
+  alertmanager:
+    enabled: true
+    config:
+      inhibitRules:
+        # 审核意见6 优化4: Alertmanager 抑制链
+        - sourceMatch:
+            severity: critical
+          targetMatch:
+            severity: warning
+          equal: ['service', 'alertname']
+
+# ── 安全 ──
+security:
+  falco:
+    enabled: true
+  vault:
+    enabled: false
+  networkPolicy:
+    enabled: true
+    allowIngressFromSameNamespace: true
+    allowPrometheusIngress: true
+  podSecurityPolicy:
+    enabled: false
+
+# ============================================================
+# 基础设施依赖 — Bitnami 子 Chart
+# ============================================================
+
+mysql:
+  enabled: true
+  auth:
+    rootPassword: ""
+    database: xilian_platform
+    username: xilian
+    password: ""
+  primary:
+    persistence:
+      size: 50Gi
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+      limits:
+        cpu: 2000m
+        memory: 4Gi
+
+redis:
+  enabled: true
+  architecture: standalone
+  auth:
+    enabled: false
+  master:
+    persistence:
+      size: 10Gi
+    resources:
+      requests:
+        cpu: 250m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+kafka:
+  enabled: true
+  kraft:
+    enabled: true
+  replicaCount: 3
+  listeners:
+    client:
+      protocol: PLAINTEXT
+  persistence:
+    size: 50Gi
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+
+clickhouse:
+  enabled: true
+  auth:
+    username: xilian
+    password: ""
+    database: xilian_ts
+  shards: 1
+  replicaCount: 1
+  persistence:
+    size: 100Gi
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 4000m
+      memory: 8Gi
+
+elasticsearch:
+  enabled: true
+  master:
+    replicaCount: 1
+  data:
+    replicaCount: 1
+  coordinating:
+    replicaCount: 0
+  ingest:
+    replicaCount: 0
+
+minio:
+  enabled: true
+  auth:
+    rootUser: ""
+    rootPassword: ""
+  persistence:
+    size: 50Gi
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+
+# ============================================================
+# ServiceAccount & RBAC
+# ============================================================
+
+serviceAccount:
+  create: true
+  name: xilian-platform
+  annotations: {}
+
+rbac:
+  create: true

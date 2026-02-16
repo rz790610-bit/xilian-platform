@@ -1,0 +1,107 @@
+# ============================================================
+# Alertmanager 配置 — 含抑制链（审核意见6 优化4）
+# ============================================================
+global:
+  resolve_timeout: 5m
+  smtp_smarthost: 'smtp.xilian.io:587'
+  smtp_from: 'alerts@xilian.io'
+  smtp_auth_username: 'alerts@xilian.io'
+  smtp_auth_password: '${SMTP_PASSWORD}'
+
+# 路由树
+route:
+  group_by: ['alertname', 'service', 'severity']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  receiver: 'default'
+  routes:
+    # Critical — 立即通知（钉钉 + 短信 + 邮件）
+    - match:
+        severity: critical
+      receiver: 'critical'
+      group_wait: 10s
+      repeat_interval: 1h
+      continue: true
+
+    # SLO Burn Rate — 专用通道
+    - match_re:
+        alertname: 'SLOBurnRate.*'
+      receiver: 'slo-team'
+      group_by: ['service']
+      repeat_interval: 2h
+
+    # Warning — 邮件 + 钉钉
+    - match:
+        severity: warning
+      receiver: 'warning'
+      repeat_interval: 8h
+
+# 接收器
+receivers:
+  - name: 'default'
+    email_configs:
+      - to: 'ops@xilian.io'
+        send_resolved: true
+
+  - name: 'critical'
+    email_configs:
+      - to: 'oncall@xilian.io'
+        send_resolved: true
+    webhook_configs:
+      # 钉钉机器人
+      - url: '${DINGTALK_WEBHOOK_URL}'
+        send_resolved: true
+      # PagerDuty / 短信网关
+      - url: '${SMS_GATEWAY_URL}'
+        send_resolved: false
+
+  - name: 'warning'
+    email_configs:
+      - to: 'dev-team@xilian.io'
+        send_resolved: true
+    webhook_configs:
+      - url: '${DINGTALK_WEBHOOK_URL}'
+        send_resolved: true
+
+  - name: 'slo-team'
+    email_configs:
+      - to: 'sre@xilian.io'
+        send_resolved: true
+    webhook_configs:
+      - url: '${DINGTALK_WEBHOOK_URL}'
+        send_resolved: true
+
+# 抑制规则（审核意见6 优化4: Alertmanager 抑制链）
+inhibit_rules:
+  # ServiceDown 抑制同服务的所有 warning
+  - source_match:
+      alertname: ServiceDown
+    target_match:
+      severity: warning
+    equal: ['service']
+
+  # Critical 抑制同服务同告警的 warning
+  - source_match:
+      severity: critical
+    target_match:
+      severity: warning
+    equal: ['service', 'alertname']
+
+  # CircuitBreakerOpen 抑制对应目标的 HighErrorRate
+  - source_match:
+      alertname: CircuitBreakerOpen
+    target_match:
+      alertname: HighErrorRate
+    equal: ['service']
+
+  # SLOBurnRateCritical 抑制 SLOBurnRateWarning
+  - source_match:
+      alertname: SLOBurnRateCritical
+    target_match:
+      alertname: SLOBurnRateWarning
+    equal: ['service']
+
+# 模板
+templates:
+  - '/etc/alertmanager/templates/*.tmpl'
