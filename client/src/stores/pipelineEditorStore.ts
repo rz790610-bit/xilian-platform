@@ -4,6 +4,7 @@
  * 支持 DAG 拓扑（多 Source / 多 Sink / 分支 / 合并）
  */
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
 import { nanoid } from 'nanoid';
 import type {
   EditorState,
@@ -102,7 +103,9 @@ const initialEditorState: EditorState = {
   panY: 0,
 };
 
-export const usePipelineEditorStore = create<PipelineEditorState>((set, get) => ({
+export const usePipelineEditorStore = create<PipelineEditorState>()(
+  persist(
+    (set, get) => ({
   editor: { ...initialEditorState },
   currentPipelineId: null,
   currentPipelineName: '新建 Pipeline',
@@ -373,4 +376,23 @@ export const usePipelineEditorStore = create<PipelineEditorState>((set, get) => 
       state.currentPipelineDescription
     );
   },
-}));
+    }),
+    {
+      name: 'xilian:pipelineEditor',
+      storage: createJSONStorage(() => localStorage),
+      // 只持久化编辑器核心状态，排除 UI 临时状态
+      partialize: (state) => ({
+        editor: {
+          nodes: state.editor.nodes,
+          connections: state.editor.connections,
+          zoom: state.editor.zoom,
+          panX: state.editor.panX,
+          panY: state.editor.panY,
+        },
+        currentPipelineId: state.currentPipelineId,
+        currentPipelineName: state.currentPipelineName,
+        currentPipelineDescription: state.currentPipelineDescription,
+      }),
+    }
+  )
+);

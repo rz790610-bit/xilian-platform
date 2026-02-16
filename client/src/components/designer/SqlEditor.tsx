@@ -4,6 +4,7 @@
  * Design: 上部编辑区(行号+语法高亮模拟) + 工具栏 + 下部结果面板 + 表列表侧栏
  */
 import { useState, useMemo } from "react";
+import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -44,7 +45,8 @@ export default function SqlEditor() {
     return `SELECT\n${cols},\n  COUNT(dk.id) AS kpi_count\nFROM asset_nodes an\nLEFT JOIN device_kpis dk ON an.code = dk.device_code\nWHERE an.status = 'active'\nGROUP BY an.id\nHAVING kpi_count > 0\nORDER BY kpi_count DESC\nLIMIT 20;`;
   }, [schema]);
 
-  const [sql, setSql] = useState(defaultSQL);
+  // SQL 语句持久化到 localStorage（防止刷新丢失）
+  const [sql, setSql] = useLocalStorage<string>('xilian:sqlEditor:sql', defaultSQL);
   const [executed, setExecuted] = useState(false);
   const [showOptimize, setShowOptimize] = useState(false);
   const [showSidebar, setShowSidebar] = useState(true);

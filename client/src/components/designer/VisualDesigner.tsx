@@ -3,7 +3,8 @@
  * V4.0: 接入 Schema Registry (64张表 × 11个域)，消除硬编码 Mock 数据
  * Design: 左侧模板面板(按域分组) + 中央画布(表卡片+字段编辑) + 右侧属性面板 + 底部SQL预览
  */
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
+import { useLocalStorage, useAutoSave } from "@/hooks/useLocalStorage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -80,20 +81,21 @@ export default function VisualDesigner() {
   const [templateSearch, setTemplateSearch] = useState("");
   const [expandedDomains, setExpandedDomains] = useState<Set<string>>(new Set(["base-config"]));
 
-  // Editor state
-  const [tableName, setTableName] = useState("new_table");
-  const [columns, setColumns] = useState<Column[]>([
+  // Editor state — 从 localStorage 恢复（防止意外刷新丢失编辑内容）
+  const defaultColumns: Column[] = [
     { name: "id", type: "BIGINT", length: "", nullable: false, primaryKey: true, autoIncrement: true, unique: false, defaultVal: "", comment: "主键" },
     { name: "name", type: "VARCHAR", length: "255", nullable: false, primaryKey: false, autoIncrement: false, unique: false, defaultVal: "", comment: "名称" },
     { name: "status", type: "TINYINT", length: "", nullable: false, primaryKey: false, autoIncrement: false, unique: false, defaultVal: "1", comment: "状态" },
     { name: "created_at", type: "DATETIME", length: "", nullable: false, primaryKey: false, autoIncrement: false, unique: false, defaultVal: "CURRENT_TIMESTAMP", comment: "创建时间" },
     { name: "updated_at", type: "DATETIME", length: "", nullable: true, primaryKey: false, autoIncrement: false, unique: false, defaultVal: "", comment: "更新时间" },
-  ]);
+  ];
+  const [tableName, setTableName] = useLocalStorage<string>('xilian:designer:tableName', 'new_table');
+  const [columns, setColumns] = useLocalStorage<Column[]>('xilian:designer:columns', defaultColumns);
   const [selectedCol, setSelectedCol] = useState<number>(0);
-  const [engine, setEngine] = useState("InnoDB");
-  const [charset, setCharset] = useState("utf8mb4");
-  const [collate, setCollate] = useState("utf8mb4_unicode_ci");
-  const [tableComment, setTableComment] = useState("");
+  const [engine, setEngine] = useLocalStorage<string>('xilian:designer:engine', 'InnoDB');
+  const [charset, setCharset] = useLocalStorage<string>('xilian:designer:charset', 'utf8mb4');
+  const [collate, setCollate] = useLocalStorage<string>('xilian:designer:collate', 'utf8mb4_unicode_ci');
+  const [tableComment, setTableComment] = useLocalStorage<string>('xilian:designer:comment', '');
   const [sqlExpanded, setSqlExpanded] = useState(true);
 
   // Filtered templates from Schema Registry
