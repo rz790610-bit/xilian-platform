@@ -1,0 +1,76 @@
+# ============================================================
+# 微服务通用 Dockerfile
+# 
+# 构建参数：
+#   SERVICE_NAME: device-service | algorithm-service
+#   SERVICE_PORT: 50051 | 50052
+#
+# 使用方式：
+#   docker build -f services/Dockerfile.service \
+#     --build-arg SERVICE_NAME=device-service \
+#     --build-arg SERVICE_PORT=50051 \
+#     -t xilian/device-service:latest .
+# ============================================================
+
+# Stage 1: 构建
+FROM node:22-alpine AS builder
+
+WORKDIR /app
+
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
+# 复制依赖文件
+COPY package.json pnpm-lock.yaml ./
+COPY patches/ ./patches/
+
+# 安装依赖
+RUN pnpm install --frozen-lockfile
+
+# 复制源代码
+COPY . .
+
+# 构建（TypeScript 编译）
+RUN pnpm build
+
+# Stage 2: 生产
+FROM node:22-alpine AS production
+
+ARG SERVICE_NAME
+ARG SERVICE_PORT=50051
+
+WORKDIR /app
+
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
+# 安装生产依赖
+COPY package.json pnpm-lock.yaml ./
+COPY patches/ ./patches/
+RUN pnpm install --frozen-lockfile --prod
+
+# 复制构建产物
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/services/${SERVICE_NAME}/proto ./services/${SERVICE_NAME}/proto
+COPY --from=builder /app/drizzle ./drizzle
+
+# 安全：非 root 用户
+RUN addgroup -g 1001 -S xilian && \
+    adduser -S xilian -u 1001 -G xilian
+
+USER xilian
+
+# 健康检查
+HEALTHCHECK --interval=15s --timeout=5s --start-period=30s --retries=3 \
+  CMD node -e "const grpc = require('@grpc/grpc-js'); \
+    const client = new grpc.Client('localhost:${SERVICE_PORT}', grpc.credentials.createInsecure()); \
+    client.getChannel().getConnectivityState(true); \
+    setTimeout(() => { \
+      const state = client.getChannel().getConnectivityState(false); \
+      process.exit(state === grpc.connectivityState.READY ? 0 : 1); \
+    }, 2000);"
+
+EXPOSE ${SERVICE_PORT}
+
+ENV NODE_ENV=production
+ENV SERVICE_NAME=${SERVICE_NAME}
+
+CMD ["node", "dist/services/${SERVICE_NAME}/src/server.js"]

@@ -1,0 +1,388 @@
+syntax = "proto3";
+
+package xilian.device.v1;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/struct.proto";
+import "google/protobuf/empty.proto";
+
+option java_multiple_files = true;
+option java_package = "io.xilian.device.v1";
+
+// ============================================================
+// Device Service — 设备域微服务 gRPC 接口
+// ============================================================
+// 
+// 职责：
+//   - 设备生命周期管理（注册/上线/下线/维护/退役）
+//   - 传感器配置与数据采集
+//   - 设备健康状态监控
+//   - 设备分组与标签管理
+//
+// 通信模式：
+//   - Unary RPC: CRUD 操作
+//   - Server Streaming: 实时传感器数据推送
+//   - 事件发布: 通过 Kafka 发布设备状态变更事件
+// ============================================================
+
+service DeviceService {
+  // ── 设备 CRUD ──
+  rpc CreateDevice(CreateDeviceRequest) returns (DeviceResponse);
+  rpc GetDevice(GetDeviceRequest) returns (DeviceResponse);
+  rpc ListDevices(ListDevicesRequest) returns (ListDevicesResponse);
+  rpc UpdateDevice(UpdateDeviceRequest) returns (DeviceResponse);
+  rpc DeleteDevice(DeleteDeviceRequest) returns (google.protobuf.Empty);
+  
+  // ── 设备生命周期 ──
+  rpc ActivateDevice(DeviceIdRequest) returns (DeviceResponse);
+  rpc DeactivateDevice(DeviceIdRequest) returns (DeviceResponse);
+  rpc SetMaintenanceMode(MaintenanceModeRequest) returns (DeviceResponse);
+  
+  // ── 批量操作 ──
+  rpc BatchCreateDevices(BatchCreateDevicesRequest) returns (BatchDeviceResponse);
+  rpc BatchUpdateStatus(BatchUpdateStatusRequest) returns (BatchDeviceResponse);
+  
+  // ── 传感器管理 ──
+  rpc CreateSensor(CreateSensorRequest) returns (SensorResponse);
+  rpc GetSensor(GetSensorRequest) returns (SensorResponse);
+  rpc ListSensors(ListSensorsRequest) returns (ListSensorsResponse);
+  rpc UpdateSensor(UpdateSensorRequest) returns (SensorResponse);
+  rpc DeleteSensor(DeleteSensorRequest) returns (google.protobuf.Empty);
+  
+  // ── 实时数据流 ──
+  rpc StreamSensorData(StreamSensorDataRequest) returns (stream SensorDataPoint);
+  rpc IngestSensorData(stream SensorDataPoint) returns (IngestSummary);
+  
+  // ── 设备健康 ──
+  rpc GetDeviceHealth(DeviceIdRequest) returns (DeviceHealthResponse);
+  rpc ListDeviceAlerts(ListDeviceAlertsRequest) returns (ListDeviceAlertsResponse);
+  
+  // ── 设备分组 ──
+  rpc CreateDeviceGroup(CreateDeviceGroupRequest) returns (DeviceGroupResponse);
+  rpc ListDeviceGroups(ListDeviceGroupsRequest) returns (ListDeviceGroupsResponse);
+  rpc AddDevicesToGroup(ModifyGroupMembersRequest) returns (DeviceGroupResponse);
+  rpc RemoveDevicesFromGroup(ModifyGroupMembersRequest) returns (DeviceGroupResponse);
+  
+  // ── 服务健康检查 ──
+  rpc HealthCheck(google.protobuf.Empty) returns (HealthCheckResponse);
+}
+
+// ============================================================
+// 消息定义
+// ============================================================
+
+// ── 通用 ──
+message DeviceIdRequest {
+  string device_id = 1;
+}
+
+message HealthCheckResponse {
+  string status = 1;           // SERVING | NOT_SERVING
+  string version = 2;
+  int64 uptime_seconds = 3;
+  map<string, string> checks = 4;  // db: ok, kafka: ok, redis: ok
+}
+
+// ── 设备 ──
+enum DeviceType {
+  DEVICE_TYPE_UNSPECIFIED = 0;
+  AGV = 1;
+  RTG = 2;
+  QC = 3;
+  ASC = 4;
+  CONVEYOR = 5;
+  PUMP = 6;
+  MOTOR = 7;
+  SENSOR_HUB = 8;
+  GATEWAY = 9;
+  PLC = 10;
+  ROBOT = 11;
+  CAMERA = 12;
+  RFID_READER = 13;
+  WEIGHBRIDGE = 14;
+  OTHER = 15;
+}
+
+enum DeviceStatus {
+  DEVICE_STATUS_UNSPECIFIED = 0;
+  ONLINE = 1;
+  OFFLINE = 2;
+  MAINTENANCE = 3;
+  ERROR = 4;
+  UNKNOWN = 5;
+}
+
+message DeviceMetadata {
+  string firmware = 1;
+  string ip_address = 2;
+  string mac_address = 3;
+  string protocol = 4;
+  repeated string tags = 5;
+  google.protobuf.Struct custom_fields = 6;
+}
+
+message Device {
+  string id = 1;
+  string name = 2;
+  DeviceType type = 3;
+  DeviceStatus status = 4;
+  string location = 5;
+  string model = 6;
+  string manufacturer = 7;
+  string serial_number = 8;
+  DeviceMetadata metadata = 9;
+  google.protobuf.Timestamp created_at = 10;
+  google.protobuf.Timestamp updated_at = 11;
+  google.protobuf.Timestamp last_seen_at = 12;
+}
+
+message DeviceResponse {
+  Device device = 1;
+}
+
+message CreateDeviceRequest {
+  string name = 1;
+  DeviceType type = 2;
+  string location = 3;
+  string model = 4;
+  string manufacturer = 5;
+  string serial_number = 6;
+  DeviceMetadata metadata = 7;
+}
+
+message GetDeviceRequest {
+  string device_id = 1;
+}
+
+message ListDevicesRequest {
+  int32 page = 1;
+  int32 page_size = 2;
+  DeviceType type_filter = 3;
+  DeviceStatus status_filter = 4;
+  string location_filter = 5;
+  string search = 6;
+  string sort_by = 7;
+  string sort_order = 8;
+}
+
+message ListDevicesResponse {
+  repeated Device devices = 1;
+  int32 total = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+}
+
+message UpdateDeviceRequest {
+  string device_id = 1;
+  optional string name = 2;
+  optional DeviceType type = 3;
+  optional string location = 4;
+  optional string model = 5;
+  optional DeviceMetadata metadata = 6;
+}
+
+message DeleteDeviceRequest {
+  string device_id = 1;
+  bool force = 2;  // 强制删除（包括关联传感器）
+}
+
+message MaintenanceModeRequest {
+  string device_id = 1;
+  bool enabled = 2;
+  string reason = 3;
+  google.protobuf.Timestamp scheduled_end = 4;
+}
+
+message BatchCreateDevicesRequest {
+  repeated CreateDeviceRequest devices = 1;
+}
+
+message BatchUpdateStatusRequest {
+  repeated string device_ids = 1;
+  DeviceStatus status = 2;
+  string reason = 3;
+}
+
+message BatchDeviceResponse {
+  int32 success_count = 1;
+  int32 failure_count = 2;
+  repeated BatchError errors = 3;
+}
+
+message BatchError {
+  string device_id = 1;
+  string error_message = 2;
+}
+
+// ── 传感器 ──
+enum SensorType {
+  SENSOR_TYPE_UNSPECIFIED = 0;
+  VIBRATION = 1;
+  TEMPERATURE = 2;
+  PRESSURE = 3;
+  CURRENT = 4;
+  VOLTAGE = 5;
+  SPEED = 6;
+  FLOW = 7;
+  LEVEL = 8;
+  HUMIDITY = 9;
+  ACOUSTIC = 10;
+  DISPLACEMENT = 11;
+  STRAIN = 12;
+  ACCELERATION = 13;
+}
+
+message Sensor {
+  string id = 1;
+  string device_id = 2;
+  string name = 3;
+  SensorType type = 4;
+  string unit = 5;
+  double sampling_rate_hz = 6;
+  double min_value = 7;
+  double max_value = 8;
+  google.protobuf.Struct calibration = 9;
+  bool enabled = 10;
+  google.protobuf.Timestamp created_at = 11;
+}
+
+message SensorResponse {
+  Sensor sensor = 1;
+}
+
+message CreateSensorRequest {
+  string device_id = 1;
+  string name = 2;
+  SensorType type = 3;
+  string unit = 4;
+  double sampling_rate_hz = 5;
+  double min_value = 6;
+  double max_value = 7;
+}
+
+message GetSensorRequest {
+  string sensor_id = 1;
+}
+
+message ListSensorsRequest {
+  string device_id = 1;
+  int32 page = 2;
+  int32 page_size = 3;
+  SensorType type_filter = 4;
+}
+
+message ListSensorsResponse {
+  repeated Sensor sensors = 1;
+  int32 total = 2;
+}
+
+message UpdateSensorRequest {
+  string sensor_id = 1;
+  optional string name = 2;
+  optional double sampling_rate_hz = 3;
+  optional bool enabled = 4;
+}
+
+message DeleteSensorRequest {
+  string sensor_id = 1;
+}
+
+// ── 实时数据 ──
+message StreamSensorDataRequest {
+  repeated string sensor_ids = 1;
+  google.protobuf.Timestamp start_time = 2;
+  bool real_time = 3;  // true = 持续推送新数据
+}
+
+message SensorDataPoint {
+  string sensor_id = 1;
+  string device_id = 2;
+  double value = 3;
+  google.protobuf.Timestamp timestamp = 4;
+  int32 quality = 5;  // 0-100 数据质量分
+  map<string, double> extra_channels = 6;  // 多通道数据
+}
+
+message IngestSummary {
+  int64 total_points = 1;
+  int64 accepted_points = 2;
+  int64 rejected_points = 3;
+  double duration_ms = 4;
+}
+
+// ── 设备健康 ──
+message DeviceHealthResponse {
+  string device_id = 1;
+  double health_score = 2;  // 0-100
+  string status = 3;
+  repeated HealthMetric metrics = 4;
+  google.protobuf.Timestamp last_check = 5;
+}
+
+message HealthMetric {
+  string name = 1;
+  double value = 2;
+  string unit = 3;
+  string status = 4;  // normal | warning | critical
+  double threshold_warning = 5;
+  double threshold_critical = 6;
+}
+
+message ListDeviceAlertsRequest {
+  string device_id = 1;
+  int32 page = 2;
+  int32 page_size = 3;
+  string severity_filter = 4;
+}
+
+message DeviceAlert {
+  string id = 1;
+  string device_id = 2;
+  string sensor_id = 3;
+  string severity = 4;
+  string message = 5;
+  google.protobuf.Struct details = 6;
+  bool acknowledged = 7;
+  google.protobuf.Timestamp created_at = 8;
+}
+
+message ListDeviceAlertsResponse {
+  repeated DeviceAlert alerts = 1;
+  int32 total = 2;
+}
+
+// ── 设备分组 ──
+message DeviceGroup {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  repeated string device_ids = 4;
+  map<string, string> labels = 5;
+  google.protobuf.Timestamp created_at = 6;
+}
+
+message DeviceGroupResponse {
+  DeviceGroup group = 1;
+}
+
+message CreateDeviceGroupRequest {
+  string name = 1;
+  string description = 2;
+  repeated string device_ids = 3;
+  map<string, string> labels = 4;
+}
+
+message ListDeviceGroupsRequest {
+  int32 page = 1;
+  int32 page_size = 2;
+}
+
+message ListDeviceGroupsResponse {
+  repeated DeviceGroup groups = 1;
+  int32 total = 2;
+}
+
+message ModifyGroupMembersRequest {
+  string group_id = 1;
+  repeated string device_ids = 2;
+}
