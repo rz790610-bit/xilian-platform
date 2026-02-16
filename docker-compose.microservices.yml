@@ -533,7 +533,7 @@ services:
       - '--config.file=/etc/alertmanager/alertmanager.yml'
       - '--storage.path=/alertmanager'
     ports:
-      - "9093:9093"
+      - "9094:9093"   # 宿主机 9094 → 容器 9093（避免与 Kafka EXTERNAL 9093 冲突）
     volumes:
       - ./docker/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
       - alertmanager-data:/alertmanager

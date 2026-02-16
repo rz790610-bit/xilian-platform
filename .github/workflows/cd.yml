@@ -1,0 +1,74 @@
+# ============================================================
+# 西联平台 CD Pipeline — ArgoCD GitOps 自动部署
+# ============================================================
+name: CD
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ${{ github.repository_owner }}/xilian
+
+jobs:
+  # ── 部署到 Staging ──
+  deploy-staging:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Update Helm values for staging
+        run: |
+          cd helm/xilian-platform
+          TAG="${GITHUB_SHA::7}"
+          for svc in apiGateway deviceService algorithmService dataPipeline knowledgeService monitoringService infraService; do
+            yq eval ".${svc}.image.tag = \"${TAG}\"" -i values-staging.yaml 2>/dev/null || true
+          done
+
+      - name: Commit and push to deploy branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -B deploy/staging
+          git add -A
+          git commit -m "deploy(staging): ${GITHUB_SHA::7}" || true
+          git push origin deploy/staging --force
+
+  # ── 部署到 Production（需要 tag）──
+  deploy-production:
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract version
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Update Helm values for production
+        run: |
+          cd helm/xilian-platform
+          TAG="${{ steps.version.outputs.VERSION }}"
+          for svc in apiGateway deviceService algorithmService dataPipeline knowledgeService monitoringService infraService; do
+            yq eval ".${svc}.image.tag = \"${TAG}\"" -i values-prod.yaml 2>/dev/null || true
+          done
+
+      - name: Commit and push to deploy branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -B deploy/production
+          git add -A
+          git commit -m "deploy(prod): v${{ steps.version.outputs.VERSION }}" || true
+          git push origin deploy/production --force
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          generate_release_notes: true
+          draft: false
