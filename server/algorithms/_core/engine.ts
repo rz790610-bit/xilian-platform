@@ -19,6 +19,7 @@ import type {
   AlgorithmStatus,
 } from './types';
 import { AlgorithmDependencies, DefaultDependencies } from './dependencies';
+import { DspWorkerPool } from './workerPool';
 import { createModuleLogger } from '../../core/logger';
 const log = createModuleLogger('engine');
 
@@ -146,9 +147,14 @@ export class AlgorithmEngine {
   private dependencies: AlgorithmDependencies;
   /** 最大历史记录数 */
   private maxHistorySize = 1000;
+  /** Worker 线程池（延迟初始化） */
+  private workerPool: DspWorkerPool | null = null;
+  /** 是否启用 Worker 线程池 */
+  private workerPoolEnabled: boolean;
 
   private constructor() {
     this.dependencies = new DefaultDependencies();
+    this.workerPoolEnabled = process.env.DSP_WORKER_POOL !== 'false';
   }
 
   static getInstance(): AlgorithmEngine {
@@ -291,13 +297,28 @@ export class AlgorithmEngine {
       // 注入依赖到 input context
       const enrichedInput = await this.enrichInput(input, fullContext);
 
-      // 执行（带超时）
-      const output = await this.executeWithTimeout(
-        registration.executor,
-        enrichedInput,
-        mergedConfig,
-        fullContext.timeout!
-      );
+      // 执行（带超时）— 大数据量自动路由到 Worker 线程
+      const dataLength = this.getInputDataLength(enrichedInput);
+      const shouldUseWorker = this.workerPoolEnabled
+        && DspWorkerPool.shouldOffload(algorithmId, dataLength);
+
+      let output: AlgorithmOutput;
+      if (shouldUseWorker) {
+        log.debug(`[AlgorithmEngine] Offloading ${algorithmId} (${dataLength} points) to Worker thread`);
+        output = await this.executeInWorker(
+          registration,
+          enrichedInput,
+          mergedConfig,
+          fullContext
+        );
+      } else {
+        output = await this.executeWithTimeout(
+          registration.executor,
+          enrichedInput,
+          mergedConfig,
+          fullContext.timeout!
+        );
+      }
 
       // 更新记录
       record.status = output.status;
@@ -512,6 +533,93 @@ export class AlgorithmEngine {
     return enriched;
   }
 
+  /**
+   * 在 Worker 线程中执行算法
+   * 将算法输入序列化后发送到 Worker 线程池
+   */
+  private async executeInWorker(
+    registration: AlgorithmRegistration,
+    input: AlgorithmInput,
+    config: Record<string, any>,
+    context: ExecutionContext
+  ): Promise<AlgorithmOutput> {
+    if (!this.workerPool) {
+      this.workerPool = DspWorkerPool.getInstance();
+    }
+
+    const startTime = Date.now();
+    try {
+      // 将信号数据提取为 Worker 可序列化的格式
+      const signalData = this.extractSignalData(input);
+      const result = await this.workerPool.execute(
+        registration.executor.id,
+        {
+          signal: signalData,
+          sampleRate: input.sampleRate,
+          equipment: input.equipment,
+          operatingCondition: input.operatingCondition,
+          config,
+        },
+        {
+          timeout: context.timeout,
+          priority: context.priority,
+        }
+      );
+
+      // Worker 返回的可能是原始 DSP 结果，需要包装为 AlgorithmOutput
+      if (result && typeof result === 'object' && 'algorithmId' in result) {
+        return result as AlgorithmOutput;
+      }
+
+      // 如果 Worker 返回的是原始数据，回退到主线程执行完整算法
+      // （Worker 主要加速 DSP 核心计算，完整算法逻辑仍在主线程）
+      return await this.executeWithTimeout(
+        registration.executor,
+        input,
+        config,
+        context.timeout!
+      );
+
+    } catch (err: any) {
+      log.warn(`[AlgorithmEngine] Worker execution failed, falling back to main thread: ${err.message}`);
+      // Worker 失败时回退到主线程执行
+      return await this.executeWithTimeout(
+        registration.executor,
+        input,
+        config,
+        context.timeout!
+      );
+    }
+  }
+
+  /**
+   * 从 AlgorithmInput 中提取信号数据长度
+   */
+  private getInputDataLength(input: AlgorithmInput): number {
+    if (Array.isArray(input.data)) {
+      return Array.isArray(input.data[0])
+        ? (input.data as number[][]).reduce((sum, ch) => sum + ch.length, 0)
+        : input.data.length;
+    }
+    if (typeof input.data === 'object') {
+      return Object.values(input.data).reduce((sum, arr) => sum + arr.length, 0);
+    }
+    return 0;
+  }
+
+  /**
+   * 提取信号数据为 Worker 可序列化的 number[]
+   */
+  private extractSignalData(input: AlgorithmInput): number[] {
+    if (Array.isArray(input.data)) {
+      return Array.isArray(input.data[0])
+        ? (input.data as number[][])[0]
+        : input.data as number[];
+    }
+    const keys = Object.keys(input.data);
+    return keys.length > 0 ? (input.data as Record<string, number[]>)[keys[0]] : [];
+  }
+
   private async executeWithTimeout(
     executor: IAlgorithmExecutor,
     input: AlgorithmInput,
@@ -562,13 +670,25 @@ export class AlgorithmEngine {
     categories: string[];
     executionHistory: number;
     cacheEnabled: boolean;
+    workerPool: ReturnType<DspWorkerPool['getStats']> | null;
   } {
     return {
       registeredAlgorithms: this.registry.size,
       categories: this.getCategories(),
       executionHistory: this.executionHistory.length,
       cacheEnabled: true,
+      workerPool: this.workerPool ? this.workerPool.getStats() : null,
     };
+  }
+
+  /**
+   * 优雅关闭引擎（包括 Worker 线程池）
+   */
+  async shutdown(): Promise<void> {
+    if (this.workerPool) {
+      await this.workerPool.shutdown();
+      this.workerPool = null;
+    }
   }
 }
 
