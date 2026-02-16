@@ -40,14 +40,8 @@ export interface AlertData {
   labels: Record<string, string>;
 }
 
-export interface ServiceHealth {
-  name: string;
-  status: 'healthy' | 'degraded' | 'unhealthy';
-  latencyMs: number;
-  errorRate: number;
-  requestRate: number;
-  lastCheck: Date;
-}
+// ServiceHealth 统一使用 core/types/domain.ts 中的定义
+import type { ServiceHealth } from '../core/types/domain';
 
 export interface ObservabilityDashboard {
   metrics: {
@@ -415,7 +409,7 @@ export class EnhancedObservabilityService {
     const logsPerMinute = totalLogs / 60;
 
     // 计算追踪每分钟数
-    const tracesPerMinute = serviceHealth.reduce((sum, s) => sum + s.requestRate, 0);
+    const tracesPerMinute = serviceHealth.reduce((sum, s) => sum + (s.requestRate ?? 0), 0);
 
     // 获取最近追踪
     let recentTraces: TraceData[] = [];
