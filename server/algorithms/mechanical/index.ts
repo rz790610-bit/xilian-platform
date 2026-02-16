@@ -46,14 +46,41 @@ function createOutput(
 
 function getSignalData(input: AlgorithmInput): number[] {
   if (Array.isArray(input.data)) {
+    if (input.data.length === 0) return [];
     if (Array.isArray(input.data[0])) {
-      return (input.data as number[][])[0];
+      // 多列数据 (number[][])：每行是 [col0, col1, ...]
+      // 优先取最后一列（通常第一列是时间戳/序号，最后列是信号值）
+      // 如果只有一列，取第一列
+      const rows = input.data as number[][];
+      const numCols = rows[0].length;
+      // 启发式：如果第一列是单调递增的（时间戳/序号），取第二列或最后列
+      if (numCols >= 2) {
+        const col0 = rows.map(r => r[0]);
+        let isMonotonic = true;
+        for (let i = 1; i < Math.min(col0.length, 100); i++) {
+          if (col0[i] <= col0[i - 1]) { isMonotonic = false; break; }
+        }
+        if (isMonotonic) {
+          // 第一列是时间戳/序号，取第二列（索引1）作为信号
+          return rows.map(r => r[1]);
+        }
+      }
+      // 否则取第一列
+      return rows.map(r => r[0]);
     }
     return input.data as number[];
   }
-  const keys = Object.keys(input.data);
-  if (keys.length > 0) {
-    return (input.data as Record<string, number[]>)[keys[0]];
+  if (typeof input.data === 'object' && input.data !== null) {
+    const keys = Object.keys(input.data);
+    if (keys.length > 0) {
+      // 优先查找常见信号列名
+      const signalKeys = ['amplitude', 'signal', 'vibration', 'value', 'data', 'y', 'acc', 'velocity'];
+      const matchedKey = signalKeys.find(sk => keys.some(k => k.toLowerCase().includes(sk)));
+      const targetKey = matchedKey
+        ? keys.find(k => k.toLowerCase().includes(matchedKey))!
+        : keys[keys.length > 1 ? 1 : 0]; // 多列时跳过第一列（可能是时间戳）
+      return (input.data as Record<string, number[]>)[targetKey];
+    }
   }
   return [];
 }

@@ -666,7 +666,7 @@ class AlgorithmService {
 
       switch (algoDef.implType) {
         case 'builtin':
-          output = await this.executeBuiltin(algoDef.implRef, inputData, mergedConfig);
+          output = await this.executeBuiltin(algoDef.implRef, inputData, mergedConfig, context);
           break;
         case 'pipeline_node':
           output = await this.executePipelineNode(algoDef.implRef, inputData, mergedConfig);
@@ -810,7 +810,8 @@ class AlgorithmService {
   private async executeBuiltin(
     implRef: string | null,
     inputData: Record<string, unknown>,
-    config: Record<string, unknown>
+    config: Record<string, unknown>,
+    context?: { trigger?: string; deviceContext?: any }
   ): Promise<Record<string, unknown>> {
     if (!implRef) throw new Error('implRef is required for builtin algorithms');
 
@@ -838,7 +839,9 @@ class AlgorithmService {
             operatingCondition: inputData.operatingCondition as any,
             context: inputData.context as Record<string, any> | undefined,
           };
-          const output = await engine.execute(algoId, algorithmInput, config as Record<string, any>);
+          const output = await engine.execute(algoId, algorithmInput, config as Record<string, any>, {
+            trigger: (context?.trigger as any) || 'manual',
+          });
           return output as unknown as Record<string, unknown>;
         }
       }

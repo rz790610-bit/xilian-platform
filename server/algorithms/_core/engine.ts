@@ -38,6 +38,8 @@ export interface ExecutionContext {
   useCache?: boolean;
   /** 优先级 (1-10, 1最高) */
   priority?: number;
+  /** 触发方式 */
+  trigger?: 'manual' | 'scheduled' | 'realtime' | 'ab_test';
   /** 回调 */
   onProgress?: (progress: number, message: string) => void;
 }
@@ -244,7 +246,7 @@ export class AlgorithmEngine {
     const fullContext: ExecutionContext = {
       executionId,
       timeout: 60000,
-      useCache: true,
+      useCache: context?.trigger === 'manual' ? false : true, // 手动执行不使用缓存，确保每次都用新数据计算
       priority: 5,
       ...context,
     };

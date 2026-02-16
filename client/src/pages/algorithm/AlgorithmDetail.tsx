@@ -56,7 +56,7 @@ function extractFields(schema: any): any[] {
 }
 
 /** 解析 CSV 文本为数值数组 */
-function parseCSV(text: string): { data: number[] | number[][]; headers: string[]; rowCount: number; colCount: number; preview: string[][]; stats?: { min: number; max: number; mean: number; std: number } } {
+function parseCSV(text: string): { data: number[] | number[][]; headers: string[]; rowCount: number; colCount: number; preview: string[][]; stats?: { min: number; max: number; mean: number; std: number }; detectedTimestampCol?: string } {
   const lines = text.trim().split(/\r?\n/).filter(l => l.trim());
   if (lines.length === 0) return { data: [], headers: [], rowCount: 0, colCount: 0, preview: [] };
 
@@ -88,6 +88,36 @@ function parseCSV(text: string): { data: number[] | number[][]; headers: string[
     const std = Math.sqrt(variance);
     return { data: flat, headers, rowCount: flat.length, colCount, preview, stats: { min, max, mean, std } };
   }
+
+  // 多列 → 智能提取信号列
+  // 检测第一列是否为单调递增（时间戳/序号），如果是则取第二列作为信号
+  if (colCount >= 2) {
+    const col0 = numericRows.map(r => r[0]);
+    let isMonotonic = true;
+    for (let i = 1; i < Math.min(col0.length, 100); i++) {
+      if (col0[i] <= col0[i - 1]) { isMonotonic = false; break; }
+    }
+    if (isMonotonic) {
+      // 第一列是时间戳/序号，取第二列作为信号数据
+      const signalCol = numericRows.map(r => r[1]);
+      const min = Math.min(...signalCol.slice(0, 10000));
+      const max = Math.max(...signalCol.slice(0, 10000));
+      const sum = signalCol.reduce((a, b) => a + b, 0);
+      const mean = sum / signalCol.length;
+      const variance = signalCol.slice(0, 10000).reduce((a, b) => a + (b - mean) ** 2, 0) / Math.min(signalCol.length, 10000);
+      const std = Math.sqrt(variance);
+      return {
+        data: signalCol,
+        headers: [headers[1]],
+        rowCount: signalCol.length,
+        colCount: 1,
+        preview,
+        stats: { min, max, mean, std },
+        detectedTimestampCol: headers[0],
+      };
+    }
+  }
+
   return { data: numericRows, headers, rowCount: numericRows.length, colCount, preview };
 }
 
@@ -253,7 +283,7 @@ function AlgorithmTestPanel({ algo, onClose }: { algo: any; onClose: () => void 
           setParsedData({ inputData, summary, fileName: file.name, fileSize: file.size });
         } else {
           // CSV / TXT / TSV
-          const { data, headers, rowCount, colCount, preview, stats } = parseCSV(text);
+          const { data, headers, rowCount, colCount, preview, stats, detectedTimestampCol } = parseCSV(text);
           const inputData: Record<string, any> = { data };
           // 尝试从文件名提取采样率（格式如 ..._12800_51200_...）
           const srMatch = file.name.match(/(\d{3,6})_(\d{3,6})_/);
@@ -267,7 +297,7 @@ function AlgorithmTestPanel({ algo, onClose }: { algo: any; onClose: () => void 
           const sizeStr = file.size > 1024 * 1024 ? `${(file.size / 1024 / 1024).toFixed(1)} MB` : `${(file.size / 1024).toFixed(1)} KB`;
           setParsedData({
             inputData,
-            summary: `${rowCount.toLocaleString()} 采样点 · ${colCount} 通道 · ${sizeStr}${stats ? ` · 范围 [${stats.min.toFixed(1)}, ${stats.max.toFixed(1)}]` : ''}`,
+            summary: `${rowCount.toLocaleString()} 采样点 · ${colCount} 通道 · ${sizeStr}${stats ? ` · 范围 [${stats.min.toFixed(1)}, ${stats.max.toFixed(1)}]` : ''}${detectedTimestampCol ? ` · 已跳过时间列"${detectedTimestampCol}"` : ''}`,
             preview,
             stats,
             fileName: file.name,
