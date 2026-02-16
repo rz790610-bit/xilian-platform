@@ -618,6 +618,184 @@ services:
     networks:
       - portai-network
 
+  # ==================== Apache Flink (Streaming) ====================
+  # Profile: bigdata — 仅在 docker compose --profile bigdata up 时启动
+  flink-jobmanager:
+    image: flink:1.18.1-scala_2.12-java11
+    container_name: xilian-flink-jobmanager
+    restart: unless-stopped
+    profiles: ["bigdata"]
+    ports:
+      - "${FLINK_JOBMANAGER_PORT:-8081}:8081"   # Web UI
+      - "${FLINK_RPC_PORT:-6123}:6123"           # RPC
+    environment:
+      - FLINK_PROPERTIES=
+          jobmanager.rpc.address: flink-jobmanager
+          jobmanager.rpc.port: 6123
+          jobmanager.memory.process.size: 1600m
+          state.backend: rocksdb
+          state.checkpoints.dir: file:///opt/flink/checkpoints
+          state.savepoints.dir: file:///opt/flink/savepoints
+          execution.checkpointing.interval: 60000
+          execution.checkpointing.mode: EXACTLY_ONCE
+          rest.flamegraph.enabled: true
+          metrics.reporters: prom
+          metrics.reporter.prom.factory.class: org.apache.flink.metrics.prometheus.PrometheusReporterFactory
+          metrics.reporter.prom.port: 9249
+    volumes:
+      - flink_checkpoints:/opt/flink/checkpoints
+      - flink_savepoints:/opt/flink/savepoints
+      - ./docker/flink/jobs:/opt/flink/usrlib
+    networks:
+      - portai-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "-O", "/dev/null", "http://localhost:8081/overview"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  flink-taskmanager:
+    image: flink:1.18.1-scala_2.12-java11
+    container_name: xilian-flink-taskmanager
+    restart: unless-stopped
+    profiles: ["bigdata"]
+    depends_on:
+      flink-jobmanager:
+        condition: service_healthy
+    environment:
+      - FLINK_PROPERTIES=
+          jobmanager.rpc.address: flink-jobmanager
+          taskmanager.numberOfTaskSlots: 4
+          taskmanager.memory.process.size: 2048m
+          taskmanager.memory.managed.fraction: 0.4
+          metrics.reporters: prom
+          metrics.reporter.prom.factory.class: org.apache.flink.metrics.prometheus.PrometheusReporterFactory
+          metrics.reporter.prom.port: 9249
+    volumes:
+      - flink_checkpoints:/opt/flink/checkpoints
+      - ./docker/flink/jobs:/opt/flink/usrlib
+    networks:
+      - portai-network
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2560M
+        reservations:
+          cpus: '0.5'
+          memory: 1024M
+
+  # ==================== Apache Airflow (Orchestration) ====================
+  # Profile: bigdata — 仅在 docker compose --profile bigdata up 时启动
+  airflow-postgres:
+    image: postgres:16-alpine
+    container_name: xilian-airflow-postgres
+    restart: unless-stopped
+    profiles: ["bigdata"]
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: ${AIRFLOW_DB_PASSWORD:-airflow_secret}
+      POSTGRES_DB: airflow
+    volumes:
+      - airflow_postgres_data:/var/lib/postgresql/data
+    networks:
+      - portai-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U airflow"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  airflow-init:
+    image: apache/airflow:2.8.3-python3.11
+    container_name: xilian-airflow-init
+    profiles: ["bigdata"]
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        airflow db init
+        airflow users create \
+          --username admin \
+          --password $${AIRFLOW_ADMIN_PASSWORD:-admin} \
+          --firstname Admin \
+          --lastname User \
+          --role Admin \
+          --email admin@xilian.local
+        echo "Airflow initialized successfully"
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:${AIRFLOW_DB_PASSWORD:-airflow_secret}@airflow-postgres:5432/airflow
+      AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY:-ZmDfcTF7_60GrrY167zsiPd67pEvs0aGOv2oasOM1Pg=}
+      AIRFLOW_ADMIN_PASSWORD: ${AIRFLOW_ADMIN_PASSWORD:-admin}
+    depends_on:
+      airflow-postgres:
+        condition: service_healthy
+    networks:
+      - portai-network
+
+  airflow-webserver:
+    image: apache/airflow:2.8.3-python3.11
+    container_name: xilian-airflow-webserver
+    restart: unless-stopped
+    profiles: ["bigdata"]
+    command: webserver
+    ports:
+      - "${AIRFLOW_WEBSERVER_PORT:-8080}:8080"
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:${AIRFLOW_DB_PASSWORD:-airflow_secret}@airflow-postgres:5432/airflow
+      AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY:-ZmDfcTF7_60GrrY167zsiPd67pEvs0aGOv2oasOM1Pg=}
+      AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "true"
+      AIRFLOW__WEBSERVER__RBAC: "true"
+      AIRFLOW__API__AUTH_BACKENDS: airflow.api.auth.backend.basic_auth
+      AIRFLOW__METRICS__STATSD_ON: "true"
+      AIRFLOW__METRICS__STATSD_HOST: statsd-exporter
+      AIRFLOW__METRICS__STATSD_PORT: "9125"
+      AIRFLOW__METRICS__STATSD_PREFIX: airflow
+    volumes:
+      - ./docker/airflow/dags:/opt/airflow/dags
+      - ./docker/airflow/plugins:/opt/airflow/plugins
+      - airflow_logs:/opt/airflow/logs
+    depends_on:
+      airflow-postgres:
+        condition: service_healthy
+    networks:
+      - portai-network
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  airflow-scheduler:
+    image: apache/airflow:2.8.3-python3.11
+    container_name: xilian-airflow-scheduler
+    restart: unless-stopped
+    profiles: ["bigdata"]
+    command: scheduler
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:${AIRFLOW_DB_PASSWORD:-airflow_secret}@airflow-postgres:5432/airflow
+      AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY:-ZmDfcTF7_60GrrY167zsiPd67pEvs0aGOv2oasOM1Pg=}
+    volumes:
+      - ./docker/airflow/dags:/opt/airflow/dags
+      - ./docker/airflow/plugins:/opt/airflow/plugins
+      - airflow_logs:/opt/airflow/logs
+    depends_on:
+      airflow-postgres:
+        condition: service_healthy
+    networks:
+      - portai-network
+    healthcheck:
+      test: ["CMD-SHELL", "airflow jobs check --job-type SchedulerJob --hostname $(hostname)"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
 # ==================== Networks ====================
 networks:
   portai-network:
@@ -654,3 +832,11 @@ volumes:
     name: xilian-jaeger-data
   elasticsearch_data:
     name: xilian-elasticsearch-data
+  flink_checkpoints:
+    name: xilian-flink-checkpoints
+  flink_savepoints:
+    name: xilian-flink-savepoints
+  airflow_postgres_data:
+    name: xilian-airflow-postgres-data
+  airflow_logs:
+    name: xilian-airflow-logs
