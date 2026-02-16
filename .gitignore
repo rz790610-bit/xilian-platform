@@ -117,3 +117,6 @@ xilian-platform-deploy.*
 .gitkeep
 .manus-logs/
 client/public/__manus__/
+.github/workflows/
+__pycache__/
+*.pyc
