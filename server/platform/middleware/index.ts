@@ -84,3 +84,11 @@ export type {
   AdaptiveBackpressureConfig,
   KafkaBackpressureConfig,
 } from './backpressure';
+
+// 审计日志
+export {
+  createAuditLogMiddleware,
+  flushAuditLogs,
+  shutdownAuditLog,
+  writeAuditLog,
+} from './auditLog';

@@ -2,6 +2,7 @@ import { NOT_ADMIN_ERR_MSG, UNAUTHED_ERR_MSG } from '@shared/const';
 import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import type { TrpcContext } from "./context";
+import { createAuditLogMiddleware } from '../platform/middleware/auditLog';
 
 const t = initTRPC.context<TrpcContext>().create({
   transformer: superjson,
@@ -25,7 +26,10 @@ const requireUser = t.middleware(async opts => {
   });
 });
 
-export const protectedProcedure = t.procedure.use(requireUser);
+// 审计日志 middleware（拦截所有 mutation，异步写入 audit_logs 表）
+const auditLog = t.middleware(createAuditLogMiddleware());
+
+export const protectedProcedure = t.procedure.use(requireUser).use(auditLog);
 
 export const adminProcedure = t.procedure.use(
   t.middleware(async opts => {
@@ -42,4 +46,4 @@ export const adminProcedure = t.procedure.use(
       },
     });
   }),
-);
+).use(auditLog);

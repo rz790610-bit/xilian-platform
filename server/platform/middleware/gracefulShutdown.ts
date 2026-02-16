@@ -290,6 +290,14 @@ export async function registerBuiltinShutdownHooks(): Promise<void> {
     } catch { /* 忽略 */ }
   }, 40);
 
+  // 优先级 45: 审计日志刷新（在数据库关闭前刷新队列）
+  gracefulShutdown.addHook('audit-log', async () => {
+    try {
+      const { shutdownAuditLog } = await import('./auditLog');
+      await shutdownAuditLog();
+    } catch { /* 忽略 */ }
+  }, 45);
+
   // 优先级 50: 数据库连接
   gracefulShutdown.addHook('database', async () => {
     try {
