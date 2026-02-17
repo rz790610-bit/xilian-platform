@@ -60,6 +60,22 @@ export const navigationConfig: NavItem[] = [
     ]
   },
 
+  // ━━━ 基础设置 ━━━
+  {
+    id: 'basic-settings',
+    label: '基础设置',
+    icon: '⚙️',
+    section: '基础设置',
+    children: [
+      { id: 'basic-dict', label: '字典管理', icon: '📖', path: '/basic/dictionary' },
+      { id: 'basic-org', label: '组织机构', icon: '🏢', path: '/basic/organization' },
+      { id: 'basic-device', label: '设备管理', icon: '⚙️', path: '/basic/device' },
+      { id: 'basic-mechanism', label: '机构管理', icon: '🔧', path: '/basic/mechanism' },
+      { id: 'basic-component', label: '部件管理', icon: '📦', path: '/basic/component' },
+      { id: 'basic-parts', label: '零件库', icon: '🔩', path: '/basic/parts' },
+    ]
+  },
+
   // ━━━ 智能引擎 ━━━
   {
     id: 'model-center',

@@ -229,6 +229,48 @@ const configRouter = router({
     .input(z.object({ ruleCode: z.string() }))
     .mutation(({ input }) => codeRuleService.delete(input.ruleCode)),
 
+  generateCode: publicProcedure
+    .input(z.object({
+      ruleCode: z.string(),
+      category: z.string().optional(),
+      deviceRef: z.string().optional(),
+      nodeRef: z.string().optional(),
+      measurementType: z.string().optional(),
+      customSegments: z.record(z.string(), z.string()).optional(),
+    }))
+    .mutation(({ input }) => {
+      const { ruleCode, ...rest } = input;
+      const context: { category?: string; deviceRef?: string; nodeRef?: string; measurementType?: string; customSegments?: Record<string, string> } = {
+        category: rest.category,
+        deviceRef: rest.deviceRef,
+        nodeRef: rest.nodeRef,
+        measurementType: rest.measurementType,
+        customSegments: rest.customSegments as Record<string, string> | undefined,
+      };
+      return codeRuleService.generateCode(ruleCode, context);
+    }),
+
+  previewCode: publicProcedure
+    .input(z.object({
+      ruleCode: z.string(),
+      category: z.string().optional(),
+      deviceRef: z.string().optional(),
+      nodeRef: z.string().optional(),
+      measurementType: z.string().optional(),
+      customSegments: z.record(z.string(), z.string()).optional(),
+    }))
+    .query(({ input }) => {
+      const { ruleCode, ...rest } = input;
+      const context: { category?: string; deviceRef?: string; nodeRef?: string; measurementType?: string; customSegments?: Record<string, string> } = {
+        category: rest.category,
+        deviceRef: rest.deviceRef,
+        nodeRef: rest.nodeRef,
+        measurementType: rest.measurementType,
+        customSegments: rest.customSegments as Record<string, string> | undefined,
+      };
+      return codeRuleService.previewCode(ruleCode, context);
+    }),
+
   // --- 节点模板 ---
   listNodeTemplates: publicProcedure
     .input(z.object({ level: z.number().optional(), nodeType: z.string().optional() }).optional())

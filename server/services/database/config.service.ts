@@ -69,6 +69,167 @@ export const codeRuleService = {
       .where(eq(baseCodeRules.ruleCode, ruleCode));
     return { success: true };
   },
+
+  /**
+   * 根据编码规则自动生成编码
+   * 解析 segments JSON → 拼接各段 → 自增序列号 → 回写 currentSequences
+   * @param ruleCode 编码规则代码（如 RULE_DEVICE）
+   * @param context 上下文参数（分类映射值、设备引用、节点引用、测量类型等）
+   */
+  async generateCode(ruleCode: string, context: {
+    category?: string;       // 用于 category 段的映射 key（如 "磨辊机"）
+    deviceRef?: string;      // 用于 device_ref 段（如 "Mgj-XC001"）
+    nodeRef?: string;        // 用于 node_ref 段（如 "Mgj-XC001-MD"）
+    measurementType?: string; // 用于 measurement_type_abbr 段（如 "VIB"）
+    customSegments?: Record<string, string>; // 自定义段值
+  } = {}): Promise<{ code: string; sequenceKey: string; sequenceValue: number }> {
+    const db = await getDb();
+    if (!db) throw new Error('Database not available');
+
+    // 1. 获取编码规则
+    const rule = await this.getByCode(ruleCode);
+    if (!rule) throw new Error(`编码规则 ${ruleCode} 不存在`);
+    if (!rule.isActive) throw new Error(`编码规则 ${ruleCode} 已禁用`);
+
+    const segmentsDef = (rule.segments as any)?.segments || rule.segments;
+    if (!Array.isArray(segmentsDef)) throw new Error(`编码规则 ${ruleCode} 的 segments 格式错误`);
+
+    const currentSeqs: Record<string, number> = (rule.currentSequences as any) || {};
+    let sequenceKey = 'default';
+    let sequenceValue = 0;
+    const parts: string[] = [];
+
+    // 2. 逐段解析
+    for (const seg of segmentsDef) {
+      switch (seg.type) {
+        case 'prefix':
+          parts.push(seg.value || '');
+          break;
+        case 'separator':
+          parts.push(seg.value || '-');
+          break;
+        case 'category': {
+          const mapping: Record<string, string> = seg.mapping || {};
+          const catKey = context.category || '';
+          const catValue = mapping[catKey] || catKey.substring(0, 2).toUpperCase();
+          sequenceKey = catValue;
+          parts.push(catValue);
+          break;
+        }
+        case 'device_ref':
+          parts.push(context.deviceRef || 'DEV');
+          break;
+        case 'node_ref':
+          parts.push(context.nodeRef || 'NODE');
+          break;
+        case 'measurement_type_abbr':
+          parts.push(context.measurementType || 'GEN');
+          break;
+        case 'date': {
+          const now = new Date();
+          const fmt = seg.format || 'YYYYMMDD';
+          const y = String(now.getFullYear());
+          const m = String(now.getMonth() + 1).padStart(2, '0');
+          const d = String(now.getDate()).padStart(2, '0');
+          parts.push(fmt.replace('YYYY', y).replace('MM', m).replace('DD', d));
+          break;
+        }
+        case 'time': {
+          const now = new Date();
+          const H = String(now.getHours()).padStart(2, '0');
+          const M = String(now.getMinutes()).padStart(2, '0');
+          const S = String(now.getSeconds()).padStart(2, '0');
+          const fmt = seg.format || 'HHmmss';
+          parts.push(fmt.replace('HH', H).replace('mm', M).replace('ss', S));
+          break;
+        }
+        case 'sequence': {
+          const len = seg.length || 3;
+          const start = seg.start || 1;
+          const current = currentSeqs[sequenceKey] || (start - 1);
+          sequenceValue = current + 1;
+          parts.push(String(sequenceValue).padStart(len, '0'));
+          break;
+        }
+        default:
+          // 自定义段
+          if (context.customSegments && context.customSegments[seg.type]) {
+            parts.push(context.customSegments[seg.type]);
+          }
+          break;
+      }
+    }
+
+    // 3. 更新序列号
+    currentSeqs[sequenceKey] = sequenceValue;
+    await db.update(baseCodeRules).set({
+      currentSequences: currentSeqs,
+      updatedAt: new Date(),
+      updatedBy: 'system',
+    }).where(eq(baseCodeRules.ruleCode, ruleCode));
+
+    const code = parts.join('');
+    return { code, sequenceKey, sequenceValue };
+  },
+
+  /**
+   * 预览编码（不自增序列号）
+   */
+  async previewCode(ruleCode: string, context: {
+    category?: string; deviceRef?: string; nodeRef?: string;
+    measurementType?: string; customSegments?: Record<string, string>;
+  } = {}): Promise<string> {
+    const rule = await this.getByCode(ruleCode);
+    if (!rule) throw new Error(`编码规则 ${ruleCode} 不存在`);
+
+    const segmentsDef = (rule.segments as any)?.segments || rule.segments;
+    if (!Array.isArray(segmentsDef)) return '(格式错误)';
+
+    const currentSeqs: Record<string, number> = (rule.currentSequences as any) || {};
+    let sequenceKey = 'default';
+    const parts: string[] = [];
+
+    for (const seg of segmentsDef) {
+      switch (seg.type) {
+        case 'prefix': parts.push(seg.value || ''); break;
+        case 'separator': parts.push(seg.value || '-'); break;
+        case 'category': {
+          const mapping: Record<string, string> = seg.mapping || {};
+          const catKey = context.category || '';
+          const catValue = mapping[catKey] || catKey.substring(0, 2).toUpperCase();
+          sequenceKey = catValue;
+          parts.push(catValue);
+          break;
+        }
+        case 'device_ref': parts.push(context.deviceRef || 'DEV'); break;
+        case 'node_ref': parts.push(context.nodeRef || 'NODE'); break;
+        case 'measurement_type_abbr': parts.push(context.measurementType || 'GEN'); break;
+        case 'date': {
+          const now = new Date();
+          const fmt = seg.format || 'YYYYMMDD';
+          parts.push(fmt.replace('YYYY', String(now.getFullYear())).replace('MM', String(now.getMonth()+1).padStart(2,'0')).replace('DD', String(now.getDate()).padStart(2,'0')));
+          break;
+        }
+        case 'time': {
+          const now = new Date();
+          parts.push((seg.format||'HHmmss').replace('HH',String(now.getHours()).padStart(2,'0')).replace('mm',String(now.getMinutes()).padStart(2,'0')).replace('ss',String(now.getSeconds()).padStart(2,'0')));
+          break;
+        }
+        case 'sequence': {
+          const len = seg.length || 3;
+          const nextVal = (currentSeqs[sequenceKey] || 0) + 1;
+          parts.push(String(nextVal).padStart(len, '0'));
+          break;
+        }
+        default:
+          if (context.customSegments && context.customSegments[seg.type]) {
+            parts.push(context.customSegments[seg.type]);
+          }
+          break;
+      }
+    }
+    return parts.join('');
+  },
 };
 
 // ============================================

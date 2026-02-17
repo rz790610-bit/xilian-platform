@@ -91,6 +91,16 @@ import GatewayManagement from "./pages/GatewayManagement";
 // 平台管理 - 插件安全沙箱
 import PluginSandboxManager from "./pages/settings/PluginSandboxManager";
 
+// 基础设置模块
+import {
+  DictionaryManager,
+  OrganizationManager,
+  DeviceManager as BasicDeviceManager,
+  MechanismManager,
+  ComponentManager,
+  PartsLibrary,
+} from "./pages/settings/basic";
+
 function Router() {
   return (
     <Switch>
@@ -178,6 +188,14 @@ function Router() {
       <Route path="/evolution/train" component={AutoTrain} />
       <Route path="/evolution/board" component={EvolutionBoard} />
       
+
+      {/* ━━━ 基础设置 ━━━ */}
+      <Route path="/basic/dictionary" component={DictionaryManager} />
+      <Route path="/basic/organization" component={OrganizationManager} />
+      <Route path="/basic/device" component={BasicDeviceManager} />
+      <Route path="/basic/mechanism" component={MechanismManager} />
+      <Route path="/basic/component" component={ComponentManager} />
+      <Route path="/basic/parts" component={PartsLibrary} />
 
       {/* ━━━ 平台管理 ━━━ */}
       {/* 设计工具 */}
