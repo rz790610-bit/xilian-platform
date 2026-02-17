@@ -57,18 +57,4 @@ export function DiagReport() {
   return <PlaceholderPage title="诊断报告" description="生成和管理诊断报告" icon="📝" />;
 }
 
-export function FeedbackCenter() {
-  return <PlaceholderPage title="反馈中心" description="收集和管理用户反馈" icon="📥" />;
-}
-
-export function ActiveLearning() {
-  return <PlaceholderPage title="主动学习" description="智能样本选择和标注" icon="🎯" />;
-}
-
-export function AutoTrain() {
-  return <PlaceholderPage title="自动训练" description="自动化模型训练流程" icon="⚡" />;
-}
-
-export function EvolutionBoard() {
-  return <PlaceholderPage title="进化看板" description="模型进化和性能追踪" icon="📊" />;
-}
+// 进化引擎模块已迁移到 pages/evolution/ 目录下的独立实现

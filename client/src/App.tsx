@@ -22,11 +22,13 @@ import {
   ModelEval,
   DiagAnalysis,
   DiagReport,
-  FeedbackCenter,
-  ActiveLearning,
-  AutoTrain,
-  EvolutionBoard
 } from "./pages/PlaceholderPage";
+
+// 进化引擎模块页面
+import FeedbackCenter from "./pages/evolution/FeedbackCenter";
+import ActiveLearning from "./pages/evolution/ActiveLearning";
+import AutoTrain from "./pages/evolution/AutoTrain";
+import EvolutionBoard from "./pages/evolution/EvolutionBoard";
 import KnowledgeManager from "./pages/KnowledgeManager";
 import KnowledgeGraph from "./pages/KnowledgeGraph";
 import VectorAdmin from "./pages/VectorAdmin";
@@ -79,6 +81,10 @@ import {
 import {
   FalcoSecurityCenter
 } from "./pages/settings/security";
+// 平台管理 - API 网关
+import GatewayManagement from "./pages/GatewayManagement";
+// 平台管理 - 插件安全沙箱
+import PluginSandboxManager from "./pages/settings/PluginSandboxManager";
 
 function Router() {
   return (
@@ -99,9 +105,10 @@ function Router() {
       {/* ━━━ 资产与数据 ━━━ */}
       {/* 设备管理 */}
       <Route path="/device/list" component={DeviceList} />
-      <Route path="/device/maintenance" component={DeviceList} />
-      <Route path="/device/alerts" component={DeviceList} />
-      <Route path="/device/kpi" component={DeviceList} />
+      {/* TODO: 下列路由待拆分为独立组件，当前统一重定向到 DeviceList */}
+      <Route path="/device/maintenance"><Redirect to="/device/list" /></Route>
+      <Route path="/device/alerts"><Redirect to="/device/list" /></Route>
+      <Route path="/device/kpi"><Redirect to="/device/list" /></Route>
       
       {/* 知识库 */}
       <Route path="/knowledge/manager" component={KnowledgeManager} />
@@ -186,6 +193,13 @@ function Router() {
 
       {/* 安全运维 */}
       <Route path="/settings/security/falco" component={FalcoSecurityCenter} />
+      {/* API 网关管理 */}
+      <Route path="/settings/gateway/dashboard" component={GatewayManagement} />
+      <Route path="/settings/gateway/routes" component={GatewayManagement} />
+      <Route path="/settings/gateway/services" component={GatewayManagement} />
+      <Route path="/settings/gateway/plugins" component={GatewayManagement} />
+      <Route path="/settings/gateway/upstreams" component={GatewayManagement} />
+      <Route path="/settings/gateway/consumers" component={GatewayManagement} />
 
       {/* 监控大屏 */}
       <Route path="/monitoring/clickhouse" component={ClickHouseDashboard} />
@@ -195,7 +209,11 @@ function Router() {
         <Redirect to="/settings/security/falco" />
       </Route>
 
-      {/* Legacy route redirects for backward compatibility */}
+      {/* ━━━ Legacy 向后兼容重定向 ━━━
+          以下路由保留为了兼容旧版本书签/链接，
+          待版本稳定后可考虑清理。
+          分组：安全(9) | 拓扑(6) | 性能(4+5) | 配置(3) | 其他(2)
+      */}
       <Route path="/pipeline">
         <Redirect to="/settings/design/pipeline" />
       </Route>
@@ -212,9 +230,9 @@ function Router() {
       <Route path="/settings/config/db-management">
         <Redirect to="/settings/config/infrastructure" />
       </Route>
-      <Route path="/settings/status/plugins">
-        <Redirect to="/settings/status/topology" />
-      </Route>
+      <Route path="/settings/status/plugins" component={PluginSandboxManager} />
+      <Route path="/settings/plugin-sandbox" component={PluginSandboxManager} />
+      <Route path="/settings/plugin-sandbox/:tab" component={PluginSandboxManager} />
       <Route path="/settings/status/engines">
         <Redirect to="/settings/status/topology" />
       </Route>
