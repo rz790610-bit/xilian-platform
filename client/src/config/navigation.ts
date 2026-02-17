@@ -11,22 +11,12 @@ export const navigationConfig: NavItem[] = [
   },
 
   // ━━━ 资产与数据 ━━━
-  {
-    id: 'device-management',
-    label: '设备管理',
-    icon: '🔧',
-    section: '资产与数据',
-    children: [
-      { id: 'device-list', label: '设备列表', icon: '📋', path: '/device/list' },
-      { id: 'device-maintenance', label: '维护记录', icon: '🔨', path: '/device/maintenance' },
-      { id: 'device-alerts', label: '告警历史', icon: '🚨', path: '/device/alerts' },
-      { id: 'device-kpi', label: 'KPI 指标', icon: '📊', path: '/device/kpi' }
-    ]
-  },
+
   {
     id: 'knowledge',
     label: '知识库',
     icon: '📚',
+    section: '资产与数据',
     children: [
       { id: 'knowledge-manager', label: '知识管理', icon: '📁', path: '/knowledge/manager' },
       { id: 'knowledge-graph', label: '知识图谱', icon: '🕸️', path: '/knowledge/graph' },
@@ -51,7 +41,6 @@ export const navigationConfig: NavItem[] = [
     icon: '🗄️',
     children: [
       { id: 'db-overview', label: '数据库总览', icon: '📊', path: '/database/overview' },
-      { id: 'db-assets', label: '设备档案', icon: '🏭', path: '/database/assets' },
       { id: 'db-config', label: '基础配置', icon: '⚙️', path: '/database/config' },
       { id: 'db-slices', label: '数据切片', icon: '✂️', path: '/database/slices' },
       { id: 'db-clean', label: '数据清洗', icon: '🧹', path: '/database/clean' },

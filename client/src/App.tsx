@@ -38,15 +38,12 @@ import KnowledgeManager from "./pages/KnowledgeManager";
 import KnowledgeGraph from "./pages/KnowledgeGraph";
 import VectorAdmin from "./pages/VectorAdmin";
 
-// 新增模块页面
-import DeviceList from "./pages/device/DeviceList";
 // 算法库
 import { AlgorithmOverview, AlgorithmDetail, AlgorithmCategory } from "./pages/algorithm";
 
 // v1.5 数据库模块页面
 import {
   DatabaseOverview,
-  AssetManager,
   ConfigManager,
   SliceManager,
   CleanManager,
@@ -118,12 +115,11 @@ function Router() {
       </Route>
       
       {/* ━━━ 资产与数据 ━━━ */}
-      {/* 设备管理 */}
-      <Route path="/device/list" component={DeviceList} />
-      {/* TODO: 下列路由待拆分为独立组件，当前统一重定向到 DeviceList */}
-      <Route path="/device/maintenance"><Redirect to="/device/list" /></Route>
-      <Route path="/device/alerts"><Redirect to="/device/list" /></Route>
-      <Route path="/device/kpi"><Redirect to="/device/list" /></Route>
+      {/* 设备管理 → 统一到基础设置 */}
+      <Route path="/device/list"><Redirect to="/basic/device" /></Route>
+      <Route path="/device/maintenance"><Redirect to="/basic/device" /></Route>
+      <Route path="/device/alerts"><Redirect to="/basic/device" /></Route>
+      <Route path="/device/kpi"><Redirect to="/basic/device" /></Route>
       
       {/* 知识库 */}
       <Route path="/knowledge/manager" component={KnowledgeManager} />
@@ -141,7 +137,7 @@ function Router() {
         <Redirect to="/database/overview" />
       </Route>
       <Route path="/database/overview" component={DatabaseOverview} />
-      <Route path="/database/assets" component={AssetManager} />
+      <Route path="/database/assets"><Redirect to="/basic/device" /></Route>
       <Route path="/database/config" component={ConfigManager} />
       <Route path="/database/slices" component={SliceManager} />
       <Route path="/database/clean" component={CleanManager} />

@@ -9,20 +9,19 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { trpc } from '@/lib/trpc';
 import { useToast } from '@/components/common/Toast';
-import { RefreshCw, Plus, Trash2, Settings, Code, Layers, Tag, BookOpen } from 'lucide-react';
+import { RefreshCw, Plus, Trash2, Settings, Code, Layers, Tag } from 'lucide-react';
 
 export default function ConfigManager() {
   const toast = useToast();
   const [activeTab, setActiveTab] = useState('templates');
   const [showCreateDialog, setShowCreateDialog] = useState(false);
-  const [createType, setCreateType] = useState<'codeRule' | 'nodeTemplate' | 'mpTemplate' | 'labelDim' | 'dictCat'>('nodeTemplate');
+  const [createType, setCreateType] = useState<'codeRule' | 'nodeTemplate' | 'mpTemplate' | 'labelDim'>('nodeTemplate');
 
   // tRPC 查询
   const { data: codeRules, refetch: refetchCR } = trpc.database.config.listCodeRules.useQuery();
   const { data: nodeTemplates, refetch: refetchNT } = trpc.database.config.listNodeTemplates.useQuery();
   const { data: mpTemplates, refetch: refetchMP } = trpc.database.config.listMpTemplates.useQuery();
   const { data: labelDims, refetch: refetchLD } = trpc.database.config.listLabelDimensions.useQuery();
-  const { data: dictCats, refetch: refetchDC } = trpc.database.config.listDictCategories.useQuery();
 
   // 表单状态
   const [form, setForm] = useState<any>({});
@@ -42,10 +41,6 @@ export default function ConfigManager() {
   });
   const createLD = trpc.database.config.createLabelDimension.useMutation({
     onSuccess: () => { toast.success('标注维度创建成功'); refetchLD(); setShowCreateDialog(false); },
-    onError: (e) => toast.error(e.message),
-  });
-  const createDC = trpc.database.config.createDictCategory.useMutation({
-    onSuccess: () => { toast.success('字典分类创建成功'); refetchDC(); setShowCreateDialog(false); },
     onError: (e) => toast.error(e.message),
   });
 
@@ -79,13 +74,10 @@ export default function ConfigManager() {
       case 'labelDim':
         createLD.mutate({ code: form.code, name: form.name, dimType: form.dimType || 'enum', description: form.description });
         break;
-      case 'dictCat':
-        createDC.mutate({ code: form.code, name: form.name, description: form.description });
-        break;
     }
   };
 
-  const createTitle = { codeRule: '编码规则', nodeTemplate: '节点模板', mpTemplate: '测点模板', labelDim: '标注维度', dictCat: '字典分类' };
+  const createTitle = { codeRule: '编码规则', nodeTemplate: '节点模板', mpTemplate: '测点模板', labelDim: '标注维度' };
 
   return (
     <MainLayout title="基础配置">
@@ -93,7 +85,7 @@ export default function ConfigManager() {
         <div className="flex justify-between items-center">
           <div>
             <h2 className="text-lg font-bold text-foreground">基础配置管理</h2>
-            <p className="text-xs text-muted-foreground mt-0.5">编码规则 · 节点模板 · 测点模板 · 标注维度 · 数据字典</p>
+            <p className="text-xs text-muted-foreground mt-0.5">编码规则 · 节点模板 · 测点模板 · 标注维度</p>
           </div>
         </div>
 
@@ -103,7 +95,6 @@ export default function ConfigManager() {
             <TabsTrigger value="mpTemplates" className="text-xs">测点模板</TabsTrigger>
             <TabsTrigger value="codeRules" className="text-xs">编码规则</TabsTrigger>
             <TabsTrigger value="labels" className="text-xs">标注维度</TabsTrigger>
-            <TabsTrigger value="dict" className="text-xs">数据字典</TabsTrigger>
           </TabsList>
 
           {/* 节点模板 */}
@@ -208,26 +199,6 @@ export default function ConfigManager() {
             </PageCard>
           </TabsContent>
 
-          {/* 数据字典 */}
-          <TabsContent value="dict">
-            <PageCard title="数据字典" icon={<BookOpen className="w-3.5 h-3.5" />}
-              action={<Button size="sm" className="text-xs h-6" onClick={() => openCreate('dictCat')}><Plus className="w-3 h-3 mr-1" />新建分类</Button>}>
-              <div className="space-y-2">
-                {dictCats && dictCats.length > 0 ? dictCats.map((c: any) => (
-                  <div key={c.code} className="flex items-center justify-between p-2 rounded bg-secondary/50 text-xs">
-                    <div>
-                      <div className="font-medium">{c.name}</div>
-                      <div className="text-[10px] text-muted-foreground">{c.code} · {c.description || '无描述'}</div>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      {c.isSystem === 1 && <Badge variant="info">系统</Badge>}
-                      <Badge variant={c.isActive === 1 ? 'success' : 'default'}>{c.isActive === 1 ? '启用' : '禁用'}</Badge>
-                    </div>
-                  </div>
-                )) : <div className="text-xs text-muted-foreground text-center py-6">暂无字典分类</div>}
-              </div>
-            </PageCard>
-          </TabsContent>
         </Tabs>
 
         {/* 创建对话框 */}

@@ -41,7 +41,8 @@ import { registryRouter } from "./api/registry.router";
 // ============ 算法赋能模块 ============
 import { algorithmRouter } from "./api/algorithm.router";
 // ============ 设备/传感器 CRUD ============
-import { deviceCrudRouter } from "./api/deviceCrud.router";
+// [DEPRECATED] deviceCrud 已统一到 database.asset，保留文件但不再注册
+// import { deviceCrudRouter } from "./api/deviceCrud.router";
 import { sensorCrudRouter } from "./api/sensorCrud.router";
 // ============ 微服务监控 ============
 import { microserviceRouter } from "./api/microservice.router";
@@ -156,7 +157,7 @@ export const appRouter = router({
   // ============ 算法赋能模块（元数据管理 + 智能推荐 + 组合编排 + 桥接执行） ============
   algorithm: algorithmRouter,
   // ============ 设备/传感器 CRUD ============
-  deviceCrud: deviceCrudRouter,
+  // deviceCrud: deviceCrudRouter,  // [DEPRECATED] 已统一到 database.asset + 基础设置
   sensorCrud: sensorCrudRouter,
   // ============ 微服务监控（断路器/Prometheus/拓扑） ============
   microservice: microserviceRouter,

@@ -1,5 +1,4 @@
 export { default as DatabaseOverview } from './DatabaseOverview';
-export { default as AssetManager } from './AssetManager';
 export { default as ConfigManager } from './ConfigManager';
 export { default as SliceManager } from './SliceManager';
 export { default as CleanManager } from './CleanManager';
