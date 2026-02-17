@@ -203,4 +203,4 @@ echo ""
 # 7. 启动开发服务器
 # ============================================================
 log_step "启动开发服务器..."
-exec tsx watch server/core/index.ts
+exec ./node_modules/.bin/tsx watch server/core/index.ts
