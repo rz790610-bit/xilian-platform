@@ -22,7 +22,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { useToast } from '@/hooks/use-toast';
+import { useToast } from '@/components/common/Toast';
 import { trpc } from '@/lib/trpc';
 
 // ── 类型定义 ──
@@ -183,16 +183,16 @@ function StatCard({ label, value }: { label: string; value: string | number }) {
 // 路由管理 Tab
 // ============================================================
 function RoutesTab() {
-  const { toast } = useToast();
+  const toast = useToast();
   const routes = trpc.gateway.listRoutes.useQuery();
   const services = trpc.gateway.listServices.useQuery();
   const createRoute = trpc.gateway.createRoute.useMutation({
-    onSuccess: () => { routes.refetch(); toast({ title: '路由创建成功' }); setShowCreate(false); },
-    onError: (e) => toast({ title: '创建失败', description: e.message, variant: 'destructive' }),
+    onSuccess: () => { routes.refetch(); toast.success('路由创建成功'); setShowCreate(false); },
+    onError: (e) => toast.error(`创建失败: ${e.message}`),
   });
   const deleteRoute = trpc.gateway.deleteRoute.useMutation({
-    onSuccess: () => { routes.refetch(); toast({ title: '路由已删除' }); },
-    onError: (e) => toast({ title: '删除失败', description: e.message, variant: 'destructive' }),
+    onSuccess: () => { routes.refetch(); toast.success('路由已删除'); },
+    onError: (e) => toast.error(`删除失败: ${e.message}`),
   });
 
   const [showCreate, setShowCreate] = useState(false);
@@ -306,15 +306,15 @@ function RoutesTab() {
 // 服务管理 Tab
 // ============================================================
 function ServicesTab() {
-  const { toast } = useToast();
+  const toast = useToast();
   const services = trpc.gateway.listServices.useQuery();
   const createService = trpc.gateway.createService.useMutation({
-    onSuccess: () => { services.refetch(); toast({ title: '服务创建成功' }); setShowCreate(false); },
-    onError: (e) => toast({ title: '创建失败', description: e.message, variant: 'destructive' }),
+    onSuccess: () => { services.refetch(); toast.success('服务创建成功'); setShowCreate(false); },
+    onError: (e) => toast.error(`创建失败: ${e.message}`),
   });
   const deleteService = trpc.gateway.deleteService.useMutation({
-    onSuccess: () => { services.refetch(); toast({ title: '服务已删除' }); },
-    onError: (e) => toast({ title: '删除失败', description: e.message, variant: 'destructive' }),
+    onSuccess: () => { services.refetch(); toast.success('服务已删除'); },
+    onError: (e) => toast.error(`删除失败: ${e.message}`),
   });
 
   const [showCreate, setShowCreate] = useState(false);
@@ -435,15 +435,15 @@ function ServicesTab() {
 // 插件管理 Tab
 // ============================================================
 function PluginsTab() {
-  const { toast } = useToast();
+  const toast = useToast();
   const plugins = trpc.gateway.listPlugins.useQuery();
   const togglePlugin = trpc.gateway.togglePlugin.useMutation({
-    onSuccess: () => { plugins.refetch(); toast({ title: '插件状态已更新' }); },
-    onError: (e) => toast({ title: '操作失败', description: e.message, variant: 'destructive' }),
+    onSuccess: () => { plugins.refetch(); toast.success('插件状态已更新'); },
+    onError: (e) => toast.error(`操作失败: ${e.message}`),
   });
   const deletePlugin = trpc.gateway.deletePlugin.useMutation({
-    onSuccess: () => { plugins.refetch(); toast({ title: '插件已删除' }); },
-    onError: (e) => toast({ title: '删除失败', description: e.message, variant: 'destructive' }),
+    onSuccess: () => { plugins.refetch(); toast.success('插件已删除'); },
+    onError: (e) => toast.error(`删除失败: ${e.message}`),
   });
 
   const pluginList: KongPlugin[] = plugins.data?.data?.data || [];
@@ -533,11 +533,11 @@ function PluginsTab() {
 // 上游管理 Tab
 // ============================================================
 function UpstreamsTab() {
-  const { toast } = useToast();
+  const toast = useToast();
   const upstreams = trpc.gateway.listUpstreams.useQuery();
   const createUpstream = trpc.gateway.createUpstream.useMutation({
-    onSuccess: () => { upstreams.refetch(); toast({ title: '上游创建成功' }); setShowCreate(false); },
-    onError: (e) => toast({ title: '创建失败', description: e.message, variant: 'destructive' }),
+    onSuccess: () => { upstreams.refetch(); toast.success('上游创建成功'); setShowCreate(false); },
+    onError: (e) => toast.error(`创建失败: ${e.message}`),
   });
 
   const [showCreate, setShowCreate] = useState(false);
@@ -627,12 +627,12 @@ function UpstreamsTab() {
 }
 
 function TargetsList({ upstreamId }: { upstreamId: string }) {
-  const { toast } = useToast();
+  const toast = useToast();
   const targets = trpc.gateway.listTargets.useQuery({ upstreamId });
   const health = trpc.gateway.getUpstreamHealth.useQuery({ id: upstreamId });
   const addTarget = trpc.gateway.addTarget.useMutation({
-    onSuccess: () => { targets.refetch(); toast({ title: '目标节点已添加' }); setNewTarget(''); },
-    onError: (e) => toast({ title: '添加失败', description: e.message, variant: 'destructive' }),
+    onSuccess: () => { targets.refetch(); toast.success('目标节点已添加'); setNewTarget(''); },
+    onError: (e) => toast.error(`添加失败: ${e.message}`),
   });
 
   const [newTarget, setNewTarget] = useState('');
@@ -675,17 +675,17 @@ function TargetsList({ upstreamId }: { upstreamId: string }) {
 // 消费者管理 Tab
 // ============================================================
 function ConsumersTab() {
-  const { toast } = useToast();
+  const toast = useToast();
   const consumers = trpc.gateway.listConsumers.useQuery();
   const createConsumer = trpc.gateway.createConsumer.useMutation({
-    onSuccess: () => { consumers.refetch(); toast({ title: '消费者创建成功' }); setShowCreate(false); },
-    onError: (e) => toast({ title: '创建失败', description: e.message, variant: 'destructive' }),
+    onSuccess: () => { consumers.refetch(); toast.success('消费者创建成功'); setShowCreate(false); },
+    onError: (e) => toast.error(`创建失败: ${e.message}`),
   });
   const createApiKey = trpc.gateway.createApiKey.useMutation({
     onSuccess: (data) => {
-      toast({ title: 'API Key 已生成', description: `Key: ${data.data?.key || '查看详情'}` });
+      toast.success(`API Key 已生成: ${data.data?.key || '查看详情'}`);
     },
-    onError: (e) => toast({ title: '生成失败', description: e.message, variant: 'destructive' }),
+    onError: (e) => toast.error(`生成失败: ${e.message}`),
   });
 
   const [showCreate, setShowCreate] = useState(false);
