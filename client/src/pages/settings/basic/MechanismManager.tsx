@@ -269,7 +269,7 @@ export default function MechanismManager() {
                   <div className="flex items-center gap-2">
                     <div className="flex-1">
                       <label className="text-[10px] text-muted-foreground mb-1 block">生成的编码</label>
-                      <Input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} placeholder="点击"自动生成"" className="h-8 text-xs font-mono" />
+                      <Input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} placeholder="点击自动生成按钮" className="h-8 text-xs font-mono" />
                     </div>
                     <Button size="sm" variant="default" className="mt-4" onClick={handleAutoCode} disabled={!selectedDevice || !codeL5 || !codeL6 || !codeL7}>
                       <Hash className="w-3 h-3 mr-1" /> 自动生成

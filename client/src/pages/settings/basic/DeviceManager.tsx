@@ -408,7 +408,7 @@ export default function DeviceManager() {
                       <Input
                         value={form.code}
                         onChange={(e) => setForm({ ...form, code: e.target.value })}
-                        placeholder="点击"自动生成"或手动输入"
+                        placeholder="点击自动生成或手动输入"
                         className="h-8 text-xs font-mono"
                       />
                     </div>
