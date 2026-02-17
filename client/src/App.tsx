@@ -28,6 +28,7 @@ import {
 import FusionDiagnosis from "./pages/diagnosis/FusionDiagnosis";
 // 高级知识蒸馏页面
 import AdvancedDistillation from "./pages/algorithm/AdvancedDistillation";
+import ConditionNormalizerPage from "./pages/algorithm/ConditionNormalizer";
 // 进化引擎模块页面
 import FeedbackCenter from "./pages/evolution/FeedbackCenter";
 import ActiveLearning from "./pages/evolution/ActiveLearning";
@@ -160,6 +161,7 @@ function Router() {
       <Route path="/algorithm/rule" component={AlgorithmCategory} />
       <Route path="/algorithm/compose" component={AlgorithmCategory} />
       <Route path="/algorithm/distillation" component={AdvancedDistillation} />
+      <Route path="/algorithm/condition-normalizer" component={ConditionNormalizerPage} />
       <Route path="/algorithm/execution" component={AlgorithmCategory} />
       
       {/* 智能诊断 */}

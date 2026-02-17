@@ -51,6 +51,8 @@ import { grokDiagnosticRouter } from "./api/grokDiagnostic.router";
 import { fusionDiagnosisRouter } from "./api/fusionDiagnosis.router";
 // ============ 高级知识蒸馏（DistilLib v2.4） ============
 import { advancedDistillationRouter } from "./api/advancedDistillation.router";
+// ============ 工况归一化引擎 ============
+import { conditionNormalizerRouter } from "./api/conditionNormalizer.router";
 
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/core/index.ts, all api should start with '/api/' so that the gateway can route correctly
@@ -164,6 +166,7 @@ export const appRouter = router({
   fusionDiagnosis: fusionDiagnosisRouter,
   // ============ 高级知识蒸馏（动态温度 + 特征/关系/融合蒸馏 + 多模态） ============
   advancedDistillation: advancedDistillationRouter,
+  conditionNormalizer: conditionNormalizerRouter,
 });
 
 export type AppRouter = typeof appRouter;
