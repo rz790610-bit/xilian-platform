@@ -110,13 +110,13 @@ export class ExpertRegistry {
   register(expert: BaseExpert): void {
     this.experts.set(expert.name, expert);
     this.weights.set(expert.name, expert.weight);
-    log.info(`Expert registered: ${expert.name} (weight=${expert.weight})`);
+    log.info({ name: expert.name, weight: expert.weight }, 'Expert registered');
   }
 
   unregister(name: string): boolean {
     const removed = this.experts.delete(name);
     this.weights.delete(name);
-    if (removed) log.info(`Expert unregistered: ${name}`);
+    if (removed) log.info({ name }, 'Expert unregistered');
     return removed;
   }
 
@@ -133,7 +133,7 @@ export class ExpertRegistry {
     if (expert) {
       expert.weight = weight;
       this.weights.set(name, weight);
-      log.info(`Expert weight updated: ${name} → ${weight}`);
+      log.info({ name, weight }, 'Expert weight updated');
       return true;
     }
     return false;
@@ -361,11 +361,22 @@ export class FusionDiagnosisExpert {
   readonly registry: ExpertRegistry;
   readonly dsFusion: DSEvidence;
   readonly conflictHandler: ConflictHandler;
+  /** 冲突惩罚因子 — 可通过 setConflictPenalty() 动态调整 */
+  private conflictPenaltyFactor: number = 0.3;
 
   constructor(faultTypes: string[] = [...FAULT_TYPES]) {
     this.registry = new ExpertRegistry();
     this.dsFusion = new DSEvidence(faultTypes);
     this.conflictHandler = new ConflictHandler();
+  }
+
+  /** 设置冲突惩罚因子 (0~1) */
+  setConflictPenalty(factor: number): void {
+    this.conflictPenaltyFactor = Math.max(0, Math.min(1, factor));
+  }
+
+  getConflictPenalty(): number {
+    return this.conflictPenaltyFactor;
   }
 
   registerExpert(expert: BaseExpert): void {
@@ -418,11 +429,13 @@ export class FusionDiagnosisExpert {
     const faultType = this.dsFusion.getDecision(fusedMass);
     let confidence = fusedMass[faultType] || 0;
 
-    // 冲突惩罚：置信度 × (1 - 冲突度 × 0.3)
+    // 冲突惩罚：置信度 × (1 - 冲突度 × penaltyFactor)
     if (conflictInfo.hasConflict) {
-      const penalty = conflictInfo.conflictDegree * 0.3;
+      const penalty = conflictInfo.conflictDegree * this.conflictPenaltyFactor;
       confidence *= 1 - penalty;
     }
+    // 置信度 clamp 到 [0, 1]
+    confidence = Math.max(0, Math.min(1, confidence));
 
     // 汇总证据
     const evidenceSummary = expertResults.map(r => ({
@@ -632,9 +645,10 @@ export class VibrationExpert extends BaseExpert {
 
   getBeliefMass(data: Record<string, any>): Record<string, number> {
     const result = this.diagnose(data);
+    const conf = Math.max(0, Math.min(1, result.confidence));
     return {
-      [result.faultType]: result.confidence,
-      theta: 1 - result.confidence,
+      [result.faultType]: conf,
+      theta: 1 - conf,
     };
   }
 }
@@ -685,9 +699,10 @@ export class TemperatureExpert extends BaseExpert {
 
   getBeliefMass(data: Record<string, any>): Record<string, number> {
     const result = this.diagnose(data);
+    const conf = Math.max(0, Math.min(1, result.confidence));
     return {
-      [result.faultType]: result.confidence,
-      theta: 1 - result.confidence,
+      [result.faultType]: conf,
+      theta: 1 - conf,
     };
   }
 }
@@ -738,9 +753,10 @@ export class CurrentExpert extends BaseExpert {
 
   getBeliefMass(data: Record<string, any>): Record<string, number> {
     const result = this.diagnose(data);
+    const conf = Math.max(0, Math.min(1, result.confidence));
     return {
-      [result.faultType]: result.confidence,
-      theta: 1 - result.confidence,
+      [result.faultType]: conf,
+      theta: 1 - conf,
     };
   }
 }

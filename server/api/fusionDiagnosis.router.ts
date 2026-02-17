@@ -217,9 +217,20 @@ export const fusionDiagnosisRouter = router({
       expertCount: engine.registry.getExpertCount(),
       experts: engine.registry.toJSON(),
       faultTypes: [...FAULT_TYPES],
-      conflictPenaltyFactor: 0.3,
+      conflictPenaltyFactor: engine.getConflictPenalty(),
     };
   }),
+
+  /**
+   * 设置冲突惩罚因子
+   */
+  setConflictPenalty: publicProcedure
+    .input(z.object({ factor: z.number().min(0).max(1) }))
+    .mutation(({ input }) => {
+      const engine = getFusionEngine();
+      engine.setConflictPenalty(input.factor);
+      return { success: true, message: `Conflict penalty factor set to ${input.factor}`, factor: input.factor };
+    }),
 
   /**
    * 获取诊断历史

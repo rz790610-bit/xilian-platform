@@ -36,7 +36,7 @@ function klDiv(p: number[], q: number[]): number {
   for (let i = 0; i < p.length; i++) {
     if (p[i] > 1e-15 && q[i] > 1e-15) kl += p[i] * Math.log(p[i] / q[i]);
   }
-  return kl;
+  return isFinite(kl) ? kl : 0;
 }
 
 function logSoftmax(logits: number[]): number[] {
@@ -46,9 +46,11 @@ function logSoftmax(logits: number[]): number[] {
 }
 
 function mseLoss(a: number[], b: number[]): number {
+  if (a.length === 0) return 0;
   let s = 0;
   for (let i = 0; i < a.length; i++) s += (a[i] - b[i]) ** 2;
-  return s / a.length;
+  const result = s / a.length;
+  return isFinite(result) ? result : 0;
 }
 
 function l2Normalize(v: number[]): number[] {
@@ -170,14 +172,19 @@ function calcAccuracy(preds: number[][], labels: number[]): number {
 }
 
 function calcPRF1(preds: number[][], labels: number[]): { precision: number; recall: number; f1: number } {
+  if (preds.length === 0) return { precision: 0, recall: 0, f1: 0 };
   const nc = preds[0]?.length || 2;
+  // 预计算所有预测类别（避免重复 softmax）
+  const predClasses = preds.map(p => {
+    const probs = softmax(p);
+    return probs.indexOf(Math.max(...probs));
+  });
   let tp = 0, rp = 0;
   for (let cl = 0; cl < nc; cl++) {
     let tpc = 0, fpc = 0, fnc = 0;
     for (let i = 0; i < labels.length; i++) {
-      const pred = softmax(preds[i]).indexOf(Math.max(...softmax(preds[i])));
-      if (pred === cl && labels[i] === cl) tpc++;
-      else if (pred === cl) fpc++;
+      if (predClasses[i] === cl && labels[i] === cl) tpc++;
+      else if (predClasses[i] === cl) fpc++;
       else if (labels[i] === cl) fnc++;
     }
     tp += tpc / Math.max(tpc + fpc, 1);
@@ -196,7 +203,8 @@ export class DynamicTemperature {
   private beta: number;
   private alphaEma: number;
   private warmupEpochs: number;
-  private currentTemp: number;
+  /** 当前温度（公开以便读取） */
+  public currentTemp: number;
 
   constructor(baseTemp = 4.0, beta = 1.0, alphaEma = 0.9, warmupEpochs = 5) {
     this.baseTemp = baseTemp;
@@ -545,10 +553,8 @@ export function computeDistillLoss(
     const tOut = multimodalForward(teacher, inputs[b], masks[b], true);
     const sOut = multimodalForward(student, inputs[b], masks[b], true);
 
-    // 动态温度（使用第一个样本的 logits 估算）
-    const T = b === 0
-      ? dynTemp.getTemp(sOut.logits, tOut.logits, epoch, config.tempRange, config.datasetSize)
-      : dynTemp.getTemp(sOut.logits, tOut.logits, epoch, config.tempRange, config.datasetSize);
+    // 动态温度
+    const T = dynTemp.getTemp(sOut.logits, tOut.logits, epoch, config.tempRange, config.datasetSize);
 
     // 硬标签损失
     const sProbs = softmax(sOut.logits);
@@ -576,22 +582,20 @@ export function computeDistillLoss(
     relLossVal = relLoss.forward(sFeats, tFeats, normW.relation);
   }
 
-  // 融合蒸馏 — 子集模态 KL 对齐
+  // 融合蒸馏 — 子集模态 KL 对齐（优化：缓存 forward 结果避免重复计算）
   if ((normW.fusion || 0) > 0 && inputs[0].length > 1) {
     const nModalities = inputs[0].length;
     let klSum = 0;
     for (let m = 0; m < nModalities; m++) {
       for (let b = 0; b < batchSize; b++) {
-        // 只保留第 m 个模态
+        // 只保留第 m 个模态（mask 其他模态）
         const subsetMask = new Array(nModalities).fill(true);
         subsetMask[m] = false;
-        const T = dynTemp.getTemp(
-          multimodalForward(student, inputs[b], subsetMask, false).logits,
-          multimodalForward(teacher, inputs[b], subsetMask, false).logits,
-          epoch, config.tempRange, config.datasetSize
-        );
-        const sSub = softmax(multimodalForward(student, inputs[b], subsetMask, false).logits.map(l => l / T));
-        const tSub = softmax(multimodalForward(teacher, inputs[b], subsetMask, false).logits.map(l => l / T));
+        const sSubOut = multimodalForward(student, inputs[b], subsetMask, false);
+        const tSubOut = multimodalForward(teacher, inputs[b], subsetMask, false);
+        const subT = dynTemp.getTemp(sSubOut.logits, tSubOut.logits, epoch, config.tempRange, config.datasetSize);
+        const sSub = softmax(sSubOut.logits.map(l => l / subT));
+        const tSub = softmax(tSubOut.logits.map(l => l / subT));
         klSum += klDiv(tSub, sSub);
       }
     }
@@ -741,11 +745,13 @@ export function runAdvancedDistillation(
       const mods = splitToModalities(valFeatures[i]);
       const mask = generateMask(i);
       const { logits } = multimodalForward(student, mods, mask, false);
-      const pred = softmax(logits).indexOf(Math.max(...softmax(logits)));
+      const probs = softmax(logits);
+      const pred = probs.indexOf(Math.max(...probs));
       if (pred === valLabels[i]) correct++;
     }
-    const valAcc = correct / valFeatures.length;
-    const T = dynTemp.getTemp([0], [0], epoch, config.tempRange, config.datasetSize);
+    const valAcc = valFeatures.length > 0 ? correct / valFeatures.length : 0;
+    // 获取当前 epoch 的温度（使用实际样本而非常量向量）
+    const T = dynTemp.currentTemp !== undefined ? dynTemp.currentTemp : config.tempRange[0];
 
     epochLogs.push({
       epoch,
@@ -778,15 +784,17 @@ export function runAdvancedDistillation(
     const mask = generateMask(i);
     const sOut = multimodalForward(student, mods, mask, false);
     const tPred = mlpPredict(teacherFlat, [valFeatures[i]])[0];
-    const sPred = softmax(sOut.logits).indexOf(Math.max(...softmax(sOut.logits)));
-    const tPredClass = softmax(tPred).indexOf(Math.max(...softmax(tPred)));
+    const sProbs = softmax(sOut.logits);
+    const tProbs = softmax(tPred);
+    const sPred = sProbs.indexOf(Math.max(...sProbs));
+    const tPredClass = tProbs.indexOf(Math.max(...tProbs));
     if (sPred === valLabels[i]) correct++;
     if (sPred === tPredClass) agreement++;
     allStudentPreds.push(sOut.logits);
   }
 
-  const studentAcc = correct / valFeatures.length;
-  const teacherStudentAgreement = agreement / valFeatures.length;
+  const studentAcc = valFeatures.length > 0 ? correct / valFeatures.length : 0;
+  const teacherStudentAgreement = valFeatures.length > 0 ? agreement / valFeatures.length : 0;
   const studentMetrics = calcPRF1(allStudentPreds, valLabels);
   const tParams = countParams(teacherFlat);
   const sParams = inputDims.reduce((s, d) => s + d * config.studentHiddenDim, 0) + config.studentHiddenDim * nClasses;

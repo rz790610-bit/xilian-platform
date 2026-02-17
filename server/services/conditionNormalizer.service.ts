@@ -254,6 +254,7 @@ export class BaselineLearner {
   /**
    * EWMA 在线更新基线
    * Python 对齐：new_mean = α * new_value + (1-α) * old_mean
+   * 同时更新 std 的滑动估计
    */
   updateBaselineOnline(condition: string, featureName: string, newValue: number): void {
     const condMap = this.baselines.get(condition);
@@ -262,7 +263,11 @@ export class BaselineLearner {
     if (!b) return;
 
     const newMean = this.ewmaAlpha * newValue + (1 - this.ewmaAlpha) * b.mean;
-    condMap.set(featureName, { ...b, mean: newMean });
+    // 在线 std 更新：EWMA 方差估计
+    const diff = newValue - b.mean;
+    const newVar = (1 - this.ewmaAlpha) * (b.std * b.std + this.ewmaAlpha * diff * diff);
+    const newStd = Math.sqrt(Math.max(0, newVar));
+    condMap.set(featureName, { ...b, mean: newMean, std: newStd });
   }
 
   getBaseline(condition: string, featureName: string): Baseline | null {
@@ -356,18 +361,20 @@ export class FeatureNormalizer {
   /**
    * Ratio 归一化
    * Python 对齐：normalized = value / baseline.mean
+   * 除零保护：mean=0 时返回 1.0（而非 Infinity）
    */
   normalizeRatio(value: number, baseline: Baseline): number {
-    if (baseline.mean === 0) return value === 0 ? 1.0 : Infinity;
+    if (Math.abs(baseline.mean) < 1e-10) return 1.0;
     return value / baseline.mean;
   }
 
   /**
    * Z-Score 归一化
    * Python 对齐：normalized = (value - baseline.mean) / baseline.std
+   * 除零保护：std=0 时返回 0
    */
   normalizeZscore(value: number, baseline: Baseline): number {
-    if (baseline.std === 0) return 0;
+    if (baseline.std < 1e-10) return 0;
     return (value - baseline.mean) / baseline.std;
   }
 
@@ -421,13 +428,19 @@ export class StatusChecker {
    */
   checkRatio(ratio: number, config: ConditionNormalizerConfig): string {
     const bounds = config.normalization.ratioBounds;
-    const absRatio = Math.abs(ratio);
-
-    if (absRatio >= bounds.normal[0] && absRatio <= bounds.normal[1]) return 'normal';
-    if (absRatio >= bounds.attention[0] && absRatio <= bounds.attention[1]) return 'attention';
-    if (absRatio >= bounds.warning[0] && absRatio <= bounds.warning[1]) return 'warning';
-    if (absRatio >= bounds.severe[0]) return 'severe';
-    return 'normal';
+    // ratio 可能 < 1（值低于基线）或 > 1（值高于基线）
+    // 使用原始 ratio 判定（而非 abs），因为 ratio < 0.8 也可能是异常
+    if (ratio >= bounds.normal[0] && ratio <= bounds.normal[1]) return 'normal';
+    if (ratio > bounds.normal[1]) {
+      // 高于正常范围
+      if (ratio <= bounds.attention[1]) return 'attention';
+      if (ratio <= bounds.warning[1]) return 'warning';
+      return 'severe';
+    }
+    // 低于正常范围（ratio < 0.8）
+    if (ratio >= 1.0 / bounds.attention[1]) return 'attention';
+    if (ratio >= 1.0 / bounds.warning[1]) return 'warning';
+    return 'severe';
   }
 
   /**
@@ -610,9 +623,10 @@ export class ConditionNormalizerEngine {
       }
     }
 
-    // 也包含任何额外的数值字段
+    // 也包含任何额外的数值字段（排除已存在的和非特征字段）
+    const excludeKeys = new Set(['plcCode', 'timestamp', 'id', 'deviceId', 'deviceCode']);
     for (const [key, value] of Object.entries(dataSlice)) {
-      if (typeof value === 'number' && !['plcCode', 'timestamp'].includes(key) && !(key in features)) {
+      if (typeof value === 'number' && !excludeKeys.has(key) && !(key in features)) {
         features[key] = value;
       }
     }
