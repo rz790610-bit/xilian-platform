@@ -192,9 +192,21 @@ echo ""
 echo -e "${CYAN}────────────────────────────────────────────${NC}"
 echo -e "${CYAN}  开发环境就绪${NC}"
 echo -e "${CYAN}────────────────────────────────────────────${NC}"
-echo -e "  数据库:  ${DATABASE_URL:+${GREEN}已配置${NC}}${DATABASE_URL:-${RED}未配置${NC}}"
-echo -e "  Redis:   ${REDIS_HOST:+${GREEN}${REDIS_HOST}:${REDIS_PORT}${NC}}${REDIS_HOST:-${YELLOW}未配置${NC}}"
-echo -e "  认证:    ${SKIP_AUTH:+${GREEN}已跳过 (开发模式)${NC}}${SKIP_AUTH:-${YELLOW}需要配置${NC}}"
+if [ -n "$DATABASE_URL" ]; then
+    echo -e "  数据库:  ${GREEN}已配置${NC}"
+else
+    echo -e "  数据库:  ${RED}未配置${NC}"
+fi
+if [ -n "$REDIS_HOST" ]; then
+    echo -e "  Redis:   ${GREEN}${REDIS_HOST}:${REDIS_PORT}${NC}"
+else
+    echo -e "  Redis:   ${YELLOW}未配置${NC}"
+fi
+if [ "$SKIP_AUTH" = "true" ]; then
+    echo -e "  认证:    ${GREEN}已跳过 (开发模式)${NC}"
+else
+    echo -e "  认证:    ${YELLOW}需要配置${NC}"
+fi
 echo -e "  日志:    ${LOG_LEVEL:-info}"
 echo -e "${CYAN}────────────────────────────────────────────${NC}"
 echo ""
