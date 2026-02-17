@@ -20,6 +20,12 @@ import { createModuleLogger } from '../../core/logger';
 const log = createModuleLogger('rate-limiter');
 
 // ============================================================
+// 环境检测
+// ============================================================
+
+const isDevelopment = process.env.NODE_ENV === 'development';
+
+// ============================================================
 // 配置
 // ============================================================
 
@@ -41,12 +47,29 @@ export interface RateLimitConfig {
 }
 
 function getConfig(): RateLimitConfig {
+  // 开发环境使用宽松配置，生产环境使用严格配置
+  const devDefaults = {
+    global: '3000',
+    api: '1500',
+    auth: '50',
+    upload: '100',
+    algorithm: '100',
+  };
+  const prodDefaults = {
+    global: '600',
+    api: '300',
+    auth: '10',
+    upload: '30',
+    algorithm: '20',
+  };
+  const defaults = isDevelopment ? devDefaults : prodDefaults;
+
   return {
-    globalMaxPerMinute: parseInt(process.env.RATE_LIMIT_GLOBAL || '300', 10),
-    apiMaxPerMinute: parseInt(process.env.RATE_LIMIT_API || '100', 10),
-    authMaxPer15Min: parseInt(process.env.RATE_LIMIT_AUTH || '10', 10),
-    uploadMaxPerHour: parseInt(process.env.RATE_LIMIT_UPLOAD || '30', 10),
-    algorithmMaxPerMinute: parseInt(process.env.RATE_LIMIT_ALGORITHM || '20', 10),
+    globalMaxPerMinute: parseInt(process.env.RATE_LIMIT_GLOBAL || defaults.global, 10),
+    apiMaxPerMinute: parseInt(process.env.RATE_LIMIT_API || defaults.api, 10),
+    authMaxPer15Min: parseInt(process.env.RATE_LIMIT_AUTH || defaults.auth, 10),
+    uploadMaxPerHour: parseInt(process.env.RATE_LIMIT_UPLOAD || defaults.upload, 10),
+    algorithmMaxPerMinute: parseInt(process.env.RATE_LIMIT_ALGORITHM || defaults.algorithm, 10),
     enabled: process.env.RATE_LIMIT_ENABLED !== 'false',
     trustProxy: process.env.TRUST_PROXY === 'true',
   };
@@ -67,6 +90,12 @@ function rateLimitResponse(message: string) {
 }
 
 // ============================================================
+// 透传中间件（限流禁用时使用）
+// ============================================================
+
+const passthrough: RateLimitRequestHandler = ((_req: any, _res: any, next: any) => next()) as any;
+
+// ============================================================
 // 限流器工厂
 // ============================================================
 
@@ -83,12 +112,14 @@ function createLimiter(name: string, options: Partial<Options>): RateLimitReques
       // Docker 管理操作不限流（bootstrapAll / bootstrapOptionalService / startAll 等长耗时操作）
       const url = req.originalUrl || req.url || '';
       if (url.includes('docker.bootstrap') || url.includes('docker.startAll') || url.includes('docker.startEngine')) return true;
+      // Vite HMR / 静态资源不限流
+      if (url.includes('__vite') || url.includes('.hot-update.') || url.startsWith('/@')) return true;
       return false;
     },
     ...options,
   });
 
-  log.info(`Rate limiter "${name}" created (max=${options.max}, window=${options.windowMs}ms)`);
+  log.info(`Rate limiter "${name}" created (max=${options.max}, window=${options.windowMs}ms, env=${isDevelopment ? 'dev' : 'prod'})`);
   return limiter;
 }
 
@@ -98,10 +129,11 @@ function createLimiter(name: string, options: Partial<Options>): RateLimitReques
 
 /**
  * 全局限流器 — 应用于所有请求
+ * 开发环境: 3000/min, 生产环境: 600/min
  */
 export function createGlobalLimiter(): RateLimitRequestHandler {
   const config = getConfig();
-  if (!config.enabled) return ((_req: any, _res: any, next: any) => next()) as any;
+  if (!config.enabled) return passthrough;
 
   return createLimiter('global', {
     windowMs: 60 * 1000,
@@ -112,10 +144,11 @@ export function createGlobalLimiter(): RateLimitRequestHandler {
 
 /**
  * API 限流器 — 应用于 /api/trpc 和 /api/rest
+ * 开发环境: 1500/min, 生产环境: 300/min
  */
 export function createApiLimiter(): RateLimitRequestHandler {
   const config = getConfig();
-  if (!config.enabled) return ((_req: any, _res: any, next: any) => next()) as any;
+  if (!config.enabled) return passthrough;
 
   return createLimiter('api', {
     windowMs: 60 * 1000,
@@ -129,7 +162,7 @@ export function createApiLimiter(): RateLimitRequestHandler {
  */
 export function createAuthLimiter(): RateLimitRequestHandler {
   const config = getConfig();
-  if (!config.enabled) return ((_req: any, _res: any, next: any) => next()) as any;
+  if (!config.enabled) return passthrough;
 
   return createLimiter('auth', {
     windowMs: 15 * 60 * 1000,
@@ -143,7 +176,7 @@ export function createAuthLimiter(): RateLimitRequestHandler {
  */
 export function createUploadLimiter(): RateLimitRequestHandler {
   const config = getConfig();
-  if (!config.enabled) return ((_req: any, _res: any, next: any) => next()) as any;
+  if (!config.enabled) return passthrough;
 
   return createLimiter('upload', {
     windowMs: 60 * 60 * 1000,
@@ -157,7 +190,7 @@ export function createUploadLimiter(): RateLimitRequestHandler {
  */
 export function createAlgorithmLimiter(): RateLimitRequestHandler {
   const config = getConfig();
-  if (!config.enabled) return ((_req: any, _res: any, next: any) => next()) as any;
+  if (!config.enabled) return passthrough;
 
   return createLimiter('algorithm', {
     windowMs: 60 * 1000,
@@ -172,9 +205,11 @@ export function createAlgorithmLimiter(): RateLimitRequestHandler {
 export function getRateLimitStatus(): {
   enabled: boolean;
   config: RateLimitConfig;
+  environment: string;
 } {
   return {
     enabled: getConfig().enabled,
     config: getConfig(),
+    environment: isDevelopment ? 'development' : 'production',
   };
 }
