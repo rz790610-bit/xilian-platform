@@ -16,6 +16,7 @@
  */
 
 import { useState, useMemo } from 'react';
+import { MainLayout } from '@/components/layout/MainLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -830,6 +831,7 @@ export default function GatewayManagement() {
   const [activeTab, setActiveTab] = useState('dashboard');
 
   return (
+    <MainLayout title="API 网关管理">
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold">API 网关管理</h1>
@@ -856,5 +858,6 @@ export default function GatewayManagement() {
         <TabsContent value="consumers"><ConsumersTab /></TabsContent>
       </Tabs>
     </div>
+    </MainLayout>
   );
 }

@@ -10,6 +10,7 @@
  * 6. 受信任签名者 - 签名者管理
  */
 import React, { useState, useMemo } from 'react';
+import { MainLayout } from '@/components/layout/MainLayout';
 
 // ==================== 类型定义 ====================
 
@@ -1031,6 +1032,7 @@ export default function PluginSandboxManager() {
   const [activeTab, setActiveTab] = useState<TabId>('overview');
 
   return (
+    <MainLayout title="插件安全沙箱">
     <div className="h-full flex flex-col bg-zinc-950">
       {/* 页头 */}
       <div className="px-6 pt-5 pb-3 border-b border-zinc-800">
@@ -1082,5 +1084,6 @@ export default function PluginSandboxManager() {
         {activeTab === 'signers' && <SignersTab />}
       </div>
     </div>
+    </MainLayout>
   );
 }
