@@ -1,7 +1,6 @@
 /**
  * 组织机构管理 - 基础设置
- * 基于字典分类 ORGANIZATION 管理组织机构层级
- * 支持部门、车间、班组等组织结构的增删改查
+ * 机构类型从字典 ORG_TYPE 分类中读取，不再硬编码
  */
 import { useState, useMemo } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
@@ -9,30 +8,18 @@ import { PageCard } from '@/components/common/PageCard';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { trpc } from '@/lib/trpc';
 import { useToast } from '@/components/common/Toast';
+import { useDictItems } from './useDictionary';
 import { Plus, Trash2, Edit3, Building2, Users, Search, RefreshCw, ChevronDown, ChevronRight, FolderTree } from 'lucide-react';
-
-// 组织类型定义
-const ORG_TYPES = [
-  { code: 'company', label: '公司', icon: '🏢', color: '#3b82f6' },
-  { code: 'department', label: '部门', icon: '🏛️', color: '#8b5cf6' },
-  { code: 'workshop', label: '车间', icon: '🏭', color: '#f59e0b' },
-  { code: 'team', label: '班组', icon: '👥', color: '#22c55e' },
-  { code: 'station', label: '工位', icon: '📍', color: '#ef4444' },
-];
 
 interface OrgNode {
   code: string;
   label: string;
-  value?: string;
-  color?: string;
-  parentCode?: string;
-  metadata?: any;
-  isActive?: number;
+  orgType: string;
+  parentCode: string | null;
+  color: string;
   children?: OrgNode[];
 }
 
@@ -43,18 +30,15 @@ export default function OrganizationManager() {
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set(['ROOT']));
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [form, setForm] = useState({
-    code: '', label: '', value: '', color: '', parentCode: '',
-    orgType: 'department',
-  });
+  const [form, setForm] = useState({ code: '', label: '', orgType: '', parentCode: '', color: '' });
+
+  // 从字典读取机构类型（不再硬编码）
+  const { items: orgTypeItems, detailMap: orgTypeMap, isLoading: orgTypeLoading } = useDictItems('ORG_TYPE');
 
   // 查询组织机构字典分类
   const { data: orgCategory, refetch } = trpc.database.config.getDictCategory.useQuery(
     { categoryCode: 'ORGANIZATION' },
-    {
-      retry: false,
-      // 如果分类不存在，不报错
-    }
+    { retry: false }
   );
 
   // 创建组织机构分类（如果不存在）
@@ -80,12 +64,16 @@ export default function OrganizationManager() {
 
   // 构建树形结构
   const orgTree = useMemo(() => {
-    const items: OrgNode[] = (orgCategory?.items || []) as any[];
+    const items: any[] = (orgCategory?.items || []) as any[];
     const map = new Map<string, OrgNode & { children: OrgNode[] }>();
     const roots: (OrgNode & { children: OrgNode[] })[] = [];
 
     items.forEach(item => {
-      map.set(item.code, { ...item, children: [] });
+      map.set(item.code, {
+        code: item.code, label: item.label,
+        orgType: item.value || '', parentCode: item.parentCode || null,
+        color: item.color || '#3b82f6', children: [],
+      });
     });
 
     items.forEach(item => {
@@ -100,10 +88,7 @@ export default function OrganizationManager() {
     return roots;
   }, [orgCategory]);
 
-  // 扁平化列表（用于搜索）
-  const flatItems = useMemo(() => {
-    return orgCategory?.items || [];
-  }, [orgCategory]);
+  const flatItems = useMemo(() => orgCategory?.items || [], [orgCategory]);
 
   const filteredItems = useMemo(() => {
     if (!searchTerm) return flatItems;
@@ -112,31 +97,36 @@ export default function OrganizationManager() {
     );
   }, [flatItems, searchTerm]);
 
+  // 获取机构类型显示信息（从字典读取）
+  const getOrgTypeInfo = (typeCode: string) => {
+    const info = orgTypeMap[typeCode];
+    return info || { label: typeCode || '未知', color: '#6b7280', value: '' };
+  };
+
   const toggleExpand = (code: string) => {
     setExpandedNodes(prev => {
       const next = new Set(prev);
-      if (next.has(code)) next.delete(code);
-      else next.add(code);
+      if (next.has(code)) next.delete(code); else next.add(code);
       return next;
     });
   };
 
   const openCreate = (parentCode?: string) => {
     setEditingItem(null);
-    setForm({ code: '', label: '', value: '', color: '', parentCode: parentCode || '', orgType: 'department' });
+    setForm({
+      code: '', label: '',
+      orgType: orgTypeItems.length > 0 ? orgTypeItems[0].code : '',
+      parentCode: parentCode || '', color: '',
+    });
     setShowDialog(true);
   };
 
   const openEdit = (item: any) => {
     setEditingItem(item);
-    const meta = item.metadata || {};
     setForm({
-      code: item.code,
-      label: item.label,
-      value: item.value || '',
+      code: item.code, label: item.label,
+      orgType: item.value || '', parentCode: item.parentCode || '',
       color: item.color || '',
-      parentCode: item.parentCode || '',
-      orgType: meta.orgType || 'department',
     });
     setShowDialog(true);
   };
@@ -147,8 +137,8 @@ export default function OrganizationManager() {
         categoryCode: 'ORGANIZATION',
         code: editingItem.code,
         label: form.label || undefined,
-        value: form.value || undefined,
-        color: form.color || ORG_TYPES.find(t => t.code === form.orgType)?.color || undefined,
+        value: form.orgType || undefined,
+        color: form.color || orgTypeMap[form.orgType]?.color || undefined,
       });
     } else {
       if (!form.code || !form.label) {
@@ -160,7 +150,7 @@ export default function OrganizationManager() {
         code: form.code,
         label: form.label,
         value: form.orgType,
-        color: form.color || ORG_TYPES.find(t => t.code === form.orgType)?.color || '#3b82f6',
+        color: form.color || orgTypeMap[form.orgType]?.color || '#3b82f6',
         parentCode: form.parentCode || undefined,
       });
     }
@@ -170,7 +160,7 @@ export default function OrganizationManager() {
     createOrgCat.mutate({
       code: 'ORGANIZATION',
       name: '组织机构',
-      description: '企业组织机构层级管理（公司→部门→车间→班组→工位）',
+      description: '企业组织机构层级管理',
     });
   };
 
@@ -179,12 +169,12 @@ export default function OrganizationManager() {
     const hasChildren = node.children && node.children.length > 0;
     const isExpanded = expandedNodes.has(node.code);
     const isSelected = selectedNode === node.code;
-    const orgType = ORG_TYPES.find(t => t.code === node.value) || ORG_TYPES[1];
+    const typeInfo = getOrgTypeInfo(node.orgType);
 
     return (
       <div key={node.code}>
         <div
-          className={`flex items-center gap-1.5 py-1.5 px-2 rounded-md cursor-pointer transition-colors text-xs ${
+          className={`group flex items-center gap-1.5 py-1.5 px-2 rounded-md cursor-pointer transition-colors text-xs ${
             isSelected ? 'bg-primary/10 border border-primary/30' : 'hover:bg-muted/50 border border-transparent'
           }`}
           style={{ paddingLeft: `${depth * 16 + 8}px` }}
@@ -197,9 +187,11 @@ export default function OrganizationManager() {
           ) : (
             <span className="w-4" />
           )}
-          <span className="text-sm">{orgType.icon}</span>
+          <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: node.color || typeInfo.color }} />
           <span className="font-medium truncate">{node.label}</span>
-          <span className="text-muted-foreground text-[10px] ml-auto">{node.code}</span>
+          <Badge variant="outline" className="text-[10px] px-1 ml-auto" style={{ borderColor: typeInfo.color, color: typeInfo.color }}>
+            {typeInfo.label}
+          </Badge>
         </div>
         {hasChildren && isExpanded && (
           <div>
@@ -221,7 +213,7 @@ export default function OrganizationManager() {
               <h3 className="text-lg font-medium">组织机构管理</h3>
               <p className="text-sm text-muted-foreground text-center max-w-md">
                 组织机构数据存储在字典分类 <code className="bg-muted px-1 rounded">ORGANIZATION</code> 中。
-                <br />点击下方按钮初始化组织机构分类。
+                <br />点击下方按钮初始化。
               </p>
               <Button onClick={initOrganization} disabled={createOrgCat.isPending}>
                 <Building2 className="w-4 h-4 mr-2" />
@@ -241,9 +233,7 @@ export default function OrganizationManager() {
           <div className="flex items-center gap-2">
             <Building2 className="w-5 h-5 text-primary" />
             <h1 className="text-lg font-semibold text-foreground">组织机构管理</h1>
-            <Badge variant="outline" className="text-xs">
-              {flatItems.length} 个节点
-            </Badge>
+            <Badge variant="outline" className="text-xs">{flatItems.length} 个节点</Badge>
           </div>
           <Button size="sm" variant="outline" onClick={() => openCreate()}>
             <Plus className="w-3 h-3 mr-1" /> 新增机构
@@ -254,44 +244,36 @@ export default function OrganizationManager() {
           {/* 左侧：树形结构 */}
           <div className="col-span-5">
             <PageCard title="组织树" icon={<FolderTree className="w-4 h-4" />}
-              action={
-                <Button size="sm" variant="ghost" onClick={() => refetch()}>
-                  <RefreshCw className="w-3 h-3" />
-                </Button>
-              }
+              action={<Button size="sm" variant="ghost" onClick={() => refetch()}><RefreshCw className="w-3 h-3" /></Button>}
             >
               <div className="space-y-2">
                 <div className="relative">
                   <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    placeholder="搜索组织..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-8 h-8 text-xs"
-                  />
+                  <Input placeholder="搜索组织..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-8 h-8 text-xs" />
                 </div>
                 <div className="space-y-0.5 max-h-[calc(100vh-320px)] overflow-y-auto">
                   {searchTerm ? (
-                    filteredItems.map((item: any) => (
-                      <div
-                        key={item.code}
-                        className={`flex items-center gap-2 p-2 rounded-md cursor-pointer text-xs ${
-                          selectedNode === item.code ? 'bg-primary/10 border border-primary/30' : 'hover:bg-muted/50 border border-transparent'
-                        }`}
-                        onClick={() => setSelectedNode(item.code)}
-                      >
-                        <span>{ORG_TYPES.find(t => t.code === item.value)?.icon || '🏛️'}</span>
-                        <span className="font-medium">{item.label}</span>
-                        <span className="text-muted-foreground text-[10px] ml-auto">{item.code}</span>
-                      </div>
-                    ))
+                    filteredItems.map((item: any) => {
+                      const typeInfo = getOrgTypeInfo(item.value || '');
+                      return (
+                        <div key={item.code}
+                          className={`flex items-center gap-2 p-2 rounded-md cursor-pointer text-xs ${
+                            selectedNode === item.code ? 'bg-primary/10 border border-primary/30' : 'hover:bg-muted/50 border border-transparent'
+                          }`}
+                          onClick={() => setSelectedNode(item.code)}>
+                          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: typeInfo.color }} />
+                          <span className="font-medium">{item.label}</span>
+                          <Badge variant="outline" className="text-[10px] px-1 ml-auto" style={{ borderColor: typeInfo.color, color: typeInfo.color }}>
+                            {typeInfo.label}
+                          </Badge>
+                        </div>
+                      );
+                    })
                   ) : (
                     orgTree.map(node => renderTreeNode(node))
                   )}
                   {orgTree.length === 0 && !searchTerm && (
-                    <div className="text-center text-muted-foreground text-xs py-8">
-                      暂无组织机构，点击"新增机构"添加
-                    </div>
+                    <div className="text-center text-muted-foreground text-xs py-8">暂无组织机构，点击"新增机构"添加</div>
                   )}
                 </div>
               </div>
@@ -304,19 +286,19 @@ export default function OrganizationManager() {
               {selectedNode ? (() => {
                 const item = flatItems.find((i: any) => i.code === selectedNode);
                 if (!item) return <div className="text-center text-muted-foreground py-8">未找到节点</div>;
-                const orgType = ORG_TYPES.find(t => t.code === item.value) || ORG_TYPES[1];
+                const typeInfo = getOrgTypeInfo(item.value || '');
                 const children = flatItems.filter((i: any) => i.parentCode === item.code);
                 return (
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg flex items-center justify-center text-xl"
-                          style={{ backgroundColor: `${orgType.color}20`, border: `1px solid ${orgType.color}40` }}>
-                          {orgType.icon}
+                        <div className="w-10 h-10 rounded-lg flex items-center justify-center"
+                          style={{ backgroundColor: `${typeInfo.color}20`, border: `1px solid ${typeInfo.color}40` }}>
+                          <div className="w-4 h-4 rounded-full" style={{ backgroundColor: typeInfo.color }} />
                         </div>
                         <div>
                           <div className="font-semibold text-sm">{item.label}</div>
-                          <div className="text-xs text-muted-foreground">{item.code} · {orgType.label}</div>
+                          <div className="text-xs text-muted-foreground">{item.code} · {typeInfo.label}</div>
                         </div>
                       </div>
                       <div className="flex gap-1">
@@ -328,6 +310,8 @@ export default function OrganizationManager() {
                         </Button>
                         <Button size="sm" variant="outline" className="text-destructive"
                           onClick={() => {
+                            const hasChildren = flatItems.some((i: any) => i.parentCode === item.code);
+                            if (hasChildren) { toast.warning('请先删除子机构'); return; }
                             if (confirm(`确定删除 "${item.label}" 吗？`)) {
                               deleteItem.mutate({ categoryCode: 'ORGANIZATION', code: item.code });
                               setSelectedNode(null);
@@ -341,7 +325,7 @@ export default function OrganizationManager() {
                     <div className="grid grid-cols-2 gap-3 text-xs">
                       <div className="bg-muted/30 rounded-md p-2.5">
                         <div className="text-muted-foreground mb-1">机构类型</div>
-                        <div className="font-medium">{orgType.label}</div>
+                        <Badge variant="outline" style={{ borderColor: typeInfo.color, color: typeInfo.color }}>{typeInfo.label}</Badge>
                       </div>
                       <div className="bg-muted/30 rounded-md p-2.5">
                         <div className="text-muted-foreground mb-1">上级机构</div>
@@ -349,9 +333,7 @@ export default function OrganizationManager() {
                       </div>
                       <div className="bg-muted/30 rounded-md p-2.5">
                         <div className="text-muted-foreground mb-1">状态</div>
-                        <Badge variant={item.isActive ? 'default' : 'secondary'} className="text-[10px]">
-                          {item.isActive ? '启用' : '禁用'}
-                        </Badge>
+                        <Badge variant={item.isActive ? 'default' : 'secondary'} className="text-[10px]">{item.isActive ? '启用' : '禁用'}</Badge>
                       </div>
                       <div className="bg-muted/30 rounded-md p-2.5">
                         <div className="text-muted-foreground mb-1">下级数量</div>
@@ -364,14 +346,14 @@ export default function OrganizationManager() {
                         <h4 className="text-xs font-medium text-muted-foreground mb-2">下级机构</h4>
                         <div className="space-y-1">
                           {children.map((child: any) => {
-                            const ct = ORG_TYPES.find(t => t.code === child.value) || ORG_TYPES[1];
+                            const ct = getOrgTypeInfo(child.value || '');
                             return (
                               <div key={child.code}
                                 className="flex items-center gap-2 p-2 rounded-md hover:bg-muted/30 cursor-pointer text-xs"
                                 onClick={() => setSelectedNode(child.code)}>
-                                <span>{ct.icon}</span>
+                                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: ct.color }} />
                                 <span className="font-medium">{child.label}</span>
-                                <Badge variant="outline" className="text-[10px] ml-auto">{ct.label}</Badge>
+                                <Badge variant="outline" className="text-[10px] ml-auto" style={{ borderColor: ct.color, color: ct.color }}>{ct.label}</Badge>
                               </div>
                             );
                           })}
@@ -390,7 +372,7 @@ export default function OrganizationManager() {
         </div>
 
         {/* 新建/编辑对话框 */}
-        <Dialog open={showDialog} onOpenChange={setShowDialog}>
+        <Dialog open={showDialog} onOpenChange={(open) => { setShowDialog(open); if (!open) setEditingItem(null); }}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle>{editingItem ? '编辑组织机构' : '新建组织机构'}</DialogTitle>
@@ -398,13 +380,7 @@ export default function OrganizationManager() {
             <div className="space-y-3">
               <div>
                 <label className="text-xs text-muted-foreground mb-1 block">机构编码 *</label>
-                <Input
-                  placeholder="如: DEPT_PROD_01"
-                  value={form.code}
-                  onChange={(e) => setForm({ ...form, code: e.target.value })}
-                  className="h-8 text-xs"
-                  disabled={!!editingItem}
-                />
+                <Input placeholder="如: DEPT_PROD_01" value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} className="h-8 text-xs" disabled={!!editingItem} />
               </div>
               <div>
                 <label className="text-xs text-muted-foreground mb-1 block">机构名称 *</label>
@@ -412,36 +388,45 @@ export default function OrganizationManager() {
               </div>
               <div>
                 <label className="text-xs text-muted-foreground mb-1 block">机构类型</label>
-                <Select value={form.orgType} onValueChange={(v) => setForm({ ...form, orgType: v })}>
-                  <SelectTrigger className="h-8 text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {ORG_TYPES.map(t => (
-                      <SelectItem key={t.code} value={t.code}>
-                        <span className="flex items-center gap-1.5">{t.icon} {t.label}</span>
-                      </SelectItem>
+                {orgTypeLoading ? (
+                  <div className="text-xs text-muted-foreground">加载中...</div>
+                ) : orgTypeItems.length === 0 ? (
+                  <div className="text-xs text-amber-600 bg-amber-50 dark:bg-amber-950/30 p-2 rounded">
+                    请先在字典管理中创建 <code className="bg-muted px-1 rounded">ORG_TYPE</code> 分类并添加机构类型选项（如：公司、部门、车间、班组、工位）
+                  </div>
+                ) : (
+                  <select
+                    value={form.orgType}
+                    onChange={(e) => setForm({ ...form, orgType: e.target.value })}
+                    className="w-full h-8 text-xs border border-border rounded-md px-2 bg-background"
+                  >
+                    <option value="">请选择机构类型</option>
+                    {orgTypeItems.map((t: any) => (
+                      <option key={t.code} value={t.code}>{t.label}</option>
                     ))}
-                  </SelectContent>
-                </Select>
+                  </select>
+                )}
               </div>
               <div>
                 <label className="text-xs text-muted-foreground mb-1 block">上级机构</label>
-                <Select value={form.parentCode || '_none'} onValueChange={(v) => setForm({ ...form, parentCode: v === '_none' ? '' : v })}>
-                  <SelectTrigger className="h-8 text-xs">
-                    <SelectValue placeholder="无（顶级机构）" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="_none">无（顶级机构）</SelectItem>
-                    {flatItems.filter((i: any) => i.code !== editingItem?.code).map((i: any) => (
-                      <SelectItem key={i.code} value={i.code}>{i.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <select
+                  value={form.parentCode}
+                  onChange={(e) => setForm({ ...form, parentCode: e.target.value })}
+                  className="w-full h-8 text-xs border border-border rounded-md px-2 bg-background"
+                  disabled={!!editingItem}
+                >
+                  <option value="">无（顶级机构）</option>
+                  {(flatItems as any[])
+                    .filter((n: any) => !editingItem || n.code !== editingItem.code)
+                    .map((n: any) => (
+                      <option key={n.code} value={n.code}>{n.label}（{n.code}）</option>
+                    ))
+                  }
+                </select>
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" size="sm" onClick={() => setShowDialog(false)}>取消</Button>
+              <Button variant="outline" size="sm" onClick={() => { setShowDialog(false); setEditingItem(null); }}>取消</Button>
               <Button size="sm" onClick={handleSave} disabled={createItem.isPending || updateItem.isPending}>
                 {editingItem ? '保存' : '创建'}
               </Button>

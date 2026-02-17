@@ -1,7 +1,8 @@
 /**
  * 设备管理 - 基础设置 (L1 设备层)
- * 按《设备管控系统分类编码标准》自动生成编码
- * 支持自定义增加列
+ * 编码级联和状态全部从字典管理读取，不再硬编码
+ * 字典分类: DEVICE_STATUS(状态), DEVICE_L1(一级), DEVICE_L2(二级), DEVICE_L3(三级)
+ * 编码结构: 一级(1位大写) + 二级(2位小写) + 分隔符(-) + 三级(2位大写) + 四级(3位数字流水号)
  */
 import { useState, useMemo } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
@@ -13,22 +14,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { trpc } from '@/lib/trpc';
 import { useToast } from '@/components/common/Toast';
-import { useCustomColumns, type CustomColumn } from './useCustomColumns';
-import {
-  LEVEL1_CODES, LEVEL2_CODES, LEVEL3_CODES,
-  generateDeviceCode,
-} from './coding-rules';
+import { useCustomColumns } from './useCustomColumns';
+import { useDictItems } from './useDictionary';
 import {
   Plus, Trash2, Edit3, Cpu, Search, RefreshCw, Zap, MapPin, Hash, Activity,
-  Columns3, X,
+  Columns3, X, AlertTriangle,
 } from 'lucide-react';
-
-const STATUS_MAP: Record<string, { label: string; color: string }> = {
-  running: { label: '运行中', color: '#22c55e' },
-  maintenance: { label: '维护中', color: '#f59e0b' },
-  stopped: { label: '已停机', color: '#ef4444' },
-  unknown: { label: '未知', color: '#6b7280' },
-};
 
 export default function DeviceManager() {
   const toast = useToast();
@@ -50,8 +41,26 @@ export default function DeviceManager() {
 
   const [form, setForm] = useState<Record<string, any>>({
     nodeId: '', code: '', name: '', templateCode: '', serialNumber: '',
-    location: '', department: '', installDate: '', status: 'unknown',
+    location: '', department: '', installDate: '', status: '',
   });
+
+  // === 从字典读取所有枚举（不再硬编码） ===
+  const { items: statusItems, detailMap: statusMap, isLoading: statusLoading } = useDictItems('DEVICE_STATUS');
+  const { items: l1Items, map: l1Map, isLoading: l1Loading } = useDictItems('DEVICE_L1');
+  const { items: l2Items, isLoading: l2Loading } = useDictItems('DEVICE_L2');
+  const { items: l3Items, isLoading: l3Loading } = useDictItems('DEVICE_L3');
+
+  // 二级选项：按 parentCode 过滤（parentCode = 一级代码）
+  const l2Options = useMemo(() => {
+    if (!codeL1) return [];
+    return l2Items.filter((i: any) => i.parentCode === codeL1);
+  }, [codeL1, l2Items]);
+
+  // 三级选项：按 parentCode 过滤（parentCode = 二级代码）
+  const l3Options = useMemo(() => {
+    if (!codeL2) return [];
+    return l3Items.filter((i: any) => i.parentCode === codeL2);
+  }, [codeL2, l3Items]);
 
   // tRPC 查询
   const { data: treeData, refetch } = trpc.database.asset.getTree.useQuery({ level: 1 });
@@ -84,10 +93,6 @@ export default function DeviceManager() {
     return list;
   }, [treeData, searchTerm, statusFilter]);
 
-  // 级联选择器选项
-  const l2Options = useMemo(() => codeL1 ? LEVEL2_CODES[codeL1] || {} : {}, [codeL1]);
-  const l3Options = useMemo(() => codeL2 ? LEVEL3_CODES[codeL2] || {} : {}, [codeL2]);
-
   // 自动计算下一个流水号
   const nextSeqNum = useMemo(() => {
     if (!codeL1 || !codeL2 || !codeL3) return 1;
@@ -100,6 +105,11 @@ export default function DeviceManager() {
       });
     return existing.length > 0 ? Math.max(...existing) + 1 : 1;
   }, [codeL1, codeL2, codeL3, treeData]);
+
+  // 生成设备编码
+  const generateDeviceCode = (l1: string, l2: string, l3: string, seq: number) => {
+    return `${l1}${l2}-${l3}${String(seq).padStart(3, '0')}`;
+  };
 
   const handleAutoCode = () => {
     if (!codeL1 || !codeL2 || !codeL3) {
@@ -117,7 +127,7 @@ export default function DeviceManager() {
     setCodeL1(''); setCodeL2(''); setCodeL3('');
     setForm({
       nodeId: '', code: '', name: '', templateCode: '', serialNumber: '',
-      location: '', department: '', installDate: '', status: 'unknown',
+      location: '', department: '', installDate: '', status: '',
     });
     setShowDialog(true);
   };
@@ -125,22 +135,16 @@ export default function DeviceManager() {
   const openEdit = (device: any) => {
     setEditingDevice(device);
     setForm({
-      nodeId: device.nodeId,
-      code: device.code,
-      name: device.name,
-      templateCode: device.templateCode || '',
-      serialNumber: device.serialNumber || '',
-      location: device.location || '',
-      department: device.department || '',
-      installDate: device.installDate || '',
-      status: device.status || 'unknown',
+      nodeId: device.nodeId, code: device.code, name: device.name,
+      templateCode: device.templateCode || '', serialNumber: device.serialNumber || '',
+      location: device.location || '', department: device.department || '',
+      installDate: device.installDate || '', status: device.status || '',
       ...(device.attributes || {}),
     });
     setShowDialog(true);
   };
 
   const handleSave = () => {
-    // 收集自定义列数据到 attributes
     const customData: Record<string, any> = {};
     for (const col of customCols) {
       if (form[col.key] !== undefined && form[col.key] !== '') {
@@ -165,11 +169,8 @@ export default function DeviceManager() {
       }
       createNode.mutate({
         nodeId: form.nodeId || `dev-${Date.now()}`,
-        code: form.code,
-        name: form.name,
-        level: 1,
-        nodeType: 'device',
-        rootNodeId: form.nodeId || `dev-${Date.now()}`,
+        code: form.code, name: form.name, level: 1,
+        nodeType: 'device', rootNodeId: form.nodeId || `dev-${Date.now()}`,
         templateCode: form.templateCode || undefined,
         path: `/${form.nodeId}/`,
         serialNumber: form.serialNumber || undefined,
@@ -182,10 +183,7 @@ export default function DeviceManager() {
   };
 
   const handleAddColumn = () => {
-    if (!newColLabel.trim()) {
-      toast.warning('请输入列名称');
-      return;
-    }
+    if (!newColLabel.trim()) { toast.warning('请输入列名称'); return; }
     const key = `custom_${newColLabel.trim().replace(/\s+/g, '_').toLowerCase()}_${Date.now()}`;
     addColumn({ key, label: newColLabel.trim(), type: newColType });
     setNewColLabel('');
@@ -193,20 +191,43 @@ export default function DeviceManager() {
     toast.success(`已添加列: ${newColLabel.trim()}`);
   };
 
+  // 获取状态显示信息（从字典读取）
+  const getStatusInfo = (statusCode: string) => {
+    return statusMap[statusCode] || { label: statusCode || '未知', color: '#6b7280' };
+  };
+
   // 统计
   const stats = useMemo(() => {
     const all = treeData || [];
-    return {
-      total: all.length,
-      running: all.filter((d: any) => d.status === 'running').length,
-      maintenance: all.filter((d: any) => d.status === 'maintenance').length,
-      stopped: all.filter((d: any) => d.status === 'stopped').length,
-    };
-  }, [treeData]);
+    // 动态统计各状态数量
+    const statusCounts: Record<string, number> = {};
+    statusItems.forEach((s: any) => { statusCounts[s.code] = 0; });
+    all.forEach((d: any) => {
+      if (statusCounts[d.status] !== undefined) statusCounts[d.status]++;
+    });
+    return { total: all.length, statusCounts };
+  }, [treeData, statusItems]);
+
+  // 检查字典是否配置
+  const dictMissing = !l1Loading && l1Items.length === 0;
 
   return (
     <MainLayout title="设备管理">
       <div className="p-4 space-y-4">
+        {/* 字典未配置提示 */}
+        {dictMissing && (
+          <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg p-3 flex items-start gap-2">
+            <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+            <div className="text-xs text-amber-800 dark:text-amber-200">
+              <span className="font-semibold">编码字典未配置。</span>请先在字典管理中创建以下分类：
+              <code className="bg-amber-100 dark:bg-amber-900/50 px-1 rounded mx-0.5">DEVICE_L1</code>（一级代码）、
+              <code className="bg-amber-100 dark:bg-amber-900/50 px-1 rounded mx-0.5">DEVICE_L2</code>（二级代码，parentCode 指向一级）、
+              <code className="bg-amber-100 dark:bg-amber-900/50 px-1 rounded mx-0.5">DEVICE_L3</code>（三级代码，parentCode 指向二级）、
+              <code className="bg-amber-100 dark:bg-amber-900/50 px-1 rounded mx-0.5">DEVICE_STATUS</code>（设备状态）
+            </div>
+          </div>
+        )}
+
         {/* 标题栏 */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -226,24 +247,34 @@ export default function DeviceManager() {
 
         {/* 统计卡片 */}
         <div className="grid grid-cols-4 gap-3">
-          {[
-            { label: '设备总数', value: stats.total, icon: Cpu, color: '#3b82f6' },
-            { label: '运行中', value: stats.running, icon: Activity, color: '#22c55e' },
-            { label: '维护中', value: stats.maintenance, icon: Zap, color: '#f59e0b' },
-            { label: '已停机', value: stats.stopped, icon: Zap, color: '#ef4444' },
-          ].map((s) => (
-            <PageCard key={s.label} compact>
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-md flex items-center justify-center" style={{ backgroundColor: `${s.color}15`, border: `1px solid ${s.color}30` }}>
-                  <s.icon className="w-4 h-4" style={{ color: s.color }} />
-                </div>
-                <div>
-                  <div className="text-[10px] text-muted-foreground">{s.label}</div>
-                  <div className="text-lg font-bold" style={{ color: s.color }}>{s.value}</div>
-                </div>
+          <PageCard compact>
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-md flex items-center justify-center" style={{ backgroundColor: '#3b82f615', border: '1px solid #3b82f630' }}>
+                <Cpu className="w-4 h-4" style={{ color: '#3b82f6' }} />
               </div>
-            </PageCard>
-          ))}
+              <div>
+                <div className="text-[10px] text-muted-foreground">设备总数</div>
+                <div className="text-lg font-bold" style={{ color: '#3b82f6' }}>{stats.total}</div>
+              </div>
+            </div>
+          </PageCard>
+          {statusItems.slice(0, 3).map((s: any) => {
+            const info = getStatusInfo(s.code);
+            const IconComp = s.code === 'running' ? Activity : Zap;
+            return (
+              <PageCard key={s.code} compact>
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-md flex items-center justify-center" style={{ backgroundColor: `${info.color}15`, border: `1px solid ${info.color}30` }}>
+                    <IconComp className="w-4 h-4" style={{ color: info.color }} />
+                  </div>
+                  <div>
+                    <div className="text-[10px] text-muted-foreground">{info.label}</div>
+                    <div className="text-lg font-bold" style={{ color: info.color }}>{stats.statusCounts[s.code] || 0}</div>
+                  </div>
+                </div>
+              </PageCard>
+            );
+          })}
         </div>
 
         {/* 筛选栏 */}
@@ -259,8 +290,8 @@ export default function DeviceManager() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">全部状态</SelectItem>
-                {Object.entries(STATUS_MAP).map(([k, v]) => (
-                  <SelectItem key={k} value={k}>{v.label}</SelectItem>
+                {statusItems.map((s: any) => (
+                  <SelectItem key={s.code} value={s.code}>{s.label}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -291,7 +322,7 @@ export default function DeviceManager() {
               </thead>
               <tbody>
                 {devices.map((d: any) => {
-                  const st = STATUS_MAP[d.status] || STATUS_MAP.unknown;
+                  const st = getStatusInfo(d.status);
                   const attrs = d.attributes || {};
                   return (
                     <tr key={d.nodeId} className="border-b border-border/50 hover:bg-muted/20 transition-colors">
@@ -356,75 +387,83 @@ export default function DeviceManager() {
                   <div className="flex items-center gap-2 mb-1">
                     <Hash className="w-4 h-4 text-primary" />
                     <span className="text-xs font-semibold text-foreground">设备编码生成</span>
-                    <span className="text-[10px] text-muted-foreground">（按《设备分类编码标准》自动生成）</span>
+                    <span className="text-[10px] text-muted-foreground">（从字典读取编码规则）</span>
                   </div>
-                  <div className="grid grid-cols-3 gap-2">
-                    {/* 一级代码 */}
-                    <div>
-                      <label className="text-[10px] text-muted-foreground mb-1 block">一级代码（设备大类）</label>
-                      <Select value={codeL1} onValueChange={(v) => { setCodeL1(v); setCodeL2(''); setCodeL3(''); }}>
-                        <SelectTrigger className="h-8 text-xs">
-                          <SelectValue placeholder="选择大类" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {Object.entries(LEVEL1_CODES).map(([k, v]) => (
-                            <SelectItem key={k} value={k}>{k} - {v}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                  {l1Items.length === 0 && !l1Loading ? (
+                    <div className="text-xs text-amber-600 bg-amber-50 dark:bg-amber-950/30 p-2 rounded">
+                      请先在字典管理中创建 <code>DEVICE_L1</code>、<code>DEVICE_L2</code>、<code>DEVICE_L3</code> 分类及字典项
                     </div>
-                    {/* 二级代码 */}
-                    <div>
-                      <label className="text-[10px] text-muted-foreground mb-1 block">二级代码（设备中类）</label>
-                      <Select value={codeL2} onValueChange={(v) => { setCodeL2(v); setCodeL3(''); }} disabled={!codeL1}>
-                        <SelectTrigger className="h-8 text-xs">
-                          <SelectValue placeholder="选择中类" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {Object.entries(l2Options).map(([k, v]) => (
-                            <SelectItem key={k} value={k}>{k} - {v}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    {/* 三级代码 */}
-                    <div>
-                      <label className="text-[10px] text-muted-foreground mb-1 block">三级代码（设备小类）</label>
-                      <Select value={codeL3} onValueChange={setCodeL3} disabled={!codeL2}>
-                        <SelectTrigger className="h-8 text-xs">
-                          <SelectValue placeholder="选择小类" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {Object.entries(l3Options).map(([k, v]) => (
-                            <SelectItem key={k} value={k}>{k} - {v}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1">
-                      <label className="text-[10px] text-muted-foreground mb-1 block">生成的编码</label>
-                      <Input
-                        value={form.code}
-                        onChange={(e) => setForm({ ...form, code: e.target.value })}
-                        placeholder="点击自动生成或手动输入"
-                        className="h-8 text-xs font-mono"
-                      />
-                    </div>
-                    <Button
-                      size="sm" variant="default" className="mt-4"
-                      onClick={handleAutoCode}
-                      disabled={!codeL1 || !codeL2 || !codeL3}
-                    >
-                      <Hash className="w-3 h-3 mr-1" /> 自动生成
-                    </Button>
-                  </div>
-                  {codeL1 && codeL2 && codeL3 && (
-                    <div className="text-[10px] text-muted-foreground bg-background/50 rounded px-2 py-1">
-                      编码预览: <span className="font-mono text-primary font-medium">{generateDeviceCode(codeL1, codeL2, codeL3, nextSeqNum)}</span>
-                      <span className="ml-2">（{LEVEL1_CODES[codeL1]} → {l2Options[codeL2]} → {l3Options[codeL3]} → 第{nextSeqNum}台）</span>
-                    </div>
+                  ) : (
+                    <>
+                      <div className="grid grid-cols-3 gap-2">
+                        {/* 一级代码 */}
+                        <div>
+                          <label className="text-[10px] text-muted-foreground mb-1 block">一级代码（设备大类）</label>
+                          <Select value={codeL1} onValueChange={(v) => { setCodeL1(v); setCodeL2(''); setCodeL3(''); }}>
+                            <SelectTrigger className="h-8 text-xs">
+                              <SelectValue placeholder="选择大类" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {l1Items.map((item: any) => (
+                                <SelectItem key={item.code} value={item.code}>{item.code} - {item.label}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        {/* 二级代码 */}
+                        <div>
+                          <label className="text-[10px] text-muted-foreground mb-1 block">二级代码（设备中类）</label>
+                          <Select value={codeL2} onValueChange={(v) => { setCodeL2(v); setCodeL3(''); }} disabled={!codeL1}>
+                            <SelectTrigger className="h-8 text-xs">
+                              <SelectValue placeholder="选择中类" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {l2Options.map((item: any) => (
+                                <SelectItem key={item.code} value={item.code}>{item.code} - {item.label}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        {/* 三级代码 */}
+                        <div>
+                          <label className="text-[10px] text-muted-foreground mb-1 block">三级代码（设备小类）</label>
+                          <Select value={codeL3} onValueChange={setCodeL3} disabled={!codeL2}>
+                            <SelectTrigger className="h-8 text-xs">
+                              <SelectValue placeholder="选择小类" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {l3Options.map((item: any) => (
+                                <SelectItem key={item.code} value={item.code}>{item.code} - {item.label}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1">
+                          <label className="text-[10px] text-muted-foreground mb-1 block">生成的编码</label>
+                          <Input
+                            value={form.code}
+                            onChange={(e) => setForm({ ...form, code: e.target.value })}
+                            placeholder="点击自动生成或手动输入"
+                            className="h-8 text-xs font-mono"
+                          />
+                        </div>
+                        <Button
+                          size="sm" variant="default" className="mt-4"
+                          onClick={handleAutoCode}
+                          disabled={!codeL1 || !codeL2 || !codeL3}
+                        >
+                          <Hash className="w-3 h-3 mr-1" /> 自动生成
+                        </Button>
+                      </div>
+                      {codeL1 && codeL2 && codeL3 && (
+                        <div className="text-[10px] text-muted-foreground bg-background/50 rounded px-2 py-1">
+                          编码预览: <span className="font-mono text-primary font-medium">{generateDeviceCode(codeL1, codeL2, codeL3, nextSeqNum)}</span>
+                          <span className="ml-2">（{l1Map[codeL1] || codeL1} → {l2Options.find((i: any) => i.code === codeL2)?.label || codeL2} → {l3Options.find((i: any) => i.code === codeL3)?.label || codeL3} → 第{nextSeqNum}台）</span>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               )}
@@ -480,16 +519,20 @@ export default function DeviceManager() {
                 {editingDevice && (
                   <div>
                     <label className="text-xs text-muted-foreground mb-1 block">运行状态</label>
-                    <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v })}>
-                      <SelectTrigger className="h-8 text-xs">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {Object.entries(STATUS_MAP).map(([k, v]) => (
-                          <SelectItem key={k} value={k}>{v.label}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    {statusItems.length > 0 ? (
+                      <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v })}>
+                        <SelectTrigger className="h-8 text-xs">
+                          <SelectValue placeholder="选择状态" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {statusItems.map((s: any) => (
+                            <SelectItem key={s.code} value={s.code}>{s.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Input value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} placeholder="请在字典中配置 DEVICE_STATUS" className="h-8 text-xs" />
+                    )}
                   </div>
                 )}
               </div>
@@ -532,7 +575,6 @@ export default function DeviceManager() {
             </DialogHeader>
             <div className="space-y-3">
               <div className="text-xs text-muted-foreground">添加自定义列到设备表格中，数据存储在设备的扩展属性中。</div>
-              {/* 已有自定义列 */}
               {customCols.length > 0 && (
                 <div className="space-y-1.5">
                   {customCols.map(col => (
@@ -548,7 +590,6 @@ export default function DeviceManager() {
                   ))}
                 </div>
               )}
-              {/* 添加新列 */}
               <div className="flex items-end gap-2 border-t border-border pt-3">
                 <div className="flex-1">
                   <label className="text-[10px] text-muted-foreground mb-1 block">列名称</label>

@@ -1,6 +1,7 @@
 /**
  * 字典管理 - 基础设置
  * 管理字典分类和字典项，支持增删改查
+ * 分类列表支持：新增、编辑（名称/描述）、删除
  */
 import { useState, useMemo } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
@@ -10,16 +11,16 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { trpc } from '@/lib/trpc';
 import { useToast } from '@/components/common/Toast';
-import { Plus, Trash2, Edit3, BookOpen, Tag, Search, RefreshCw, ChevronRight } from 'lucide-react';
+import { Plus, Trash2, Edit3, BookOpen, Tag, Search, RefreshCw, ChevronRight, MoreVertical } from 'lucide-react';
 
 export default function DictionaryManager() {
   const toast = useToast();
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [showCatDialog, setShowCatDialog] = useState(false);
+  const [editingCat, setEditingCat] = useState<any>(null);
   const [showItemDialog, setShowItemDialog] = useState(false);
   const [editingItem, setEditingItem] = useState<any>(null);
   const [catForm, setCatForm] = useState({ code: '', name: '', description: '' });
@@ -32,11 +33,25 @@ export default function DictionaryManager() {
     { enabled: !!selectedCategory }
   );
 
-  // Mutations
+  // 分类 Mutations
   const createCat = trpc.database.config.createDictCategory.useMutation({
     onSuccess: () => { toast.success('字典分类创建成功'); refetchCats(); setShowCatDialog(false); },
     onError: (e: any) => toast.error(e.message),
   });
+  const updateCat = trpc.database.config.updateDictCategory.useMutation({
+    onSuccess: () => { toast.success('字典分类更新成功'); refetchCats(); setShowCatDialog(false); setEditingCat(null); },
+    onError: (e: any) => toast.error(e.message),
+  });
+  const deleteCat = trpc.database.config.deleteDictCategory.useMutation({
+    onSuccess: () => {
+      toast.success('字典分类已删除');
+      refetchCats();
+      if (selectedCategory) setSelectedCategory(null);
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  // 字典项 Mutations
   const createItem = trpc.database.config.createDictItem.useMutation({
     onSuccess: () => { toast.success('字典项创建成功'); refetchDetail(); setShowItemDialog(false); },
     onError: (e: any) => toast.error(e.message),
@@ -58,11 +73,50 @@ export default function DictionaryManager() {
     );
   }, [categories, searchTerm]);
 
+  // 分类操作
   const openCreateCat = () => {
+    setEditingCat(null);
     setCatForm({ code: '', name: '', description: '' });
     setShowCatDialog(true);
   };
 
+  const openEditCat = (cat: any, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingCat(cat);
+    setCatForm({ code: cat.code, name: cat.name, description: cat.description || '' });
+    setShowCatDialog(true);
+  };
+
+  const handleDeleteCat = (cat: any, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (cat.isSystem) {
+      toast.warning('系统字典分类不可删除');
+      return;
+    }
+    if (confirm(`确定删除字典分类 "${cat.name}" 及其所有字典项吗？此操作不可恢复。`)) {
+      deleteCat.mutate({ code: cat.code });
+    }
+  };
+
+  const handleSaveCat = () => {
+    if (editingCat) {
+      // 编辑模式
+      updateCat.mutate({
+        code: editingCat.code,
+        name: catForm.name || undefined,
+        description: catForm.description || undefined,
+      });
+    } else {
+      // 新建模式
+      if (!catForm.code || !catForm.name) {
+        toast.warning('请填写分类编码和名称');
+        return;
+      }
+      createCat.mutate(catForm);
+    }
+  };
+
+  // 字典项操作
   const openCreateItem = () => {
     setEditingItem(null);
     setItemForm({ code: '', label: '', value: '', color: '' });
@@ -73,14 +127,6 @@ export default function DictionaryManager() {
     setEditingItem(item);
     setItemForm({ code: item.code, label: item.label, value: item.value || '', color: item.color || '' });
     setShowItemDialog(true);
-  };
-
-  const handleSaveCat = () => {
-    if (!catForm.code || !catForm.name) {
-      toast.warning('请填写分类编码和名称');
-      return;
-    }
-    createCat.mutate(catForm);
   };
 
   const handleSaveItem = () => {
@@ -152,7 +198,7 @@ export default function DictionaryManager() {
                     <div
                       key={cat.code}
                       onClick={() => setSelectedCategory(cat.code)}
-                      className={`flex items-center justify-between p-2 rounded-md cursor-pointer transition-colors text-xs ${
+                      className={`group flex items-center justify-between p-2 rounded-md cursor-pointer transition-colors text-xs ${
                         selectedCategory === cat.code
                           ? 'bg-primary/10 border border-primary/30 text-primary'
                           : 'hover:bg-muted/50 border border-transparent'
@@ -165,10 +211,21 @@ export default function DictionaryManager() {
                           <div className="text-muted-foreground text-[10px]">{cat.code}</div>
                         </div>
                       </div>
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-0.5">
                         {cat.isSystem ? (
                           <Badge variant="secondary" className="text-[10px] px-1">系统</Badge>
                         ) : null}
+                        {/* 编辑和删除按钮 - hover 时显示 */}
+                        <div className="hidden group-hover:flex items-center gap-0.5 ml-1">
+                          <Button size="sm" variant="ghost" className="h-5 w-5 p-0" onClick={(e) => openEditCat(cat, e)} title="编辑分类">
+                            <Edit3 className="w-2.5 h-2.5" />
+                          </Button>
+                          {!cat.isSystem && (
+                            <Button size="sm" variant="ghost" className="h-5 w-5 p-0 text-destructive hover:text-destructive" onClick={(e) => handleDeleteCat(cat, e)} title="删除分类">
+                              <Trash2 className="w-2.5 h-2.5" />
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -263,16 +320,23 @@ export default function DictionaryManager() {
           </div>
         </div>
 
-        {/* 新建分类对话框 */}
-        <Dialog open={showCatDialog} onOpenChange={setShowCatDialog}>
+        {/* 新建/编辑分类对话框 */}
+        <Dialog open={showCatDialog} onOpenChange={(open) => { setShowCatDialog(open); if (!open) setEditingCat(null); }}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
-              <DialogTitle>新建字典分类</DialogTitle>
+              <DialogTitle>{editingCat ? '编辑字典分类' : '新建字典分类'}</DialogTitle>
             </DialogHeader>
             <div className="space-y-3">
               <div>
                 <label className="text-xs text-muted-foreground mb-1 block">分类编码 *</label>
-                <Input placeholder="如: DEVICE_TYPE" value={catForm.code} onChange={(e) => setCatForm({ ...catForm, code: e.target.value })} className="h-8 text-xs" />
+                <Input
+                  placeholder="如: DEVICE_TYPE"
+                  value={catForm.code}
+                  onChange={(e) => setCatForm({ ...catForm, code: e.target.value })}
+                  className="h-8 text-xs"
+                  disabled={!!editingCat}
+                />
+                {editingCat && <p className="text-[10px] text-muted-foreground mt-1">编码创建后不可修改</p>}
               </div>
               <div>
                 <label className="text-xs text-muted-foreground mb-1 block">分类名称 *</label>
@@ -284,9 +348,9 @@ export default function DictionaryManager() {
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" size="sm" onClick={() => setShowCatDialog(false)}>取消</Button>
-              <Button size="sm" onClick={handleSaveCat} disabled={createCat.isPending}>
-                {createCat.isPending ? '创建中...' : '创建'}
+              <Button variant="outline" size="sm" onClick={() => { setShowCatDialog(false); setEditingCat(null); }}>取消</Button>
+              <Button size="sm" onClick={handleSaveCat} disabled={createCat.isPending || updateCat.isPending}>
+                {editingCat ? (updateCat.isPending ? '保存中...' : '保存') : (createCat.isPending ? '创建中...' : '创建')}
               </Button>
             </DialogFooter>
           </DialogContent>

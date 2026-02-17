@@ -435,6 +435,21 @@ const configRouter = router({
   deleteDictItem: publicProcedure
     .input(z.object({ categoryCode: z.string(), code: z.string() }))
     .mutation(({ input }) => dictService.deleteItem(input.categoryCode, input.code)),
+
+  updateDictCategory: publicProcedure
+    .input(z.object({
+      code: z.string().min(1),
+      name: z.string().optional(),
+      description: z.string().optional(),
+    }))
+    .mutation(({ input }) => {
+      const { code, ...data } = input;
+      return dictService.updateCategory(code, data);
+    }),
+
+  deleteDictCategory: publicProcedure
+    .input(z.object({ code: z.string().min(1) }))
+    .mutation(({ input }) => dictService.deleteCategory(input.code)),
 });
 
 // ============================================

@@ -555,4 +555,27 @@ export const dictService = {
       .where(and(eq(baseDictItems.categoryCode, categoryCode), eq(baseDictItems.code, code)));
     return { success: true };
   },
+
+  async updateCategory(code: string, input: { name?: string; description?: string }) {
+    const db = await getDb();
+    if (!db) throw new Error('Database not available');
+    const updateData: any = { updatedAt: new Date(), updatedBy: 'system' };
+    if (input.name !== undefined) updateData.name = input.name;
+    if (input.description !== undefined) updateData.description = input.description;
+    await db.update(baseDictCategories).set(updateData)
+      .where(eq(baseDictCategories.code, code));
+    return { success: true };
+  },
+
+  async deleteCategory(code: string) {
+    const db = await getDb();
+    if (!db) throw new Error('Database not available');
+    // 软删除分类
+    await db.update(baseDictCategories).set({ isDeleted: 1, updatedAt: new Date() })
+      .where(eq(baseDictCategories.code, code));
+    // 同时软删除该分类下所有字典项
+    await db.update(baseDictItems).set({ isDeleted: 1, updatedAt: new Date() })
+      .where(eq(baseDictItems.categoryCode, code));
+    return { success: true };
+  },
 };

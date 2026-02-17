@@ -1,7 +1,8 @@
 /**
  * 机构管理 - 基础设置 (L2 机构层)
- * 附属设备编码: 设备主体编码 + 五级代码(j/s/f/g/z) + 六级(2位) + 七级(2位) + 流水号(2位)
+ * 附属设备编码: 设备主体编码 + 五级代码(从字典DEVICE_L5读取) + 六级(2位) + 七级(2位) + 流水号(2位)
  * 示例: Mgj-XC001j010101
+ * 所有枚举从字典管理读取，不再硬编码
  */
 import { useState, useMemo } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
@@ -14,8 +15,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { trpc } from '@/lib/trpc';
 import { useToast } from '@/components/common/Toast';
 import { useCustomColumns } from './useCustomColumns';
-import { LEVEL5_CODES, generateSubDeviceCode } from './coding-rules';
-import { Plus, Trash2, Edit3, Search, RefreshCw, Hash, Columns3, X, Settings2 } from 'lucide-react';
+import { useDictItems } from './useDictionary';
+import { generateSubDeviceCode } from './coding-rules';
+import { Plus, Trash2, Edit3, Search, RefreshCw, Hash, Columns3, X, Settings2, AlertTriangle } from 'lucide-react';
 
 export default function MechanismManager() {
   const toast = useToast();
@@ -38,6 +40,9 @@ export default function MechanismManager() {
   const [form, setForm] = useState<Record<string, any>>({
     nodeId: '', code: '', name: '', serialNumber: '', location: '', department: '',
   });
+
+  // === 从字典读取五级代码（不再硬编码） ===
+  const { items: l5Items, map: l5Map, isLoading: l5Loading } = useDictItems('DEVICE_L5');
 
   const { data: parentDevices } = trpc.database.asset.getTree.useQuery({ level: 1 });
   const { data: treeData, refetch } = trpc.database.asset.getTree.useQuery({ level: 2 });
@@ -133,9 +138,22 @@ export default function MechanismManager() {
     setNewColLabel(''); toast.success(`已添加列: ${newColLabel.trim()}`);
   };
 
+  const dictMissing = !l5Loading && l5Items.length === 0;
+
   return (
     <MainLayout title="机构管理">
       <div className="p-4 space-y-4">
+        {/* 字典未配置提示 */}
+        {dictMissing && (
+          <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg p-3 flex items-start gap-2">
+            <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+            <div className="text-xs text-amber-800 dark:text-amber-200">
+              <span className="font-semibold">编码字典未配置。</span>请先在字典管理中创建分类：
+              <code className="bg-amber-100 dark:bg-amber-900/50 px-1 rounded mx-0.5">DEVICE_L5</code>（五级代码，如 j=主要组成机构, s=附属设施等）
+            </div>
+          </div>
+        )}
+
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Settings2 className="w-5 h-5 text-primary" />
@@ -232,49 +250,58 @@ export default function MechanismManager() {
                     <span className="text-xs font-semibold">机构编码生成</span>
                     <span className="text-[10px] text-muted-foreground">（设备编码 + 五级 + 六级 + 七级 + 流水号）</span>
                   </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="text-[10px] text-muted-foreground mb-1 block">所属设备 *</label>
-                      <Select value={selectedDevice} onValueChange={setSelectedDevice}>
-                        <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="选择设备" /></SelectTrigger>
-                        <SelectContent>
-                          {parentDevices?.map((d: any) => (
-                            <SelectItem key={d.nodeId} value={d.nodeId}>{d.code} - {d.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                  {l5Items.length === 0 && !l5Loading ? (
+                    <div className="text-xs text-amber-600 bg-amber-50 dark:bg-amber-950/30 p-2 rounded">
+                      请先在字典管理中创建 <code>DEVICE_L5</code> 分类及字典项（如 j=主要组成机构, s=附属设施等）
                     </div>
-                    <div>
-                      <label className="text-[10px] text-muted-foreground mb-1 block">五级代码（分类）</label>
-                      <Select value={codeL5} onValueChange={setCodeL5}>
-                        <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="选择分类" /></SelectTrigger>
-                        <SelectContent>
-                          {Object.entries(LEVEL5_CODES).map(([k, v]) => (
-                            <SelectItem key={k} value={k}>{k} - {v}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="text-[10px] text-muted-foreground mb-1 block">六级代码（大类，2位数字）</label>
-                      <Input placeholder="如: 01" value={codeL6} onChange={(e) => setCodeL6(e.target.value.replace(/\D/g, '').slice(0, 2))} className="h-8 text-xs font-mono" maxLength={2} />
-                    </div>
-                    <div>
-                      <label className="text-[10px] text-muted-foreground mb-1 block">七级代码（小类，2位数字）</label>
-                      <Input placeholder="如: 01" value={codeL7} onChange={(e) => setCodeL7(e.target.value.replace(/\D/g, '').slice(0, 2))} className="h-8 text-xs font-mono" maxLength={2} />
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1">
-                      <label className="text-[10px] text-muted-foreground mb-1 block">生成的编码</label>
-                      <Input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} placeholder="点击自动生成按钮" className="h-8 text-xs font-mono" />
-                    </div>
-                    <Button size="sm" variant="default" className="mt-4" onClick={handleAutoCode} disabled={!selectedDevice || !codeL5 || !codeL6 || !codeL7}>
-                      <Hash className="w-3 h-3 mr-1" /> 自动生成
-                    </Button>
-                  </div>
+                  ) : (
+                    <>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[10px] text-muted-foreground mb-1 block">所属设备 *</label>
+                          <Select value={selectedDevice} onValueChange={setSelectedDevice}>
+                            <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="选择设备" /></SelectTrigger>
+                            <SelectContent>
+                              {parentDevices?.map((d: any) => (
+                                <SelectItem key={d.nodeId} value={d.nodeId}>{d.code} - {d.name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-muted-foreground mb-1 block">五级代码（分类）</label>
+                          <Select value={codeL5} onValueChange={setCodeL5}>
+                            <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="选择分类" /></SelectTrigger>
+                            <SelectContent>
+                              {l5Items.map((item: any) => (
+                                <SelectItem key={item.code} value={item.code}>{item.code} - {item.label}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[10px] text-muted-foreground mb-1 block">六级代码（大类，2位数字）</label>
+                          <Input placeholder="如: 01" value={codeL6} onChange={(e) => setCodeL6(e.target.value.replace(/\D/g, '').slice(0, 2))} className="h-8 text-xs font-mono" maxLength={2} />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-muted-foreground mb-1 block">七级代码（小类，2位数字）</label>
+                          <Input placeholder="如: 01" value={codeL7} onChange={(e) => setCodeL7(e.target.value.replace(/\D/g, '').slice(0, 2))} className="h-8 text-xs font-mono" maxLength={2} />
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1">
+                          <label className="text-[10px] text-muted-foreground mb-1 block">生成的编码</label>
+                          <Input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} placeholder="点击自动生成按钮" className="h-8 text-xs font-mono" />
+                        </div>
+                        <Button size="sm" variant="default" className="mt-4" onClick={handleAutoCode}
+                          disabled={!selectedDevice || !codeL5 || !codeL6 || !codeL7}>
+                          <Hash className="w-3 h-3 mr-1" /> 自动生成
+                        </Button>
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
               {editingItem && (
