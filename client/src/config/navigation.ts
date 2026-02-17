@@ -90,6 +90,7 @@ export const navigationConfig: NavItem[] = [
       { id: 'algo-feature', label: '特征提取', icon: '📊', path: '/algorithm/feature' },
       { id: 'algo-agent', label: 'Agent插件', icon: '🤖', path: '/algorithm/agent' },
       { id: 'algo-model', label: '模型迭代', icon: '🔄', path: '/algorithm/model' },
+      { id: 'algo-distillation', label: '高级知识蒸馏', icon: '🧪', path: '/algorithm/distillation' },
       { id: 'algo-rule', label: '规则自动学习', icon: '📝', path: '/algorithm/rule' },
       { id: 'algo-compose', label: '算法编排', icon: '🧩', path: '/algorithm/compose' },
       { id: 'algo-execution', label: '执行记录', icon: '📋', path: '/algorithm/execution' },
