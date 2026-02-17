@@ -135,7 +135,16 @@ export default function AlgorithmCategory() {
               <Card
                 key={algo.algoCode || algo.id}
                 className="cursor-pointer hover:shadow-md transition-shadow group"
-                onClick={() => navigate(`/algorithm/detail/${algo.algoCode}`)}
+                onClick={() => {
+                  // 已有独立页面的算法直接跳转到新页面
+                  const DEDICATED_PAGES: Record<string, string> = {
+                    'ds_evidence_fusion': '/diagnosis/fusion',
+                    'condition_normalization': '/algorithm/condition-normalizer',
+                    'model_distillation': '/algorithm/distillation',
+                  };
+                  const dedicated = DEDICATED_PAGES[algo.algoCode];
+                  navigate(dedicated || `/algorithm/detail/${algo.algoCode}`);
+                }}
               >
                 <CardHeader className="pb-2">
                   <div className="flex items-start justify-between">

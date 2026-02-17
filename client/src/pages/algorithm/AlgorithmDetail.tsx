@@ -839,6 +839,17 @@ export default function AlgorithmDetail() {
   const [, params] = useRoute("/algorithm/detail/:id");
   const algorithmId = params?.id || "";
 
+  // 已有独立页面的算法自动重定向
+  const DEDICATED_PAGES: Record<string, string> = {
+    'ds_evidence_fusion': '/diagnosis/fusion',
+    'condition_normalization': '/algorithm/condition-normalizer',
+    'model_distillation': '/algorithm/distillation',
+  };
+  if (DEDICATED_PAGES[algorithmId]) {
+    navigate(DEDICATED_PAGES[algorithmId], { replace: true });
+    return null;
+  }
+
   const [bindDialogOpen, setBindDialogOpen] = useState(false);
   const [testDialogOpen, setTestDialogOpen] = useState(false);
 
