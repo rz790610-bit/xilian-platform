@@ -24,6 +24,8 @@ import {
   DiagReport,
 } from "./pages/PlaceholderPage";
 
+// 融合诊断页面
+import FusionDiagnosis from "./pages/diagnosis/FusionDiagnosis";
 // 进化引擎模块页面
 import FeedbackCenter from "./pages/evolution/FeedbackCenter";
 import ActiveLearning from "./pages/evolution/ActiveLearning";
@@ -158,6 +160,7 @@ function Router() {
       <Route path="/algorithm/execution" component={AlgorithmCategory} />
       
       {/* 智能诊断 */}
+      <Route path="/diagnosis/fusion" component={FusionDiagnosis} />
       <Route path="/diagnosis/analysis" component={DiagAnalysis} />
       <Route path="/diagnosis/report" component={DiagReport} />
       <Route path="/diagnosis/knowledge">

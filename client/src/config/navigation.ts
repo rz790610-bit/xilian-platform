@@ -101,6 +101,7 @@ export const navigationConfig: NavItem[] = [
     icon: '🔬',
     children: [
       { id: 'agents', label: '智能体诊断', icon: '🤖', path: '/agents' },
+      { id: 'fusion-diagnosis', label: '融合诊断', icon: '🧠', path: '/diagnosis/fusion' },
       { id: 'diag-analysis', label: '诊断分析', icon: '🔍', path: '/diagnosis/analysis' },
       { id: 'diag-report', label: '诊断报告', icon: '📝', path: '/diagnosis/report' },
     ]

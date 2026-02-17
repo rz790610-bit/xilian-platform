@@ -47,6 +47,8 @@ import { sensorCrudRouter } from "./api/sensorCrud.router";
 import { microserviceRouter } from "./api/microservice.router";
 // ============ xAI Grok 诊断 Agent ============
 import { grokDiagnosticRouter } from "./api/grokDiagnostic.router";
+// ============ 融合诊断引擎（DS证据理论） ============
+import { fusionDiagnosisRouter } from "./api/fusionDiagnosis.router";
 
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/core/index.ts, all api should start with '/api/' so that the gateway can route correctly
@@ -156,6 +158,8 @@ export const appRouter = router({
   microservice: microserviceRouter,
   // ============ xAI Grok 诊断 Agent（设备故障诊断/多轮对话/Tool Calling） ============
   grokDiagnostic: grokDiagnosticRouter,
+  // ============ 融合诊断引擎（DS证据理论 + 专家注册 + 冲突处理） ============
+  fusionDiagnosis: fusionDiagnosisRouter,
 });
 
 export type AppRouter = typeof appRouter;
