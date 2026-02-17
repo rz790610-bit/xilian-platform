@@ -158,6 +158,9 @@ importers:
       express-rate-limit:
         specifier: ^8.2.1
         version: 8.2.1(express@4.21.2)
+      google-proto-files:
+        specifier: ^4.0.0
+        version: 4.2.0
       helmet:
         specifier: ^8.1.0
         version: 8.1.0
@@ -4363,6 +4366,10 @@ packages:
     resolution: {integrity: sha512-NEgUnEcBiP5HrPzufUkBzJOD/Sxsco3rLNo1F1TNf7ieU8ryUzBhqba8r756CjLX7rn3fHl6iLEwPYuqpoKgQQ==}
     engines: {node: '>=14'}
 
+  google-proto-files@4.2.0:
+    resolution: {integrity: sha512-Yl3ZtTSpkOLjHTqHn91NhDp2jMPzpHWowSGz3S30N6gkqOXrJwUu44alR9dX+NyHK3n165uR+jezOH365b1pPA==}
+    engines: {node: '>=14.0.0'}
+
   gopd@1.2.0:
     resolution: {integrity: sha512-ZUKRh6/kUFoAiTAtTYPZJ3hw9wNxx+BIBOijnlG9PnrJsCcSjs1wyyD6vJpaYtgnzDrKYRSqf3OO6Rfa93xsRg==}
     engines: {node: '>= 0.4'}
@@ -6184,6 +6191,10 @@ packages:
         optional: true
       jsdom:
         optional: true
+
+  walkdir@0.4.1:
+    resolution: {integrity: sha512-3eBwRyEln6E1MSzcxcVpQIhRG8Q1jLvEqRmCZqS3dsfXEDR/AhOF4d+jHg1qvDCpYaVRZjENPQyrVxAkQqxPgQ==}
+    engines: {node: '>=6.0.0'}
 
   wasm-feature-detect@1.8.0:
     resolution: {integrity: sha512-zksaLKM2fVlnB5jQQDqKXXwYHLQUVH9es+5TOOHwGOVJOCeRBCiPjwSg+3tN2AdTCzjgli4jijCH290kXb/zWQ==}
@@ -11099,6 +11110,11 @@ snapshots:
 
   google-logging-utils@0.0.2: {}
 
+  google-proto-files@4.2.0:
+    dependencies:
+      protobufjs: 7.5.4
+      walkdir: 0.4.1
+
   gopd@1.2.0: {}
 
   graceful-fs@4.2.11: {}
@@ -13525,6 +13541,8 @@ snapshots:
       - sugarss
       - supports-color
       - terser
+
+  walkdir@0.4.1: {}
 
   wasm-feature-detect@1.8.0: {}
 

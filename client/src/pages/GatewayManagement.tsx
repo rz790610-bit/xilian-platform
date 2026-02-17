@@ -9,6 +9,9 @@
  * - 插件管理（启用/禁用/配置）
  * - 上游管理（负载均衡 + 健康检查 + 目标节点）
  * - 消费者管理（API Key 生成）
+ * 
+ * 当前使用 Mock 数据，待后端 gateway router 注册后
+ * 可替换为 trpc.gateway.* 调用
  * ============================================================
  */
 
@@ -23,7 +26,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/common/Toast';
-import { trpc } from '@/lib/trpc';
 
 // ── 类型定义 ──
 interface KongRoute {
@@ -63,7 +65,78 @@ interface KongPlugin {
   created_at: number;
 }
 
-// ── 时间格式化 ──
+// ── Mock 数据 ──
+const mockDashboard = {
+  connected: true,
+  error: null as string | null,
+  counts: { routes: 12, services: 8, plugins: 15, upstreams: 4, consumers: 6 },
+  server: { version: '3.6.1', lua_version: 'LuaJIT 2.1.0-beta3' },
+  memory: {
+    lua_shared_dicts: { kong: { allocated_slabs: '12.50 MiB', capacity: '32 MiB' } },
+    workers_lua_vms: [{ http_allocated_gc: '45.23 MiB', pid: 1234 }],
+  },
+};
+
+const mockMetrics = {
+  totalRequests: 1_284_567,
+  activeConnections: 142,
+  waitingConnections: 23,
+  totalBandwidthIn: 2_147_483_648,
+  totalBandwidthOut: 5_368_709_120,
+};
+
+const mockRoutes: KongRoute[] = [
+  { id: 'r-001', name: 'api-devices', paths: ['/api/devices', '/api/sensors'], methods: ['GET', 'POST'], protocols: ['http', 'https'], strip_path: true, preserve_host: false, service: { id: 's-001' }, created_at: 1707900000 },
+  { id: 'r-002', name: 'api-models', paths: ['/api/models'], methods: ['GET', 'POST', 'PUT', 'DELETE'], protocols: ['http', 'https'], strip_path: true, preserve_host: false, service: { id: 's-002' }, created_at: 1707800000 },
+  { id: 'r-003', name: 'api-diagnosis', paths: ['/api/diagnosis', '/api/predict'], methods: ['POST'], protocols: ['https'], strip_path: false, preserve_host: true, service: { id: 's-003' }, created_at: 1707700000 },
+  { id: 'r-004', name: 'api-knowledge', paths: ['/api/knowledge', '/api/graph'], methods: ['GET', 'POST'], protocols: ['http', 'https'], strip_path: true, preserve_host: false, service: { id: 's-004' }, created_at: 1707600000 },
+  { id: 'r-005', name: 'ws-realtime', paths: ['/ws/realtime'], methods: ['GET'], protocols: ['http', 'https'], strip_path: false, preserve_host: true, created_at: 1707500000 },
+];
+
+const mockServices: KongService[] = [
+  { id: 's-001', name: 'device-service', host: 'device-svc', port: 3001, protocol: 'http', path: '/', connect_timeout: 5000, write_timeout: 60000, read_timeout: 60000, retries: 3, created_at: 1707900000 },
+  { id: 's-002', name: 'model-service', host: 'model-svc', port: 3002, protocol: 'http', path: '/', connect_timeout: 10000, write_timeout: 120000, read_timeout: 120000, retries: 2, created_at: 1707800000 },
+  { id: 's-003', name: 'diagnosis-service', host: 'diagnosis-svc', port: 3003, protocol: 'http', path: '/', connect_timeout: 5000, write_timeout: 300000, read_timeout: 300000, retries: 1, created_at: 1707700000 },
+  { id: 's-004', name: 'knowledge-service', host: 'knowledge-svc', port: 3004, protocol: 'http', path: '/', connect_timeout: 5000, write_timeout: 60000, read_timeout: 60000, retries: 3, created_at: 1707600000 },
+];
+
+const mockPlugins: KongPlugin[] = [
+  { id: 'p-001', name: 'rate-limiting', enabled: true, config: { minute: 100, hour: 5000, policy: 'redis' }, service: null, route: null, consumer: null, created_at: 1707900000 },
+  { id: 'p-002', name: 'jwt', enabled: true, config: { key_claim_name: 'iss', secret_is_base64: false }, service: null, route: null, consumer: null, created_at: 1707850000 },
+  { id: 'p-003', name: 'cors', enabled: true, config: { origins: ['*'], methods: ['GET', 'POST', 'PUT', 'DELETE'], headers: ['Authorization', 'Content-Type'] }, service: null, route: null, consumer: null, created_at: 1707800000 },
+  { id: 'p-004', name: 'prometheus', enabled: true, config: { per_consumer: true, status_code_metrics: true }, service: null, route: null, consumer: null, created_at: 1707750000 },
+  { id: 'p-005', name: 'ip-restriction', enabled: false, config: { allow: ['10.0.0.0/8', '172.16.0.0/12'] }, service: { id: 's-003' }, route: null, consumer: null, created_at: 1707700000 },
+  { id: 'p-006', name: 'request-size-limiting', enabled: true, config: { allowed_payload_size: 50, size_unit: 'megabytes' }, route: { id: 'r-003' }, service: null, consumer: null, created_at: 1707650000 },
+];
+
+const mockUpstreams = [
+  { id: 'u-001', name: 'device-upstream', algorithm: 'round-robin', hash_on: 'none', slots: 10000 },
+  { id: 'u-002', name: 'model-upstream', algorithm: 'least-connections', hash_on: 'none', slots: 10000 },
+  { id: 'u-003', name: 'diagnosis-upstream', algorithm: 'consistent-hashing', hash_on: 'header', slots: 10000 },
+];
+
+const mockTargets: Record<string, Array<{ id: string; target: string; weight: number }>> = {
+  'u-001': [
+    { id: 't-001', target: 'device-svc-1:3001', weight: 100 },
+    { id: 't-002', target: 'device-svc-2:3001', weight: 100 },
+  ],
+  'u-002': [
+    { id: 't-003', target: 'model-svc-1:3002', weight: 100 },
+    { id: 't-004', target: 'model-svc-2:3002', weight: 50 },
+    { id: 't-005', target: 'model-svc-3:3002', weight: 50 },
+  ],
+  'u-003': [
+    { id: 't-006', target: 'diagnosis-svc-1:3003', weight: 100 },
+  ],
+};
+
+const mockConsumers = [
+  { id: 'c-001', username: 'mobile-app', custom_id: 'app-001', created_at: 1707900000 },
+  { id: 'c-002', username: 'web-portal', custom_id: 'web-001', created_at: 1707800000 },
+  { id: 'c-003', username: 'edge-gateway', custom_id: 'edge-001', created_at: 1707700000 },
+];
+
+// ── 工具函数 ──
 function formatTimestamp(ts: number): string {
   if (!ts) return '-';
   return new Date(ts * 1000).toLocaleString('zh-CN');
@@ -80,15 +153,8 @@ function formatBytes(bytes: number): string {
 // 概览仪表盘 Tab
 // ============================================================
 function DashboardTab() {
-  const dashboard = trpc.gateway.getDashboard.useQuery(undefined, {
-    refetchInterval: 10000,
-  });
-  const metrics = trpc.gateway.getMetrics.useQuery(undefined, {
-    refetchInterval: 15000,
-  });
-
-  const data = dashboard.data;
-  const metricsData = metrics.data?.data;
+  const data = mockDashboard;
+  const metricsData = mockMetrics;
 
   return (
     <div className="space-y-6">
@@ -97,15 +163,15 @@ function DashboardTab() {
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <CardTitle className="text-lg">Kong 网关状态</CardTitle>
-            <Badge variant={data?.connected ? 'default' : 'destructive'}>
-              {data?.connected ? '● 已连接' : '● 未连接'}
+            <Badge variant={data.connected ? 'default' : 'destructive'}>
+              {data.connected ? '● 已连接' : '● 未连接'}
             </Badge>
           </div>
-          {data?.error && (
+          {data.error && (
             <CardDescription className="text-destructive">{data.error}</CardDescription>
           )}
         </CardHeader>
-        {data?.connected && (
+        {data.connected && (
           <CardContent>
             <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
               <StatCard label="路由" value={data.counts.routes} />
@@ -119,53 +185,47 @@ function DashboardTab() {
       </Card>
 
       {/* 流量指标 */}
-      {metricsData && (
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg">流量指标</CardTitle>
-            <CardDescription>Prometheus 实时指标</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <StatCard label="总请求数" value={metricsData.totalRequests.toLocaleString()} />
-              <StatCard label="活跃连接" value={metricsData.activeConnections} />
-              <StatCard label="等待连接" value={metricsData.waitingConnections} />
-              <StatCard label="入站流量" value={formatBytes(metricsData.totalBandwidthIn)} />
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-lg">流量指标</CardTitle>
+          <CardDescription>Prometheus 实时指标</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <StatCard label="总请求数" value={metricsData.totalRequests.toLocaleString()} />
+            <StatCard label="活跃连接" value={metricsData.activeConnections} />
+            <StatCard label="等待连接" value={metricsData.waitingConnections} />
+            <StatCard label="入站流量" value={formatBytes(metricsData.totalBandwidthIn)} />
+          </div>
+        </CardContent>
+      </Card>
 
       {/* 服务器信息 */}
-      {data?.server && (
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg">服务器信息</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 gap-2 text-sm">
-              <div className="text-muted-foreground">版本</div>
-              <div>{data.server.version || '-'}</div>
-              <div className="text-muted-foreground">Lua 版本</div>
-              <div>{data.server.lua_version || '-'}</div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-lg">服务器信息</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 gap-2 text-sm">
+            <div className="text-muted-foreground">版本</div>
+            <div>{data.server.version}</div>
+            <div className="text-muted-foreground">Lua 版本</div>
+            <div>{data.server.lua_version}</div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* 内存使用 */}
-      {data?.memory && (
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg">内存使用</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <pre className="text-xs bg-muted p-3 rounded overflow-auto max-h-40">
-              {JSON.stringify(data.memory, null, 2)}
-            </pre>
-          </CardContent>
-        </Card>
-      )}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-lg">内存使用</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <pre className="text-xs bg-muted p-3 rounded overflow-auto max-h-40">
+            {JSON.stringify(data.memory, null, 2)}
+          </pre>
+        </CardContent>
+      </Card>
     </div>
   );
 }
@@ -184,32 +244,33 @@ function StatCard({ label, value }: { label: string; value: string | number }) {
 // ============================================================
 function RoutesTab() {
   const toast = useToast();
-  const routes = trpc.gateway.listRoutes.useQuery();
-  const services = trpc.gateway.listServices.useQuery();
-  const createRoute = trpc.gateway.createRoute.useMutation({
-    onSuccess: () => { routes.refetch(); toast.success('路由创建成功'); setShowCreate(false); },
-    onError: (e) => toast.error(`创建失败: ${e.message}`),
-  });
-  const deleteRoute = trpc.gateway.deleteRoute.useMutation({
-    onSuccess: () => { routes.refetch(); toast.success('路由已删除'); },
-    onError: (e) => toast.error(`删除失败: ${e.message}`),
-  });
-
+  const [routeList, setRouteList] = useState<KongRoute[]>(mockRoutes);
   const [showCreate, setShowCreate] = useState(false);
   const [newRoute, setNewRoute] = useState({
     name: '', paths: '', methods: 'GET,POST', serviceId: '',
   });
 
-  const routeList: KongRoute[] = routes.data?.data?.data || [];
-  const serviceList: KongService[] = services.data?.data?.data || [];
-
   const handleCreate = () => {
-    createRoute.mutate({
+    const route: KongRoute = {
+      id: `r-${Date.now()}`,
       name: newRoute.name,
       paths: newRoute.paths.split(',').map(p => p.trim()).filter(Boolean),
       methods: newRoute.methods.split(',').map(m => m.trim().toUpperCase()).filter(Boolean),
+      protocols: ['http', 'https'],
+      strip_path: true,
+      preserve_host: false,
       ...(newRoute.serviceId ? { service: { id: newRoute.serviceId } } : {}),
-    });
+      created_at: Math.floor(Date.now() / 1000),
+    };
+    setRouteList(prev => [route, ...prev]);
+    toast.success('路由创建成功');
+    setShowCreate(false);
+    setNewRoute({ name: '', paths: '', methods: 'GET,POST', serviceId: '' });
+  };
+
+  const handleDelete = (id: string) => {
+    setRouteList(prev => prev.filter(r => r.id !== id));
+    toast.success('路由已删除');
   };
 
   return (
@@ -243,7 +304,7 @@ function RoutesTab() {
                 <Select value={newRoute.serviceId} onValueChange={v => setNewRoute(p => ({ ...p, serviceId: v }))}>
                   <SelectTrigger><SelectValue placeholder="选择服务（可选）" /></SelectTrigger>
                   <SelectContent>
-                    {serviceList.map(s => (
+                    {mockServices.map(s => (
                       <SelectItem key={s.id} value={s.id}>{s.name} ({s.host}:{s.port})</SelectItem>
                     ))}
                   </SelectContent>
@@ -252,17 +313,15 @@ function RoutesTab() {
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setShowCreate(false)}>取消</Button>
-              <Button onClick={handleCreate} disabled={!newRoute.name || !newRoute.paths || createRoute.isPending}>
-                {createRoute.isPending ? '创建中...' : '创建'}
+              <Button onClick={handleCreate} disabled={!newRoute.name || !newRoute.paths}>
+                创建
               </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
       </div>
 
-      {routes.isLoading ? (
-        <div className="text-center py-8 text-muted-foreground">加载中...</div>
-      ) : routeList.length === 0 ? (
+      {routeList.length === 0 ? (
         <Card><CardContent className="py-8 text-center text-muted-foreground">暂无路由</CardContent></Card>
       ) : (
         <div className="space-y-2">
@@ -287,8 +346,7 @@ function RoutesTab() {
                     variant="ghost"
                     size="sm"
                     className="text-destructive hover:text-destructive"
-                    onClick={() => deleteRoute.mutate({ id: route.id })}
-                    disabled={deleteRoute.isPending}
+                    onClick={() => handleDelete(route.id)}
                   >
                     删除
                   </Button>
@@ -307,31 +365,35 @@ function RoutesTab() {
 // ============================================================
 function ServicesTab() {
   const toast = useToast();
-  const services = trpc.gateway.listServices.useQuery();
-  const createService = trpc.gateway.createService.useMutation({
-    onSuccess: () => { services.refetch(); toast.success('服务创建成功'); setShowCreate(false); },
-    onError: (e) => toast.error(`创建失败: ${e.message}`),
-  });
-  const deleteService = trpc.gateway.deleteService.useMutation({
-    onSuccess: () => { services.refetch(); toast.success('服务已删除'); },
-    onError: (e) => toast.error(`删除失败: ${e.message}`),
-  });
-
+  const [serviceList, setServiceList] = useState<KongService[]>(mockServices);
   const [showCreate, setShowCreate] = useState(false);
   const [newService, setNewService] = useState({
     name: '', host: '', port: '3000', protocol: 'http', path: '/',
   });
 
-  const serviceList: KongService[] = services.data?.data?.data || [];
-
   const handleCreate = () => {
-    createService.mutate({
+    const svc: KongService = {
+      id: `s-${Date.now()}`,
       name: newService.name,
       host: newService.host,
       port: parseInt(newService.port) || 3000,
       protocol: newService.protocol,
       path: newService.path || '/',
-    });
+      connect_timeout: 5000,
+      write_timeout: 60000,
+      read_timeout: 60000,
+      retries: 3,
+      created_at: Math.floor(Date.now() / 1000),
+    };
+    setServiceList(prev => [svc, ...prev]);
+    toast.success('服务创建成功');
+    setShowCreate(false);
+    setNewService({ name: '', host: '', port: '3000', protocol: 'http', path: '/' });
+  };
+
+  const handleDelete = (id: string) => {
+    setServiceList(prev => prev.filter(s => s.id !== id));
+    toast.success('服务已删除');
   };
 
   return (
@@ -383,17 +445,15 @@ function ServicesTab() {
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setShowCreate(false)}>取消</Button>
-              <Button onClick={handleCreate} disabled={!newService.name || !newService.host || createService.isPending}>
-                {createService.isPending ? '创建中...' : '创建'}
+              <Button onClick={handleCreate} disabled={!newService.name || !newService.host}>
+                创建
               </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
       </div>
 
-      {services.isLoading ? (
-        <div className="text-center py-8 text-muted-foreground">加载中...</div>
-      ) : serviceList.length === 0 ? (
+      {serviceList.length === 0 ? (
         <Card><CardContent className="py-8 text-center text-muted-foreground">暂无服务</CardContent></Card>
       ) : (
         <div className="space-y-2">
@@ -416,8 +476,7 @@ function ServicesTab() {
                     variant="ghost"
                     size="sm"
                     className="text-destructive hover:text-destructive"
-                    onClick={() => deleteService.mutate({ id: svc.id })}
-                    disabled={deleteService.isPending}
+                    onClick={() => handleDelete(svc.id)}
                   >
                     删除
                   </Button>
@@ -436,19 +495,8 @@ function ServicesTab() {
 // ============================================================
 function PluginsTab() {
   const toast = useToast();
-  const plugins = trpc.gateway.listPlugins.useQuery();
-  const togglePlugin = trpc.gateway.togglePlugin.useMutation({
-    onSuccess: () => { plugins.refetch(); toast.success('插件状态已更新'); },
-    onError: (e) => toast.error(`操作失败: ${e.message}`),
-  });
-  const deletePlugin = trpc.gateway.deletePlugin.useMutation({
-    onSuccess: () => { plugins.refetch(); toast.success('插件已删除'); },
-    onError: (e) => toast.error(`删除失败: ${e.message}`),
-  });
+  const [pluginList, setPluginList] = useState<KongPlugin[]>(mockPlugins);
 
-  const pluginList: KongPlugin[] = plugins.data?.data?.data || [];
-
-  // 插件分类
   const pluginCategories: Record<string, string> = {
     'rate-limiting': '流量控制',
     'rate-limiting-advanced': '流量控制',
@@ -470,15 +518,23 @@ function PluginsTab() {
     'proxy-cache': '缓存',
   };
 
+  const handleToggle = (id: string, enabled: boolean) => {
+    setPluginList(prev => prev.map(p => p.id === id ? { ...p, enabled } : p));
+    toast.success('插件状态已更新');
+  };
+
+  const handleDelete = (id: string) => {
+    setPluginList(prev => prev.filter(p => p.id !== id));
+    toast.success('插件已删除');
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold">已启用插件 ({pluginList.length})</h3>
       </div>
 
-      {plugins.isLoading ? (
-        <div className="text-center py-8 text-muted-foreground">加载中...</div>
-      ) : pluginList.length === 0 ? (
+      {pluginList.length === 0 ? (
         <Card><CardContent className="py-8 text-center text-muted-foreground">暂无插件</CardContent></Card>
       ) : (
         <div className="space-y-2">
@@ -506,15 +562,14 @@ function PluginsTab() {
                       <Label className="text-xs">{plugin.enabled ? '已启用' : '已禁用'}</Label>
                       <Switch
                         checked={plugin.enabled}
-                        onCheckedChange={(checked) => togglePlugin.mutate({ id: plugin.id, enabled: checked })}
+                        onCheckedChange={(checked) => handleToggle(plugin.id, checked)}
                       />
                     </div>
                     <Button
                       variant="ghost"
                       size="sm"
                       className="text-destructive hover:text-destructive"
-                      onClick={() => deletePlugin.mutate({ id: plugin.id })}
-                      disabled={deletePlugin.isPending}
+                      onClick={() => handleDelete(plugin.id)}
                     >
                       删除
                     </Button>
@@ -534,17 +589,24 @@ function PluginsTab() {
 // ============================================================
 function UpstreamsTab() {
   const toast = useToast();
-  const upstreams = trpc.gateway.listUpstreams.useQuery();
-  const createUpstream = trpc.gateway.createUpstream.useMutation({
-    onSuccess: () => { upstreams.refetch(); toast.success('上游创建成功'); setShowCreate(false); },
-    onError: (e) => toast.error(`创建失败: ${e.message}`),
-  });
-
+  const [upstreamList, setUpstreamList] = useState(mockUpstreams);
   const [showCreate, setShowCreate] = useState(false);
-  const [newUpstream, setNewUpstream] = useState({ name: '', algorithm: 'round-robin' as const });
+  const [newUpstream, setNewUpstream] = useState({ name: '', algorithm: 'round-robin' });
   const [selectedUpstream, setSelectedUpstream] = useState<string | null>(null);
 
-  const upstreamList = upstreams.data?.data?.data || [];
+  const handleCreate = () => {
+    const upstream = {
+      id: `u-${Date.now()}`,
+      name: newUpstream.name,
+      algorithm: newUpstream.algorithm,
+      hash_on: 'none',
+      slots: 10000,
+    };
+    setUpstreamList(prev => [upstream, ...prev]);
+    toast.success('上游创建成功');
+    setShowCreate(false);
+    setNewUpstream({ name: '', algorithm: 'round-robin' });
+  };
 
   return (
     <div className="space-y-4">
@@ -566,7 +628,7 @@ function UpstreamsTab() {
               </div>
               <div>
                 <Label>负载均衡算法</Label>
-                <Select value={newUpstream.algorithm} onValueChange={(v: any) => setNewUpstream(p => ({ ...p, algorithm: v }))}>
+                <Select value={newUpstream.algorithm} onValueChange={(v) => setNewUpstream(p => ({ ...p, algorithm: v }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="round-robin">轮询 (Round Robin)</SelectItem>
@@ -579,21 +641,19 @@ function UpstreamsTab() {
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setShowCreate(false)}>取消</Button>
-              <Button onClick={() => createUpstream.mutate(newUpstream)} disabled={!newUpstream.name || createUpstream.isPending}>
-                {createUpstream.isPending ? '创建中...' : '创建'}
+              <Button onClick={handleCreate} disabled={!newUpstream.name}>
+                创建
               </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
       </div>
 
-      {upstreams.isLoading ? (
-        <div className="text-center py-8 text-muted-foreground">加载中...</div>
-      ) : upstreamList.length === 0 ? (
+      {upstreamList.length === 0 ? (
         <Card><CardContent className="py-8 text-center text-muted-foreground">暂无上游</CardContent></Card>
       ) : (
         <div className="space-y-2">
-          {upstreamList.map((upstream: any) => (
+          {upstreamList.map((upstream) => (
             <Card key={upstream.id} className={selectedUpstream === upstream.id ? 'ring-2 ring-primary' : ''}>
               <CardContent className="py-3 px-4">
                 <div className="flex items-center justify-between">
@@ -628,15 +688,15 @@ function UpstreamsTab() {
 
 function TargetsList({ upstreamId }: { upstreamId: string }) {
   const toast = useToast();
-  const targets = trpc.gateway.listTargets.useQuery({ upstreamId });
-  const health = trpc.gateway.getUpstreamHealth.useQuery({ id: upstreamId });
-  const addTarget = trpc.gateway.addTarget.useMutation({
-    onSuccess: () => { targets.refetch(); toast.success('目标节点已添加'); setNewTarget(''); },
-    onError: (e) => toast.error(`添加失败: ${e.message}`),
-  });
-
+  const [targetList, setTargetList] = useState(mockTargets[upstreamId] || []);
   const [newTarget, setNewTarget] = useState('');
-  const targetList = targets.data?.data?.data || [];
+
+  const handleAdd = () => {
+    const target = { id: `t-${Date.now()}`, target: newTarget, weight: 100 };
+    setTargetList(prev => [...prev, target]);
+    toast.success('目标节点已添加');
+    setNewTarget('');
+  };
 
   return (
     <div className="mt-3 pt-3 border-t space-y-2">
@@ -649,8 +709,8 @@ function TargetsList({ upstreamId }: { upstreamId: string }) {
         />
         <Button
           size="sm"
-          onClick={() => addTarget.mutate({ upstreamId, target: newTarget })}
-          disabled={!newTarget || addTarget.isPending}
+          onClick={handleAdd}
+          disabled={!newTarget}
         >
           添加
         </Button>
@@ -658,7 +718,7 @@ function TargetsList({ upstreamId }: { upstreamId: string }) {
       {targetList.length === 0 ? (
         <div className="text-xs text-muted-foreground py-2">暂无目标节点</div>
       ) : (
-        targetList.map((t: any) => (
+        targetList.map((t) => (
           <div key={t.id} className="flex items-center justify-between text-sm bg-muted/50 rounded px-3 py-1.5">
             <span>{t.target}</span>
             <div className="flex items-center gap-2">
@@ -676,22 +736,27 @@ function TargetsList({ upstreamId }: { upstreamId: string }) {
 // ============================================================
 function ConsumersTab() {
   const toast = useToast();
-  const consumers = trpc.gateway.listConsumers.useQuery();
-  const createConsumer = trpc.gateway.createConsumer.useMutation({
-    onSuccess: () => { consumers.refetch(); toast.success('消费者创建成功'); setShowCreate(false); },
-    onError: (e) => toast.error(`创建失败: ${e.message}`),
-  });
-  const createApiKey = trpc.gateway.createApiKey.useMutation({
-    onSuccess: (data) => {
-      toast.success(`API Key 已生成: ${data.data?.key || '查看详情'}`);
-    },
-    onError: (e) => toast.error(`生成失败: ${e.message}`),
-  });
-
+  const [consumerList, setConsumerList] = useState(mockConsumers);
   const [showCreate, setShowCreate] = useState(false);
   const [newConsumer, setNewConsumer] = useState({ username: '', custom_id: '' });
 
-  const consumerList = consumers.data?.data?.data || [];
+  const handleCreate = () => {
+    const consumer = {
+      id: `c-${Date.now()}`,
+      username: newConsumer.username,
+      custom_id: newConsumer.custom_id,
+      created_at: Math.floor(Date.now() / 1000),
+    };
+    setConsumerList(prev => [consumer, ...prev]);
+    toast.success('消费者创建成功');
+    setShowCreate(false);
+    setNewConsumer({ username: '', custom_id: '' });
+  };
+
+  const handleGenerateKey = (consumerId: string) => {
+    const key = `key_${Math.random().toString(36).substring(2, 18)}`;
+    toast.success(`API Key 已生成: ${key}`);
+  };
 
   return (
     <div className="space-y-4">
@@ -718,21 +783,19 @@ function ConsumersTab() {
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setShowCreate(false)}>取消</Button>
-              <Button onClick={() => createConsumer.mutate(newConsumer)} disabled={!newConsumer.username || createConsumer.isPending}>
-                {createConsumer.isPending ? '创建中...' : '创建'}
+              <Button onClick={handleCreate} disabled={!newConsumer.username}>
+                创建
               </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
       </div>
 
-      {consumers.isLoading ? (
-        <div className="text-center py-8 text-muted-foreground">加载中...</div>
-      ) : consumerList.length === 0 ? (
+      {consumerList.length === 0 ? (
         <Card><CardContent className="py-8 text-center text-muted-foreground">暂无消费者</CardContent></Card>
       ) : (
         <div className="space-y-2">
-          {consumerList.map((consumer: any) => (
+          {consumerList.map((consumer) => (
             <Card key={consumer.id}>
               <CardContent className="py-3 px-4">
                 <div className="flex items-center justify-between">
@@ -746,8 +809,7 @@ function ConsumersTab() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => createApiKey.mutate({ consumerId: consumer.id })}
-                    disabled={createApiKey.isPending}
+                    onClick={() => handleGenerateKey(consumer.id)}
                   >
                     生成 API Key
                   </Button>
