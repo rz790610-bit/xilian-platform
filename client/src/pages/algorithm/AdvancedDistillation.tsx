@@ -26,6 +26,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import {
+  ConfigSection, ConfigSlider, ConfigSelect, ConfigKV, ConfigActions, ApiDocBlock,
+} from "@/components/common/AlgorithmConfigPanel";
+import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   BarChart, Bar, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
   AreaChart, Area, Cell, PieChart, Pie,
@@ -279,11 +282,12 @@ export default function AdvancedDistillation() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="console">🎛️ 蒸馏控制台</TabsTrigger>
             <TabsTrigger value="strategy">🧠 策略推荐</TabsTrigger>
             <TabsTrigger value="analysis">📊 损失分析</TabsTrigger>
             <TabsTrigger value="history">📋 训练历史</TabsTrigger>
+            <TabsTrigger value="config">⚙️ 系统配置</TabsTrigger>
           </TabsList>
 
           {/* ━━━━━━━━━━━━━━━ Tab 1: 蒸馏控制台 ━━━━━━━━━━━━━━━ */}
@@ -806,6 +810,28 @@ export default function AdvancedDistillation() {
               </Card>
             )}
           </TabsContent>
+
+          {/* ━━━━━━━━━━━━━━━ Tab 5: 系统配置 ━━━━━━━━━━━━━━━ */}
+          <TabsContent value="config" className="space-y-4">
+            <DistillConfigTab
+              alpha={alpha} setAlpha={setAlpha}
+              beta={beta} setBeta={setBeta}
+              gamma={gamma} setGamma={setGamma}
+              relation={relation} setRelation={setRelation}
+              fusion={fusion} setFusion={setFusion}
+              tempMin={tempMin} setTempMin={setTempMin}
+              tempMax={tempMax} setTempMax={setTempMax}
+              teacherHidden={teacherHidden} setTeacherHidden={setTeacherHidden}
+              studentHidden={studentHidden} setStudentHidden={setStudentHidden}
+              teacherFeat={teacherFeat} setTeacherFeat={setTeacherFeat}
+              studentFeat={studentFeat} setStudentFeat={setStudentFeat}
+              epochs={epochs} setEpochs={setEpochs}
+              learningRate={learningRate} setLearningRate={setLearningRate}
+              patience={patience} setPatience={setPatience}
+              nClasses={nClasses} setNClasses={setNClasses}
+              modalityDims={modalityDims} setModalityDims={setModalityDims}
+            />
+          </TabsContent>
         </Tabs>
 
         {/* 详情弹窗 */}
@@ -862,5 +888,172 @@ export default function AdvancedDistillation() {
         </Dialog>
       </div>
     </MainLayout>
+  );
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 高级知识蒸馏系统配置 Tab
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+function DistillConfigTab(props: {
+  alpha: number; setAlpha: (v: number) => void;
+  beta: number; setBeta: (v: number) => void;
+  gamma: number; setGamma: (v: number) => void;
+  relation: number; setRelation: (v: number) => void;
+  fusion: number; setFusion: (v: number) => void;
+  tempMin: number; setTempMin: (v: number) => void;
+  tempMax: number; setTempMax: (v: number) => void;
+  teacherHidden: number; setTeacherHidden: (v: number) => void;
+  studentHidden: number; setStudentHidden: (v: number) => void;
+  teacherFeat: number; setTeacherFeat: (v: number) => void;
+  studentFeat: number; setStudentFeat: (v: number) => void;
+  epochs: number; setEpochs: (v: number) => void;
+  learningRate: number; setLearningRate: (v: number) => void;
+  patience: number; setPatience: (v: number) => void;
+  nClasses: number; setNClasses: (v: number) => void;
+  modalityDims: string; setModalityDims: (v: string) => void;
+}) {
+  const {
+    alpha, setAlpha, beta, setBeta, gamma, setGamma, relation, setRelation, fusion, setFusion,
+    tempMin, setTempMin, tempMax, setTempMax,
+    teacherHidden, setTeacherHidden, studentHidden, setStudentHidden,
+    teacherFeat, setTeacherFeat, studentFeat, setStudentFeat,
+    epochs, setEpochs, learningRate, setLearningRate, patience, setPatience,
+    nClasses, setNClasses, modalityDims, setModalityDims,
+  } = props;
+
+  const [dirty, setDirty] = useState(false);
+
+  const handleReset = () => {
+    setAlpha(0.3); setBeta(0.4); setGamma(0.3); setRelation(0); setFusion(0);
+    setTempMin(2); setTempMax(4);
+    setTeacherHidden(512); setStudentHidden(128);
+    setTeacherFeat(256); setStudentFeat(128);
+    setEpochs(50); setLearningRate(0.001); setPatience(5);
+    setNClasses(5); setModalityDims("128,64");
+    setDirty(true);
+    toast.info("已恢复默认配置");
+  };
+
+  const handleExport = () => {
+    const config = {
+      weights: { alpha, beta, gamma, relation, fusion },
+      temperature: { min: tempMin, max: tempMax },
+      model: {
+        teacherHiddenDim: teacherHidden, studentHiddenDim: studentHidden,
+        teacherFeatDim: teacherFeat, studentFeatDim: studentFeat,
+      },
+      training: { epochs, learningRate, patience, nClasses },
+      modalityDims: modalityDims.split(",").map(s => parseInt(s.trim())).filter(n => !isNaN(n)),
+    };
+    const blob = new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `distillation-config-${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const s = (fn: (v: number) => void) => (v: number) => { fn(v); setDirty(true); };
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* 列1: 损失权重 */}
+        <ConfigSection title="损失权重配置" icon={<span>⚖️</span>} description="5 种蒸馏损失分量的权重">
+          <ConfigSlider label="α 硬标签损失" value={alpha} onChange={s(setAlpha)} min={0} max={1} step={0.05}
+            description="学生对真实标签的交叉熵" />
+          <ConfigSlider label="β 响应蒸馏" value={beta} onChange={s(setBeta)} min={0} max={1} step={0.05}
+            description="教师-学生 soft logits KL 散度" />
+          <ConfigSlider label="γ 特征蒸馏" value={gamma} onChange={s(setGamma)} min={0} max={1} step={0.05}
+            description="中间层特征投影 MSE" />
+          <ConfigSlider label="关系蒸馏" value={relation} onChange={s(setRelation)} min={0} max={1} step={0.05}
+            description="样本间余弦相似度矩阵对齐" />
+          <ConfigSlider label="融合蒸馏" value={fusion} onChange={s(setFusion)} min={0} max={1} step={0.05}
+            description="多模态子集 KL 对齐" />
+          <div className="pt-2 border-t border-border/30">
+            <ConfigKV label="权重总和" value={
+              <span className={`font-mono font-bold ${
+                Math.abs(alpha + beta + gamma + relation + fusion - 1.0) < 0.01 ? 'text-green-400' : 'text-amber-400'
+              }`}>
+                {(alpha + beta + gamma + relation + fusion).toFixed(2)}
+              </span>
+            } />
+          </div>
+        </ConfigSection>
+
+        {/* 列2: 温度 + 模型架构 */}
+        <div className="space-y-4">
+          <ConfigSection title="动态温度" icon={<span>🌡️</span>} description="EMA 自适应温度范围">
+            <ConfigSlider label="温度下界" value={tempMin} onChange={s(setTempMin)} min={0.5} max={10} step={0.5} />
+            <ConfigSlider label="温度上界" value={tempMax} onChange={s(setTempMax)} min={1} max={20} step={0.5} />
+            <ConfigKV label="EMA 系数 (α)" value="0.9" mono />
+            <ConfigKV label="Warmup 轮数" value="5" mono />
+          </ConfigSection>
+
+          <ConfigSection title="模型架构" icon={<span>🏗️</span>} description="教师/学生网络维度">
+            <ConfigSlider label="教师隐藏层" value={teacherHidden} onChange={s(setTeacherHidden)} min={64} max={1024} step={64} unit="dim" />
+            <ConfigSlider label="学生隐藏层" value={studentHidden} onChange={s(setStudentHidden)} min={32} max={512} step={32} unit="dim" />
+            <ConfigSlider label="教师特征维度" value={teacherFeat} onChange={s(setTeacherFeat)} min={64} max={512} step={64} unit="dim" />
+            <ConfigSlider label="学生特征维度" value={studentFeat} onChange={s(setStudentFeat)} min={32} max={256} step={32} unit="dim" />
+            <ConfigKV label="压缩比" value={
+              <span className="font-mono font-bold text-primary">{(teacherHidden / studentHidden).toFixed(1)}x</span>
+            } />
+          </ConfigSection>
+        </div>
+
+        {/* 列3: 训练参数 */}
+        <div className="space-y-4">
+          <ConfigSection title="训练参数" icon={<span>📈</span>} description="训练超参数配置">
+            <ConfigSlider label="训练轮数" value={epochs} onChange={s(setEpochs)} min={5} max={200} step={5} unit="epochs" />
+            <ConfigSlider label="学习率" value={learningRate} onChange={s(setLearningRate)} min={0.0001} max={0.01} step={0.0001}
+              formatValue={v => v.toFixed(4)} />
+            <ConfigSlider label="早停耐心" value={patience} onChange={s(setPatience)} min={2} max={20} step={1} unit="epochs" />
+            <ConfigSlider label="分类数" value={nClasses} onChange={s(setNClasses)} min={2} max={20} step={1} />
+          </ConfigSection>
+
+          <ConfigSection title="模态配置" icon={<span>🔀</span>} description="多模态输入维度（逗号分隔）">
+            <input
+              value={modalityDims}
+              onChange={e => { setModalityDims(e.target.value); setDirty(true); }}
+              className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground font-mono"
+              placeholder="128,64,32"
+            />
+            <ConfigKV label="模态数量" value={
+              <span className="font-mono">{modalityDims.split(',').filter(s => s.trim()).length}</span>
+            } />
+            <ConfigKV label="总维度" value={
+              <span className="font-mono">{modalityDims.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n)).reduce((a, b) => a + b, 0)}D</span>
+            } />
+          </ConfigSection>
+        </div>
+      </div>
+
+      {/* API 文档 */}
+      <ApiDocBlock
+        title="Python 算法对接"
+        icon={<span>🐍</span>}
+        endpoints={[
+          { method: 'POST', path: '/api/trpc/advancedDistillation.train', description: '执行高级蒸馏训练', body: '{ config: {...}, trainingData: [...] }' },
+          { method: 'POST', path: '/api/trpc/advancedDistillation.recommendStrategy', description: '策略推荐', body: '{ modalities, computeBudget, numClasses, datasetSize }' },
+          { method: 'GET', path: '/api/trpc/advancedDistillation.getConfig', description: '获取默认配置' },
+          { method: 'GET', path: '/api/trpc/advancedDistillation.getLossComponents', description: '获取损失分量说明' },
+          { method: 'GET', path: '/api/trpc/advancedDistillation.getHistory', description: '获取训练历史' },
+          { method: 'GET', path: '/api/trpc/advancedDistillation.getHistoryItem', description: '获取单条训练详情' },
+        ]}
+        pythonExample={`import requests\n\nBASE = "http://localhost:3000/api/trpc"\n\n# 1. 执行蒸馏训练\nres = requests.post(f"{BASE}/advancedDistillation.train", json={\n    "config": {\n        "weights": {"alpha": 0.3, "beta": 0.4, "gamma": 0.3, "relation": 0, "fusion": 0},\n        "tempRange": [2, 4],\n        "teacherInputDims": [128, 64],\n        "teacherHiddenDim": 512,\n        "studentHiddenDim": 128,\n        "nClasses": 5,\n        "epochs": 50,\n        "learningRate": 0.001\n    },\n    "trainingData": [...]\n})\nprint(res.json())\n\n# 2. 策略推荐\nres = requests.post(f"{BASE}/advancedDistillation.recommendStrategy", json={\n    "modalities": [128, 64],\n    "computeBudget": "medium",\n    "numClasses": 5,\n    "datasetSize": 1000\n})\nprint(res.json())`}
+        note="核心算法（DynamicTemperature、FeatureDistillLoss、RelationDistillLoss、多模态融合）已在 TypeScript 端 1:1 实现。"
+      />
+
+      {/* 操作按钮 */}
+      <ConfigActions
+        onSave={() => { setDirty(false); toast.success('配置已应用（内存生效）'); }}
+        onReset={handleReset}
+        onExport={handleExport}
+        dirty={dirty}
+        saveLabel="应用配置"
+      />
+    </div>
   );
 }

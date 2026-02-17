@@ -26,6 +26,9 @@ import { cn } from '@/lib/utils';
 import { trpc } from '@/lib/trpc';
 import { useToast } from '@/components/common/Toast';
 import {
+  ConfigSection, ConfigSlider, ConfigInput, ConfigSelect, ConfigKV, ConfigActions, ApiDocBlock,
+} from '@/components/common/AlgorithmConfigPanel';
+import {
   Activity, Zap, Thermometer, Gauge, Play, Settings2, Users, History,
   AlertTriangle, CheckCircle2, XCircle, Info, ChevronRight, RefreshCw,
   Plus, Trash2, Weight, Brain, BarChart3, PieChart, Target, Shield,
@@ -313,6 +316,7 @@ export default function FusionDiagnosis() {
   const diagnoseMutation = trpc.fusionDiagnosis.diagnose.useMutation();
   const updateWeightMutation = trpc.fusionDiagnosis.updateWeight.useMutation();
   const unregisterMutation = trpc.fusionDiagnosis.unregisterExpert.useMutation();
+  const setPenaltyMutation = trpc.fusionDiagnosis.setConflictPenalty.useMutation();
 
   // 执行诊断
   const runDiagnosis = useCallback(async () => {
@@ -841,69 +845,13 @@ export default function FusionDiagnosis() {
 
           {/* ============ Tab 4: 引擎配置 ============ */}
           <TabsContent value="config" className="space-y-4 mt-3">
-            <div className="grid grid-cols-2 gap-4">
-              <PageCard title="辨识框架" icon={<Target className="w-4 h-4" />} compact>
-                <div className="mt-2 space-y-1.5">
-                  {configQuery.data?.faultTypes?.map((ft: string) => {
-                    const label = FAULT_TYPE_LABELS[ft] || FAULT_TYPE_LABELS.unknown;
-                    return (
-                      <div key={ft} className="flex items-center gap-2 text-xs">
-                        <span>{label.icon}</span>
-                        <span className="font-medium">{label.zh}</span>
-                        <span className="text-muted-foreground font-mono">({ft})</span>
-                      </div>
-                    );
-                  })}
-                </div>
-                <div className="mt-3 text-[10px] text-muted-foreground">
-                  θ (theta) = 全集不确定性，表示无法确定的故障类型
-                </div>
-              </PageCard>
-
-              <PageCard title="融合参数" icon={<Settings2 className="w-4 h-4" />} compact>
-                <div className="mt-2 space-y-2 text-xs">
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">融合方法</span>
-                    <Badge variant="secondary">Dempster 组合规则</Badge>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">冲突惩罚因子</span>
-                    <span className="font-mono">{configQuery.data?.conflictPenaltyFactor ?? 0.3}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">冲突解决策略</span>
-                    <Badge variant="secondary">加权投票</Badge>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">专家数量</span>
-                    <span className="font-mono">{configQuery.data?.expertCount ?? 0}</span>
-                  </div>
-                </div>
-              </PageCard>
-            </div>
-
-            {/* Python 接口对接说明 */}
-            <PageCard title="Python 算法对接" icon={<Brain className="w-4 h-4" />} compact>
-              <div className="mt-2 text-xs text-muted-foreground space-y-2">
-                <p>Python 端的融合诊断算法通过以下 API 与平台对接：</p>
-                <div className="bg-muted/50 rounded-md p-3 font-mono text-[11px] space-y-1">
-                  <div className="text-green-500"># 1. 执行融合诊断</div>
-                  <div>POST /api/trpc/fusionDiagnosis.diagnose</div>
-                  <div className="text-muted-foreground">{'{'} sensorData: {'{'} vibration_rms, temperature, ... {'}'} {'}'}</div>
-                  <div className="text-green-500 mt-2"># 2. 获取/更新专家配置</div>
-                  <div>GET  /api/trpc/fusionDiagnosis.getExperts</div>
-                  <div>POST /api/trpc/fusionDiagnosis.updateWeight</div>
-                  <div className="text-green-500 mt-2"># 3. 获取故障类型映射</div>
-                  <div>GET  /api/trpc/fusionDiagnosis.getFaultTypes</div>
-                </div>
-                <p>
-                  Python 端的 <code className="bg-muted px-1 rounded">FusionDiagnosisExpert</code>、
-                  <code className="bg-muted px-1 rounded">DSEvidence</code>、
-                  <code className="bg-muted px-1 rounded">ConflictHandler</code> 已在 TypeScript 端 1:1 实现，
-                  核心算法逻辑（DS 组合规则、冲突惩罚系数 0.3、加权投票）完全一致。
-                </p>
-              </div>
-            </PageCard>
+            <FusionConfigTab
+              configQuery={configQuery}
+              expertsQuery={expertsQuery}
+              setPenaltyMutation={setPenaltyMutation}
+              updateWeightMutation={updateWeightMutation}
+              toast={toast}
+            />
           </TabsContent>
         </Tabs>
 
@@ -989,6 +937,160 @@ export default function FusionDiagnosis() {
         </Dialog>
       </div>
     </MainLayout>
+  );
+}
+
+// ==================== 融合诊断系统配置 Tab ====================
+
+function FusionConfigTab({ configQuery, expertsQuery, setPenaltyMutation, updateWeightMutation, toast }: any) {
+  const [penaltyFactor, setPenaltyFactor] = useState(configQuery.data?.conflictPenaltyFactor ?? 0.3);
+  const [expertWeights, setExpertWeights] = useState<Record<string, number>>({});
+  const [dirty, setDirty] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  // 初始化专家权重
+  const experts = expertsQuery.data?.experts ?? [];
+  if (experts.length > 0 && Object.keys(expertWeights).length === 0) {
+    const w: Record<string, number> = {};
+    experts.forEach((e: any) => { w[e.id] = e.weight; });
+    if (Object.keys(w).length > 0) setExpertWeights(w);
+  }
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      // 保存冲突惩罚因子
+      await setPenaltyMutation.mutateAsync({ factor: penaltyFactor });
+      // 保存专家权重
+      for (const [id, weight] of Object.entries(expertWeights)) {
+        await updateWeightMutation.mutateAsync({ expertId: id, weight });
+      }
+      configQuery.refetch();
+      expertsQuery.refetch();
+      setDirty(false);
+      toast.success('配置已保存');
+    } catch (err: any) {
+      toast.error(`保存失败: ${err.message}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleReset = () => {
+    setPenaltyFactor(0.3);
+    const w: Record<string, number> = {};
+    experts.forEach((e: any) => { w[e.id] = 1.0; });
+    setExpertWeights(w);
+    setDirty(true);
+  };
+
+  const handleExport = () => {
+    const config = {
+      conflictPenaltyFactor: penaltyFactor,
+      expertWeights,
+      faultTypes: configQuery.data?.faultTypes ?? [],
+      fusionMethod: 'dempster_combination',
+      conflictResolution: 'weighted_vote',
+    };
+    const blob = new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `fusion-diagnosis-config-${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* 左列：核心参数 */}
+        <div className="space-y-4">
+          <ConfigSection title="融合引擎参数" icon={<Settings2 className="w-4 h-4" />} description="DS 证据理论核心配置">
+            <ConfigSlider
+              label="冲突惩罚因子"
+              value={penaltyFactor}
+              onChange={v => { setPenaltyFactor(v); setDirty(true); }}
+              min={0}
+              max={1}
+              step={0.05}
+              description="冲突度高时对融合结果的惩罚力度，越大惩罚越重"
+            />
+            <ConfigKV label="融合方法" value={<Badge variant="secondary" className="text-[10px]">Dempster 组合规则</Badge>} />
+            <ConfigKV label="冲突解决策略" value={<Badge variant="secondary" className="text-[10px]">加权投票</Badge>} />
+            <ConfigKV label="在线专家数" value={<span className="font-mono">{expertsQuery.data?.count ?? 0}</span>} mono />
+          </ConfigSection>
+
+          <ConfigSection title="辨识框架" icon={<Target className="w-4 h-4" />} description="故障类型定义（θ = 全集不确定性）">
+            <div className="space-y-1.5">
+              {(configQuery.data?.faultTypes ?? []).map((ft: string) => {
+                const label = FAULT_TYPE_LABELS[ft] || FAULT_TYPE_LABELS.unknown;
+                return (
+                  <div key={ft} className="flex items-center gap-2 text-xs">
+                    <span className="w-5 text-center">{label.icon}</span>
+                    <span className="font-medium text-foreground">{label.zh}</span>
+                    <span className="text-muted-foreground font-mono text-[10px]">({ft})</span>
+                  </div>
+                );
+              })}
+            </div>
+          </ConfigSection>
+        </div>
+
+        {/* 右列：专家权重 */}
+        <div className="space-y-4">
+          <ConfigSection title="专家权重配置" icon={<Users className="w-4 h-4" />} description="调整各专家在融合中的权重">
+            {experts.length > 0 ? (
+              <div className="space-y-3">
+                {experts.map((e: any) => (
+                  <ConfigSlider
+                    key={e.id}
+                    label={e.name || e.id}
+                    value={expertWeights[e.id] ?? e.weight}
+                    onChange={v => {
+                      setExpertWeights(prev => ({ ...prev, [e.id]: v }));
+                      setDirty(true);
+                    }}
+                    min={0}
+                    max={2}
+                    step={0.1}
+                    description={`类型: ${e.type || '内置'}`}
+                  />
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">暂无已注册专家</p>
+            )}
+          </ConfigSection>
+        </div>
+      </div>
+
+      {/* API 文档 */}
+      <ApiDocBlock
+        title="Python 算法对接"
+        icon={<Brain className="w-4 h-4" />}
+        endpoints={[
+          { method: 'POST', path: '/api/trpc/fusionDiagnosis.diagnose', description: '执行融合诊断', body: '{ sensorData: { vibration_rms, temperature, ... } }' },
+          { method: 'GET', path: '/api/trpc/fusionDiagnosis.getExperts', description: '获取专家列表及权重' },
+          { method: 'POST', path: '/api/trpc/fusionDiagnosis.updateWeight', description: '更新专家权重', body: '{ expertId, weight }' },
+          { method: 'POST', path: '/api/trpc/fusionDiagnosis.setConflictPenalty', description: '设置冲突惩罚因子', body: '{ factor: 0.3 }' },
+          { method: 'GET', path: '/api/trpc/fusionDiagnosis.getFaultTypes', description: '获取故障类型映射' },
+          { method: 'GET', path: '/api/trpc/fusionDiagnosis.getConfig', description: '获取完整引擎配置' },
+          { method: 'GET', path: '/api/trpc/fusionDiagnosis.getHistory', description: '获取诊断历史' },
+        ]}
+        pythonExample={`import requests\n\nBASE = "http://localhost:3000/api/trpc"\n\n# 1. 执行融合诊断\nres = requests.post(f"{BASE}/fusionDiagnosis.diagnose", json={\n    "sensorData": {\n        "vibration_rms": 9.5,\n        "dominant_frequency": 320,\n        "temperature": 78,\n        "temperature_rise": 35,\n        "current_imbalance": 3.0,\n        "thd": 5.0\n    },\n    "component": "bearing_01"\n})\nprint(res.json())\n\n# 2. 更新冲突惩罚因子\nrequests.post(f"{BASE}/fusionDiagnosis.setConflictPenalty",\n    json={"factor": 0.5})\n\n# 3. 更新专家权重\nrequests.post(f"{BASE}/fusionDiagnosis.updateWeight",\n    json={"expertId": "vibration", "weight": 1.2})`}
+        note="核心算法（DS 组合规则、冲突惩罚、加权投票）已在 TypeScript 端 1:1 实现，与 Python 端完全一致。"
+      />
+
+      {/* 保存/重置/导出 */}
+      <ConfigActions
+        onSave={handleSave}
+        onReset={handleReset}
+        onExport={handleExport}
+        saving={saving}
+        dirty={dirty}
+      />
+    </div>
   );
 }
 

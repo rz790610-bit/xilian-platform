@@ -10,6 +10,9 @@
  */
 import { useState, useCallback, useMemo } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
+import {
+  ConfigSection, ConfigSlider, ConfigInput, ConfigSelect, ConfigKV, ConfigActions, ApiDocBlock, ConfigRangeInput,
+} from '@/components/common/AlgorithmConfigPanel';
 
 // ============================================================================
 // 类型定义
@@ -157,7 +160,7 @@ function conditionColor(c: string): string {
 // ============================================================================
 
 export default function ConditionNormalizerPage() {
-  const [activeTab, setActiveTab] = useState<'console' | 'baseline' | 'threshold' | 'conditions' | 'history'>('console');
+  const [activeTab, setActiveTab] = useState<'console' | 'baseline' | 'threshold' | 'conditions' | 'history' | 'config'>('console');
 
   const tabs = [
     { id: 'console' as const, label: '归一化控制台', icon: '🎛️' },
@@ -165,6 +168,7 @@ export default function ConditionNormalizerPage() {
     { id: 'threshold' as const, label: '阈值配置', icon: '⚙️' },
     { id: 'conditions' as const, label: '工况管理', icon: '🏭' },
     { id: 'history' as const, label: '处理历史', icon: '📋' },
+    { id: 'config' as const, label: '系统配置', icon: '🔧' },
   ];
 
   return (
@@ -210,6 +214,7 @@ export default function ConditionNormalizerPage() {
         {activeTab === 'threshold' && <ThresholdTab />}
         {activeTab === 'conditions' && <ConditionsTab />}
         {activeTab === 'history' && <HistoryTab />}
+        {activeTab === 'config' && <NormalizerConfigTab />}
       </div>
     </MainLayout>
   );
@@ -1186,6 +1191,381 @@ function HistoryTab() {
           <p className="text-sm text-muted-foreground">在「归一化控制台」中执行归一化后，记录将显示在此处</p>
         </div>
       )}
+    </div>
+  );
+}
+
+// ============================================================================
+// Tab 6: 系统配置
+// ============================================================================
+
+function NormalizerConfigTab() {
+  // 核心参数
+  const [method, setMethod] = useState<'ratio' | 'zscore'>('ratio');
+  const [ewmaAlpha, setEwmaAlpha] = useState(0.1);
+  const [idleThreshold, setIdleThreshold] = useState(0.1);
+  const [loadThreshold, setLoadThreshold] = useState(10.0);
+  const [maxSamples, setMaxSamples] = useState(1000);
+
+  // 比值法阈值
+  const [ratioNormal, setRatioNormal] = useState<[number, number]>([0.8, 1.2]);
+  const [ratioAttention, setRatioAttention] = useState<[number, number]>([1.2, 1.5]);
+  const [ratioWarning, setRatioWarning] = useState<[number, number]>([1.5, 2.0]);
+  const [ratioSevere, setRatioSevere] = useState<[number, number]>([2.0, 999]);
+
+  // Z-Score 阈值
+  const [zNormalLow, setZNormalLow] = useState(-2.0);
+  const [zNormalHigh, setZNormalHigh] = useState(2.0);
+  const [zAttentionLow, setZAttentionLow] = useState(-3.0);
+  const [zAttentionHigh, setZAttentionHigh] = useState(3.0);
+
+  // PLC 映射
+  const [plcMappings, setPlcMappings] = useState<Record<string, string>>({
+    '0': 'IDLE',
+    '1': 'LIFT_EMPTY',
+    '2': 'LIFT_LOADED',
+    '3': 'TROLLEY_MOVE',
+    '4': 'LANDING',
+  });
+  const [newPlcCode, setNewPlcCode] = useState('');
+  const [newPlcCondition, setNewPlcCondition] = useState('');
+
+  const [dirty, setDirty] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  // 加载配置
+  const loadConfig = useCallback(async () => {
+    try {
+      const resp = await fetch('/api/trpc/conditionNormalizer.getConfig?input=%7B%7D');
+      const data = await resp.json();
+      const cfg = data?.result?.data?.data;
+      if (cfg) {
+        if (cfg.normalizationMethod) setMethod(cfg.normalizationMethod);
+        if (cfg.ewmaAlpha !== undefined) setEwmaAlpha(cfg.ewmaAlpha);
+        if (cfg.thresholdIdleCurrent !== undefined) setIdleThreshold(cfg.thresholdIdleCurrent);
+        if (cfg.loadWeightThreshold !== undefined) setLoadThreshold(cfg.loadWeightThreshold);
+        if (cfg.maxSamplesPerBaseline !== undefined) setMaxSamples(cfg.maxSamplesPerBaseline);
+        if (cfg.ratioBounds) {
+          if (cfg.ratioBounds.normal) setRatioNormal(cfg.ratioBounds.normal);
+          if (cfg.ratioBounds.attention) setRatioAttention(cfg.ratioBounds.attention);
+          if (cfg.ratioBounds.warning) setRatioWarning(cfg.ratioBounds.warning);
+          if (cfg.ratioBounds.severe) setRatioSevere(cfg.ratioBounds.severe);
+        }
+        if (cfg.zscoreBounds) {
+          if (cfg.zscoreBounds.normalLow !== undefined) setZNormalLow(cfg.zscoreBounds.normalLow);
+          if (cfg.zscoreBounds.normalHigh !== undefined) setZNormalHigh(cfg.zscoreBounds.normalHigh);
+          if (cfg.zscoreBounds.attentionLow !== undefined) setZAttentionLow(cfg.zscoreBounds.attentionLow);
+          if (cfg.zscoreBounds.attentionHigh !== undefined) setZAttentionHigh(cfg.zscoreBounds.attentionHigh);
+        }
+        if (cfg.plcRules) {
+          const m: Record<string, string> = {};
+          Object.entries(cfg.plcRules).forEach(([k, v]) => { m[k] = v as string; });
+          setPlcMappings(m);
+        }
+      }
+    } catch (err) {
+      console.error('Load config failed:', err);
+    }
+  }, []);
+
+  // 初始加载
+  useState(() => { loadConfig(); });
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await fetch('/api/trpc/conditionNormalizer.updateConfig', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          normalizationMethod: method,
+          ewmaAlpha,
+          thresholdIdleCurrent: idleThreshold,
+          loadWeightThreshold: loadThreshold,
+          maxSamplesPerBaseline: maxSamples,
+          ratioBounds: {
+            normal: ratioNormal,
+            attention: ratioAttention,
+            warning: ratioWarning,
+            severe: ratioSevere,
+          },
+          zscoreBounds: {
+            normalLow: zNormalLow,
+            normalHigh: zNormalHigh,
+            attentionLow: zAttentionLow,
+            attentionHigh: zAttentionHigh,
+          },
+        }),
+      });
+      setDirty(false);
+      alert('配置已保存');
+    } catch (err) {
+      alert('保存失败');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleReset = () => {
+    setMethod('ratio');
+    setEwmaAlpha(0.1);
+    setIdleThreshold(0.1);
+    setLoadThreshold(10.0);
+    setMaxSamples(1000);
+    setRatioNormal([0.8, 1.2]);
+    setRatioAttention([1.2, 1.5]);
+    setRatioWarning([1.5, 2.0]);
+    setRatioSevere([2.0, 999]);
+    setZNormalLow(-2.0);
+    setZNormalHigh(2.0);
+    setZAttentionLow(-3.0);
+    setZAttentionHigh(3.0);
+    setDirty(true);
+  };
+
+  const handleExport = () => {
+    const config = {
+      normalizationMethod: method,
+      ewmaAlpha,
+      thresholdIdleCurrent: idleThreshold,
+      loadWeightThreshold: loadThreshold,
+      maxSamplesPerBaseline: maxSamples,
+      ratioBounds: { normal: ratioNormal, attention: ratioAttention, warning: ratioWarning, severe: ratioSevere },
+      zscoreBounds: { normalLow: zNormalLow, normalHigh: zNormalHigh, attentionLow: zAttentionLow, attentionHigh: zAttentionHigh },
+      plcMappings,
+    };
+    const blob = new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `condition-normalizer-config-${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const addPlcMapping = () => {
+    if (newPlcCode && newPlcCondition) {
+      setPlcMappings(prev => ({ ...prev, [newPlcCode]: newPlcCondition.toUpperCase() }));
+      setNewPlcCode('');
+      setNewPlcCondition('');
+      setDirty(true);
+    }
+  };
+
+  const removePlcMapping = (code: string) => {
+    setPlcMappings(prev => {
+      const next = { ...prev };
+      delete next[code];
+      return next;
+    });
+    setDirty(true);
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* 列1: 核心引擎参数 */}
+        <div className="space-y-4">
+          <ConfigSection title="核心引擎参数" icon={<span>⚙️</span>} description="归一化引擎全局配置">
+            <ConfigSelect
+              label="归一化方法"
+              value={method}
+              onChange={v => { setMethod(v as 'ratio' | 'zscore'); setDirty(true); }}
+              options={[
+                { value: 'ratio', label: '比值法 (ratio)', description: 'value / baseline_mean' },
+                { value: 'zscore', label: 'Z-Score 标准化', description: '(value - μ) / σ' },
+              ]}
+              description="选择特征归一化的计算方法"
+            />
+            <ConfigSlider
+              label="EWMA 平滑系数 (α)"
+              value={ewmaAlpha}
+              onChange={v => { setEwmaAlpha(v); setDirty(true); }}
+              min={0.01}
+              max={0.5}
+              step={0.01}
+              description="越小越平滑，越大越敏感"
+            />
+            <ConfigSlider
+              label="空闲电流阈值"
+              value={idleThreshold}
+              onChange={v => { setIdleThreshold(v); setDirty(true); }}
+              min={0}
+              max={1}
+              step={0.01}
+              unit="A"
+              description="低于此值判定为 IDLE 工况"
+            />
+            <ConfigSlider
+              label="载荷判定阈值"
+              value={loadThreshold}
+              onChange={v => { setLoadThreshold(v); setDirty(true); }}
+              min={1}
+              max={50}
+              step={0.5}
+              unit="t"
+              description="高于此值判定为重载（LIFT_LOADED）"
+            />
+            <ConfigSlider
+              label="基线最大样本数"
+              value={maxSamples}
+              onChange={v => { setMaxSamples(v); setDirty(true); }}
+              min={100}
+              max={5000}
+              step={100}
+              description="每个工况-特征基线保留的最大样本数"
+            />
+          </ConfigSection>
+        </div>
+
+        {/* 列2: 归一化阈值 */}
+        <div className="space-y-4">
+          <ConfigSection title="比值法阈值" icon={<span>📏</span>} description="ratio 方法的状态判定区间">
+            <ConfigRangeInput label="正常 (normal)" min={ratioNormal[0]} max={ratioNormal[1]}
+              onChange={(a, b) => { setRatioNormal([a, b]); setDirty(true); }} step={0.05} />
+            <ConfigRangeInput label="关注 (attention)" min={ratioAttention[0]} max={ratioAttention[1]}
+              onChange={(a, b) => { setRatioAttention([a, b]); setDirty(true); }} step={0.05} />
+            <ConfigRangeInput label="预警 (warning)" min={ratioWarning[0]} max={ratioWarning[1]}
+              onChange={(a, b) => { setRatioWarning([a, b]); setDirty(true); }} step={0.05} />
+            <ConfigRangeInput label="严重 (severe)" min={ratioSevere[0]} max={ratioSevere[1]}
+              onChange={(a, b) => { setRatioSevere([a, b]); setDirty(true); }} step={0.1} />
+          </ConfigSection>
+
+          <ConfigSection title="Z-Score 阈值" icon={<span>📐</span>} description="zscore 方法的状态判定区间">
+            <ConfigRangeInput label="正常范围" min={zNormalLow} max={zNormalHigh}
+              onChange={(a, b) => { setZNormalLow(a); setZNormalHigh(b); setDirty(true); }} step={0.1} unit="σ" />
+            <ConfigRangeInput label="关注范围" min={zAttentionLow} max={zAttentionHigh}
+              onChange={(a, b) => { setZAttentionLow(a); setZAttentionHigh(b); setDirty(true); }} step={0.1} unit="σ" />
+            <ConfigKV label="超出关注范围" value={<span className="text-red-400 font-medium">→ 危险 (danger)</span>} />
+          </ConfigSection>
+        </div>
+
+        {/* 列3: PLC 映射 */}
+        <div className="space-y-4">
+          <ConfigSection title="PLC 工况映射" icon={<span>🔗</span>} description="PLC 码 → 工况 ID 的映射规则">
+            <div className="space-y-2">
+              {Object.entries(plcMappings).map(([code, condition]) => (
+                <div key={code} className="flex items-center justify-between py-1.5 px-3 bg-muted/30 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs font-mono font-bold text-primary bg-primary/10 px-2 py-0.5 rounded">
+                      PLC {code}
+                    </span>
+                    <span className="text-xs text-muted-foreground">→</span>
+                    <span className="text-xs font-medium text-foreground">{condition}</span>
+                    <span
+                      className="w-2.5 h-2.5 rounded-full"
+                      style={{ backgroundColor: conditionColor(condition) }}
+                    />
+                  </div>
+                  <button
+                    onClick={() => removePlcMapping(code)}
+                    className="text-xs text-red-400/60 hover:text-red-400 transition-colors"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            {/* 添加新映射 */}
+            <div className="flex items-end gap-2 pt-2 border-t border-border/30">
+              <div className="flex-1">
+                <label className="text-[10px] text-muted-foreground">PLC 码</label>
+                <input
+                  type="number"
+                  value={newPlcCode}
+                  onChange={e => setNewPlcCode(e.target.value)}
+                  className="w-full px-2 py-1.5 rounded-lg bg-background border border-border text-xs text-foreground font-mono"
+                  placeholder="5"
+                />
+              </div>
+              <div className="flex-1">
+                <label className="text-[10px] text-muted-foreground">工况 ID</label>
+                <input
+                  value={newPlcCondition}
+                  onChange={e => setNewPlcCondition(e.target.value)}
+                  className="w-full px-2 py-1.5 rounded-lg bg-background border border-border text-xs text-foreground"
+                  placeholder="GANTRY_MOVE"
+                />
+              </div>
+              <button
+                onClick={addPlcMapping}
+                className="px-3 py-1.5 rounded-lg bg-green-500/20 text-green-400 text-xs font-medium hover:bg-green-500/30 shrink-0"
+              >
+                + 添加
+              </button>
+            </div>
+          </ConfigSection>
+
+          <ConfigSection title="引擎状态" icon={<span>📊</span>} description="当前引擎运行状态">
+            <ConfigKV label="归一化方法" value={<span className="font-mono">{method}</span>} mono />
+            <ConfigKV label="EWMA α" value={<span className="font-mono">{ewmaAlpha}</span>} mono />
+            <ConfigKV label="PLC 规则数" value={<span className="font-mono">{Object.keys(plcMappings).length}</span>} mono />
+            <ConfigKV label="最大样本数" value={<span className="font-mono">{maxSamples}</span>} mono />
+          </ConfigSection>
+        </div>
+      </div>
+
+      {/* API 文档 */}
+      <ApiDocBlock
+        title="Python 算法对接"
+        icon={<span>🐍</span>}
+        endpoints={[
+          { method: 'POST', path: '/api/trpc/conditionNormalizer.normalize', description: '执行工况归一化', body: '{ features: {...}, plcCode, method }' },
+          { method: 'POST', path: '/api/trpc/conditionNormalizer.batchNormalize', description: '批量归一化', body: '{ dataPoints: [...] }' },
+          { method: 'POST', path: '/api/trpc/conditionNormalizer.learnBaseline', description: '学习基线', body: '{ condition, samples: [...] }' },
+          { method: 'GET', path: '/api/trpc/conditionNormalizer.getBaselines', description: '获取所有基线' },
+          { method: 'GET', path: '/api/trpc/conditionNormalizer.getConfig', description: '获取完整配置' },
+          { method: 'POST', path: '/api/trpc/conditionNormalizer.updateConfig', description: '更新配置', body: '{ normalizationMethod, ewmaAlpha, ... }' },
+          { method: 'GET', path: '/api/trpc/conditionNormalizer.getThresholds', description: '获取阈值配置' },
+          { method: 'POST', path: '/api/trpc/conditionNormalizer.updateThreshold', description: '更新阈值', body: '{ condition, feature, thresholds }' },
+          { method: 'POST', path: '/api/trpc/conditionNormalizer.addCondition', description: '添加工况', body: '{ id, description, keyFeatures, ... }' },
+          { method: 'POST', path: '/api/trpc/conditionNormalizer.removeCondition', description: '删除工况', body: '{ id }' },
+          { method: 'GET', path: '/api/trpc/conditionNormalizer.getConditions', description: '获取工况列表' },
+          { method: 'GET', path: '/api/trpc/conditionNormalizer.getHistory', description: '获取处理历史' },
+        ]}
+        pythonExample={`import requests
+
+BASE = "http://localhost:3000/api/trpc"
+
+# 1. 执行归一化
+res = requests.post(f"{BASE}/conditionNormalizer.normalize", json={
+    "features": {
+        "current": 82, "loadWeight": 35,
+        "vibrationSpeed": 3.5, "bearingTemp": 65,
+        "motorSpeed": 1420
+    },
+    "plcCode": 2,
+    "method": "ratio"
+})
+print(res.json())
+
+# 2. 学习基线
+requests.post(f"{BASE}/conditionNormalizer.learnBaseline", json={
+    "condition": "LIFT_LOADED",
+    "samples": [
+        {"current": 80, "loadWeight": 33, "vibrationSpeed": 3.2, "bearingTemp": 62, "motorSpeed": 1425},
+        {"current": 85, "loadWeight": 36, "vibrationSpeed": 3.8, "bearingTemp": 68, "motorSpeed": 1415},
+    ]
+})
+
+# 3. 更新配置
+requests.post(f"{BASE}/conditionNormalizer.updateConfig", json={
+    "normalizationMethod": "zscore",
+    "ewmaAlpha": 0.15,
+    "thresholdIdleCurrent": 0.2
+})`}
+        note="核心算法（BaselineLearner IQR剔除 + EWMA更新、ConditionIdentifier PLC/特征规则、FeatureNormalizer ratio/zscore、StatusChecker 自适应阈值）已在 TypeScript 端 1:1 实现。"
+      />
+
+      {/* 操作按钮 */}
+      <ConfigActions
+        onSave={handleSave}
+        onReset={handleReset}
+        onExport={handleExport}
+        saving={saving}
+        dirty={dirty}
+      />
     </div>
   );
 }
