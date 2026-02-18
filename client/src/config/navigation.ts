@@ -149,7 +149,8 @@ export const navigationConfig: NavItem[] = [
       { id: 'status-performance', label: '性能总览', icon: '🚀', path: '/settings/status/performance' },
       { id: 'status-kafka', label: 'Kafka 监控', icon: '📡', path: '/settings/config/kafka' },
       { id: 'status-clickhouse', label: 'ClickHouse 监控', icon: '📊', path: '/monitoring/clickhouse' },
-      { id: 'status-datastream', label: '数据流监控', icon: '⚡', path: '/settings/design/datastream' }
+      { id: 'status-datastream', label: '数据流监控', icon: '⚡', path: '/settings/design/datastream' },
+      { id: 'status-diagnostic', label: '平台诊断', icon: '🧠', path: '/settings/status/diagnostic' }
     ]
   },
   {

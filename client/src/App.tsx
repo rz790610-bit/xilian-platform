@@ -77,6 +77,7 @@ import {
   DeduplicationManager,
   ReadReplicaManager,
   MicroserviceDashboard,
+  PlatformDiagnostic,
 } from "./pages/settings/status";
 
 // 平台管理 - 安全运维（精简：移除 SmartMonitoring、SecurityScanner、VaultManager、PkiManager）
@@ -212,6 +213,7 @@ function Router() {
       <Route path="/settings/status/performance/sampling" component={AdaptiveSampling} />
       <Route path="/settings/status/performance/dedup" component={DeduplicationManager} />
       <Route path="/settings/status/performance/replica" component={ReadReplicaManager} />
+      <Route path="/settings/status/diagnostic" component={PlatformDiagnostic} />
 
       {/* 安全运维 */}
       <Route path="/settings/security/falco" component={FalcoSecurityCenter} />
