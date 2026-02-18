@@ -222,7 +222,7 @@ export class ModuleRegistry extends BaseRegistry<ModuleManifest> {
       stack.delete(node);
     }
 
-    for (const id of allIds) {
+    for (const id of Array.from(allIds)) {
       if (!visited.has(id)) dfs(id, []);
     }
 

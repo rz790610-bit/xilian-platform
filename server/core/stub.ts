@@ -109,7 +109,7 @@ class StubTracker {
   /** 获取总调用次数 */
   getTotalCalls(): number {
     let total = 0;
-    for (const s of this.callMap.values()) total += s.callCount;
+    for (const s of Array.from(this.callMap.values())) total += s.callCount;
     return total;
   }
 
@@ -119,7 +119,7 @@ class StubTracker {
     const calledKeys = new Set(this.callMap.keys());
     const neverCalled: StubCall[] = [];
 
-    for (const [key, info] of this.registered) {
+    for (const [key, info] of Array.from(this.registered.entries())) {
       if (!calledKeys.has(key)) {
         neverCalled.push({
           ...info,

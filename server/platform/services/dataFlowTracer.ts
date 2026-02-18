@@ -256,7 +256,7 @@ class DataFlowTracer {
     const cutoff = new Date(Date.now() - this.WINDOW_DURATION_MS);
     let removed = 0;
 
-    for (const [key, edge] of this.edges) {
+    for (const [key, edge] of Array.from(this.edges.entries())) {
       if (edge.lastSeen < cutoff) {
         this.edges.delete(key);
         removed++;
@@ -277,7 +277,7 @@ class DataFlowTracer {
     // 收集所有活跃模块
     const sources = new Set(edges.map(e => e.source));
     const targets = new Set(edges.map(e => e.target));
-    const allActive = new Set([...sources, ...targets]);
+    const allActive = new Set([...Array.from(sources), ...Array.from(targets)]);
 
     // 死端：有入边但无出边
     const deadEnds = Array.from(targets).filter(t => !sources.has(t));

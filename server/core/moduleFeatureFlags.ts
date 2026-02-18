@@ -153,11 +153,12 @@ class ModuleFeatureFlags {
     log.info(`[ModuleFeatureFlags] ${moduleId}: ${oldValue} → ${enabled} (by ${updatedBy})`);
 
     // 通知监听器
-    for (const listener of this.listeners) {
+    const listenerArr = Array.from(this.listeners);
+    for (const listener of listenerArr) {
       try {
         await listener(event);
       } catch (err) {
-        log.error(`[ModuleFeatureFlags] Listener error:`, err);
+        log.error(`[ModuleFeatureFlags] Listener error:`, err instanceof Error ? err.message : String(err));
       }
     }
   }

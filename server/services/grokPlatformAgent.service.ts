@@ -200,8 +200,10 @@ async function checkInfraHealth(): Promise<Record<string, { status: string; late
   try {
     const start = Date.now();
     const { getDb } = await import('../lib/db');
-    const db = getDb();
-    await db.execute(new (await import('drizzle-orm')).SQL(['SELECT 1']));
+    const db = await getDb();
+    if (!db) throw new Error('Database not initialized');
+    const { sql } = await import('drizzle-orm');
+    await db.execute(sql`SELECT 1`);
     results.postgres = { status: 'healthy', latency: Date.now() - start };
   } catch (err: any) {
     results.postgres = { status: 'unreachable', error: err.message };
@@ -211,7 +213,8 @@ async function checkInfraHealth(): Promise<Record<string, { status: string; late
   try {
     const start = Date.now();
     const { redisClient } = await import('../lib/clients/redis.client');
-    await redisClient.ping();
+    const connected = redisClient.getConnectionStatus();
+    if (!connected) throw new Error('Redis not connected');
     results.redis = { status: 'healthy', latency: Date.now() - start };
   } catch (err: any) {
     results.redis = { status: 'unreachable', error: err.message };
@@ -232,7 +235,8 @@ async function checkInfraHealth(): Promise<Record<string, { status: string; late
   try {
     const start = Date.now();
     const { clickhouseClient } = await import('../lib/clients/clickhouse.client');
-    await clickhouseClient.query({ query: 'SELECT 1' });
+    const chOk = await clickhouseClient.checkConnection();
+    if (!chOk) throw new Error('ClickHouse not connected');
     results.clickhouse = { status: 'healthy', latency: Date.now() - start };
   } catch (err: any) {
     results.clickhouse = { status: 'unreachable', error: err.message };
