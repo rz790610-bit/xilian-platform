@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
-  ZoomIn, ZoomOut, Maximize2, Download, Filter, Eye, EyeOff,
+  ZoomIn, ZoomOut, Maximize2, Download, Filter, Eye, EyeOff, Move,
   Key, Hash, Type, Calendar, FileJson, X, Network, ArrowRight,
   Database, Search
 } from "lucide-react";
@@ -50,6 +50,7 @@ export default function ERDiagram() {
   const [selectedTable, setSelectedTable] = useState<string | null>(null);
   const [filterDomain, setFilterDomain] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedTableIds, setSelectedTableIds] = useState<Set<string>>(new Set());
   const canvasRef = useRef<HTMLDivElement>(null);
 
   // Positions state — initialized from ER_POSITIONS, then draggable
@@ -87,17 +88,32 @@ export default function ERDiagram() {
     );
   }, [schema.relations, filteredTableNames]);
 
-  // Drag handlers
+  // Drag handlers—支持多选拖拽
   const handleMouseDown = useCallback((e: React.MouseEvent, tableId: string) => {
     e.stopPropagation();
+    // Ctrl/Meta + 点击：切换多选
+    if (e.ctrlKey || e.metaKey) {
+      setSelectedTableIds(prev => {
+        const next = new Set(prev);
+        if (next.has(tableId)) next.delete(tableId); else next.add(tableId);
+        return next;
+      });
+      return;
+    }
+    // 如果拖动的节点不在多选集中，清空多选
+    if (!selectedTableIds.has(tableId)) {
+      setSelectedTableIds(new Set());
+    }
     setDragging(tableId);
     setDragStart({ x: e.clientX, y: e.clientY });
-  }, []);
+  }, [selectedTableIds]);
 
   const handleCanvasMouseDown = useCallback((e: React.MouseEvent) => {
     if (e.target === canvasRef.current || (e.target as HTMLElement).tagName === "svg") {
       setIsPanning(true);
       setPanStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
+      // 点击空白区域清空多选
+      if (!e.ctrlKey && !e.metaKey) setSelectedTableIds(new Set());
     }
   }, [pan]);
 
@@ -105,16 +121,29 @@ export default function ERDiagram() {
     if (dragging) {
       const dx = (e.clientX - dragStart.x) / zoom;
       const dy = (e.clientY - dragStart.y) / zoom;
-      setPositions(prev => ({
-        ...prev,
-        [dragging]: { ...prev[dragging], x: (prev[dragging]?.x || 0) + dx, y: (prev[dragging]?.y || 0) + dy },
-      }));
+      // 多选整体拖动
+      if (selectedTableIds.size > 0 && selectedTableIds.has(dragging)) {
+        setPositions(prev => {
+          const next = { ...prev };
+          Array.from(selectedTableIds).forEach(tid => {
+            if (next[tid]) {
+              next[tid] = { ...next[tid], x: next[tid].x + dx, y: next[tid].y + dy };
+            }
+          });
+          return next;
+        });
+      } else {
+        setPositions(prev => ({
+          ...prev,
+          [dragging]: { ...prev[dragging], x: (prev[dragging]?.x || 0) + dx, y: (prev[dragging]?.y || 0) + dy },
+        }));
+      }
       setDragStart({ x: e.clientX, y: e.clientY });
     }
     if (isPanning) {
       setPan({ x: e.clientX - panStart.x, y: e.clientY - panStart.y });
     }
-  }, [dragging, dragStart, zoom, isPanning, panStart]);
+  }, [dragging, dragStart, zoom, isPanning, panStart, selectedTableIds]);
 
   const handleMouseUp = useCallback(() => {
     setDragging(null);
@@ -134,6 +163,32 @@ export default function ERDiagram() {
   const handleTableClick = useCallback((tableId: string) => {
     setSelectedTable(prev => prev === tableId ? null : tableId);
   }, []);
+
+  // 初始化时自动居中
+  useEffect(() => {
+    if (!canvasRef.current || !schema.allTables.length) return;
+    const timer = setTimeout(() => {
+      const rect = canvasRef.current?.getBoundingClientRect();
+      if (!rect || rect.width === 0 || rect.height === 0) return;
+      const cw = rect.width, ch = rect.height;
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (const t of schema.allTables) {
+        const p = positions[t.tableName];
+        if (!p) continue;
+        const visibleCols = Math.min(t.columns.length, MAX_VISIBLE_COLS);
+        const h = HEADER_HEIGHT + visibleCols * ROW_HEIGHT + 8;
+        minX = Math.min(minX, p.x); minY = Math.min(minY, p.y);
+        maxX = Math.max(maxX, p.x + TABLE_WIDTH); maxY = Math.max(maxY, p.y + h);
+      }
+      if (!isFinite(minX)) return;
+      const PAD = 60;
+      const bw = maxX - minX + PAD * 2, bh = maxY - minY + PAD * 2;
+      const newZoom = Math.max(0.15, Math.min(1.2, Math.min(cw / bw, ch / bh)));
+      setPan({ x: cw / 2 - (minX + maxX) / 2 * newZoom, y: ch / 2 - (minY + maxY) / 2 * newZoom });
+      setZoom(newZoom);
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [schema.allTables.length]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   // Connection points for relation lines
   const getConnectionPoints = useCallback((from: string, fromCol: string, to: string, toCol: string) => {
@@ -193,10 +248,42 @@ export default function ERDiagram() {
         <Button variant="outline" size="sm" className="h-7 w-7 p-0" onClick={() => setZoom(z => Math.max(0.2, z - 0.15))}>
           <ZoomOut className="w-3.5 h-3.5" />
         </Button>
-        <Button variant="outline" size="sm" className="h-7 w-7 p-0" onClick={() => { setZoom(0.55); setPan({ x: 20, y: 20 }); }}>
+        <Button variant="outline" size="sm" className="h-7 w-7 p-0" onClick={() => {
+          if (!canvasRef.current || !filteredTables.length) { setZoom(0.55); setPan({ x: 20, y: 20 }); return; }
+          const rect = canvasRef.current.getBoundingClientRect();
+          const cw = rect.width, ch = rect.height;
+          if (cw === 0 || ch === 0) return;
+          let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+          for (const t of filteredTables) {
+            const p = positions[t.tableName];
+            if (!p) continue;
+            const visibleCols = Math.min(t.columns.length, MAX_VISIBLE_COLS);
+            const h = HEADER_HEIGHT + visibleCols * ROW_HEIGHT + 8;
+            minX = Math.min(minX, p.x); minY = Math.min(minY, p.y);
+            maxX = Math.max(maxX, p.x + TABLE_WIDTH); maxY = Math.max(maxY, p.y + h);
+          }
+          const PAD = 60;
+          const bw = maxX - minX + PAD * 2, bh = maxY - minY + PAD * 2;
+          const newZoom = Math.max(0.15, Math.min(1.2, Math.min(cw / bw, ch / bh)));
+          setPan({ x: cw / 2 - (minX + maxX) / 2 * newZoom, y: ch / 2 - (minY + maxY) / 2 * newZoom });
+          setZoom(newZoom);
+        }} title="适应画布居中">
           <Maximize2 className="w-3.5 h-3.5" />
         </Button>
         <div className="w-px h-4 bg-border mx-1" />
+        <Button
+          variant={selectedTableIds.size > 0 ? "default" : "outline"}
+          size="sm"
+          className="h-7 text-xs gap-1.5"
+          onClick={() => {
+            if (selectedTableIds.size === filteredTables.length) setSelectedTableIds(new Set());
+            else setSelectedTableIds(new Set(filteredTables.map(t => t.tableName)));
+          }}
+          title="全选/取消全选 (Ctrl+点击多选，整体拖动)"
+        >
+          <Move className="w-3 h-3" />
+          {selectedTableIds.size > 0 ? `已选 ${selectedTableIds.size}` : '全选'}
+        </Button>
         <Button
           variant={showRelations ? "default" : "outline"}
           size="sm"
@@ -311,13 +398,13 @@ export default function ERDiagram() {
               return (
                 <div
                   key={entry.tableName}
-                  className={`absolute bg-card border rounded-lg overflow-hidden select-none transition-shadow ${selectedTable === entry.tableName ? "ring-2 ring-primary" : ""}`}
+                  className={`absolute bg-card border rounded-lg overflow-hidden select-none transition-shadow ${selectedTable === entry.tableName ? "ring-2 ring-primary" : ""} ${selectedTableIds.has(entry.tableName) && selectedTable !== entry.tableName ? "ring-2 ring-blue-500 ring-dashed" : ""}`}
                   style={{
                     left: pos.x,
                     top: pos.y,
                     width: TABLE_WIDTH,
                     boxShadow: `0 0 0 1px ${color}30, 0 4px 12px rgba(0,0,0,0.3)`,
-                    borderColor: selectedTable === entry.tableName ? "var(--primary)" : `${color}30`,
+                    borderColor: selectedTable === entry.tableName ? "var(--primary)" : selectedTableIds.has(entry.tableName) ? "#3b82f6" : `${color}30`,
                   }}
                   onMouseDown={e => handleMouseDown(e, entry.tableName)}
                   onClick={() => handleTableClick(entry.tableName)}

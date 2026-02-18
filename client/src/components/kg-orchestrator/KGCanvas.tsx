@@ -20,11 +20,45 @@ export default function KGCanvas() {
   } = useKGOrchestratorStore();
 
   const svgRef = useRef<SVGSVGElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [dragging, setDragging] = useState<{ nodeId: string; offsetX: number; offsetY: number } | null>(null);
   const [panning, setPanning] = useState<{ startX: number; startY: number; startPanX: number; startPanY: number } | null>(null);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; nodeId?: string; edgeId?: string } | null>(null);
   const [relationPicker, setRelationPicker] = useState<{ nodeId: string; x: number; y: number } | null>(null);
+  const [selectedNodeIds, setSelectedNodeIds] = useState<Set<string>>(new Set());
+  const [hasFittedView, setHasFittedView] = useState(false);
+
+  // ============ 适应画布居中 ============
+  const fitToView = useCallback(() => {
+    if (!nodes.length || !containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const cw = rect.width, ch = rect.height;
+    if (cw === 0 || ch === 0) return;
+    const PAD = 60;
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const n of nodes) {
+      minX = Math.min(minX, n.x); minY = Math.min(minY, n.y);
+      maxX = Math.max(maxX, n.x + NODE_W); maxY = Math.max(maxY, n.y + NODE_H);
+    }
+    if (!isFinite(minX)) return;
+    const bw = maxX - minX + PAD * 2, bh = maxY - minY + PAD * 2;
+    const newZoom = Math.max(0.15, Math.min(1.5, Math.min(cw / bw, ch / bh)));
+    const centerX = (minX + maxX) / 2;
+    const centerY = (minY + maxY) / 2;
+    setZoom(newZoom);
+    setPan(cw / 2 - centerX * newZoom, ch / 2 - centerY * newZoom);
+  }, [nodes, setZoom, setPan]);
+
+  // 数据首次加载后自动居中
+  useEffect(() => {
+    if (nodes.length > 0 && !hasFittedView) {
+      requestAnimationFrame(() => {
+        fitToView();
+        setHasFittedView(true);
+      });
+    }
+  }, [nodes.length, hasFittedView, fitToView]);
 
   // ============ 坐标转换 ============
   const screenToCanvas = useCallback((sx: number, sy: number) => {
@@ -53,16 +87,32 @@ export default function KGCanvas() {
     e.dataTransfer.dropEffect = "copy";
   }, []);
 
-  // ============ 节点拖拽移动 ============
+  // ============ 节点拖拽移动（支持多选） ============
   const handleNodeMouseDown = useCallback((e: React.MouseEvent, nodeId: string) => {
     if (e.button !== 0) return;
     e.stopPropagation();
     const node = nodes.find(n => n.nodeId === nodeId);
     if (!node) return;
     const pos = screenToCanvas(e.clientX, e.clientY);
+
+    // Ctrl/Meta + 点击：切换多选
+    if (e.ctrlKey || e.metaKey) {
+      setSelectedNodeIds(prev => {
+        const next = new Set(prev);
+        if (next.has(nodeId)) next.delete(nodeId); else next.add(nodeId);
+        return next;
+      });
+      return;
+    }
+
+    // 如果拖动的节点不在多选集中，清空多选
+    if (!selectedNodeIds.has(nodeId)) {
+      setSelectedNodeIds(new Set());
+    }
+
     setDragging({ nodeId, offsetX: pos.x - node.x, offsetY: pos.y - node.y });
     selectNode(nodeId);
-  }, [nodes, screenToCanvas, selectNode]);
+  }, [nodes, screenToCanvas, selectNode, selectedNodeIds]);
 
   // ============ 画布平移 ============
   const handleCanvasMouseDown = useCallback((e: React.MouseEvent) => {
@@ -75,6 +125,7 @@ export default function KGCanvas() {
       selectEdge(null);
       setContextMenu(null);
       setRelationPicker(null);
+      if (!e.ctrlKey && !e.metaKey) setSelectedNodeIds(new Set());
     }
   }, [panX, panY, selectNode, selectEdge]);
 
@@ -83,10 +134,22 @@ export default function KGCanvas() {
     setMousePos(pos);
 
     if (dragging) {
-      updateNode(dragging.nodeId, {
-        x: pos.x - dragging.offsetX,
-        y: pos.y - dragging.offsetY,
-      });
+      const newX = pos.x - dragging.offsetX;
+      const newY = pos.y - dragging.offsetY;
+      const node = nodes.find(n => n.nodeId === dragging.nodeId);
+      if (node) {
+        const dx = newX - node.x;
+        const dy = newY - node.y;
+        // 多选整体拖动
+        if (selectedNodeIds.size > 0 && selectedNodeIds.has(dragging.nodeId)) {
+          Array.from(selectedNodeIds).forEach(nid => {
+            const n = nodes.find(nd => nd.nodeId === nid);
+            if (n) updateNode(nid, { x: n.x + dx, y: n.y + dy });
+          });
+        } else {
+          updateNode(dragging.nodeId, { x: newX, y: newY });
+        }
+      }
     }
     if (panning) {
       setPan(
@@ -94,7 +157,7 @@ export default function KGCanvas() {
         panning.startPanY + (e.clientY - panning.startY),
       );
     }
-  }, [dragging, panning, screenToCanvas, updateNode, setPan]);
+  }, [dragging, panning, screenToCanvas, updateNode, setPan, nodes, selectedNodeIds]);
 
   const handleMouseUp = useCallback(() => {
     setDragging(null);
@@ -220,12 +283,19 @@ export default function KGCanvas() {
 
     return (
       <g key={node.nodeId}>
+        {/* 多选高亮 */}
+        {selectedNodeIds.has(node.nodeId) && !isSelected && (
+          <rect
+            x={node.x - 3} y={node.y - 3} width={NODE_W + 6} height={NODE_H + 6} rx={10}
+            fill="none" stroke="#3B82F6" strokeWidth={2} strokeDasharray="6 3"
+          />
+        )}
         {/* 节点主体 */}
         <rect
           x={node.x} y={node.y} width={NODE_W} height={NODE_H} rx={8}
-          fill={isSelected ? `${color}22` : "#1E293B"}
-          stroke={isSelected ? color : isConnecting ? "#F59E0B" : "#334155"}
-          strokeWidth={isSelected ? 2.5 : 1.5}
+          fill={isSelected ? `${color}22` : selectedNodeIds.has(node.nodeId) ? `${color}15` : "#1E293B"}
+          stroke={isSelected ? color : isConnecting ? "#F59E0B" : selectedNodeIds.has(node.nodeId) ? "#3B82F6" : "#334155"}
+          strokeWidth={isSelected ? 2.5 : selectedNodeIds.has(node.nodeId) ? 2 : 1.5}
           className="cursor-grab"
           style={{ filter: isSelected ? `drop-shadow(0 0 8px ${color}40)` : undefined }}
           onMouseDown={(e) => handleNodeMouseDown(e, node.nodeId)}
@@ -306,20 +376,44 @@ export default function KGCanvas() {
   };
 
   return (
-    <div className="relative w-full h-full overflow-hidden bg-slate-950">
-      {/* 状态栏 */}
+    <div ref={containerRef} className="relative w-full h-full overflow-hidden bg-slate-950">
+      {/* 状态栏 + 工具栏 */}
       <div className="absolute top-3 left-3 z-10 flex items-center gap-3 bg-slate-900/90 backdrop-blur px-3 py-1.5 rounded-lg border border-slate-700/50 text-xs text-slate-400">
         <span>{nodes.length} 节点</span>
         <span className="text-slate-600">·</span>
         <span>{edges.length} 关系</span>
         <span className="text-slate-600">·</span>
         <span>{Math.round(zoom * 100)}%</span>
+        {selectedNodeIds.size > 0 && (
+          <>
+            <span className="text-slate-600">·</span>
+            <span className="text-blue-400">已选 {selectedNodeIds.size} 节点</span>
+          </>
+        )}
         {connectingFrom && (
           <>
             <span className="text-slate-600">·</span>
             <span className="text-amber-400">连线中 (ESC取消)</span>
           </>
         )}
+        <span className="text-slate-600">·</span>
+        <button
+          className="text-slate-300 hover:text-white transition-colors px-1.5 py-0.5 rounded hover:bg-slate-700"
+          onClick={fitToView}
+          title="适应画布居中"
+        >
+          ⊞ 居中
+        </button>
+        <button
+          className="text-slate-300 hover:text-white transition-colors px-1.5 py-0.5 rounded hover:bg-slate-700"
+          onClick={() => {
+            if (selectedNodeIds.size === nodes.length) setSelectedNodeIds(new Set());
+            else setSelectedNodeIds(new Set(nodes.map(n => n.nodeId)));
+          }}
+          title="全选/取消全选 (Ctrl+点击多选)"
+        >
+          {selectedNodeIds.size > 0 ? '✕ 取消选' : '☐ 全选'}
+        </button>
       </div>
 
       {/* SVG 画布 */}

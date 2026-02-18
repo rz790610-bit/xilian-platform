@@ -1,6 +1,6 @@
 /**
  * Pipeline 可视化编辑器画布组件
- * 支持缩放、平移、节点拖拽、连线
+ * 支持缩放、平移、节点拖拽、连线、fitToView自动居中、多选拖拽
  */
 
 import { useRef, useState, useCallback, useEffect } from 'react';
@@ -21,6 +21,8 @@ export function PipelineCanvas({ className }: PipelineCanvasProps) {
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
   const [draggedNode, setDraggedNode] = useState<string | null>(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const [selectedNodeIds, setSelectedNodeIds] = useState<Set<string>>(new Set());
+  const [hasFittedView, setHasFittedView] = useState(false);
 
   const {
     editor,
@@ -35,6 +37,37 @@ export function PipelineCanvas({ className }: PipelineCanvasProps) {
     setZoom,
     setPan,
   } = usePipelineEditorStore();
+
+  // ============ 适应画布居中 ============
+  const fitToView = useCallback(() => {
+    if (!editor.nodes.length || !canvasRef.current) return;
+    const rect = canvasRef.current.getBoundingClientRect();
+    const cw = rect.width, ch = rect.height;
+    if (cw === 0 || ch === 0) return;
+    const PAD = 60;
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const n of editor.nodes) {
+      minX = Math.min(minX, n.x); minY = Math.min(minY, n.y);
+      maxX = Math.max(maxX, n.x + NODE_WIDTH); maxY = Math.max(maxY, n.y + NODE_HEIGHT);
+    }
+    if (!isFinite(minX)) return;
+    const bw = maxX - minX + PAD * 2, bh = maxY - minY + PAD * 2;
+    const newZoom = Math.max(0.15, Math.min(1.5, Math.min(cw / bw, ch / bh)));
+    const centerX = (minX + maxX) / 2;
+    const centerY = (minY + maxY) / 2;
+    setZoom(newZoom);
+    setPan(cw / 2 - centerX * newZoom, ch / 2 - centerY * newZoom);
+  }, [editor.nodes, setZoom, setPan]);
+
+  // 数据首次加载后自动居中
+  useEffect(() => {
+    if (editor.nodes.length > 0 && !hasFittedView) {
+      requestAnimationFrame(() => {
+        fitToView();
+        setHasFittedView(true);
+      });
+    }
+  }, [editor.nodes.length, hasFittedView, fitToView]);
 
   // 处理滚轮缩放
   const handleWheel = useCallback((e: React.WheelEvent) => {
@@ -55,6 +88,8 @@ export function PipelineCanvas({ className }: PipelineCanvasProps) {
         setIsPanning(true);
         setPanStart({ x: e.clientX - editor.panX, y: e.clientY - editor.panY });
         selectNode(null);
+        // 点击空白区域清空多选
+        setSelectedNodeIds(new Set());
         if (isConnecting) {
           cancelConnection();
         }
@@ -62,7 +97,7 @@ export function PipelineCanvas({ className }: PipelineCanvasProps) {
     }
   }, [editor.panX, editor.panY, isConnecting, selectNode, cancelConnection]);
 
-  // 处理画布拖拽移动
+  // 处理画布拖拽移动（支持多选整体拖动）
   const handleCanvasMouseMove = useCallback((e: React.MouseEvent) => {
     if (isPanning) {
       setPan(e.clientX - panStart.x, e.clientY - panStart.y);
@@ -71,10 +106,26 @@ export function PipelineCanvas({ className }: PipelineCanvasProps) {
       if (rect) {
         const x = (e.clientX - rect.left - editor.panX) / editor.zoom - dragOffset.x;
         const y = (e.clientY - rect.top - editor.panY) / editor.zoom - dragOffset.y;
-        updateNodePosition(draggedNode, Math.max(0, x), Math.max(0, y));
+        
+        // 多选整体拖动
+        if (selectedNodeIds.size > 0 && selectedNodeIds.has(draggedNode)) {
+          const primaryNode = editor.nodes.find(n => n.id === draggedNode);
+          if (primaryNode) {
+            const dx = Math.max(0, x) - primaryNode.x;
+            const dy = Math.max(0, y) - primaryNode.y;
+            Array.from(selectedNodeIds).forEach(nid => {
+              const n = editor.nodes.find(nd => nd.id === nid);
+              if (n) {
+                updateNodePosition(nid, Math.max(0, n.x + dx), Math.max(0, n.y + dy));
+              }
+            });
+          }
+        } else {
+          updateNodePosition(draggedNode, Math.max(0, x), Math.max(0, y));
+        }
       }
     }
-  }, [isPanning, panStart, draggedNode, dragOffset, editor.panX, editor.panY, editor.zoom, setPan, updateNodePosition]);
+  }, [isPanning, panStart, draggedNode, dragOffset, editor.panX, editor.panY, editor.zoom, editor.nodes, setPan, updateNodePosition, selectedNodeIds]);
 
   // 处理画布拖拽结束
   const handleCanvasMouseUp = useCallback(() => {
@@ -82,10 +133,25 @@ export function PipelineCanvas({ className }: PipelineCanvasProps) {
     setDraggedNode(null);
   }, []);
 
-  // 处理节点拖拽开始
+  // 处理节点拖拽开始（支持多选）
   const handleNodeDragStart = useCallback((nodeId: string, e: React.MouseEvent) => {
+    // Ctrl/Meta + 点击：切换多选
+    if (e.ctrlKey || e.metaKey) {
+      setSelectedNodeIds(prev => {
+        const next = new Set(prev);
+        if (next.has(nodeId)) next.delete(nodeId); else next.add(nodeId);
+        return next;
+      });
+      return;
+    }
+
     const node = editor.nodes.find(n => n.id === nodeId);
     if (!node) return;
+
+    // 如果拖动的节点不在多选集中，清空多选
+    if (!selectedNodeIds.has(nodeId)) {
+      setSelectedNodeIds(new Set());
+    }
 
     const rect = canvasRef.current?.getBoundingClientRect();
     if (rect) {
@@ -94,7 +160,7 @@ export function PipelineCanvas({ className }: PipelineCanvasProps) {
       setDragOffset({ x: x - node.x, y: y - node.y });
       setDraggedNode(nodeId);
     }
-  }, [editor.nodes, editor.panX, editor.panY, editor.zoom]);
+  }, [editor.nodes, editor.panX, editor.panY, editor.zoom, selectedNodeIds]);
 
   // 处理节点点击
   const handleNodeClick = useCallback((nodeId: string) => {
@@ -229,17 +295,30 @@ export function PipelineCanvas({ className }: PipelineCanvasProps) {
 
         {/* 节点 */}
         {editor.nodes.map(node => (
-          <PipelineNode
-            key={node.id}
-            node={node}
-            isSelected={editor.selectedNodeId === node.id}
-            isConnecting={isConnecting}
-            isConnectingFrom={connectingFromNodeId === node.id}
-            onMouseDown={(e) => handleNodeDragStart(node.id, e)}
-            onClick={() => handleNodeClick(node.id)}
-            onOutputPortClick={(e) => handleOutputPortClick(node.id, e)}
-            onInputPortClick={(e) => handleInputPortClick(node.id, e)}
-          />
+          <div key={node.id} className="relative">
+            {/* 多选高亮边框 */}
+            {selectedNodeIds.has(node.id) && editor.selectedNodeId !== node.id && (
+              <div
+                className="absolute pointer-events-none rounded-xl border-2 border-dashed border-blue-500"
+                style={{
+                  left: node.x - 3,
+                  top: node.y - 3,
+                  width: NODE_WIDTH + 6,
+                  height: NODE_HEIGHT + 6,
+                }}
+              />
+            )}
+            <PipelineNode
+              node={node}
+              isSelected={editor.selectedNodeId === node.id}
+              isConnecting={isConnecting}
+              isConnectingFrom={connectingFromNodeId === node.id}
+              onMouseDown={(e) => handleNodeDragStart(node.id, e)}
+              onClick={() => handleNodeClick(node.id)}
+              onOutputPortClick={(e) => handleOutputPortClick(node.id, e)}
+              onInputPortClick={(e) => handleInputPortClick(node.id, e)}
+            />
+          </div>
         ))}
       </div>
 
@@ -261,7 +340,7 @@ export function PipelineCanvas({ className }: PipelineCanvasProps) {
         </div>
       )}
 
-      {/* 缩放控制 */}
+      {/* 缩放控制 + 居中按钮 */}
       <div className="absolute bottom-4 right-4 flex items-center gap-2 bg-card border border-border rounded-lg px-3 py-1.5 shadow-sm">
         <button
           onClick={() => setZoom(editor.zoom - 0.1)}
@@ -279,6 +358,24 @@ export function PipelineCanvas({ className }: PipelineCanvasProps) {
           disabled={editor.zoom >= 2}
         >
           +
+        </button>
+        <div className="w-px h-4 bg-border mx-1" />
+        <button
+          onClick={fitToView}
+          className="w-6 h-6 flex items-center justify-center hover:bg-secondary rounded text-xs"
+          title="适应画布居中"
+        >
+          ⊞
+        </button>
+        <button
+          onClick={() => {
+            if (selectedNodeIds.size === editor.nodes.length) setSelectedNodeIds(new Set());
+            else setSelectedNodeIds(new Set(editor.nodes.map(n => n.id)));
+          }}
+          className="text-xs hover:bg-secondary rounded px-1.5 py-0.5"
+          title="全选/取消全选 (Ctrl+点击多选)"
+        >
+          {selectedNodeIds.size > 0 ? `✕ ${selectedNodeIds.size}` : '☐'}
         </button>
       </div>
     </div>

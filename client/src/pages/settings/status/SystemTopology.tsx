@@ -104,6 +104,8 @@ export default function SystemTopology() {
   const [refreshInterval, setRefreshInterval] = useState(10); // 秒
   const [isPanningCanvas, setIsPanningCanvas] = useState(false);
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
+  const [selectedNodes, setSelectedNodes] = useState<Set<string>>(new Set());
+  const [hasFittedView, setHasFittedView] = useState(false);
   const [lastStateHash, setLastStateHash] = useState<string>('');
   const [statusChanged, setStatusChanged] = useState(false);
   
@@ -238,16 +240,54 @@ export default function SystemTopology() {
   const nodes = topologyData?.nodes || [];
   const edges = topologyData?.edges || [];
   
+  // 适应画布：计算所有节点包围盒，自动调整zoom和pan使节点居中
+  const fitToView = useCallback(() => {
+    if (!nodes.length || !containerRef.current) return;
+    const containerRect = containerRef.current.getBoundingClientRect();
+    const cw = containerRect.width;
+    const ch = containerRect.height;
+    if (cw === 0 || ch === 0) return;
+    
+    const NODE_W = 120, NODE_H = 60, PADDING = 80;
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const n of nodes) {
+      minX = Math.min(minX, n.x);
+      minY = Math.min(minY, n.y);
+      maxX = Math.max(maxX, n.x + NODE_W);
+      maxY = Math.max(maxY, n.y + NODE_H);
+    }
+    const bw = maxX - minX + PADDING * 2;
+    const bh = maxY - minY + PADDING * 2;
+    const newZoom = Math.max(0.25, Math.min(1.5, Math.min(cw / bw, ch / bh)));
+    const centerX = (minX + maxX) / 2;
+    const centerY = (minY + maxY) / 2;
+    setPan({
+      x: (cw / 2 / newZoom) - centerX,
+      y: (ch / 2 / newZoom) - centerY,
+    });
+    setZoom(newZoom);
+  }, [nodes]);
+  
+  // 数据首次加载后自动居中
+  useEffect(() => {
+    if (nodes.length > 0 && !hasFittedView) {
+      // 延迟一帧确保容器已渲染
+      requestAnimationFrame(() => {
+        fitToView();
+        setHasFittedView(true);
+      });
+    }
+  }, [nodes.length, hasFittedView, fitToView]);
+  
   // 过滤显示的连接
   const visibleEdges = viewMode === 'all' 
     ? edges 
     : (edges || []).filter(e => e.type === viewMode);
   
-  // 处理节点拖拽
+  // 处理节点拖拽（支持多选整体拖动）
   const handleMouseDown = (e: React.MouseEvent, nodeId: string) => {
     if (isConnecting) {
       if (connectSource && connectSource !== nodeId) {
-        // 创建连接
         setNewEdge({
           sourceNodeId: connectSource,
           targetNodeId: nodeId,
@@ -263,6 +303,17 @@ export default function SystemTopology() {
       return;
     }
     
+    // Ctrl/Meta + 点击：切换多选
+    if (e.ctrlKey || e.metaKey) {
+      setSelectedNodes(prev => {
+        const next = new Set(prev);
+        if (next.has(nodeId)) next.delete(nodeId);
+        else next.add(nodeId);
+        return next;
+      });
+      return;
+    }
+    
     const node = (nodes || []).find(n => n.nodeId === nodeId);
     if (!node) return;
     
@@ -272,6 +323,11 @@ export default function SystemTopology() {
     const rect = svg.getBoundingClientRect();
     const x = (e.clientX - rect.left) / zoom - pan.x;
     const y = (e.clientY - rect.top) / zoom - pan.y;
+    
+    // 如果拖动的节点在多选集中，整体拖动；否则清空多选只拖单个
+    if (!selectedNodes.has(nodeId)) {
+      setSelectedNodes(new Set());
+    }
     
     setDragNode(nodeId);
     setDragOffset({ x: x - node.x, y: y - node.y });
@@ -288,27 +344,48 @@ export default function SystemTopology() {
     const x = (e.clientX - rect.left) / zoom - pan.x - dragOffset.x;
     const y = (e.clientY - rect.top) / zoom - pan.y - dragOffset.y;
     
-    // 更新本地状态（实时显示）
-    const nodeIndex = nodes.findIndex(n => n.nodeId === dragNode);
-    if (nodeIndex !== -1) {
-      nodes[nodeIndex] = { ...nodes[nodeIndex], x: Math.max(0, x), y: Math.max(0, y) };
+    const primaryNode = nodes.find(n => n.nodeId === dragNode);
+    if (!primaryNode) return;
+    
+    const dx = Math.max(0, x) - primaryNode.x;
+    const dy = Math.max(0, y) - primaryNode.y;
+    
+    // 多选整体拖动
+    if (selectedNodes.size > 0 && selectedNodes.has(dragNode)) {
+      for (let i = 0; i < nodes.length; i++) {
+        if (selectedNodes.has(nodes[i].nodeId)) {
+          nodes[i] = { ...nodes[i], x: Math.max(0, nodes[i].x + dx), y: Math.max(0, nodes[i].y + dy) };
+        }
+      }
+    } else {
+      // 单节点拖动
+      const nodeIndex = nodes.findIndex(n => n.nodeId === dragNode);
+      if (nodeIndex !== -1) {
+        nodes[nodeIndex] = { ...nodes[nodeIndex], x: Math.max(0, x), y: Math.max(0, y) };
+      }
     }
-  }, [isDragging, dragNode, zoom, pan, dragOffset, nodes]);
+  }, [isDragging, dragNode, zoom, pan, dragOffset, nodes, selectedNodes]);
   
   const handleMouseUp = useCallback(() => {
     if (isDragging && dragNode) {
-      const node = (nodes || []).find(n => n.nodeId === dragNode);
-      if (node) {
-        updateNodePositionMutation.mutate({
-          nodeId: dragNode,
-          x: Math.round(node.x),
-          y: Math.round(node.y),
+      // 多选整体拖动时保存所有选中节点位置
+      if (selectedNodes.size > 0 && selectedNodes.has(dragNode)) {
+        Array.from(selectedNodes).forEach(nid => {
+          const n = (nodes || []).find(nd => nd.nodeId === nid);
+          if (n) {
+            updateNodePositionMutation.mutate({ nodeId: nid, x: Math.round(n.x), y: Math.round(n.y) });
+          }
         });
+      } else {
+        const node = (nodes || []).find(n => n.nodeId === dragNode);
+        if (node) {
+          updateNodePositionMutation.mutate({ nodeId: dragNode, x: Math.round(node.x), y: Math.round(node.y) });
+        }
       }
     }
     setIsDragging(false);
     setDragNode(null);
-  }, [isDragging, dragNode, nodes, updateNodePositionMutation]);
+  }, [isDragging, dragNode, nodes, selectedNodes, updateNodePositionMutation]);
   
   useEffect(() => {
     if (isDragging) {
@@ -480,6 +557,7 @@ export default function SystemTopology() {
   const renderNodes = () => {
     return (nodes || []).map((node) => {
       const isSelected = selectedNode?.nodeId === node.nodeId;
+      const isMultiSelected = selectedNodes.has(node.nodeId);
       const isConnectSource = connectSource === node.nodeId;
       const typeConfig = nodeTypeConfig[node.type];
       
@@ -503,18 +581,18 @@ export default function SystemTopology() {
           onDoubleClick={() => setShowNodeDetailDialog(true)}
         >
           {/* 选中高亮 */}
-          {(isSelected || isConnectSource) && (
+          {(isSelected || isMultiSelected || isConnectSource) && (
             <rect
               x="-4"
               y="-4"
               width="128"
               height="68"
               rx="12"
-              fill="none"
-              stroke={isConnectSource ? 'oklch(0.75 0.20 145)' : 'oklch(0.65 0.18 240)'}
+              fill={isMultiSelected ? 'oklch(0.65 0.18 240 / 0.1)' : 'none'}
+              stroke={isConnectSource ? 'oklch(0.75 0.20 145)' : isMultiSelected ? 'oklch(0.70 0.20 200)' : 'oklch(0.65 0.18 240)'}
               strokeWidth="2"
-              strokeDasharray="4,2"
-              className="animate-pulse"
+              strokeDasharray={isMultiSelected && !isSelected ? '6,3' : '4,2'}
+              className={isMultiSelected ? '' : 'animate-pulse'}
             />
           )}
           
@@ -706,6 +784,36 @@ export default function SystemTopology() {
                     </Button>
                   </div>
                   
+                  {/* 适应画布 */}
+                  <Button 
+                    variant="secondary" 
+                    size="sm" 
+                    className="h-7 text-[11px] px-2"
+                    onClick={fitToView}
+                    title="适应画布，居中显示所有节点"
+                  >
+                    <Maximize2 className="w-3 h-3 mr-1" />
+                    居中
+                  </Button>
+                  
+                  {/* 全选/取消全选 */}
+                  <Button 
+                    variant={selectedNodes.size > 0 ? "default" : "secondary"} 
+                    size="sm" 
+                    className="h-7 text-[11px] px-2"
+                    onClick={() => {
+                      if (selectedNodes.size === nodes.length) {
+                        setSelectedNodes(new Set());
+                      } else {
+                        setSelectedNodes(new Set(nodes.map(n => n.nodeId)));
+                      }
+                    }}
+                    title="全选节点后可整体拖动（也可用 Ctrl+点击 多选）"
+                  >
+                    <Move className="w-3 h-3 mr-1" />
+                    {selectedNodes.size > 0 ? `已选 ${selectedNodes.size}` : '全选'}
+                  </Button>
+                  
                   {/* 连接模式 */}
                   <Button 
                     variant={isConnecting ? "default" : "secondary"} 
@@ -808,6 +916,10 @@ export default function SystemTopology() {
                         const target = e.target as SVGElement;
                         if (target.tagName === 'svg' || target.tagName === 'rect' && target.getAttribute('fill') === 'url(#grid)') {
                           e.preventDefault();
+                          // 点击空白区域清空多选
+                          if (!e.ctrlKey && !e.metaKey) {
+                            setSelectedNodes(new Set());
+                          }
                           setPanStart({ x: e.clientX - pan.x * zoom, y: e.clientY - pan.y * zoom });
                           setIsPanningCanvas(true);
                         }
