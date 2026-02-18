@@ -160,6 +160,11 @@ export default function SystemTopology() {
   const updateNodePositionMutation = trpc.topology.updateNodePosition.useMutation({
     onError: (err) => console.error('更新位置失败:', err),
   });
+
+  // ST-1 修复：添加批量位置更新接口
+  const updateNodePositionsMutation = trpc.topology.updateNodePositions.useMutation({
+    onError: (err) => console.error('批量更新位置失败:', err),
+  });
   
   const updateNodeStatusMutation = trpc.topology.updateNodeStatus.useMutation({
     onSuccess: () => {
@@ -237,8 +242,18 @@ export default function SystemTopology() {
     onError: (err) => toast.error(`自动布局失败: ${err.message}`),
   });
   
-  const nodes = topologyData?.nodes || [];
+  // ST-2 修复：使用本地 state 管理拖拽中的节点位置，避免直接修改 React Query 缓存
+  const [localNodes, setLocalNodes] = useState<TopoNode[]>([]);
   const edges = topologyData?.edges || [];
+
+  // 当后端数据更新时同步到本地（仅在非拖拽时）
+  useEffect(() => {
+    if (!isDragging && topologyData?.nodes) {
+      setLocalNodes(topologyData.nodes as TopoNode[]);
+    }
+  }, [topologyData?.nodes, isDragging]);
+
+  const nodes = localNodes;
   
   // 适应画布：计算所有节点包围盒，自动调整zoom和pan使节点居中
   const fitToView = useCallback(() => {
@@ -334,6 +349,7 @@ export default function SystemTopology() {
     setIsDragging(true);
   };
   
+  // ST-2 修复：immutable 更新，通过 setLocalNodes 更新而非直接修改数组
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (!isDragging || !dragNode) return;
     
@@ -344,40 +360,47 @@ export default function SystemTopology() {
     const x = (e.clientX - rect.left) / zoom - pan.x - dragOffset.x;
     const y = (e.clientY - rect.top) / zoom - pan.y - dragOffset.y;
     
-    const primaryNode = nodes.find(n => n.nodeId === dragNode);
-    if (!primaryNode) return;
-    
-    const dx = Math.max(0, x) - primaryNode.x;
-    const dy = Math.max(0, y) - primaryNode.y;
-    
-    // 多选整体拖动
-    if (selectedNodes.size > 0 && selectedNodes.has(dragNode)) {
-      for (let i = 0; i < nodes.length; i++) {
-        if (selectedNodes.has(nodes[i].nodeId)) {
-          nodes[i] = { ...nodes[i], x: Math.max(0, nodes[i].x + dx), y: Math.max(0, nodes[i].y + dy) };
-        }
+    setLocalNodes(prev => {
+      const primaryNode = prev.find(n => n.nodeId === dragNode);
+      if (!primaryNode) return prev;
+      
+      const dx = Math.max(0, x) - primaryNode.x;
+      const dy = Math.max(0, y) - primaryNode.y;
+      
+      // 多选整体拖动
+      if (selectedNodes.size > 0 && selectedNodes.has(dragNode)) {
+        return prev.map(n =>
+          selectedNodes.has(n.nodeId)
+            ? { ...n, x: Math.max(0, n.x + dx), y: Math.max(0, n.y + dy) }
+            : n
+        );
+      } else {
+        // 单节点拖动
+        return prev.map(n =>
+          n.nodeId === dragNode
+            ? { ...n, x: Math.max(0, x), y: Math.max(0, y) }
+            : n
+        );
       }
-    } else {
-      // 单节点拖动
-      const nodeIndex = nodes.findIndex(n => n.nodeId === dragNode);
-      if (nodeIndex !== -1) {
-        nodes[nodeIndex] = { ...nodes[nodeIndex], x: Math.max(0, x), y: Math.max(0, y) };
-      }
-    }
-  }, [isDragging, dragNode, zoom, pan, dragOffset, nodes, selectedNodes]);
+    });
+  }, [isDragging, dragNode, zoom, pan, dragOffset, selectedNodes]);
   
+  // ST-1 修复：多选拖拽时使用批量接口 updateNodePositions
   const handleMouseUp = useCallback(() => {
     if (isDragging && dragNode) {
-      // 多选整体拖动时保存所有选中节点位置
+      // 多选整体拖动时批量保存所有选中节点位置
       if (selectedNodes.size > 0 && selectedNodes.has(dragNode)) {
-        Array.from(selectedNodes).forEach(nid => {
-          const n = (nodes || []).find(nd => nd.nodeId === nid);
-          if (n) {
-            updateNodePositionMutation.mutate({ nodeId: nid, x: Math.round(n.x), y: Math.round(n.y) });
-          }
-        });
+        const updates = Array.from(selectedNodes)
+          .map(nid => {
+            const n = localNodes.find(nd => nd.nodeId === nid);
+            return n ? { nodeId: nid, x: Math.round(n.x), y: Math.round(n.y) } : null;
+          })
+          .filter(Boolean) as { nodeId: string; x: number; y: number }[];
+        if (updates.length > 0) {
+          updateNodePositionsMutation.mutate(updates);
+        }
       } else {
-        const node = (nodes || []).find(n => n.nodeId === dragNode);
+        const node = localNodes.find(n => n.nodeId === dragNode);
         if (node) {
           updateNodePositionMutation.mutate({ nodeId: dragNode, x: Math.round(node.x), y: Math.round(node.y) });
         }
@@ -385,7 +408,7 @@ export default function SystemTopology() {
     }
     setIsDragging(false);
     setDragNode(null);
-  }, [isDragging, dragNode, nodes, selectedNodes, updateNodePositionMutation]);
+  }, [isDragging, dragNode, localNodes, selectedNodes, updateNodePositionMutation, updateNodePositionsMutation]);
   
   useEffect(() => {
     if (isDragging) {

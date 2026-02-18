@@ -53,8 +53,30 @@ export default function ERDiagram() {
   const [selectedTableIds, setSelectedTableIds] = useState<Set<string>>(new Set());
   const canvasRef = useRef<HTMLDivElement>(null);
 
-  // Positions state — initialized from ER_POSITIONS, then draggable
+  // ER-1 修复：位置持久化到 localStorage
+  const LS_KEY = 'xilian:erDiagramPositions';
   const [positions, setPositions] = useState<Record<string, TableNodeState>>(() => {
+    // 先尝试从 localStorage 加载
+    try {
+      const saved = localStorage.getItem(LS_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved) as Record<string, TableNodeState>;
+        // 验证数据完整性：确保所有表都有位置
+        const pos: Record<string, TableNodeState> = {};
+        let allFound = true;
+        schema.allTables.forEach(t => {
+          if (parsed[t.tableName] && typeof parsed[t.tableName].x === 'number') {
+            pos[t.tableName] = parsed[t.tableName];
+          } else {
+            allFound = false;
+            const p = schema.getERPosition(t.tableName);
+            pos[t.tableName] = { id: t.tableName, x: p.x, y: p.y };
+          }
+        });
+        return pos;
+      }
+    } catch { /* ignore parse errors */ }
+    // 回退到默认位置
     const pos: Record<string, TableNodeState> = {};
     schema.allTables.forEach(t => {
       const p = schema.getERPosition(t.tableName);
@@ -62,6 +84,16 @@ export default function ERDiagram() {
     });
     return pos;
   });
+
+  // 位置变更时自动保存到 localStorage（防抖）
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      try {
+        localStorage.setItem(LS_KEY, JSON.stringify(positions));
+      } catch { /* quota exceeded, ignore */ }
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [positions]);
 
   // Filtered tables
   const filteredTables = useMemo(() => {
@@ -326,7 +358,40 @@ export default function ERDiagram() {
         </div>
         <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-mono">{filteredTables.length} 表</Badge>
         <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-mono">{filteredRelations.length} 关系</Badge>
-        <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5" onClick={() => toast("功能即将上线")}>
+        <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5" onClick={() => {
+          // ER-2 修复：实现 JSON 导出
+          const exportData = {
+            exportedAt: new Date().toISOString(),
+            tables: filteredTables.map(t => ({
+              tableName: t.tableName,
+              tableComment: t.tableComment,
+              domain: t.domain,
+              position: positions[t.tableName] ? { x: positions[t.tableName].x, y: positions[t.tableName].y } : null,
+              columns: t.columns.map(c => ({
+                name: c.name,
+                type: c.type,
+                isPrimary: c.pk ?? false,
+                isForeignKey: c.fk ?? false,
+                fkRef: c.fkRef,
+              })),
+            })),
+            relations: filteredRelations.map(r => ({
+              from: r.from,
+              fromCol: r.fromCol,
+              to: r.to,
+              toCol: r.toCol,
+              type: r.type,
+            })),
+          };
+          const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `er-diagram-${filterDomain === 'all' ? 'all' : filterDomain}-${new Date().toISOString().slice(0, 10)}.json`;
+          a.click();
+          URL.revokeObjectURL(url);
+          toast.success(`已导出 ${filteredTables.length} 张表、${filteredRelations.length} 个关系`);
+        }}>
           <Download className="w-3 h-3" /> 导出
         </Button>
       </div>

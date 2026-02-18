@@ -4,6 +4,7 @@
  * 5 个 Tab: 图谱画布 | 场景模板 | 诊断运行 | 自进化面板 | 图谱列表
  */
 import { useState, useMemo, useCallback } from "react";
+import { trpc } from '@/lib/trpc';
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useKGOrchestratorStore } from "../../../stores/kgOrchestratorStore";
 import { useToast } from "@/components/common/Toast";
@@ -278,6 +279,114 @@ export default function KGOrchestrator() {
   const store = useKGOrchestratorStore();
   const toast = useToast();
 
+  // KG-1 修复：接入后端 saveCanvas 接口
+  const saveCanvasMutation = trpc.kgOrchestrator.saveCanvas.useMutation({
+    onSuccess: () => {
+      store.markClean();
+      toast.success('图谱已保存到服务器');
+    },
+    onError: (err: any) => {
+      toast.error(`保存失败: ${err.message || '未知错误'}`);
+    },
+  });
+
+  const handleSave = useCallback(() => {
+    const { graphId, nodes, edges, graphName, graphDescription, scenario, tags } = store;
+    if (nodes.length === 0) {
+      toast.error('画布为空，无法保存');
+      return;
+    }
+    // 如果没有 graphId，先创建再保存
+    if (!graphId) {
+      createGraphMutation.mutate({
+        name: graphName,
+        description: graphDescription || undefined,
+        scenario,
+        tags,
+        nodes: nodes.map(n => ({
+          nodeId: n.nodeId,
+          category: n.category,
+          subType: n.subType,
+          label: n.label,
+          x: n.x,
+          y: n.y,
+          config: n.config || {},
+          nodeStatus: n.nodeStatus || 'normal',
+        })),
+        edges: edges.map(e => ({
+          edgeId: e.edgeId,
+          sourceNodeId: e.sourceNodeId,
+          targetNodeId: e.targetNodeId,
+          relationType: e.relationType,
+          label: e.label,
+          weight: e.weight ?? 1,
+        })),
+      });
+      return;
+    }
+    saveCanvasMutation.mutate({
+      graphId,
+      nodes: nodes.map(n => ({
+        nodeId: n.nodeId,
+        category: n.category,
+        subType: n.subType,
+        label: n.label,
+        x: n.x,
+        y: n.y,
+        config: n.config || {},
+        nodeStatus: n.nodeStatus || 'normal',
+        hitCount: n.hitCount,
+        accuracy: n.accuracy,
+      })),
+      edges: edges.map(e => ({
+        edgeId: e.edgeId,
+        sourceNodeId: e.sourceNodeId,
+        targetNodeId: e.targetNodeId,
+        relationType: e.relationType,
+        label: e.label,
+        weight: e.weight ?? 1,
+        hitCount: e.hitCount,
+      })),
+    });
+  }, [store, saveCanvasMutation, toast]);
+
+  const createGraphMutation = trpc.kgOrchestrator.create.useMutation({
+    onSuccess: (data: any) => {
+      store.setGraphInfo({ graphId: data.graphId || data.id });
+      store.markClean();
+      toast.success('图谱已创建并保存');
+    },
+    onError: (err: any) => {
+      toast.error(`创建失败: ${err.message || '未知错误'}`);
+    },
+  });
+
+  // 诊断运行
+  const runDiagnosisMutation = trpc.kgOrchestrator.runDiagnosis.useMutation({
+    onSuccess: (data: any) => {
+      toast.success(`诊断完成，置信度: ${((data.confidence ?? 0) * 100).toFixed(1)}%`);
+    },
+    onError: (err: any) => {
+      toast.error(`诊断失败: ${err.message || '未知错误'}`);
+    },
+  });
+
+  const handleRunDiagnosis = useCallback(() => {
+    const { graphId, nodes } = store;
+    if (!graphId) {
+      toast.error('请先保存图谱后再运行诊断');
+      return;
+    }
+    if (nodes.length === 0) {
+      toast.error('画布为空，无法运行诊断');
+      return;
+    }
+    runDiagnosisMutation.mutate({
+      graphId,
+      inputData: {},
+    });
+  }, [store, runDiagnosisMutation, toast]);
+
   // 加载模板
   const handleUseTemplate = useCallback((tpl: ScenarioTemplate) => {
     if (store.isDirty && !confirm("当前图谱未保存，确定加载模板？")) return;
@@ -315,7 +424,7 @@ export default function KGOrchestrator() {
       </div>
 
       {/* Tab 内容 */}
-      {activeTab === "canvas" && <CanvasTab />}
+      {activeTab === "canvas" && <CanvasTab onSave={handleSave} onRunDiagnosis={handleRunDiagnosis} />}
       {activeTab === "templates" && <TemplatesTab onUseTemplate={handleUseTemplate} />}
       {activeTab === "diagnosis" && <DiagnosisTab />}
       {activeTab === "evolution" && <EvolutionTab />}
@@ -326,12 +435,12 @@ export default function KGOrchestrator() {
 }
 
 // ─── 图谱画布 Tab ───
-function CanvasTab() {
+function CanvasTab({ onSave, onRunDiagnosis }: { onSave?: () => void; onRunDiagnosis?: () => void }) {
   return (
     <div className="flex-1 flex overflow-hidden">
       <KGComponentPanel />
       <div className="flex-1 flex flex-col">
-        <KGToolbar />
+        <KGToolbar onSave={onSave} onRunDiagnosis={onRunDiagnosis} />
         <KGCanvas />
       </div>
       <KGConfigPanel />
@@ -704,6 +813,37 @@ function getDataCoverage(nodes: KGEditorNode[]): number {
 
 // ─── 图谱列表 Tab ───
 function GraphListTab() {
+  const store = useKGOrchestratorStore();
+  const toast = useToast();
+  const { data: listData, isLoading, refetch } = trpc.kgOrchestrator.list.useQuery({});
+  const deleteMutation = trpc.kgOrchestrator.delete.useMutation({
+    onSuccess: () => { refetch(); toast.success('图谱已删除'); },
+    onError: (err: any) => toast.error(`删除失败: ${err.message}`),
+  });
+
+  const graphs = (listData as any)?.graphs ?? (Array.isArray(listData) ? listData : []);
+
+  const handleLoad = useCallback((graph: any) => {
+    if (store.isDirty && !confirm('当前图谱未保存，确定加载？')) return;
+    store.loadGraph(graph);
+    toast.success(`已加载图谱: ${graph.name}`);
+  }, [store, toast]);
+
+  const handleDelete = useCallback((graphId: string, name: string) => {
+    if (!confirm(`确定删除图谱 "${name}"？此操作不可撤销。`)) return;
+    deleteMutation.mutate({ graphId });
+  }, [deleteMutation]);
+
+  const statusLabel: Record<string, string> = {
+    draft: '草稿', active: '已激活', archived: '已归档', evolving: '进化中',
+  };
+  const statusColor: Record<string, string> = {
+    draft: 'border-slate-600 text-slate-400',
+    active: 'border-green-700 text-green-400',
+    archived: 'border-slate-600 text-slate-500',
+    evolving: 'border-amber-700 text-amber-400',
+  };
+
   return (
     <div className="flex-1 overflow-auto p-6">
       <div className="max-w-4xl mx-auto">
@@ -712,16 +852,87 @@ function GraphListTab() {
             <h2 className="text-lg font-bold text-slate-100">图谱列表</h2>
             <p className="text-xs text-slate-500">管理已保存的知识图谱</p>
           </div>
-          <button className="px-3 py-1.5 bg-blue-600/20 text-blue-400 text-xs rounded-lg border border-blue-700/50 hover:bg-blue-600/30">
-            + 新建图谱
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => refetch()}
+              className="px-3 py-1.5 text-slate-400 text-xs rounded-lg border border-slate-700 hover:bg-slate-800 hover:text-slate-200 transition-colors"
+            >
+              {isLoading ? '加载中...' : '刷新'}
+            </button>
+            <button
+              onClick={() => { store.newGraph(); toast.info('已创建新图谱'); }}
+              className="px-3 py-1.5 bg-blue-600/20 text-blue-400 text-xs rounded-lg border border-blue-700/50 hover:bg-blue-600/30"
+            >
+              + 新建图谱
+            </button>
+          </div>
         </div>
 
-        <div className="text-center py-16 text-slate-500">
-          <p className="text-3xl mb-3">📁</p>
-          <p className="text-sm">暂无已保存的图谱</p>
-          <p className="text-xs mt-1">在图谱画布中构建并保存，或从场景模板创建</p>
-        </div>
+        {isLoading ? (
+          <div className="text-center py-16 text-slate-500">
+            <p className="text-2xl mb-2 animate-pulse">🔄</p>
+            <p className="text-sm">加载图谱列表...</p>
+          </div>
+        ) : graphs.length === 0 ? (
+          <div className="text-center py-16 text-slate-500">
+            <p className="text-3xl mb-3">📁</p>
+            <p className="text-sm">暂无已保存的图谱</p>
+            <p className="text-xs mt-1">在图谱画布中构建并保存，或从场景模板创建</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {graphs.map((g: any) => (
+              <div
+                key={g.graphId || g.id}
+                className="bg-slate-800/60 border border-slate-700/50 rounded-xl p-4 hover:border-slate-600 transition-colors"
+              >
+                <div className="flex items-start justify-between">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <h3 className="text-sm font-semibold text-slate-200 truncate">{g.name}</h3>
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full border ${statusColor[g.status] || statusColor.draft}`}>
+                        {statusLabel[g.status] || g.status}
+                      </span>
+                    </div>
+                    {g.description && (
+                      <p className="text-xs text-slate-500 mb-2 line-clamp-2">{g.description}</p>
+                    )}
+                    <div className="flex items-center gap-3 text-[10px] text-slate-500">
+                      <span>场景: {g.scenario || '自定义'}</span>
+                      <span>节点: {g.nodes?.length ?? g.nodeCount ?? '—'}</span>
+                      <span>关系: {g.edges?.length ?? g.edgeCount ?? '—'}</span>
+                      <span>版本: v{g.version ?? 1}</span>
+                      {g.updatedAt && <span>更新: {new Date(g.updatedAt).toLocaleDateString()}</span>}
+                    </div>
+                    {g.tags && g.tags.length > 0 && (
+                      <div className="flex gap-1 mt-2 flex-wrap">
+                        {g.tags.map((tag: string) => (
+                          <span key={tag} className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700/50 text-slate-400">
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1 ml-3 shrink-0">
+                    <button
+                      onClick={() => handleLoad(g)}
+                      className="px-2.5 py-1 text-xs text-blue-400 hover:bg-blue-600/20 rounded-lg border border-blue-700/50 transition-colors"
+                    >
+                      加载
+                    </button>
+                    <button
+                      onClick={() => handleDelete(g.graphId || g.id, g.name)}
+                      className="px-2.5 py-1 text-xs text-red-400 hover:bg-red-600/20 rounded-lg border border-red-700/50 transition-colors"
+                    >
+                      删除
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

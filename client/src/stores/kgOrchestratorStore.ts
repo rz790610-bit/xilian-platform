@@ -1,7 +1,9 @@
 /**
  * 知识图谱编排器 Store (Zustand)
+ * 支持 localStorage 持久化（persist 中间件）
  */
 import { create } from "zustand";
+import { persist, createJSONStorage } from "zustand/middleware";
 import type {
   KGEditorNode, KGEditorEdge, KGNodeCategory, KGNodeSubType,
   KGRelationType, KGScenario, KGGraphDefinition,
@@ -68,12 +70,14 @@ interface KGOrchestratorState {
   markClean: () => void;
 }
 
-export const useKGOrchestratorStore = create<KGOrchestratorState>((set, get) => ({
+export const useKGOrchestratorStore = create<KGOrchestratorState>()(
+  persist(
+    (set, get) => ({
   graphId: null,
   graphName: "新建知识图谱",
   graphDescription: "",
-  scenario: "custom",
-  status: "draft",
+  scenario: "custom" as KGScenario,
+  status: "draft" as const,
   version: 1,
   tags: [],
 
@@ -89,12 +93,12 @@ export const useKGOrchestratorStore = create<KGOrchestratorState>((set, get) => 
   connectingFrom: null,
   connectingRelationType: null,
 
-  newGraph: (name = "新建知识图谱", scenario = "custom") => set({
+  newGraph: (name = "新建知识图谱", scenario = "custom" as KGScenario) => set({
     graphId: null,
     graphName: name,
     graphDescription: "",
     scenario,
-    status: "draft",
+    status: "draft" as const,
     version: 1,
     tags: [],
     nodes: [],
@@ -236,7 +240,28 @@ export const useKGOrchestratorStore = create<KGOrchestratorState>((set, get) => 
   }),
 
   markClean: () => set({ isDirty: false }),
-}));
+    }),
+    {
+      name: 'xilian:kgOrchestrator',
+      storage: createJSONStorage(() => localStorage),
+      // 只持久化核心画布数据，排除 UI 临时状态
+      partialize: (state) => ({
+        graphId: state.graphId,
+        graphName: state.graphName,
+        graphDescription: state.graphDescription,
+        scenario: state.scenario,
+        status: state.status,
+        version: state.version,
+        tags: state.tags,
+        nodes: state.nodes,
+        edges: state.edges,
+        zoom: state.zoom,
+        panX: state.panX,
+        panY: state.panY,
+      }),
+    }
+  )
+);
 
 function getRelationLabel(type: KGRelationType): string {
   const labels: Record<KGRelationType, string> = {
