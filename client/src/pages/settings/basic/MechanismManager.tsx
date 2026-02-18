@@ -1,7 +1,9 @@
 /**
  * 机构管理 - 基础设置 (L2 机构层)
- * 附属设备编码: 设备主体编码 + 五级代码(从字典DEVICE_L5读取) + 六级(2位) + 七级(2位) + 流水号(2位)
+ * 编码生成: 调用后端 generateCode 引擎 (ruleCode: MECHANISM_CODE)
+ * 编码结构: 设备主体编码 + 五级代码(从字典DEVICE_L5读取) + 六级(2位) + 七级(2位) + 流水号(2位)
  * 示例: Mgj-XC001j010101
+ * 序列号由后端持久化管理，确保不重复、不跳号
  * 所有枚举从字典管理读取，不再硬编码
  */
 import { useState, useMemo } from 'react';
@@ -16,7 +18,6 @@ import { trpc } from '@/lib/trpc';
 import { useToast } from '@/components/common/Toast';
 import { useCustomColumns } from './useCustomColumns';
 import { useDictItems } from './useDictionary';
-import { generateSubDeviceCode } from './coding-rules';
 import { Plus, Trash2, Edit3, Search, RefreshCw, Hash, Columns3, X, Settings2, AlertTriangle } from 'lucide-react';
 
 export default function MechanismManager() {
@@ -60,6 +61,24 @@ export default function MechanismManager() {
     onError: (e: any) => toast.error(e.message),
   });
 
+  // 后端自动编码
+  const generateCodeMut = trpc.database.config.generateCode.useMutation({
+    onError: (e: any) => toast.error(`编码生成失败: ${e.message}`),
+  });
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  // 编码预览
+  const selectedDeviceCode = parentDevices?.find((d: any) => d.nodeId === selectedDevice)?.code || '';
+  const previewEnabled = !!(selectedDeviceCode && codeL5 && codeL6 && codeL7);
+  const { data: previewData } = trpc.database.config.previewCode.useQuery(
+    {
+      ruleCode: 'MECHANISM_CODE',
+      deviceRef: selectedDeviceCode,
+      customSegments: { level5: codeL5, level6: codeL6, level7: codeL7 },
+    },
+    { enabled: previewEnabled }
+  );
+
   const items = useMemo(() => {
     let list = treeData || [];
     if (searchTerm) list = list.filter((d: any) => d.name?.includes(searchTerm) || d.code?.includes(searchTerm));
@@ -67,26 +86,30 @@ export default function MechanismManager() {
     return list;
   }, [treeData, searchTerm, parentFilter]);
 
-  const nextSeqNum = useMemo(() => {
-    if (!selectedDevice || !codeL5 || !codeL6 || !codeL7) return 1;
-    const devCode = parentDevices?.find((d: any) => d.nodeId === selectedDevice)?.code || '';
-    const prefix = `${devCode}${codeL5}${codeL6}${codeL7}`;
-    const existing = (treeData || [])
-      .filter((d: any) => d.code?.startsWith(prefix))
-      .map((d: any) => parseInt(d.code?.substring(prefix.length), 10) || 0);
-    return existing.length > 0 ? Math.max(...existing) + 1 : 1;
-  }, [selectedDevice, codeL5, codeL6, codeL7, treeData, parentDevices]);
-
-  const handleAutoCode = () => {
+  const handleAutoCode = async () => {
     if (!selectedDevice || !codeL5 || !codeL6 || !codeL7) {
       toast.warning('请选择所属设备、五级代码、六级代码和七级代码');
       return;
     }
     const devCode = parentDevices?.find((d: any) => d.nodeId === selectedDevice)?.code || '';
-    const code = generateSubDeviceCode(devCode, codeL5, codeL6, codeL7, nextSeqNum);
-    const nodeId = `mech-${code.replace(/[^a-zA-Z0-9]/g, '').toLowerCase()}`;
-    setForm(prev => ({ ...prev, code, nodeId }));
-    toast.success(`自动生成编码: ${code}`);
+    if (!devCode) { toast.warning('所选设备无编码'); return; }
+
+    setIsGenerating(true);
+    try {
+      const result = await generateCodeMut.mutateAsync({
+        ruleCode: 'MECHANISM_CODE',
+        deviceRef: devCode,
+        customSegments: { level5: codeL5, level6: codeL6, level7: codeL7 },
+      });
+      const code = result.code;
+      const nodeId = `mech-${code.replace(/[^a-zA-Z0-9]/g, '').toLowerCase()}`;
+      setForm(prev => ({ ...prev, code, nodeId }));
+      toast.success(`自动生成编码: ${code}（序列号: ${result.sequenceValue}）`);
+    } catch {
+      // error handled by mutation onError
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   const openCreate = () => {
@@ -224,7 +247,10 @@ export default function MechanismManager() {
                       <td className="p-2.5 text-right">
                         <div className="flex items-center justify-end gap-0.5">
                           <Button size="sm" variant="ghost" className="h-6 px-1.5" onClick={() => openEdit(d)}><Edit3 className="w-3 h-3" /></Button>
-                          <Button size="sm" variant="ghost" className="h-6 px-1.5 text-destructive" onClick={() => { if (confirm(`确定删除 "${d.name}" 吗？`)) deleteNode.mutate({ nodeId: d.nodeId }); }}><Trash2 className="w-3 h-3" /></Button>
+                          <Button size="sm" variant="ghost" className="h-6 px-1.5 text-destructive hover:text-destructive"
+                            onClick={() => { if (confirm(`确定删除 "${d.name}" 吗？`)) deleteNode.mutate({ nodeId: d.nodeId }); }}>
+                            <Trash2 className="w-3 h-3" />
+                          </Button>
                         </div>
                       </td>
                     </tr>
@@ -248,7 +274,7 @@ export default function MechanismManager() {
                   <div className="flex items-center gap-2 mb-1">
                     <Hash className="w-4 h-4 text-primary" />
                     <span className="text-xs font-semibold">机构编码生成</span>
-                    <span className="text-[10px] text-muted-foreground">（设备编码 + 五级 + 六级 + 七级 + 流水号）</span>
+                    <span className="text-[10px] text-muted-foreground">（设备编码 + 五级 + 六级 + 七级 + 流水号 → 后端引擎）</span>
                   </div>
                   {l5Items.length === 0 && !l5Loading ? (
                     <div className="text-xs text-amber-600 bg-amber-50 dark:bg-amber-950/30 p-2 rounded">
@@ -296,10 +322,17 @@ export default function MechanismManager() {
                           <Input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} placeholder="点击自动生成按钮" className="h-8 text-xs font-mono" />
                         </div>
                         <Button size="sm" variant="default" className="mt-4" onClick={handleAutoCode}
-                          disabled={!selectedDevice || !codeL5 || !codeL6 || !codeL7}>
-                          <Hash className="w-3 h-3 mr-1" /> 自动生成
+                          disabled={!selectedDevice || !codeL5 || !codeL6 || !codeL7 || isGenerating}>
+                          <Hash className="w-3 h-3 mr-1" /> {isGenerating ? '生成中...' : '自动生成'}
                         </Button>
                       </div>
+                      {previewEnabled && (
+                        <div className="text-[10px] text-muted-foreground bg-background/50 rounded px-2 py-1">
+                          编码预览: <span className="font-mono text-primary font-medium">{previewData || '...'}</span>
+                          <span className="ml-2">（{selectedDeviceCode} + {l5Map[codeL5] || codeL5} + {codeL6} + {codeL7}）</span>
+                          <span className="ml-1 text-[9px] text-muted-foreground/60">← 后端引擎预览</span>
+                        </div>
+                      )}
                     </>
                   )}
                 </div>

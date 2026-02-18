@@ -81,7 +81,7 @@ export const codeRuleService = {
     deviceRef?: string;      // 用于 device_ref 段（如 "Mgj-XC001"）
     nodeRef?: string;        // 用于 node_ref 段（如 "Mgj-XC001-MD"）
     measurementType?: string; // 用于 measurement_type_abbr 段（如 "VIB"）
-    customSegments?: Record<string, string>; // 自定义段值
+    customSegments?: Record<string, string>; // 自定义段值，key 对应 custom_input 的 key
   } = {}): Promise<{ code: string; sequenceKey: string; sequenceValue: number }> {
     const db = await getDb();
     if (!db) throw new Error('Database not available');
@@ -95,7 +95,8 @@ export const codeRuleService = {
     if (!Array.isArray(segmentsDef)) throw new Error(`编码规则 ${ruleCode} 的 segments 格式错误`);
 
     const currentSeqs: Record<string, number> = (rule.currentSequences as any) || {};
-    let sequenceKey = 'default';
+    // resolvedInputs 收集所有 custom_input 的值，用于构建 sequenceKey
+    const resolvedInputs: Record<string, string> = {};
     let sequenceValue = 0;
     const parts: string[] = [];
 
@@ -108,20 +109,38 @@ export const codeRuleService = {
         case 'separator':
           parts.push(seg.value || '-');
           break;
+        case 'custom_input': {
+          // 从 customSegments 中获取用户选择的值
+          const key = seg.key || seg.label || 'unknown';
+          let val = (context.customSegments && context.customSegments[key]) || '';
+          // 支持 padStart 补位
+          if (seg.padStart && seg.padChar && val) {
+            val = val.padStart(seg.padStart, seg.padChar);
+          }
+          resolvedInputs[key] = val;
+          parts.push(val);
+          break;
+        }
         case 'category': {
           const mapping: Record<string, string> = seg.mapping || {};
           const catKey = context.category || '';
           const catValue = mapping[catKey] || catKey.substring(0, 2).toUpperCase();
-          sequenceKey = catValue;
+          resolvedInputs['category'] = catValue;
           parts.push(catValue);
           break;
         }
-        case 'device_ref':
-          parts.push(context.deviceRef || 'DEV');
+        case 'device_ref': {
+          const devRef = context.deviceRef || 'DEV';
+          resolvedInputs['deviceRef'] = devRef;
+          parts.push(devRef);
           break;
-        case 'node_ref':
-          parts.push(context.nodeRef || 'NODE');
+        }
+        case 'node_ref': {
+          const nRef = context.nodeRef || 'NODE';
+          resolvedInputs['nodeRef'] = nRef;
+          parts.push(nRef);
           break;
+        }
         case 'measurement_type_abbr':
           parts.push(context.measurementType || 'GEN');
           break;
@@ -146,13 +165,19 @@ export const codeRuleService = {
         case 'sequence': {
           const len = seg.length || 3;
           const start = seg.start || 1;
-          const current = currentSeqs[sequenceKey] || (start - 1);
+          // 构建 sequenceKey：基于 sequenceScope 中指定的字段组合
+          let seqKey = 'default';
+          if (Array.isArray(seg.sequenceScope) && seg.sequenceScope.length > 0) {
+            seqKey = seg.sequenceScope.map((k: string) => resolvedInputs[k] || '').join(':');
+          }
+          const current = currentSeqs[seqKey] || (start - 1);
           sequenceValue = current + 1;
+          currentSeqs[seqKey] = sequenceValue;
           parts.push(String(sequenceValue).padStart(len, '0'));
           break;
         }
         default:
-          // 自定义段
+          // 兼容旧的自定义段
           if (context.customSegments && context.customSegments[seg.type]) {
             parts.push(context.customSegments[seg.type]);
           }
@@ -161,7 +186,6 @@ export const codeRuleService = {
     }
 
     // 3. 更新序列号
-    currentSeqs[sequenceKey] = sequenceValue;
     await db.update(baseCodeRules).set({
       currentSequences: currentSeqs,
       updatedAt: new Date(),
@@ -169,7 +193,12 @@ export const codeRuleService = {
     }).where(eq(baseCodeRules.ruleCode, ruleCode));
 
     const code = parts.join('');
-    return { code, sequenceKey, sequenceValue };
+    // sequenceKey 返回最后一个 sequence 段的 key
+    const lastSeqSeg = segmentsDef.filter((s: any) => s.type === 'sequence').pop();
+    const finalSeqKey = lastSeqSeg?.sequenceScope
+      ? lastSeqSeg.sequenceScope.map((k: string) => resolvedInputs[k] || '').join(':')
+      : 'default';
+    return { code, sequenceKey: finalSeqKey, sequenceValue };
   },
 
   /**
@@ -186,23 +215,43 @@ export const codeRuleService = {
     if (!Array.isArray(segmentsDef)) return '(格式错误)';
 
     const currentSeqs: Record<string, number> = (rule.currentSequences as any) || {};
-    let sequenceKey = 'default';
+    const resolvedInputs: Record<string, string> = {};
     const parts: string[] = [];
 
     for (const seg of segmentsDef) {
       switch (seg.type) {
         case 'prefix': parts.push(seg.value || ''); break;
         case 'separator': parts.push(seg.value || '-'); break;
+        case 'custom_input': {
+          const key = seg.key || seg.label || 'unknown';
+          let val = (context.customSegments && context.customSegments[key]) || '';
+          if (seg.padStart && seg.padChar && val) {
+            val = val.padStart(seg.padStart, seg.padChar);
+          }
+          resolvedInputs[key] = val;
+          parts.push(val);
+          break;
+        }
         case 'category': {
           const mapping: Record<string, string> = seg.mapping || {};
           const catKey = context.category || '';
           const catValue = mapping[catKey] || catKey.substring(0, 2).toUpperCase();
-          sequenceKey = catValue;
+          resolvedInputs['category'] = catValue;
           parts.push(catValue);
           break;
         }
-        case 'device_ref': parts.push(context.deviceRef || 'DEV'); break;
-        case 'node_ref': parts.push(context.nodeRef || 'NODE'); break;
+        case 'device_ref': {
+          const devRef = context.deviceRef || 'DEV';
+          resolvedInputs['deviceRef'] = devRef;
+          parts.push(devRef);
+          break;
+        }
+        case 'node_ref': {
+          const nRef = context.nodeRef || 'NODE';
+          resolvedInputs['nodeRef'] = nRef;
+          parts.push(nRef);
+          break;
+        }
         case 'measurement_type_abbr': parts.push(context.measurementType || 'GEN'); break;
         case 'date': {
           const now = new Date();
@@ -217,7 +266,11 @@ export const codeRuleService = {
         }
         case 'sequence': {
           const len = seg.length || 3;
-          const nextVal = (currentSeqs[sequenceKey] || 0) + 1;
+          let seqKey = 'default';
+          if (Array.isArray(seg.sequenceScope) && seg.sequenceScope.length > 0) {
+            seqKey = seg.sequenceScope.map((k: string) => resolvedInputs[k] || '').join(':');
+          }
+          const nextVal = (currentSeqs[seqKey] || 0) + 1;
           parts.push(String(nextVal).padStart(len, '0'));
           break;
         }

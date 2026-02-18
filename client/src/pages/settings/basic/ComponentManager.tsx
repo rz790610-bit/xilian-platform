@@ -1,6 +1,9 @@
 /**
  * 部件管理 - 基础设置 (L3 组件层)
- * 编码继承自机构编码，按层级递进: 机构编码 + -C + 流水号
+ * 编码生成: 调用后端 generateCode 引擎 (ruleCode: COMPONENT_CODE)
+ * 编码结构: 机构编码 + -C + 流水号(2位)
+ * 示例: Mgj-XC001j010101-C01
+ * 序列号由后端持久化管理，确保不重复、不跳号
  */
 import { useState, useMemo } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
@@ -48,6 +51,22 @@ export default function ComponentManager() {
     onError: (e: any) => toast.error(e.message),
   });
 
+  // 后端自动编码
+  const generateCodeMut = trpc.database.config.generateCode.useMutation({
+    onError: (e: any) => toast.error(`编码生成失败: ${e.message}`),
+  });
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  const [selectedMech, setSelectedMech] = useState('');
+
+  // 编码预览
+  const selectedMechCode = parentMechs?.find((m: any) => m.nodeId === selectedMech)?.code || '';
+  const previewEnabled = !!selectedMechCode;
+  const { data: previewData } = trpc.database.config.previewCode.useQuery(
+    { ruleCode: 'COMPONENT_CODE', nodeRef: selectedMechCode },
+    { enabled: previewEnabled }
+  );
+
   const items = useMemo(() => {
     let list = treeData || [];
     if (searchTerm) list = list.filter((d: any) => d.name?.includes(searchTerm) || d.code?.includes(searchTerm));
@@ -55,20 +74,26 @@ export default function ComponentManager() {
     return list;
   }, [treeData, searchTerm, parentFilter]);
 
-  const [selectedMech, setSelectedMech] = useState('');
-
-  const handleAutoCode = () => {
+  const handleAutoCode = async () => {
     if (!selectedMech) { toast.warning('请选择所属机构'); return; }
     const mech = parentMechs?.find((m: any) => m.nodeId === selectedMech);
-    if (!mech) return;
-    const existingCodes = (treeData || [])
-      .filter((d: any) => d.parentNodeId === selectedMech)
-      .map((d: any) => d.code || '');
-    const nextNum = existingCodes.length + 1;
-    const code = `${mech.code}-C${String(nextNum).padStart(2, '0')}`;
-    const nodeId = `comp-${code.replace(/[^a-zA-Z0-9]/g, '').toLowerCase()}`;
-    setForm(prev => ({ ...prev, code, nodeId }));
-    toast.success(`自动生成编码: ${code}`);
+    if (!mech?.code) { toast.warning('所选机构无编码'); return; }
+
+    setIsGenerating(true);
+    try {
+      const result = await generateCodeMut.mutateAsync({
+        ruleCode: 'COMPONENT_CODE',
+        nodeRef: mech.code,
+      });
+      const code = result.code;
+      const nodeId = `comp-${code.replace(/[^a-zA-Z0-9]/g, '').toLowerCase()}`;
+      setForm(prev => ({ ...prev, code, nodeId }));
+      toast.success(`自动生成编码: ${code}（序列号: ${result.sequenceValue}）`);
+    } catch {
+      // error handled by mutation onError
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   const openCreate = () => {
@@ -217,7 +242,7 @@ export default function ComponentManager() {
                   <div className="flex items-center gap-2 mb-1">
                     <Hash className="w-4 h-4 text-primary" />
                     <span className="text-xs font-semibold">部件编码生成</span>
-                    <span className="text-[10px] text-muted-foreground">（基于机构编码自动递增）</span>
+                    <span className="text-[10px] text-muted-foreground">（基于机构编码 + -C + 流水号 → 后端引擎）</span>
                   </div>
                   <div>
                     <label className="text-[10px] text-muted-foreground mb-1 block">所属机构 *</label>
@@ -235,10 +260,18 @@ export default function ComponentManager() {
                       <label className="text-[10px] text-muted-foreground mb-1 block">生成的编码</label>
                       <Input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} placeholder="点击自动生成按钮" className="h-8 text-xs font-mono" />
                     </div>
-                    <Button size="sm" variant="default" className="mt-4" onClick={handleAutoCode} disabled={!selectedMech}>
-                      <Hash className="w-3 h-3 mr-1" /> 自动生成
+                    <Button size="sm" variant="default" className="mt-4" onClick={handleAutoCode}
+                      disabled={!selectedMech || isGenerating}>
+                      <Hash className="w-3 h-3 mr-1" /> {isGenerating ? '生成中...' : '自动生成'}
                     </Button>
                   </div>
+                  {previewEnabled && (
+                    <div className="text-[10px] text-muted-foreground bg-background/50 rounded px-2 py-1">
+                      编码预览: <span className="font-mono text-primary font-medium">{previewData || '...'}</span>
+                      <span className="ml-2">（{selectedMechCode} + -C + 流水号）</span>
+                      <span className="ml-1 text-[9px] text-muted-foreground/60">← 后端引擎预览</span>
+                    </div>
+                  )}
                 </div>
               )}
               {editingItem && (
@@ -249,7 +282,7 @@ export default function ComponentManager() {
               )}
               <div>
                 <label className="text-xs text-muted-foreground mb-1 block">部件名称 *</label>
-                <Input placeholder="如: 起升电机" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="h-8 text-xs" />
+                <Input placeholder="如: 减速器" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="h-8 text-xs" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -307,7 +340,7 @@ export default function ComponentManager() {
               <div className="flex items-end gap-2 border-t border-border pt-3">
                 <div className="flex-1">
                   <label className="text-[10px] text-muted-foreground mb-1 block">列名称</label>
-                  <Input placeholder="如: 规格型号" value={newColLabel} onChange={(e) => setNewColLabel(e.target.value)} className="h-8 text-xs" />
+                  <Input placeholder="如: 制造商" value={newColLabel} onChange={(e) => setNewColLabel(e.target.value)} className="h-8 text-xs" />
                 </div>
                 <div className="w-24">
                   <label className="text-[10px] text-muted-foreground mb-1 block">类型</label>

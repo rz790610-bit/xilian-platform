@@ -1,7 +1,9 @@
 /**
  * 零件库 - 基础设置 (L4-L5 零件层)
- * L4 组件编码: 部件编码 + -A + 流水号
- * L5 零件编码: 组件编码 + -P + 流水号
+ * 编码生成: 调用后端 generateCode 引擎
+ *   L4 组件: ruleCode: PART_L4_CODE，格式: {上级编码}-A{流水号}
+ *   L5 零件: ruleCode: PART_L5_CODE，格式: {上级编码}-P{流水号}
+ * 序列号由后端持久化管理，确保不重复、不跳号
  */
 import { useState, useMemo } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
@@ -55,6 +57,12 @@ export default function PartsLibrary() {
     onError: (e: any) => toast.error(e.message),
   });
 
+  // 后端自动编码
+  const generateCodeMut = trpc.database.config.generateCode.useMutation({
+    onError: (e: any) => toast.error(`编码生成失败: ${e.message}`),
+  });
+  const [isGenerating, setIsGenerating] = useState(false);
+
   const currentData = currentLevel === 4 ? l4Nodes : l5Nodes;
   const filteredParts = useMemo(() => {
     let list = currentData || [];
@@ -63,23 +71,40 @@ export default function PartsLibrary() {
   }, [currentData, searchTerm]);
 
   const parentOptions = useMemo(() => {
-    if (currentLevel === 4) return (components || []).map((c: any) => ({ value: c.nodeId, label: `${c.code} - ${c.name}` }));
-    return (l4Nodes || []).map((a: any) => ({ value: a.nodeId, label: `${a.code} - ${a.name}` }));
+    if (currentLevel === 4) return (components || []).map((c: any) => ({ value: c.nodeId, label: `${c.code} - ${c.name}`, code: c.code }));
+    return (l4Nodes || []).map((a: any) => ({ value: a.nodeId, label: `${a.code} - ${a.name}`, code: a.code }));
   }, [currentLevel, components, l4Nodes]);
 
-  const handleAutoCode = () => {
+  // 编码预览
+  const selectedParentCode = parentOptions.find(p => p.value === selectedParent)?.code || '';
+  const previewRuleCode = currentLevel === 4 ? 'PART_L4_CODE' : 'PART_L5_CODE';
+  const previewEnabled = !!selectedParentCode;
+  const { data: previewData } = trpc.database.config.previewCode.useQuery(
+    { ruleCode: previewRuleCode, nodeRef: selectedParentCode },
+    { enabled: previewEnabled }
+  );
+
+  const handleAutoCode = async () => {
     if (!selectedParent) { toast.warning(`请选择上级${currentLevel === 4 ? '部件' : '组件'}`); return; }
-    const parentList = currentLevel === 4 ? components : l4Nodes;
-    const parent = parentList?.find((p: any) => p.nodeId === selectedParent);
-    if (!parent) return;
-    const prefix = currentLevel === 4 ? '-A' : '-P';
-    const existing = (currentData || [])
-      .filter((d: any) => d.parentNodeId === selectedParent)
-      .length;
-    const code = `${parent.code}${prefix}${String(existing + 1).padStart(2, '0')}`;
-    const nodeId = `${currentLevel === 4 ? 'asm' : 'part'}-${code.replace(/[^a-zA-Z0-9]/g, '').toLowerCase()}`;
-    setForm(prev => ({ ...prev, code, nodeId }));
-    toast.success(`自动生成编码: ${code}`);
+    const parentCode = parentOptions.find(p => p.value === selectedParent)?.code;
+    if (!parentCode) { toast.warning('所选上级无编码'); return; }
+
+    const ruleCode = currentLevel === 4 ? 'PART_L4_CODE' : 'PART_L5_CODE';
+    setIsGenerating(true);
+    try {
+      const result = await generateCodeMut.mutateAsync({
+        ruleCode,
+        nodeRef: parentCode,
+      });
+      const code = result.code;
+      const nodeId = `${currentLevel === 4 ? 'asm' : 'part'}-${code.replace(/[^a-zA-Z0-9]/g, '').toLowerCase()}`;
+      setForm(prev => ({ ...prev, code, nodeId }));
+      toast.success(`自动生成编码: ${code}（序列号: ${result.sequenceValue}）`);
+    } catch {
+      // error handled by mutation onError
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   const openCreate = () => {
@@ -232,16 +257,16 @@ export default function PartsLibrary() {
                 <div className="bg-muted/30 border border-border rounded-lg p-3 space-y-3">
                   <div className="flex items-center gap-2 mb-1">
                     <Hash className="w-4 h-4 text-primary" />
-                    <span className="text-xs font-semibold">编码生成</span>
-                    <span className="text-[10px] text-muted-foreground">（基于上级编码 + {currentLevel === 4 ? 'A' : 'P'} + 流水号）</span>
+                    <span className="text-xs font-semibold">{currentLevel === 4 ? '组件' : '零件'}编码生成</span>
+                    <span className="text-[10px] text-muted-foreground">（上级编码 + {currentLevel === 4 ? '-A' : '-P'} + 流水号 → 后端引擎）</span>
                   </div>
                   <div>
                     <label className="text-[10px] text-muted-foreground mb-1 block">上级{currentLevel === 4 ? '部件' : '组件'} *</label>
                     <Select value={selectedParent} onValueChange={setSelectedParent}>
-                      <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="选择上级" /></SelectTrigger>
+                      <SelectTrigger className="h-8 text-xs"><SelectValue placeholder={`选择${currentLevel === 4 ? '部件' : '组件'}`} /></SelectTrigger>
                       <SelectContent>
-                        {parentOptions.map((o) => (
-                          <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                        {parentOptions.map(opt => (
+                          <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -251,10 +276,18 @@ export default function PartsLibrary() {
                       <label className="text-[10px] text-muted-foreground mb-1 block">生成的编码</label>
                       <Input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} placeholder="点击自动生成按钮" className="h-8 text-xs font-mono" />
                     </div>
-                    <Button size="sm" variant="default" className="mt-4" onClick={handleAutoCode} disabled={!selectedParent}>
-                      <Hash className="w-3 h-3 mr-1" /> 自动生成
+                    <Button size="sm" variant="default" className="mt-4" onClick={handleAutoCode}
+                      disabled={!selectedParent || isGenerating}>
+                      <Hash className="w-3 h-3 mr-1" /> {isGenerating ? '生成中...' : '自动生成'}
                     </Button>
                   </div>
+                  {previewEnabled && (
+                    <div className="text-[10px] text-muted-foreground bg-background/50 rounded px-2 py-1">
+                      编码预览: <span className="font-mono text-primary font-medium">{previewData || '...'}</span>
+                      <span className="ml-2">（{selectedParentCode} + {currentLevel === 4 ? '-A' : '-P'} + 流水号）</span>
+                      <span className="ml-1 text-[9px] text-muted-foreground/60">← 后端引擎预览</span>
+                    </div>
+                  )}
                 </div>
               )}
               {editingItem && (
@@ -265,7 +298,7 @@ export default function PartsLibrary() {
               )}
               <div>
                 <label className="text-xs text-muted-foreground mb-1 block">名称 *</label>
-                <Input placeholder="如: 轴承 SKF-6205" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="h-8 text-xs" />
+                <Input placeholder={`如: ${currentLevel === 4 ? '齿轮组件' : '轴承'}`} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="h-8 text-xs" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -305,7 +338,7 @@ export default function PartsLibrary() {
         {/* 自定义列管理 */}
         <Dialog open={showColumnDialog} onOpenChange={setShowColumnDialog}>
           <DialogContent className="sm:max-w-md">
-            <DialogHeader><DialogTitle>自定义列管理（{currentLevel === 4 ? 'L4 组件' : 'L5 零件'}）</DialogTitle></DialogHeader>
+            <DialogHeader><DialogTitle>自定义列管理</DialogTitle></DialogHeader>
             <div className="space-y-3">
               {customCols.length > 0 && (
                 <div className="space-y-1.5">
@@ -323,7 +356,7 @@ export default function PartsLibrary() {
               <div className="flex items-end gap-2 border-t border-border pt-3">
                 <div className="flex-1">
                   <label className="text-[10px] text-muted-foreground mb-1 block">列名称</label>
-                  <Input placeholder="如: 规格型号" value={newColLabel} onChange={(e) => setNewColLabel(e.target.value)} className="h-8 text-xs" />
+                  <Input placeholder="如: 制造商" value={newColLabel} onChange={(e) => setNewColLabel(e.target.value)} className="h-8 text-xs" />
                 </div>
                 <div className="w-24">
                   <label className="text-[10px] text-muted-foreground mb-1 block">类型</label>

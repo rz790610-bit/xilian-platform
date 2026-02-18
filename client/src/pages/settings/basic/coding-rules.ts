@@ -1,11 +1,32 @@
 /**
- * 编码生成工具函数
- * 所有编码规则数据已迁移到字典管理，此文件仅保留纯编码拼接函数
+ * 编码规则常量与兼容函数
+ * 
+ * 所有编码生成逻辑已迁移到后端 generateCode 引擎
+ * 前端通过 trpc.database.config.generateCode.mutate() 调用
+ * 
+ * 此文件保留规则代码常量供前端引用
+ * 编码规则定义存储在 base_code_rules 表中
+ * 种子数据: scripts/seed-code-rules.mjs
  */
 
+/** 编码规则代码常量 */
+export const RULE_CODES = {
+  /** L1 设备主体编码 */
+  DEVICE: 'DEVICE_CODE',
+  /** L2 机构编码 */
+  MECHANISM: 'MECHANISM_CODE',
+  /** L3 部件编码 */
+  COMPONENT: 'COMPONENT_CODE',
+  /** L4 组件编码 */
+  PART_L4: 'PART_L4_CODE',
+  /** L5 零件编码 */
+  PART_L5: 'PART_L5_CODE',
+  /** 部门编码 */
+  DEPT: 'DEPT_CODE',
+} as const;
+
 /**
- * 根据选择的一级、二级、三级代码和流水号生成设备主体编码
- * 格式: Xxx-XXNNN  如 Mgj-XC001
+ * @deprecated 使用后端 generateCode 引擎替代
  */
 export function generateDeviceCode(
   level1: string, level2: string, level3: string, seqNum: number
@@ -15,8 +36,7 @@ export function generateDeviceCode(
 }
 
 /**
- * 生成附属设备编码
- * 格式: Xxx-XXNNNxNNNNNN  如 Mgj-XC001j010101
+ * @deprecated 使用后端 generateCode 引擎替代
  */
 export function generateSubDeviceCode(
   deviceCode: string, level5: string, level6: string, level7: string, seqNum: number
@@ -26,8 +46,7 @@ export function generateSubDeviceCode(
 }
 
 /**
- * 生成部门编码
- * 格式: NNNXNNNNNN  如 633G011104
+ * @deprecated 使用后端 generateCode 引擎替代
  */
 export function generateDeptCode(
   region: string, industry: string, group: string, company: string, team: string

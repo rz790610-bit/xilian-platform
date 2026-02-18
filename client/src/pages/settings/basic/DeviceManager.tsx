@@ -2,7 +2,9 @@
  * 设备管理 - 基础设置 (L1 设备层)
  * 编码级联和状态全部从字典管理读取，不再硬编码
  * 字典分类: DEVICE_STATUS(状态), DEVICE_L1(一级), DEVICE_L2(二级), DEVICE_L3(三级)
- * 编码结构: 一级(1位大写) + 二级(2位小写) + 分隔符(-) + 三级(2位大写) + 四级(3位数字流水号)
+ * 编码生成: 调用后端 generateCode 引擎 (ruleCode: DEVICE_CODE)
+ * 编码结构: 一级(1位大写) + 二级(2位小写) + 分隔符(-) + 三级(2位大写) + 流水号(3位)
+ * 序列号由后端持久化管理，确保不重复、不跳号
  */
 import { useState, useMemo } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
@@ -93,33 +95,39 @@ export default function DeviceManager() {
     return list;
   }, [treeData, searchTerm, statusFilter]);
 
-  // 自动计算下一个流水号
-  const nextSeqNum = useMemo(() => {
-    if (!codeL1 || !codeL2 || !codeL3) return 1;
-    const prefix = `${codeL1}${codeL2}-${codeL3}`;
-    const existing = (treeData || [])
-      .filter((d: any) => d.code?.startsWith(prefix))
-      .map((d: any) => {
-        const numStr = d.code?.substring(prefix.length);
-        return parseInt(numStr, 10) || 0;
-      });
-    return existing.length > 0 ? Math.max(...existing) + 1 : 1;
-  }, [codeL1, codeL2, codeL3, treeData]);
+  // 后端自动编码 mutation
+  const generateCodeMut = trpc.database.config.generateCode.useMutation({
+    onError: (e: any) => toast.error(`编码生成失败: ${e.message}`),
+  });
+  // 编码预览 query（仅当三级都选中时触发）
+  const previewEnabled = !!(codeL1 && codeL2 && codeL3);
+  const { data: previewData } = trpc.database.config.previewCode.useQuery(
+    { ruleCode: 'DEVICE_CODE', customSegments: { level1: codeL1, level2: codeL2, level3: codeL3 } },
+    { enabled: previewEnabled }
+  );
 
-  // 生成设备编码
-  const generateDeviceCode = (l1: string, l2: string, l3: string, seq: number) => {
-    return `${l1}${l2}-${l3}${String(seq).padStart(3, '0')}`;
-  };
+  const [isGenerating, setIsGenerating] = useState(false);
 
-  const handleAutoCode = () => {
+  const handleAutoCode = async () => {
     if (!codeL1 || !codeL2 || !codeL3) {
       toast.warning('请先选择一级、二级、三级代码');
       return;
     }
-    const code = generateDeviceCode(codeL1, codeL2, codeL3, nextSeqNum);
-    const nodeId = `dev-${code.replace(/[^a-zA-Z0-9]/g, '').toLowerCase()}`;
-    setForm(prev => ({ ...prev, code, nodeId }));
-    toast.success(`自动生成编码: ${code}`);
+    setIsGenerating(true);
+    try {
+      const result = await generateCodeMut.mutateAsync({
+        ruleCode: 'DEVICE_CODE',
+        customSegments: { level1: codeL1, level2: codeL2, level3: codeL3 },
+      });
+      const code = result.code;
+      const nodeId = `dev-${code.replace(/[^a-zA-Z0-9]/g, '').toLowerCase()}`;
+      setForm(prev => ({ ...prev, code, nodeId }));
+      toast.success(`自动生成编码: ${code}（序列号: ${result.sequenceValue}）`);
+    } catch {
+      // error handled by mutation onError
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   const openCreate = () => {
@@ -452,15 +460,16 @@ export default function DeviceManager() {
                         <Button
                           size="sm" variant="default" className="mt-4"
                           onClick={handleAutoCode}
-                          disabled={!codeL1 || !codeL2 || !codeL3}
+                          disabled={!codeL1 || !codeL2 || !codeL3 || isGenerating}
                         >
-                          <Hash className="w-3 h-3 mr-1" /> 自动生成
+                          <Hash className="w-3 h-3 mr-1" /> {isGenerating ? '生成中...' : '自动生成'}
                         </Button>
                       </div>
                       {codeL1 && codeL2 && codeL3 && (
                         <div className="text-[10px] text-muted-foreground bg-background/50 rounded px-2 py-1">
-                          编码预览: <span className="font-mono text-primary font-medium">{generateDeviceCode(codeL1, codeL2, codeL3, nextSeqNum)}</span>
-                          <span className="ml-2">（{l1Map[codeL1] || codeL1} → {l2Options.find((i: any) => i.code === codeL2)?.label || codeL2} → {l3Options.find((i: any) => i.code === codeL3)?.label || codeL3} → 第{nextSeqNum}台）</span>
+                          编码预览: <span className="font-mono text-primary font-medium">{previewData || '...'}</span>
+                          <span className="ml-2">（{l1Map[codeL1] || codeL1} → {l2Options.find((i: any) => i.code === codeL2)?.label || codeL2} → {l3Options.find((i: any) => i.code === codeL3)?.label || codeL3}）</span>
+                          <span className="ml-1 text-[9px] text-muted-foreground/60">← 后端引擎预览</span>
                         </div>
                       )}
                     </>
