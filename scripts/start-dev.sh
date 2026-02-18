@@ -1,7 +1,7 @@
 #!/bin/bash
 # ============================================================
 #  西联智能平台 — 一键启动开发环境
-#  用法: ./scripts/start-dev.sh 或 pnpm start
+#  用法: 双击桌面图标 / ./scripts/start-dev.sh / pnpm dev:start
 # ============================================================
 set -e
 
@@ -23,36 +23,56 @@ echo ""
 
 cd "$PROJECT_DIR"
 
+# 通用端口检测函数
+check_port() {
+  nc -z localhost "$1" 2>/dev/null
+}
+
 # ============ 1. 检查本地 MySQL ============
 echo -e "▶ ${BLUE}检查 MySQL...${NC}"
-if brew services info mysql 2>/dev/null | grep -q "Running: ✔"; then
-  TABLE_COUNT=$(mysql -u portai -pportai123 portai_nexus -N -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='portai_nexus'" 2>/dev/null || echo "0")
+if check_port 3306; then
+  TABLE_COUNT=$(mysql -u portai -pportai123 portai_nexus -N -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='portai_nexus'" 2>/dev/null || echo "?")
   echo -e "  ${GREEN}✔ MySQL 已运行${NC} (portai_nexus: ${TABLE_COUNT} 张表)"
 else
   echo -e "  ${YELLOW}▶ 启动 MySQL...${NC}"
-  brew services start mysql
-  sleep 3
-  if brew services info mysql 2>/dev/null | grep -q "Running: ✔"; then
+  brew services start mysql 2>/dev/null || true
+  # 等待最多 10 秒
+  for i in $(seq 1 10); do
+    if check_port 3306; then break; fi
+    sleep 1
+  done
+  if check_port 3306; then
     echo -e "  ${GREEN}✔ MySQL 已启动${NC}"
   else
-    echo -e "  ${RED}✘ MySQL 启动失败，请检查: brew services info mysql${NC}"
-    exit 1
+    echo -e "  ${RED}✘ MySQL 启动失败${NC}"
+    echo -e "  ${YELLOW}  尝试: brew services restart mysql${NC}"
+    echo ""
+    read -p "  是否继续？(Y/n) " -n 1 -r
+    echo ""
+    if [[ $REPLY =~ ^[Nn]$ ]]; then exit 1; fi
   fi
 fi
 
 # ============ 2. 检查本地 Redis ============
 echo -e "▶ ${BLUE}检查 Redis...${NC}"
-if brew services info redis 2>/dev/null | grep -q "Running: ✔"; then
-  echo -e "  ${GREEN}✔ Redis 已运行${NC}"
+if check_port 6379; then
+  echo -e "  ${GREEN}✔ Redis 已运行${NC} (localhost:6379)"
 else
   echo -e "  ${YELLOW}▶ 启动 Redis...${NC}"
-  brew services start redis
-  sleep 2
-  if brew services info redis 2>/dev/null | grep -q "Running: ✔"; then
+  brew services start redis 2>/dev/null || true
+  for i in $(seq 1 10); do
+    if check_port 6379; then break; fi
+    sleep 1
+  done
+  if check_port 6379; then
     echo -e "  ${GREEN}✔ Redis 已启动${NC}"
   else
-    echo -e "  ${RED}✘ Redis 启动失败，请检查: brew services info redis${NC}"
-    exit 1
+    echo -e "  ${RED}✘ Redis 启动失败${NC}"
+    echo -e "  ${YELLOW}  尝试: brew services restart redis${NC}"
+    echo ""
+    read -p "  是否继续？(Y/n) " -n 1 -r
+    echo ""
+    if [[ $REPLY =~ ^[Nn]$ ]]; then exit 1; fi
   fi
 fi
 
@@ -60,7 +80,6 @@ fi
 echo -e "▶ ${BLUE}检查 Docker 容器...${NC}"
 
 DOCKER_SERVICES=("kafka" "clickhouse" "qdrant" "minio")
-DOCKER_CONTAINERS=("xilian-kafka" "xilian-clickhouse" "xilian-qdrant" "xilian-minio")
 DOCKER_PORTS=(9092 8123 6333 9010)
 DOCKER_LABELS=("Kafka" "ClickHouse" "Qdrant" "MinIO")
 
@@ -68,25 +87,17 @@ if docker info &>/dev/null 2>&1; then
   NEED_COMPOSE=false
   COMPOSE_TARGETS=""
 
-  for i in "${!DOCKER_CONTAINERS[@]}"; do
-    CONTAINER="${DOCKER_CONTAINERS[$i]}"
+  for i in "${!DOCKER_SERVICES[@]}"; do
     PORT="${DOCKER_PORTS[$i]}"
     LABEL="${DOCKER_LABELS[$i]}"
     SERVICE="${DOCKER_SERVICES[$i]}"
 
-    # 先检查端口是否已通（可能已在运行）
-    if nc -z localhost "$PORT" 2>/dev/null; then
+    if check_port "$PORT"; then
       echo -e "  ${GREEN}✔ ${LABEL} 已运行${NC} (端口 ${PORT})"
     else
-      # 检查容器是否存在但未运行
-      STATUS=$(docker inspect -f '{{.State.Status}}' "$CONTAINER" 2>/dev/null || echo "not_found")
-      if [ "$STATUS" = "running" ]; then
-        echo -e "  ${GREEN}✔ ${LABEL} 容器运行中${NC}"
-      else
-        NEED_COMPOSE=true
-        COMPOSE_TARGETS="$COMPOSE_TARGETS $SERVICE"
-        echo -e "  ${YELLOW}▷ ${LABEL} 需要启动${NC}"
-      fi
+      NEED_COMPOSE=true
+      COMPOSE_TARGETS="$COMPOSE_TARGETS $SERVICE"
+      echo -e "  ${YELLOW}▷ ${LABEL} 需要启动${NC}"
     fi
   done
 
@@ -94,7 +105,14 @@ if docker info &>/dev/null 2>&1; then
     echo -e "  ${YELLOW}▶ 启动 Docker 容器:${COMPOSE_TARGETS}${NC}"
     docker compose up -d $COMPOSE_TARGETS 2>&1 | grep -E "Started|Running|Created" || true
     sleep 3
-    echo -e "  ${GREEN}✔ Docker 容器已启动${NC}"
+    # 验证启动结果
+    for i in "${!DOCKER_SERVICES[@]}"; do
+      PORT="${DOCKER_PORTS[$i]}"
+      LABEL="${DOCKER_LABELS[$i]}"
+      if check_port "$PORT"; then
+        echo -e "  ${GREEN}✔ ${LABEL} 已就绪${NC}"
+      fi
+    done
   fi
 else
   echo -e "  ${YELLOW}⚠ Docker Desktop 未运行${NC}"
