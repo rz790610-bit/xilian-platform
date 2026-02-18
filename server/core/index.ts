@@ -294,6 +294,17 @@ async function startServer() {
       log.error('[Server] Failed to register event bus integration:', err);
     });
 
+    // v3.1 初始化数据流追踪器（L2 自省层）
+    import('../platform/services/dataFlowTracer').then(({ dataFlowTracer }) => {
+      dataFlowTracer.initialize().then(() => {
+        log.debug('[Platform] ✓ DataFlowTracer initialized (L2 Self-Introspection)');
+      }).catch(err => {
+        log.error('[Platform] Failed to initialize DataFlowTracer:', err.message);
+      });
+    }).catch(err => {
+      log.error('[Platform] Failed to load DataFlowTracer:', err.message);
+    });
+
     // 同步内置算法到数据库
     import('../services/algorithm.service').then(({ algorithmService }) => {
       algorithmService.syncBuiltinAlgorithms().then((result) => {

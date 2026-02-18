@@ -54,6 +54,8 @@ import { fusionDiagnosisRouter } from "./api/fusionDiagnosis.router";
 import { advancedDistillationRouter } from "./api/advancedDistillation.router";
 // ============ 工况归一化引擎 ============
 import { conditionNormalizerRouter } from "./api/conditionNormalizer.router";
+// ============ v3.1 自适应智能架构 — 平台健康 ============
+import { platformHealthRouter } from "./api/platformHealth.router";
 
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/core/index.ts, all api should start with '/api/' so that the gateway can route correctly
@@ -168,6 +170,8 @@ export const appRouter = router({
   // ============ 高级知识蒸馏（动态温度 + 特征/关系/融合蒸馏 + 多模态） ============
   advancedDistillation: advancedDistillationRouter,
   conditionNormalizer: conditionNormalizerRouter,
+  // ============ v3.1 自适应智能架构 — L1 契约基层 + L2 自省层 ============
+  platformHealth: platformHealthRouter,
 });
 
 export type AppRouter = typeof appRouter;

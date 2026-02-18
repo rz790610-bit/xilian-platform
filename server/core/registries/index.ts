@@ -24,6 +24,7 @@ import { deviceTypeRegistry, type DeviceTypeRegistryItem } from './device-type.r
 import { kgOperatorRegistry, type KGOperatorRegistryItem } from './kg-operator.registry';
 import { metricTypeRegistry, type MetricTypeRegistryItem } from './metric-type.registry';
 import { algorithmRegistry, type AlgorithmRegistryItem } from './algorithm.registry';
+import { moduleRegistry, type ModuleManifest, type ModuleCapability, type ModuleDomain, type DomainCompletenessReport } from './module.registry';
 
 // ============ 注册中心管理器 ============
 
@@ -150,6 +151,11 @@ registryManager.register('algorithm', algorithmRegistry, {
   description: '工业智能算法（信号处理、特征工程、机器学习、深度学习、异常检测、预测性维护、统计分析、优化）',
 });
 
+registryManager.register('module', moduleRegistry as any, {
+  label: '模块注册中心',
+  description: 'L1 契约基层 — 28 个平台模块的 Manifest、完整度、依赖关系',
+});
+
 // ============ 导出所有注册中心实例 ============
 
 export { pipelineNodeRegistry } from './pipeline-node.registry';
@@ -158,6 +164,7 @@ export { deviceTypeRegistry } from './device-type.registry';
 export { kgOperatorRegistry } from './kg-operator.registry';
 export { metricTypeRegistry } from './metric-type.registry';
 export { algorithmRegistry } from './algorithm.registry';
+export { moduleRegistry } from './module.registry';
 
 // ============ 导出类型 ============
 
@@ -167,3 +174,4 @@ export type { DeviceTypeRegistryItem, DeviceProperty, DeviceCommand, TelemetryFi
 export type { KGOperatorRegistryItem, KGOperatorParam } from './kg-operator.registry';
 export type { MetricTypeRegistryItem, MetricCollector, AlertRuleTemplate, AggregationType } from './metric-type.registry';
 export type { AlgorithmRegistryItem, AlgorithmConfigField, AlgorithmIOField } from './algorithm.registry';
+export type { ModuleManifest, ModuleCapability, ModuleDomain, DomainCompletenessReport } from './module.registry';
