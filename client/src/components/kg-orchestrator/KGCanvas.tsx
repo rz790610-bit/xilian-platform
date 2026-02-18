@@ -69,6 +69,8 @@ export default function KGCanvas() {
     if (e.button === 1 || (e.button === 0 && e.shiftKey)) {
       setPanning({ startX: e.clientX, startY: e.clientY, startPanX: panX, startPanY: panY });
     } else if (e.button === 0) {
+      // 左键点击空白区域：开始平移 + 取消选中
+      setPanning({ startX: e.clientX, startY: e.clientY, startPanX: panX, startPanY: panY });
       selectNode(null);
       selectEdge(null);
       setContextMenu(null);
@@ -102,8 +104,8 @@ export default function KGCanvas() {
   // ============ 缩放 ============
   const handleWheel = useCallback((e: React.WheelEvent) => {
     e.preventDefault();
-    const delta = e.deltaY > 0 ? -0.1 : 0.1;
-    setZoom(zoom + delta);
+    const delta = e.deltaY > 0 ? -0.08 : 0.08;
+    setZoom(Math.max(0.15, Math.min(2.5, zoom + delta)));
   }, [zoom, setZoom]);
 
   // ============ 右键菜单 ============

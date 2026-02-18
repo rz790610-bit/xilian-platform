@@ -123,10 +123,8 @@ export default function ERDiagram() {
 
   useEffect(() => {
     const handleWheel = (e: WheelEvent) => {
-      if (e.ctrlKey || e.metaKey) {
-        e.preventDefault();
-        setZoom(z => Math.max(0.2, Math.min(2, z - e.deltaY * 0.001)));
-      }
+      e.preventDefault();
+      setZoom(z => Math.max(0.15, Math.min(2.5, z - e.deltaY * 0.002)));
     };
     const el = canvasRef.current;
     if (el) el.addEventListener("wheel", handleWheel, { passive: false });
@@ -185,7 +183,7 @@ export default function ERDiagram() {
   const selectedDomain = selectedEntry ? schema.getDomain(selectedEntry.domain) : null;
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col" style={{ minHeight: '600px' }}>
       {/* Toolbar */}
       <div className="panel-header px-4 py-1.5 flex items-center gap-2 shrink-0">
         <Button variant="outline" size="sm" className="h-7 w-7 p-0" onClick={() => setZoom(z => Math.min(2, z + 0.15))}>
@@ -261,8 +259,8 @@ export default function ERDiagram() {
               transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
               transformOrigin: "0 0",
               position: "absolute",
-              width: "3200px",
-              height: "2400px",
+              width: "8000px",
+              height: "6000px",
             }}
           >
             {/* SVG Relations Layer */}

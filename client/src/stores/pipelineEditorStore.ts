@@ -270,7 +270,7 @@ export const usePipelineEditorStore = create<PipelineEditorState>()(
   },
 
   // ============ 画布操作 ============
-  setZoom: (zoom) => set(state => ({ editor: { ...state.editor, zoom: Math.max(0.25, Math.min(2, zoom)) } })),
+  setZoom: (zoom) => set(state => ({ editor: { ...state.editor, zoom: Math.max(0.15, Math.min(2.5, zoom)) } })),
   setPan: (panX, panY) => set(state => ({ editor: { ...state.editor, panX, panY } })),
   resetView: () => set(state => ({ editor: { ...state.editor, zoom: 1, panX: 0, panY: 0 } })),
 

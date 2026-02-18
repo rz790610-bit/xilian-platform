@@ -38,22 +38,22 @@ export function PipelineCanvas({ className }: PipelineCanvasProps) {
 
   // 处理滚轮缩放
   const handleWheel = useCallback((e: React.WheelEvent) => {
-    if (e.ctrlKey || e.metaKey) {
-      e.preventDefault();
-      const delta = e.deltaY > 0 ? -0.1 : 0.1;
-      setZoom(editor.zoom + delta);
-    }
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? -0.08 : 0.08;
+    setZoom(editor.zoom + delta);
   }, [editor.zoom, setZoom]);
 
   // 处理画布拖拽开始
   const handleCanvasMouseDown = useCallback((e: React.MouseEvent) => {
     // 只有点击画布空白区域才开始平移
     if (e.target === canvasRef.current || (e.target as HTMLElement).classList.contains('canvas-background')) {
-      if ((e.button === 0 && (e.ctrlKey || e.metaKey)) || e.button === 1) {
+      if (e.button === 1 || (e.button === 0 && (e.ctrlKey || e.metaKey))) {
         setIsPanning(true);
         setPanStart({ x: e.clientX - editor.panX, y: e.clientY - editor.panY });
       } else if (e.button === 0) {
-        // 点击空白区域取消选中
+        // 左键拖拽画布平移
+        setIsPanning(true);
+        setPanStart({ x: e.clientX - editor.panX, y: e.clientY - editor.panY });
         selectNode(null);
         if (isConnecting) {
           cancelConnection();

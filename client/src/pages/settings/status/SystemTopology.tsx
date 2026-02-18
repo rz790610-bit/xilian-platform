@@ -102,6 +102,8 @@ export default function SystemTopology() {
   // 自动刷新状态
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [refreshInterval, setRefreshInterval] = useState(10); // 秒
+  const [isPanningCanvas, setIsPanningCanvas] = useState(false);
+  const [panStart, setPanStart] = useState({ x: 0, y: 0 });
   const [lastStateHash, setLastStateHash] = useState<string>('');
   const [statusChanged, setStatusChanged] = useState(false);
   
@@ -689,7 +691,7 @@ export default function SystemTopology() {
                       variant="ghost" 
                       size="sm" 
                       className="h-6 w-6 p-0"
-                      onClick={() => setZoom(z => Math.max(0.5, z - 0.1))}
+                      onClick={() => setZoom(z => Math.max(0.25, z - 0.1))}
                     >
                       <ZoomOut className="w-3 h-3" />
                     </Button>
@@ -698,7 +700,7 @@ export default function SystemTopology() {
                       variant="ghost" 
                       size="sm" 
                       className="h-6 w-6 p-0"
-                      onClick={() => setZoom(z => Math.min(2, z + 0.1))}
+                      onClick={() => setZoom(z => Math.min(2.0, z + 0.1))}
                     >
                       <ZoomIn className="w-3 h-3" />
                     </Button>
@@ -785,7 +787,8 @@ export default function SystemTopology() {
             >
               <div 
                 ref={containerRef}
-                className="relative w-full h-[500px] bg-gradient-to-br from-background to-secondary rounded-xl overflow-hidden"
+                className="relative w-full bg-gradient-to-br from-background to-secondary rounded-xl overflow-hidden"
+                style={{ height: 'calc(100vh - 200px)', minHeight: '600px' }}
               >
                 {isLoading ? (
                   <div className="absolute inset-0 flex items-center justify-center">
@@ -795,7 +798,32 @@ export default function SystemTopology() {
                   <svg 
                     ref={svgRef} 
                     className="w-full h-full"
-                    style={{ transform: `scale(${zoom}) translate(${pan.x}px, ${pan.y}px)` }}
+                    onWheel={(e) => {
+                      e.preventDefault();
+                      const delta = e.deltaY > 0 ? -0.08 : 0.08;
+                      setZoom(z => Math.max(0.25, Math.min(2, z + delta)));
+                    }}
+                    onMouseDown={(e) => {
+                      if (e.button === 0 && !isConnecting) {
+                        const target = e.target as SVGElement;
+                        if (target.tagName === 'svg' || target.tagName === 'rect' && target.getAttribute('fill') === 'url(#grid)') {
+                          e.preventDefault();
+                          setPanStart({ x: e.clientX - pan.x * zoom, y: e.clientY - pan.y * zoom });
+                          setIsPanningCanvas(true);
+                        }
+                      }
+                    }}
+                    onMouseMove={(e) => {
+                      if (isPanningCanvas) {
+                        setPan({
+                          x: (e.clientX - panStart.x) / zoom,
+                          y: (e.clientY - panStart.y) / zoom,
+                        });
+                      }
+                    }}
+                    onMouseUp={() => setIsPanningCanvas(false)}
+                    onMouseLeave={() => setIsPanningCanvas(false)}
+                    style={{ cursor: isPanningCanvas ? 'grabbing' : 'grab' }}
                   >
                     {/* 网格背景 */}
                     <defs>
@@ -805,11 +833,14 @@ export default function SystemTopology() {
                     </defs>
                     <rect width="100%" height="100%" fill="url(#grid)" />
                     
-                    {/* 连接线 */}
-                    {renderEdges()}
-                    
-                    {/* 节点 */}
-                    {renderNodes()}
+                    {/* 可缩放平移的内容层 */}
+                    <g transform={`scale(${zoom}) translate(${pan.x}, ${pan.y})`}>
+                      {/* 连接线 */}
+                      {renderEdges()}
+                      
+                      {/* 节点 */}
+                      {renderNodes()}
+                    </g>
                   </svg>
                 )}
                 

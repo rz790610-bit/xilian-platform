@@ -291,7 +291,7 @@ export default function KGOrchestrator() {
 
   return (
     <MainLayout title="知识图谱编排">
-    <div className="h-full flex flex-col bg-slate-950 text-slate-200">
+    <div className="flex flex-col bg-slate-950 text-slate-200" style={{ height: 'calc(100vh - 80px)', minHeight: '600px' }}>
       {/* Tab 栏 */}
       <div className="shrink-0 flex items-center border-b border-slate-800 bg-slate-900/80 px-2">
         {TABS.map(tab => (

@@ -214,7 +214,7 @@ export const useKGOrchestratorStore = create<KGOrchestratorState>((set, get) => 
 
   cancelConnecting: () => set({ connectingFrom: null, connectingRelationType: null }),
 
-  setZoom: (zoom) => set({ zoom: Math.max(0.2, Math.min(3, zoom)) }),
+  setZoom: (zoom) => set({ zoom: Math.max(0.15, Math.min(3, zoom)) }),
   setPan: (x, y) => set({ panX: x, panY: y }),
 
   loadEditorState: (nodes, edges) => set({

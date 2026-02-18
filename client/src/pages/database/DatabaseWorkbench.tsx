@@ -1079,7 +1079,7 @@ export default function DatabaseWorkbench() {
 
         {/* ====== ER 关系图 ====== */}
         {activeTab === 'erd' && (
-          <div className="h-[calc(100vh-180px)]">
+          <div className="h-[calc(100vh-140px)]">
             <Suspense fallback={<div className="flex items-center justify-center h-64 text-xs text-muted-foreground">加载 ER 图...</div>}>
               <ERDiagram />
             </Suspense>
@@ -1088,7 +1088,7 @@ export default function DatabaseWorkbench() {
 
         {/* ====== 可视化设计器 ====== */}
         {activeTab === 'designer' && (
-          <div className="h-[calc(100vh-180px)]">
+          <div className="h-[calc(100vh-140px)]">
             <Suspense fallback={<div className="flex items-center justify-center h-64 text-xs text-muted-foreground">加载可视化设计器...</div>}>
               <VisualDesigner />
             </Suspense>

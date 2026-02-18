@@ -374,7 +374,7 @@ export default function PipelineEditor() {
 
         {/* ====== 编排画布 Tab ====== */}
         {activeTab === 'editor' && (
-          <div className="flex flex-col" style={{ height: 'calc(100vh - 180px)' }}>
+          <div className="flex flex-col" style={{ height: 'calc(100vh - 140px)', minHeight: '500px' }}>
             {/* 工具栏 */}
             <PipelineToolbar />
 
