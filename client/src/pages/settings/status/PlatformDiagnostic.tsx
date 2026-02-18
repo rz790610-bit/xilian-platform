@@ -285,7 +285,7 @@ export default function PlatformDiagnostic() {
               <Flag className="w-3.5 h-3.5" /> 功能开关
             </TabsTrigger>
             <TabsTrigger value="dataflow" className="gap-1.5">
-              <Network className="w-3.5 h-3.5" /> 数据流
+              <Network className="w-3.5 h-3.5" /> 依赖图谱
             </TabsTrigger>
           </TabsList>
 
@@ -457,10 +457,10 @@ export default function PlatformDiagnostic() {
                               </div>
                               <div className="flex items-center gap-3">
                                 {mod.stubCount > 0 && (
-                                  <span className="text-xs text-yellow-400">{mod.stubCount} stub</span>
+                                  <span className="text-xs text-yellow-400">{mod.stubCount} 个桩函数</span>
                                 )}
                                 {mod.plannedCount > 0 && (
-                                  <span className="text-xs text-blue-400">{mod.plannedCount} planned</span>
+                                  <span className="text-xs text-blue-400">{mod.plannedCount} 个规划中</span>
                                 )}
                                 <span className={cn("text-xs font-mono font-bold w-10 text-right", getCompletenessColor(mod.completeness))}>
                                   {mod.completeness}%
@@ -490,7 +490,7 @@ export default function PlatformDiagnostic() {
                 </Button>
               }
             >
-              <ScrollArea className="max-h-[400px] mt-2">
+              <ScrollArea className="max-h-[600px] mt-2">
                 <div className="space-y-1">
                   {filteredModules.map((mod) => (
                     <div
@@ -505,7 +505,7 @@ export default function PlatformDiagnostic() {
                         <div className="min-w-0">
                           <div className="text-sm font-medium text-foreground truncate">{mod.label}</div>
                           <div className="text-xs text-muted-foreground">
-                            {mod.domain} · v{mod.version} · {mod.capabilities?.length ?? 0} 能力 · {mod.dependencies?.length ?? 0} 依赖
+                            {mod.domain} · v{mod.version} · {mod.capabilities?.length ?? 0} 个能力 · {mod.dependencies?.length ?? 0} 个依赖
                           </div>
                         </div>
                       </div>
@@ -578,7 +578,7 @@ export default function PlatformDiagnostic() {
                             </div>
                             <div className="relative flex items-center gap-2 shrink-0">
                               <Badge className="bg-orange-500/20 text-orange-300 border-orange-500/30 text-xs">
-                                {stub.callCount} 次
+                                {stub.callCount} 次调用
                               </Badge>
                               {stub.lastCalledAt && (
                                 <span className="text-xs text-muted-foreground">
@@ -661,7 +661,7 @@ export default function PlatformDiagnostic() {
                           <span className="text-xs font-mono text-muted-foreground w-20">{flag.moduleId}</span>
                           <span className="text-sm text-foreground">{flag.source}</span>
                           <span className="text-xs text-muted-foreground">
-                            更新: {flag.updatedBy} · {new Date(flag.updatedAt).toLocaleDateString()}
+                            更新者: {flag.updatedBy} · {new Date(flag.updatedAt).toLocaleDateString('zh-CN')}
                           </span>
                         </div>
                         <div className="flex items-center gap-2">
@@ -686,7 +686,7 @@ export default function PlatformDiagnostic() {
             </PageCard>
           </TabsContent>
 
-          {/* ━━━ Tab 5: 数据流 ━━━ */}
+          {/* ━━━ Tab 5: 依赖图谱 ━━━ */}
           <TabsContent value="dataflow" className="mt-3 space-y-3">
             {/* 数据流摘要 */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
