@@ -11,6 +11,9 @@ build/
 .env
 .env.local
 .env.development.local
+
+# Docker migration backup
+docker-backup/
 .env.test.local
 .env.production.local
 
