@@ -8,6 +8,7 @@
     "dev:raw": "NODE_ENV=development tsx watch server/core/index.ts",
     "dev:local": "NODE_ENV=development dotenv -e .env.local -- tsx watch server/core/index.ts",
     "dev:native": "NODE_ENV=development bash scripts/dev-local.sh",
+    "dev:start": "bash scripts/start-dev.sh",
     "migrate:local": "bash scripts/migrate-to-local.sh",
     "build": "vite build && esbuild server/core/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
     "start": "NODE_ENV=production node dist/index.js",
