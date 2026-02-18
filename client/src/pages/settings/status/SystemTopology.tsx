@@ -771,8 +771,9 @@ export default function SystemTopology() {
             <PageCard
               title="系统拓扑图"
               icon="📊"
+              noPadding
               action={
-                <div className="flex gap-2 items-center">
+                <div className="flex gap-2 items-center flex-wrap pr-3">
                   {/* 视图筛选 */}
                   <Select value={viewMode} onValueChange={(v: any) => setViewMode(v)}>
                     <SelectTrigger className="w-[100px] h-7 text-[11px]">
@@ -918,8 +919,8 @@ export default function SystemTopology() {
             >
               <div 
                 ref={containerRef}
-                className="relative w-full bg-gradient-to-br from-background to-secondary rounded-xl overflow-hidden"
-                style={{ height: 'calc(100vh - 200px)', minHeight: '600px' }}
+                className="relative w-full bg-gradient-to-br from-background to-secondary overflow-hidden"
+                style={{ height: 'calc(100vh - 280px)', minHeight: '500px' }}
               >
                 {isLoading ? (
                   <div className="absolute inset-0 flex items-center justify-center">
