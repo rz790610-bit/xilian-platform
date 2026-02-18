@@ -74,7 +74,7 @@ function BootstrapAllDialog({ open, onOpenChange }: { open: boolean; onOpenChang
         {!running && !result && (
           <div className="space-y-4 py-2">
             <p className="text-sm text-muted-foreground">
-              将按顺序启动以下核心服务，并自动配置环境变量、运行数据库迁移：
+              智能检测并启动以下核心服务，支持本地服务（brew services）和 Docker 容器两种模式：
             </p>
             <div className="grid grid-cols-2 gap-3">
               {[
@@ -95,7 +95,7 @@ function BootstrapAllDialog({ open, onOpenChange }: { open: boolean; onOpenChang
               ))}
             </div>
             <div className="text-xs text-muted-foreground bg-muted/50 rounded-lg p-3">
-              ⚡ 每个服务将依次执行：启动容器 → 配置环境变量 → 等待就绪 → 初始化（如有）
+              ⚡ 每个服务将依次执行：检测本地服务/启动容器 → 配置环境变量 → 等待就绪 → 初始化（如有）
             </div>
           </div>
         )}
@@ -109,7 +109,7 @@ function BootstrapAllDialog({ open, onOpenChange }: { open: boolean; onOpenChang
             </div>
             <div className="text-center">
               <p className="font-medium">正在启动核心环境...</p>
-              <p className="text-sm text-muted-foreground mt-1">依次启动 6 个服务，请稍候（约 30-60 秒）</p>
+              <p className="text-sm text-muted-foreground mt-1">检测并启动 6 个服务，请稍候（约 10-60 秒）</p>
             </div>
             <Progress value={undefined} className="w-64 h-2" />
           </div>
@@ -130,12 +130,12 @@ function BootstrapAllDialog({ open, onOpenChange }: { open: boolean; onOpenChang
               )}
               <div>
                 <p className="font-medium">
-                  {result.success ? '全部核心服务启动成功' : `${result.succeeded}/${result.total} 服务启动成功`}
+                  {result.success ? '全部核心服务就绪' : `${result.succeeded}/${result.total} 服务就绪`}
                 </p>
                 <p className="text-sm text-muted-foreground">
                   {result.success
                     ? '环境变量已配置，数据库已迁移，所有服务就绪'
-                    : `${result.failed} 个服务启动失败，请检查 Docker 容器状态`}
+                    : `${result.failed} 个服务未就绪，请检查本地服务或 Docker 容器状态`}
                 </p>
               </div>
             </div>

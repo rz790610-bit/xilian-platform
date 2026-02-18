@@ -108,28 +108,87 @@ const PROFILE_MAP: Record<string, string> = {
   'portai-ollama': 'llm',
 };
 
-/** 尝试启动容器：先用 Docker API，如果 NOT_FOUND 则用 docker-compose 创建 */
+/** 快速检测端口是否可连接（单次尝试，超时 2 秒） */
+async function isPortOpen(host: string, port: number): Promise<boolean> {
+  const net = await import('net');
+  return new Promise<boolean>((resolve) => {
+    const socket = new net.Socket();
+    socket.setTimeout(2000);
+    socket.on('connect', () => { socket.destroy(); resolve(true); });
+    socket.on('timeout', () => { socket.destroy(); resolve(false); });
+    socket.on('error', () => { socket.destroy(); resolve(false); });
+    socket.connect(port, host);
+  });
+}
+
+/** 快速检测 HTTP 服务是否可用（单次尝试） */
+async function isHttpReady(url: string): Promise<boolean> {
+  try {
+    const resp = await fetch(url, { signal: AbortSignal.timeout(3000) });
+    return resp.ok || resp.status < 500;
+  } catch {
+    return false;
+  }
+}
+
+/** 服务本地端口映射（用于快速检测本地服务是否已运行） */
+const LOCAL_PORT_MAP: Record<string, { type: 'tcp' | 'http'; host: string; port: number; url?: string }> = {
+  'portai-mysql':      { type: 'tcp',  host: 'localhost', port: 3306 },
+  'portai-redis':      { type: 'tcp',  host: 'localhost', port: 6379 },
+  'portai-kafka':      { type: 'tcp',  host: 'localhost', port: 9092 },
+  'portai-clickhouse': { type: 'http', host: 'localhost', port: 8123, url: 'http://localhost:8123/ping' },
+  'portai-qdrant':     { type: 'http', host: 'localhost', port: 6333, url: 'http://localhost:6333/collections' },
+  'portai-minio':      { type: 'http', host: 'localhost', port: 9010, url: 'http://localhost:9010/minio/health/live' },
+  'portai-ollama':     { type: 'http', host: 'localhost', port: 11434, url: 'http://localhost:11434/api/tags' },
+  'portai-neo4j':      { type: 'tcp',  host: 'localhost', port: 7687 },
+  'portai-prometheus':  { type: 'http', host: 'localhost', port: 9090, url: 'http://localhost:9090/-/ready' },
+  'portai-grafana':    { type: 'http', host: 'localhost', port: 3001, url: 'http://localhost:3001/api/health' },
+};
+
+/** 检测服务是否已在本地运行（无论是 Docker 还是 brew services） */
+async function isServiceRunningLocally(containerName: string): Promise<boolean> {
+  const mapping = LOCAL_PORT_MAP[containerName];
+  if (!mapping) return false;
+  if (mapping.type === 'http' && mapping.url) {
+    return isHttpReady(mapping.url);
+  }
+  return isPortOpen(mapping.host, mapping.port);
+}
+
+/** 尝试启动服务：先检测本地端口（本地模式），不通才回退 Docker 启动 */
 async function ensureContainerStarted(containerName: string): Promise<{ success: boolean; detail: string; method: string }> {
-  // 先尝试 Docker API 启动（容器已存在的情况）
-  const result = await dockerManager.startEngine(containerName);
-  if (result.success) {
-    return { success: true, detail: `${containerName} 已启动`, method: 'docker-api' };
+  // 优先检测：端口是否已经可用（本地 brew services / 已运行的 Docker 容器 / 其他方式）
+  const localRunning = await isServiceRunningLocally(containerName);
+  if (localRunning) {
+    log.info(`[ensureContainerStarted] ${containerName} detected on local port (native/docker), skipping Docker start`);
+    return { success: true, detail: `${containerName} 本地服务已运行`, method: 'local-native' };
   }
-  if (result.error === 'ALREADY_RUNNING') {
-    return { success: true, detail: `${containerName} 已在运行`, method: 'already-running' };
-  }
-  // NOT_FOUND — 容器未创建，使用 docker-compose 创建
-  if (result.error === 'NOT_FOUND') {
-    const meta = ENGINE_REGISTRY[containerName];
-    if (!meta) {
-      return { success: false, detail: `未知容器: ${containerName}`, method: 'unknown' };
+
+  // 本地端口不通 → 尝试 Docker API 启动
+  try {
+    const result = await dockerManager.startEngine(containerName);
+    if (result.success) {
+      return { success: true, detail: `${containerName} 已启动`, method: 'docker-api' };
     }
-    const profile = PROFILE_MAP[containerName];
-    log.info(`[ensureContainerStarted] Container ${containerName} not found, using docker-compose up -d ${meta.serviceName}`);
-    const composeResult = composeUp(meta.serviceName, profile);
-    return { success: composeResult.success, detail: composeResult.detail, method: 'docker-compose' };
+    if (result.error === 'ALREADY_RUNNING') {
+      return { success: true, detail: `${containerName} 已在运行`, method: 'already-running' };
+    }
+    // NOT_FOUND — 容器未创建，使用 docker-compose 创建
+    if (result.error === 'NOT_FOUND') {
+      const meta = ENGINE_REGISTRY[containerName];
+      if (!meta) {
+        return { success: false, detail: `未知容器: ${containerName}`, method: 'unknown' };
+      }
+      const profile = PROFILE_MAP[containerName];
+      log.info(`[ensureContainerStarted] Container ${containerName} not found, using docker-compose up -d ${meta.serviceName}`);
+      const composeResult = composeUp(meta.serviceName, profile);
+      return { success: composeResult.success, detail: composeResult.detail, method: 'docker-compose' };
+    }
+    return { success: false, detail: result.message || result.error || '启动失败', method: 'docker-api-error' };
+  } catch (e: any) {
+    // Docker 完全不可用（未安装或未运行）
+    return { success: false, detail: `Docker 不可用且本地服务未运行: ${e.message?.substring(0, 100)}`, method: 'unavailable' };
   }
-  return { success: false, detail: result.message || result.error || '启动失败', method: 'docker-api-error' };
 }
 
 // ============ 核心服务启动配置 ============
@@ -328,7 +387,8 @@ export const dockerRouter = router({
 
   /**
    * 一键启动核心环境：MySQL + Redis + Kafka + ClickHouse + Qdrant + MinIO
-   * 按顺序启动容器 → 配置环境变量 → 等待就绪 → 后置初始化（迁移/种子数据）
+   * 智能检测：优先检测本地服务（brew services 等），不通才回退 Docker 启动
+   * 流程：检测/启动服务 → 配置环境变量 → 等待就绪 → 后置初始化（迁移/种子数据）
    */
   bootstrapAll: publicProcedure.mutation(async () => {
     const services = getCoreServices();
@@ -337,22 +397,24 @@ export const dockerRouter = router({
     for (const svc of services) {
       const steps: BootstrapStep[] = [];
 
-      // Step 1: 启动容器（先 Docker API，NOT_FOUND 时 docker-compose 创建）
+      // Step 1: 启动服务（优先检测本地端口，不通才回退 Docker）
       try {
         const startResult = await ensureContainerStarted(svc.containerName);
         if (startResult.success) {
+          const isNative = startResult.method === 'local-native';
+          const isSkip = startResult.method === 'already-running' || isNative;
           steps.push({
-            step: '启动容器',
-            status: startResult.method === 'already-running' ? 'skip' : 'ok',
+            step: isNative ? '检测本地服务' : '启动容器',
+            status: isSkip ? 'skip' : 'ok',
             detail: startResult.detail,
           });
         } else {
-          steps.push({ step: '启动容器', status: 'fail', detail: startResult.detail });
+          steps.push({ step: '启动服务', status: 'fail', detail: startResult.detail });
           allSteps.push({ service: svc.label, icon: svc.icon, steps });
           continue;
         }
       } catch (e: any) {
-        steps.push({ step: '启动容器', status: 'fail', detail: e.message });
+        steps.push({ step: '启动服务', status: 'fail', detail: e.message });
         allSteps.push({ service: svc.label, icon: svc.icon, steps });
         continue;
       }
@@ -442,21 +504,23 @@ export const dockerRouter = router({
         'portai-grafana': () => waitForHttp('http://localhost:3001/api/health'),
       };
 
-      // Step 1: 启动容器（先 Docker API，NOT_FOUND 时 docker-compose 创建）
+      // Step 1: 启动服务（优先检测本地端口，不通才回退 Docker）
       try {
         const startResult = await ensureContainerStarted(containerName);
         if (startResult.success) {
+          const isNative = startResult.method === 'local-native';
+          const isSkip = startResult.method === 'already-running' || isNative;
           steps.push({
-            step: '启动容器',
-            status: startResult.method === 'already-running' ? 'skip' : 'ok',
+            step: isNative ? '检测本地服务' : '启动容器',
+            status: isSkip ? 'skip' : 'ok',
             detail: startResult.detail,
           });
         } else {
-          steps.push({ step: '启动容器', status: 'fail', detail: startResult.detail });
+          steps.push({ step: '启动服务', status: 'fail', detail: startResult.detail });
           return { success: false, containerName, steps };
         }
       } catch (e: any) {
-        steps.push({ step: '启动容器', status: 'fail', detail: e.message });
+        steps.push({ step: '启动服务', status: 'fail', detail: e.message });
         return { success: false, containerName, steps };
       }
 
