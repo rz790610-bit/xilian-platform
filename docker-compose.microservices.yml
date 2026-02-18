@@ -94,7 +94,7 @@ services:
     build:
       context: .
       dockerfile: microservices/api-gateway/Dockerfile
-    container_name: xilian-api-gateway
+    container_name: portai-api-gateway
     environment:
       <<: *common-env
       SERVICE_NAME: api-gateway
@@ -108,14 +108,14 @@ services:
       redis:
         condition: service_healthy
     networks:
-      - xilian-net
+      - portai-network
     <<: [*restart-policy, *resource-limits-small]
 
   device-service:
     build:
       context: .
       dockerfile: microservices/device/Dockerfile
-    container_name: xilian-device-service
+    container_name: portai-device-service
     environment:
       <<: *common-env
       SERVICE_NAME: device
@@ -135,14 +135,14 @@ services:
       kafka:
         condition: service_healthy
     networks:
-      - xilian-net
+      - portai-network
     <<: [*restart-policy, *resource-limits-medium]
 
   algorithm-service:
     build:
       context: .
       dockerfile: microservices/algorithm/Dockerfile
-    container_name: xilian-algorithm-service
+    container_name: portai-algorithm-service
     environment:
       <<: *common-env
       SERVICE_NAME: algorithm
@@ -164,14 +164,14 @@ services:
       minio:
         condition: service_healthy
     networks:
-      - xilian-net
+      - portai-network
     <<: [*restart-policy, *resource-limits-large]
 
   data-pipeline:
     build:
       context: .
       dockerfile: microservices/data-pipeline/Dockerfile
-    container_name: xilian-data-pipeline
+    container_name: portai-data-pipeline
     environment:
       <<: *common-env
       SERVICE_NAME: data-pipeline
@@ -193,14 +193,14 @@ services:
       clickhouse:
         condition: service_healthy
     networks:
-      - xilian-net
+      - portai-network
     <<: [*restart-policy, *resource-limits-large]
 
   knowledge-service:
     build:
       context: .
       dockerfile: microservices/knowledge/Dockerfile
-    container_name: xilian-knowledge-service
+    container_name: portai-knowledge-service
     environment:
       <<: *common-env
       SERVICE_NAME: knowledge
@@ -224,14 +224,14 @@ services:
       qdrant:
         condition: service_started
     networks:
-      - xilian-net
+      - portai-network
     <<: [*restart-policy, *resource-limits-medium]
 
   monitoring-service:
     build:
       context: .
       dockerfile: microservices/monitoring/Dockerfile
-    container_name: xilian-monitoring-service
+    container_name: portai-monitoring-service
     environment:
       <<: *common-env
       SERVICE_NAME: monitoring
@@ -253,14 +253,14 @@ services:
       clickhouse:
         condition: service_healthy
     networks:
-      - xilian-net
+      - portai-network
     <<: [*restart-policy, *resource-limits-medium]
 
   infra-service:
     build:
       context: .
       dockerfile: microservices/infra/Dockerfile
-    container_name: xilian-infra-service
+    container_name: portai-infra-service
     environment:
       <<: *common-env
       SERVICE_NAME: infra
@@ -280,7 +280,7 @@ services:
       kafka:
         condition: service_healthy
     networks:
-      - xilian-net
+      - portai-network
     <<: [*restart-policy, *resource-limits-medium]
 
   # ============================================================
@@ -289,7 +289,7 @@ services:
 
   mysql:
     image: mysql:8.0
-    container_name: xilian-mysql
+    container_name: portai-mysql
     environment:
       MYSQL_ROOT_PASSWORD: xilian_root
       MYSQL_DATABASE: xilian_platform
@@ -304,12 +304,12 @@ services:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uxilian", "-pxilian_secret"]
       <<: *healthcheck-defaults
     networks:
-      - xilian-net
+      - portai-network
     <<: [*restart-policy, *resource-limits-medium]
 
   redis:
     image: redis:7-alpine
-    container_name: xilian-redis
+    container_name: portai-redis
     command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
     ports:
       - "6379:6379"
@@ -319,24 +319,24 @@ services:
       test: ["CMD", "redis-cli", "ping"]
       <<: *healthcheck-defaults
     networks:
-      - xilian-net
+      - portai-network
     <<: [*restart-policy, *resource-limits-small]
 
   zookeeper:
     image: confluentinc/cp-zookeeper:7.5.0
-    container_name: xilian-zookeeper
+    container_name: portai-zookeeper
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
     volumes:
       - zookeeper-data:/var/lib/zookeeper/data
     networks:
-      - xilian-net
+      - portai-network
     <<: [*restart-policy, *resource-limits-small]
 
   kafka:
     image: confluentinc/cp-kafka:7.5.0
-    container_name: xilian-kafka
+    container_name: portai-kafka
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
@@ -360,12 +360,12 @@ services:
     depends_on:
       - zookeeper
     networks:
-      - xilian-net
+      - portai-network
     <<: [*restart-policy, *resource-limits-medium]
 
   clickhouse:
     image: clickhouse/clickhouse-server:24.1
-    container_name: xilian-clickhouse
+    container_name: portai-clickhouse
     environment:
       CLICKHOUSE_DB: xilian_ts
       CLICKHOUSE_USER: xilian
@@ -380,12 +380,12 @@ services:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:8123/ping"]
       <<: *healthcheck-defaults
     networks:
-      - xilian-net
+      - portai-network
     <<: [*restart-policy, *resource-limits-large]
 
   neo4j:
     image: neo4j:5.15-community
-    container_name: xilian-neo4j
+    container_name: portai-neo4j
     environment:
       NEO4J_AUTH: neo4j/xilian_neo4j
       NEO4J_PLUGINS: '["apoc"]'
@@ -400,24 +400,24 @@ services:
       test: ["CMD", "cypher-shell", "-u", "neo4j", "-p", "xilian_neo4j", "RETURN 1"]
       <<: *healthcheck-defaults
     networks:
-      - xilian-net
+      - portai-network
     <<: [*restart-policy, *resource-limits-medium]
 
   qdrant:
     image: qdrant/qdrant:v1.7.4
-    container_name: xilian-qdrant
+    container_name: portai-qdrant
     ports:
       - "6333:6333"
       - "6334:6334"
     volumes:
       - qdrant-data:/qdrant/storage
     networks:
-      - xilian-net
+      - portai-network
     <<: [*restart-policy, *resource-limits-small]
 
   minio:
     image: minio/minio:latest
-    container_name: xilian-minio
+    container_name: portai-minio
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: xilian_minio
@@ -431,12 +431,12 @@ services:
       test: ["CMD", "mc", "ready", "local"]
       <<: *healthcheck-defaults
     networks:
-      - xilian-net
+      - portai-network
     <<: [*restart-policy, *resource-limits-small]
 
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
-    container_name: xilian-elasticsearch
+    container_name: portai-elasticsearch
     environment:
       - discovery.type=single-node
       - xpack.security.enabled=false
@@ -449,7 +449,7 @@ services:
       test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
       <<: *healthcheck-defaults
     networks:
-      - xilian-net
+      - portai-network
     <<: [*restart-policy, *resource-limits-medium]
 
   # ============================================================
@@ -458,7 +458,7 @@ services:
 
   prometheus:
     image: prom/prometheus:v2.48.0
-    container_name: xilian-prometheus
+    container_name: portai-prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
@@ -471,12 +471,12 @@ services:
       - ./docker/prometheus/alert-rules.yml:/etc/prometheus/alert-rules.yml:ro
       - prometheus-data:/prometheus
     networks:
-      - xilian-net
+      - portai-network
     <<: [*restart-policy, *resource-limits-small]
 
   grafana:
     image: grafana/grafana:10.2.0
-    container_name: xilian-grafana
+    container_name: portai-grafana
     environment:
       GF_SECURITY_ADMIN_USER: admin
       GF_SECURITY_ADMIN_PASSWORD: xilian_grafana
@@ -491,12 +491,12 @@ services:
       - prometheus
       - loki
     networks:
-      - xilian-net
+      - portai-network
     <<: [*restart-policy, *resource-limits-small]
 
   jaeger:
     image: jaegertracing/all-in-one:1.52
-    container_name: xilian-jaeger
+    container_name: portai-jaeger
     environment:
       COLLECTOR_OTLP_ENABLED: 'true'
       SPAN_STORAGE_TYPE: badger
@@ -511,24 +511,24 @@ services:
     volumes:
       - jaeger-data:/badger
     networks:
-      - xilian-net
+      - portai-network
     <<: [*restart-policy, *resource-limits-small]
 
   loki:
     image: grafana/loki:2.9.3
-    container_name: xilian-loki
+    container_name: portai-loki
     command: -config.file=/etc/loki/local-config.yaml
     ports:
       - "3101:3100"
     volumes:
       - loki-data:/loki
     networks:
-      - xilian-net
+      - portai-network
     <<: [*restart-policy, *resource-limits-small]
 
   alertmanager:
     image: prom/alertmanager:v0.26.0
-    container_name: xilian-alertmanager
+    container_name: portai-alertmanager
     command:
       - '--config.file=/etc/alertmanager/alertmanager.yml'
       - '--storage.path=/alertmanager'
@@ -538,7 +538,7 @@ services:
       - ./docker/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
       - alertmanager-data:/alertmanager
     networks:
-      - xilian-net
+      - portai-network
     <<: [*restart-policy, *resource-limits-small]
 
 # ============================================================
@@ -580,7 +580,7 @@ volumes:
 # ============================================================
 
 networks:
-  xilian-net:
+  portai-network:
     driver: bridge
     ipam:
       config:
