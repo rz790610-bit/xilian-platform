@@ -315,6 +315,16 @@ async function startServer() {
     }).catch(err => {
       log.error('[Algorithm] Failed to load algorithm service:', err.message);
     });
+
+    // v4.0 启动数据动脉全链路
+    // 边缘网关 → Kafka(telemetry.raw) → 特征提取 → Kafka(telemetry.feature) → ClickHouse
+    import('../services/data-artery.bootstrap').then(({ startDataArtery }) => {
+      startDataArtery().catch(err => {
+        log.error('[DataArtery] Failed to start data artery:', err.message);
+      });
+    }).catch(err => {
+      log.error('[DataArtery] Failed to load data artery bootstrap:', err.message);
+    });
   });
 }
 
