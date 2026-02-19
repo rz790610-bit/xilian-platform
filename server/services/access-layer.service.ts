@@ -19,7 +19,10 @@ import { protocolAdapters } from "./protocol-adapters";
 import { createModuleLogger } from '../core/logger';
 const log = createModuleLogger('access-layer');
 
-// ============ 自动建表 ============
+// ============ 自动建表（运行时兜底） ============
+// 注意：这三张表的权威定义在 drizzle/schema.ts 中。
+// 此处使用 CREATE TABLE IF NOT EXISTS 作为运行时兜底，确保即使未执行 drizzle migrate 也能正常工作。
+// 生产环境应通过 drizzle migrate 或 docker/mysql/init/01-schema.sql 统一建表。
 let _tablesEnsured = false;
 async function ensureAccessLayerTables(db: NonNullable<Awaited<ReturnType<typeof getDb>>>) {
   if (_tablesEnsured) return;
