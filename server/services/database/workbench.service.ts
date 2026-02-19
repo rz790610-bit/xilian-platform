@@ -18,6 +18,40 @@ import { getDb } from "../../lib/db";
 import { createModuleLogger } from '../../core/logger';
 const log = createModuleLogger('workbench');
 
+// P0 修复：统一的标识符验证（表名、列名）
+const SAFE_IDENTIFIER = /^[a-zA-Z_][a-zA-Z0-9_]{0,63}$/;
+function validateIdentifier(name: string, type: 'table' | 'column'): void {
+  if (!SAFE_IDENTIFIER.test(name)) {
+    throw new Error(`[Workbench] Invalid ${type} name: "${name}" — only [a-zA-Z0-9_] allowed, max 64 chars`);
+  }
+}
+
+// P0 修复：SQL 工作台危险操作黑名单
+const DANGEROUS_SQL_PATTERNS = [
+  /DROP\s+DATABASE/i,
+  /DROP\s+SCHEMA/i,
+  /GRANT\s/i,
+  /REVOKE\s/i,
+  /CREATE\s+USER/i,
+  /ALTER\s+USER/i,
+  /DROP\s+USER/i,
+  /LOAD\s+DATA/i,
+  /INTO\s+OUTFILE/i,
+  /INTO\s+DUMPFILE/i,
+];
+function validateWorkbenchQuery(query: string): void {
+  for (const pattern of DANGEROUS_SQL_PATTERNS) {
+    if (pattern.test(query)) {
+      throw new Error(`[Workbench] Forbidden SQL pattern detected: ${pattern.source}`);
+    }
+  }
+  // 禁止多语句执行（分号分隔）
+  const trimmed = query.trim().replace(/;\s*$/, ''); // 允许末尾分号
+  if (trimmed.includes(';')) {
+    throw new Error('[Workbench] Multi-statement execution is not allowed');
+  }
+}
+
 // ============ 类型定义 ============
 
 export interface ConnectionStatus {
@@ -950,11 +984,9 @@ export const sqlService = {
     const start = Date.now();
 
     try {
-      // 安全检查
+      // P0 加固：统一危险 SQL 黑名单检查
+      validateWorkbenchQuery(query);
       const upperQuery = query.trim().toUpperCase();
-      if (upperQuery.startsWith('DROP DATABASE') || upperQuery.startsWith('DROP SCHEMA')) {
-        return { type: 'error', executionTime: 0, error: '禁止删除数据库' };
-      }
 
       const result = await db.execute(sql.raw(query));
       const executionTime = Date.now() - start;

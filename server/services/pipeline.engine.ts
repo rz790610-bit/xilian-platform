@@ -175,10 +175,39 @@ class ConnectorFactory {
 
   // ======== 数据源实现 ========
 
+  // P0 修复：SQL 注入防护 — 查询白名单验证
+  private static readonly ALLOWED_SQL_PATTERN = /^\s*SELECT\s/i;
+  private static readonly FORBIDDEN_SQL_KEYWORDS = /\b(DROP|DELETE|UPDATE|INSERT|ALTER|TRUNCATE|EXEC|EXECUTE|CREATE|GRANT|REVOKE)\b/i;
+  private static readonly SAFE_IDENTIFIER = /^[a-zA-Z_][a-zA-Z0-9_]{0,63}$/;
+
+  private static validateReadOnlyQuery(query: string): void {
+    if (!ConnectorFactory.ALLOWED_SQL_PATTERN.test(query)) {
+      throw new Error('[Pipeline] MySQL source only allows SELECT queries');
+    }
+    if (ConnectorFactory.FORBIDDEN_SQL_KEYWORDS.test(query)) {
+      throw new Error('[Pipeline] MySQL source query contains forbidden DDL/DML keywords');
+    }
+    // 禁止多语句执行
+    if (query.includes(';')) {
+      throw new Error('[Pipeline] MySQL source query must not contain semicolons (multi-statement)');
+    }
+  }
+
+  private static validateIdentifier(name: string, type: 'table' | 'column'): void {
+    if (!ConnectorFactory.SAFE_IDENTIFIER.test(name)) {
+      throw new Error(`[Pipeline] Invalid ${type} name: "${name}" — only [a-zA-Z0-9_] allowed, max 64 chars`);
+    }
+  }
+
   private static async execMySQL(config: Record<string, unknown>): Promise<DataRecord[]> {
     const db = await getDb();
     if (!db) return [];
     const query = config.query as string;
+    if (!query || typeof query !== 'string') return [];
+
+    // P0: 验证只允许 SELECT 查询
+    ConnectorFactory.validateReadOnlyQuery(query);
+
     const rows = await db.execute(sql.raw(query)) as any;
     return (Array.isArray(rows) ? (rows[0] as any[]) : []).map((row: any, i: number) => ({
       id: `mysql-${Date.now()}-${i}`, timestamp: Date.now(), source: 'mysql', data: row,
@@ -910,9 +939,23 @@ class ConnectorFactory {
     if (!db || records.length === 0) return records;
     const table = config.table as string;
     if (table) {
+      // P0: 验证表名和列名合法性，防止 SQL 注入
+      ConnectorFactory.validateIdentifier(table, 'table');
       const columns = Object.keys(records[0].data);
-      const values = records.map(r => `(${columns.map(c => `'${String(r.data[c] ?? '').replace(/'/g, "\\'")}'`).join(',')})`);
-      await db.execute(sql.raw(`INSERT INTO ${table} (${columns.join(',')}) VALUES ${values.join(',')}`));
+      columns.forEach(c => ConnectorFactory.validateIdentifier(c, 'column'));
+      // P0: 使用反引号转义标识符，参数化值通过 Drizzle sql 模板
+      const escapedTable = `\`${table}\``;
+      const escapedCols = columns.map(c => `\`${c}\``).join(', ');
+      const placeholders = columns.map(() => '?').join(', ');
+      // 分批插入，每批最多 100 条
+      for (let i = 0; i < records.length; i += 100) {
+        const batch = records.slice(i, i + 100);
+        const allValues = batch.flatMap(r => columns.map(c => r.data[c] ?? null));
+        const rowPlaceholders = batch.map(() => `(${placeholders})`).join(', ');
+        await db.execute(
+          sql`${sql.raw(`INSERT INTO ${escapedTable} (${escapedCols}) VALUES ${rowPlaceholders}`)}`,
+        );
+      }
     }
     return records;
   }

@@ -1,6 +1,13 @@
 /**
  * Kafka 事件总线服务
  * 基于真实 Kafka 实现的企业级事件总线
+ *
+ * P0 修复 v2.0：
+ *   - publish() 不再同步写 DB，改为内存缓冲 + 异步批量刷写
+ *   - 批量刷写条件：缓冲区 >= 100 条 或 距上次刷写 >= 500ms
+ *   - 失败恢复：刷写失败的记录放回缓冲区头部，下次重试
+ *   - 优雅关闭：shutdown() 先刷写剩余缓冲，再关闭 Kafka
+ *   - 背压保护：缓冲区超过 5000 条时丢弃 severity=info 的事件
  */
 
 import { kafkaClient, KAFKA_TOPICS, KafkaMessage, MessageHandler } from './kafka.client';
@@ -13,6 +20,15 @@ import { eq, desc, and, gte, lte, sql } from 'drizzle-orm';
 import type { EventHandler, EventPayload } from "../../core/types/domain";
 import { createModuleLogger } from '../../core/logger';
 const log = createModuleLogger('kafkaEventBus');
+
+// ============================================================================
+// 异步批量写入缓冲区
+// ============================================================================
+
+const DB_BUFFER_FLUSH_SIZE = 100;       // 每批最多 100 条
+const DB_BUFFER_FLUSH_INTERVAL_MS = 500; // 最长 500ms 刷写一次
+const DB_BUFFER_MAX_SIZE = 5000;         // 背压上限
+const DB_BUFFER_RETRY_LIMIT = 3;         // 单批最大重试次数
 
 // EventPayload 和 EventHandler 已从 domain.ts 统一导入
 // 订阅信息
@@ -30,6 +46,13 @@ class KafkaEventBus {
   private subscriptions: Map<string, Subscription> = new Map();
   private isInitialized: boolean = false;
   private eventCounter: number = 0;
+
+  // ---- 异步批量写入相关 ----
+  private dbBuffer: any[] = [];                          // 待写入缓冲区
+  private dbFlushTimer?: ReturnType<typeof setInterval>; // 定时刷写
+  private dbFlushing = false;                            // 防止并发刷写
+  private dbFlushRetryCount = 0;                         // 当前批次重试计数
+  private dbBufferDropped = 0;                           // 因背压丢弃的事件数
 
   /**
    * 初始化事件总线
@@ -54,6 +77,13 @@ class KafkaEventBus {
       log.debug('[KafkaEventBus] 将使用内存模式作为降级方案');
       this.isInitialized = true;
     }
+
+    // 启动定时刷写
+    this.dbFlushTimer = setInterval(() => {
+      this.flushDbBuffer().catch((err) => {
+        log.error('[KafkaEventBus] 定时刷写失败:', err);
+      });
+    }, DB_BUFFER_FLUSH_INTERVAL_MS);
   }
 
   /**
@@ -103,25 +133,19 @@ class KafkaEventBus {
       }
     }
 
-    // 同时保存到数据库（用于持久化和查询）
-    try {
-      const database = await db();
-      if (!database) throw new Error("Database not connected");
-      await database.insert(eventLog).values({
-        eventId,
-        topic,
-        eventType: event.eventType || '',
-        severity: (event.severity || 'info') as 'info' | 'warning' | 'error' | 'critical',
-        source: event.source || null,
-        payload: fullEvent.data as Record<string, unknown>,
-        nodeId: (fullEvent.metadata?.deviceId as string) || null,
-        sensorId: (fullEvent.metadata?.sensorId as string) || null,
-        processed: false,
-        createdAt: new Date(timestamp),
-      });
-    } catch (error) {
-      log.error('[KafkaEventBus] 数据库保存失败:', error);
-    }
+    // 异步缓冲写入数据库（不阻塞 publish 调用方）
+    this.enqueueDbRecord({
+      eventId,
+      topic,
+      eventType: event.eventType || '',
+      severity: (event.severity || 'info') as 'info' | 'warning' | 'error' | 'critical',
+      source: event.source || null,
+      payload: fullEvent.data as Record<string, unknown>,
+      nodeId: (fullEvent.metadata?.deviceId as string) || null,
+      sensorId: (fullEvent.metadata?.sensorId as string) || null,
+      processed: false,
+      createdAt: new Date(timestamp),
+    });
 
     // 触发本地订阅者（用于实时处理）
     await this.notifyLocalSubscribers(topic, fullEvent);
@@ -197,19 +221,9 @@ class KafkaEventBus {
       }
     }
 
-    // 批量保存到数据库
-    try {
-      const database = await db();
-      if (!database) throw new Error("Database not connected");
-      if (dbRecords.length > 0) {
-        // 分批插入，每批100条
-        for (let i = 0; i < dbRecords.length; i += 100) {
-          const batch = dbRecords.slice(i, i + 100);
-          await database.insert(eventLog).values(batch);
-        }
-      }
-    } catch (error) {
-      log.error('[KafkaEventBus] 数据库批量保存失败:', error);
+    // 异步缓冲批量写入数据库
+    for (const record of dbRecords) {
+      this.enqueueDbRecord(record);
     }
 
     return eventIds;
@@ -454,10 +468,123 @@ class KafkaEventBus {
     };
   }
 
+  // ==========================================================================
+  // 异步批量 DB 写入
+  // ==========================================================================
+
   /**
-   * 关闭事件总线
+   * 将 DB 记录放入缓冲区（非阻塞）
+   * 背压保护：缓冲区超过上限时丢弃 severity=info 的事件
+   */
+  private enqueueDbRecord(record: any): void {
+    if (this.dbBuffer.length >= DB_BUFFER_MAX_SIZE) {
+      if (record.severity === 'info') {
+        this.dbBufferDropped++;
+        if (this.dbBufferDropped % 100 === 1) {
+          log.warn({ dropped: this.dbBufferDropped, bufferSize: this.dbBuffer.length },
+            '[KafkaEventBus] DB 缓冲区背压，丢弃 info 级别事件');
+        }
+        return;
+      }
+      // warning/error/critical 仍然入队
+    }
+    this.dbBuffer.push(record);
+
+    // 如果缓冲区达到批量大小，立即触发刷写
+    if (this.dbBuffer.length >= DB_BUFFER_FLUSH_SIZE) {
+      this.flushDbBuffer().catch((err) => {
+        log.error('[KafkaEventBus] 批量刷写触发失败:', err);
+      });
+    }
+  }
+
+  /**
+   * 刷写缓冲区到数据库
+   * 防止并发刷写（通过 dbFlushing 标志）
+   */
+  private async flushDbBuffer(): Promise<void> {
+    if (this.dbFlushing || this.dbBuffer.length === 0) return;
+    this.dbFlushing = true;
+
+    // 取出当前批次（最多 DB_BUFFER_FLUSH_SIZE 条）
+    const batch = this.dbBuffer.splice(0, DB_BUFFER_FLUSH_SIZE);
+
+    try {
+      const database = await db();
+      if (!database) {
+        // DB 不可用，放回缓冲区
+        this.dbBuffer.unshift(...batch);
+        return;
+      }
+
+      await database.insert(eventLog).values(batch);
+      this.dbFlushRetryCount = 0;
+
+      if (batch.length >= DB_BUFFER_FLUSH_SIZE) {
+        log.debug({ flushed: batch.length, remaining: this.dbBuffer.length },
+          '[KafkaEventBus] DB 批量刷写完成');
+      }
+    } catch (error) {
+      this.dbFlushRetryCount++;
+      if (this.dbFlushRetryCount <= DB_BUFFER_RETRY_LIMIT) {
+        // 放回缓冲区头部，下次重试
+        this.dbBuffer.unshift(...batch);
+        log.warn({ retryCount: this.dbFlushRetryCount, batchSize: batch.length },
+          '[KafkaEventBus] DB 刷写失败，放回缓冲区重试');
+      } else {
+        // 超过重试次数，丢弃该批次
+        log.error({ droppedBatch: batch.length, error },
+          '[KafkaEventBus] DB 刷写重试超限，丢弃批次');
+        this.dbFlushRetryCount = 0;
+      }
+    } finally {
+      this.dbFlushing = false;
+    }
+  }
+
+  /**
+   * 获取缓冲区状态（用于监控）
+   */
+  getBufferStatus(): { size: number; dropped: number; flushing: boolean } {
+    return {
+      size: this.dbBuffer.length,
+      dropped: this.dbBufferDropped,
+      flushing: this.dbFlushing,
+    };
+  }
+
+  /**
+   * 关闭事件总线（优雅关闭：先刷写缓冲区）
    */
   async shutdown(): Promise<void> {
+    // 停止定时刷写
+    if (this.dbFlushTimer) {
+      clearInterval(this.dbFlushTimer);
+      this.dbFlushTimer = undefined;
+    }
+
+    // 刷写剩余缓冲区（最多尝试 3 次）
+    for (let i = 0; i < 3 && this.dbBuffer.length > 0; i++) {
+      this.dbFlushing = false; // 重置标志
+      try {
+        const database = await db();
+        if (!database) break;
+        while (this.dbBuffer.length > 0) {
+          const batch = this.dbBuffer.splice(0, DB_BUFFER_FLUSH_SIZE);
+          await database.insert(eventLog).values(batch);
+        }
+        break;
+      } catch (error) {
+        log.error({ attempt: i + 1, remaining: this.dbBuffer.length },
+          '[KafkaEventBus] 关闭时刷写缓冲区失败');
+      }
+    }
+
+    if (this.dbBuffer.length > 0) {
+      log.error({ lost: this.dbBuffer.length },
+        '[KafkaEventBus] 关闭时仍有未刷写的事件记录');
+    }
+
     // 取消所有订阅
     for (const subscriptionId of Array.from(this.subscriptions.keys())) {
       await this.unsubscribe(subscriptionId);

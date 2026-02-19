@@ -7,7 +7,9 @@
  *   3. 新增管道管理：runs 查询、节点指标、血缘追踪、连接器类型
  */
 import { z } from 'zod';
-import { router, publicProcedure, protectedProcedure } from '../core/trpc';
+// P0 加固：Pipeline 路由全部改为 protectedProcedure
+import { router, protectedProcedure } from '../core/trpc';
+const publicProcedure = protectedProcedure;
 import { pipelineEngine, PipelineConfig } from '../services/pipeline.engine';
 import { ALL_NODE_TYPES } from '../../shared/pipelineTypes';
 import type { PipelineCategory, TriggerType } from '../../shared/pipelineTypes';

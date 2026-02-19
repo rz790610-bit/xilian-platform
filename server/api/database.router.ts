@@ -10,7 +10,10 @@
  * - event: 事件溯源（事件存储、快照）
  */
 import { z } from 'zod';
-import { router, publicProcedure } from "../core/trpc";
+// P0 加固：数据库路由全部改为 protectedProcedure，禁止未认证访问
+import { router, protectedProcedure } from "../core/trpc";
+// 兼容别名：避免大量文件修改，所有 publicProcedure 引用自动指向 protectedProcedure
+const publicProcedure = protectedProcedure;
 import { workbenchRouter } from "./workbench.router";
 import { assetNodeService, measurementPointService, assetSensorService } from '../services/database/asset.service';
 import { codeRuleService, nodeTemplateService, mpTemplateService, labelDimensionService, labelOptionService, dictService } from '../services/database/config.service';

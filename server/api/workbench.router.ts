@@ -10,7 +10,9 @@
  */
 
 import { z } from "zod";
-import { router, publicProcedure } from "../core/trpc";
+// P0 加固：工作台路由全部改为 protectedProcedure
+import { router, protectedProcedure } from "../core/trpc";
+const publicProcedure = protectedProcedure;
 import { connectionService, tableService, dataService, sqlService, moduleService } from "../services/database/workbench.service";
 import { checkAllStorageEngines } from "../services/database/storageHealth.service";
 

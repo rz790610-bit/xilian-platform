@@ -655,23 +655,63 @@ export interface KnowledgeCrystal {
 // 认知调度类型
 // ============================================================================
 
-/** 调度队列优先级 */
+/**
+ * 调度器配置
+ *
+ * 设计面向 100 设备 / 2000 测点 / 20 边缘端的工业场景：
+ *   - 正常运行 ~0.5 认知活动/秒（30/分钟）
+ *   - 异常高峰 ~3/秒（180/分钟）
+ *   - 极端场景 ~10/秒（600/分钟，20 边缘端同时上报）
+ */
 export interface SchedulerConfig {
-  /** 最大并发认知活动数 */
+  /** 基础最大并发认知活动数（降级模式下动态调整） */
   maxConcurrency: number;
-  /** 各优先级的配额 */
+
+  /** 各优先级的配额（每分钟） */
   quotas: Record<CognitionPriority, number>;
+
+  /** 各优先级的队列容量上限 */
+  maxQueueSize: Record<CognitionPriority, number>;
+
   /** 去重窗口（毫秒） */
   deduplicationWindowMs: number;
+
+  /** 去重 Map 自动清理间隔（毫秒），默认 = deduplicationWindowMs × 2 */
+  deduplicationCleanupIntervalMs?: number;
+
   /** 降级阈值 */
   degradationThresholds: {
-    /** CPU 使用率阈值 → 进入高压模式 */
+    /** CPU 使用率阈值 → 进入高压模式（0-1） */
     highPressureCpu: number;
     /** 队列深度阈值 → 进入高压模式 */
     highPressureQueueDepth: number;
-    /** CPU 使用率阈值 → 进入紧急模式 */
+    /** 内存使用率阈值 → 进入高压模式（0-1） */
+    highPressureMemory: number;
+    /** CPU 使用率阈值 → 进入紧急模式（0-1） */
     emergencyCpu: number;
     /** 队列深度阈值 → 进入紧急模式 */
     emergencyQueueDepth: number;
+    /** 内存使用率阈值 → 进入紧急模式（0-1） */
+    emergencyMemory: number;
+  };
+
+  /** 降级检查间隔（毫秒），默认 10000 */
+  degradationCheckIntervalMs: number;
+
+  /** 并发槽位在不同降级模式下的倍率 */
+  concurrencyMultipliers: {
+    normal: number;        // 默认 1.0
+    high_pressure: number; // 默认 1.5（临时扩容）
+    emergency: number;     // 默认 0.5（缩容保核心）
+  };
+
+  /** 重试配置 */
+  retry: {
+    /** 最大重试次数 */
+    maxRetries: number;
+    /** 基础退避时间（毫秒） */
+    baseBackoffMs: number;
+    /** 最大退避时间（毫秒） */
+    maxBackoffMs: number;
   };
 }

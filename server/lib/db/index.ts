@@ -1,5 +1,6 @@
 import { eq, and, like, desc, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
+import mysql from 'mysql2/promise';
 import { 
 
   InsertUser, users,
@@ -13,26 +14,86 @@ import { ENV } from '../../core/env';
 import { createModuleLogger } from '../../core/logger';
 const log = createModuleLogger('index');
 
+// ============================================================================
+// P0 修复：数据库连接池配置
+// ============================================================================
+// 原始代码使用 drizzle(DATABASE_URL) 默认单连接，无池化
+// 100 设备 / 2000 测点场景下，并发连接需求远超默认 10 个
+//
+// 连接池参数说明：
+//   connectionLimit: 50  — 最大连接数（MySQL 默认 max_connections=151，留余量给其他服务）
+//   waitForConnections: true — 连接池满时等待而非报错
+//   queueLimit: 200 — 等待队列上限，超过则报错（背压保护）
+//   idleTimeout: 30000 — 空闲连接 30s 后释放
+//   maxIdle: 10 — 最小保持 10 个空闲连接（避免冷启动）
+//   enableKeepAlive: true — TCP keepalive 防止连接被中间件断开
+//   keepAliveInitialDelay: 30000 — keepalive 初始延迟
+// ============================================================================
+
+let _pool: mysql.Pool | null = null;
 let _db: ReturnType<typeof drizzle> | null = null;
 
-// Lazily create the drizzle instance so local tooling can run without a DB.
+function createPool(): mysql.Pool {
+  const dbUrl = process.env.DATABASE_URL;
+  if (!dbUrl) throw new Error('[Database] DATABASE_URL is not set');
+
+  return mysql.createPool({
+    uri: dbUrl,
+    connectionLimit: parseInt(process.env.DB_POOL_MAX || '50', 10),
+    waitForConnections: true,
+    queueLimit: parseInt(process.env.DB_POOL_QUEUE_LIMIT || '200', 10),
+    idleTimeout: parseInt(process.env.DB_POOL_IDLE_TIMEOUT || '30000', 10),
+    maxIdle: parseInt(process.env.DB_POOL_MIN_IDLE || '10', 10),
+    enableKeepAlive: true,
+    keepAliveInitialDelay: 30_000,
+  });
+}
+
+// Lazily create the drizzle instance with connection pool.
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
-      _db = drizzle(process.env.DATABASE_URL);
+      _pool = createPool();
+      _db = drizzle(_pool);
+      log.info({
+        connectionLimit: parseInt(process.env.DB_POOL_MAX || '50', 10),
+        maxIdle: parseInt(process.env.DB_POOL_MIN_IDLE || '10', 10),
+        idleTimeout: parseInt(process.env.DB_POOL_IDLE_TIMEOUT || '30000', 10),
+      }, '[Database] Connection pool initialized');
     } catch (error) {
-      log.warn("[Database] Failed to connect:", error);
+      log.warn("[Database] Failed to create connection pool:", error);
+      _pool = null;
       _db = null;
     }
   }
   return _db;
 }
 
+/** 获取连接池状态（用于监控） */
+export function getPoolStatus(): { total: number; idle: number; waiting: number } | null {
+  if (!_pool) return null;
+  const pool = _pool as any;
+  return {
+    total: pool.pool?._allConnections?.length ?? 0,
+    idle: pool.pool?._freeConnections?.length ?? 0,
+    waiting: pool.pool?._connectionQueue?.length ?? 0,
+  };
+}
+
 /**
  * 重置数据库连接（一键启动 MySQL 后调用）
- * 清除缓存的连接实例，下次 getDb() 会用新的 DATABASE_URL 重新连接
+ * 先关闭现有连接池，再清除缓存实例
  */
-export function resetDb() {
+export async function resetDb() {
+  if (_pool) {
+    try {
+      await _pool.end();
+      log.info('[Database] Connection pool closed');
+    } catch (error) {
+      log.warn('[Database] Error closing pool:', error);
+    }
+    _pool = null;
+  }
   _db = null;
   log.info('[Database] Connection reset, will reconnect on next getDb() call');
 }

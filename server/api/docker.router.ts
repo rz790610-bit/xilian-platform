@@ -3,7 +3,8 @@
  * 提供容器生命周期管理 API + 一键启动全部核心环境
  */
 import { z } from 'zod';
-import { publicProcedure, router } from '../core/trpc';
+// P0 加固：Docker 路由全部改为 adminProcedure，禁止未认证访问
+import { adminProcedure, router } from '../core/trpc';
 import { dockerManager, ENGINE_REGISTRY } from '../services/docker/dockerManager.service';
 import { resetDb, getDb } from '../lib/db/index';
 import { createModuleLogger } from '../core/logger';
@@ -284,14 +285,14 @@ export const dockerRouter = router({
   /**
    * 检查 Docker Engine 连接状态
    */
-  checkConnection: publicProcedure.query(async () => {
+  checkConnection: adminProcedure.query(async () => {
     return dockerManager.checkConnection();
   }),
 
   /**
    * 列出所有 PortAI 引擎容器
    */
-  listEngines: publicProcedure.query(async () => {
+  listEngines: adminProcedure.query(async () => {
     try {
       const engines = await dockerManager.listEngines();
       return { success: true, engines };
@@ -303,7 +304,7 @@ export const dockerRouter = router({
   /**
    * 启动指定引擎
    */
-  startEngine: publicProcedure
+  startEngine: adminProcedure
     .input(z.object({ containerName: z.string() }))
     .mutation(async ({ input }) => {
       return dockerManager.startEngine(input.containerName);
@@ -312,7 +313,7 @@ export const dockerRouter = router({
   /**
    * 停止指定引擎
    */
-  stopEngine: publicProcedure
+  stopEngine: adminProcedure
     .input(z.object({ containerName: z.string() }))
     .mutation(async ({ input }) => {
       return dockerManager.stopEngine(input.containerName);
@@ -321,7 +322,7 @@ export const dockerRouter = router({
   /**
    * 重启指定引擎
    */
-  restartEngine: publicProcedure
+  restartEngine: adminProcedure
     .input(z.object({ containerName: z.string() }))
     .mutation(async ({ input }) => {
       return dockerManager.restartEngine(input.containerName);
@@ -330,7 +331,7 @@ export const dockerRouter = router({
   /**
    * 一键启动所有引擎
    */
-  startAll: publicProcedure.mutation(async () => {
+  startAll: adminProcedure.mutation(async () => {
     const results = await dockerManager.startAll();
     const successCount = results.filter(r => r.success).length;
     return {
@@ -345,7 +346,7 @@ export const dockerRouter = router({
   /**
    * 一键停止所有引擎（保留 MySQL）
    */
-  stopAll: publicProcedure
+  stopAll: adminProcedure
     .input(z.object({ keepMySQL: z.boolean().optional().default(true) }).optional())
     .mutation(async ({ input }) => {
       const results = await dockerManager.stopAll(input?.keepMySQL ?? true);
@@ -362,7 +363,7 @@ export const dockerRouter = router({
   /**
    * 获取引擎日志
    */
-  getEngineLogs: publicProcedure
+  getEngineLogs: adminProcedure
     .input(z.object({
       containerName: z.string(),
       tail: z.number().optional().default(100),
@@ -379,7 +380,7 @@ export const dockerRouter = router({
   /**
    * 获取引擎资源统计
    */
-  getEngineStats: publicProcedure
+  getEngineStats: adminProcedure
     .input(z.object({ containerName: z.string() }))
     .query(async ({ input }) => {
       return dockerManager.getEngineStats(input.containerName);
@@ -390,7 +391,7 @@ export const dockerRouter = router({
    * 智能检测：优先检测本地服务（brew services 等），不通才回退 Docker 启动
    * 流程：检测/启动服务 → 配置环境变量 → 等待就绪 → 后置初始化（迁移/种子数据）
    */
-  bootstrapAll: publicProcedure.mutation(async () => {
+  bootstrapAll: adminProcedure.mutation(async () => {
     const services = getCoreServices();
     const allSteps: { service: string; icon: string; steps: BootstrapStep[] }[] = [];
 
@@ -471,7 +472,7 @@ export const dockerRouter = router({
    * 启动单个可选服务（Ollama/Neo4j/Prometheus/Grafana）
    * 仅启动容器 + 配置环境变量，不做复杂初始化
    */
-  bootstrapOptionalService: publicProcedure
+  bootstrapOptionalService: adminProcedure
     .input(z.object({ containerName: z.string() }))
     .mutation(async ({ input }) => {
       const steps: BootstrapStep[] = [];
