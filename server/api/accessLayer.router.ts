@@ -12,6 +12,7 @@ const protocolTypeEnum = z.enum(PROTOCOL_TYPES);
 export const accessLayerRouter = router({
   // ============ 演示数据种子 ============
   seedDemoData: publicProcedure.mutation(() => alService.seedDemoData()),
+  batchHealthCheck: publicProcedure.mutation(() => alService.batchHealthCheck()),
   // ============ 统计 ============
   getStats: publicProcedure.query(() => alService.getStats()),
 

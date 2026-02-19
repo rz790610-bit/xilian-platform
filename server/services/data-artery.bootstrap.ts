@@ -128,6 +128,16 @@ export async function startDataArtery(): Promise<void> {
   log.info('[DataArtery] ═══════════════════════════════════════');
   log.info('[DataArtery] 数据动脉启动完成');
   log.info('[DataArtery] ═══════════════════════════════════════');
+
+  // ---- 第 4 层：连接器定时健康巡检 ----
+  try {
+    const { startConnectorHealthCheck } = await import('../jobs/connectorHealthCheck.job');
+    startConnectorHealthCheck(60_000); // 每 60 秒巡检一次
+    log.info('[DataArtery] ✓ Layer 4: 连接器健康巡检已启动 (60s 间隔)');
+  } catch (error) {
+    log.error('[DataArtery] ✗ Layer 4: 连接器健康巡检启动失败:', error);
+    log.warn('[DataArtery] 数据动脉降级运行：连接器状态将不会自动更新');
+  }
 }
 
 /**
@@ -136,6 +146,13 @@ export async function startDataArtery(): Promise<void> {
  */
 export async function stopDataArtery(): Promise<void> {
   log.info('[DataArtery] 正在关闭数据动脉...');
+
+  // 先停止连接器巡检
+  try {
+    const { stopConnectorHealthCheck } = await import('../jobs/connectorHealthCheck.job');
+    stopConnectorHealthCheck();
+    log.info('[DataArtery] ✓ Layer 4: 连接器健康巡检已停止');
+  } catch { /* 服务未加载 */ }
 
   // 上游先关闭
   try {

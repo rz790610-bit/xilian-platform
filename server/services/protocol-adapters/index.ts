@@ -1,8 +1,13 @@
 /**
  * 协议适配器统一注册表
  * 
- * 所有 15 个协议适配器均基于 BaseAdapter 抽象类实现，
+ * 所有 18 个协议适配器均基于 BaseAdapter 抽象类实现，
  * 提供真实的连接测试、资源发现、健康检查能力。
+ * 
+ * 工业协议（6个）：MQTT, OPC-UA, Modbus, EtherNet/IP, PROFINET, EtherCAT
+ * 数据库（6个）：MySQL, PostgreSQL, ClickHouse, InfluxDB, Redis, Neo4j
+ * 存储/消息（3个）：Qdrant, Kafka, MinIO
+ * API 协议（3个）：HTTP, gRPC, WebSocket
  * 
  * 架构：BaseAdapter → 具体适配器 → 注册表 → 服务层
  */
@@ -26,6 +31,9 @@ import { MinioAdapter } from "./minio.adapter";
 import { HttpAdapter } from "./http.adapter";
 import { GrpcAdapter } from "./grpc.adapter";
 import { WebSocketAdapter } from "./websocket.adapter";
+import { EthernetIpAdapter } from "./ethernetip.adapter";
+import { ProfinetAdapter } from "./profinet.adapter";
+import { EthercatAdapter } from "./ethercat.adapter";
 
 // ============ 实例化所有适配器 ============
 const mqttAdapter = new MqttAdapter();
@@ -43,6 +51,9 @@ const minioAdapter = new MinioAdapter();
 const httpAdapter = new HttpAdapter();
 const grpcAdapter = new GrpcAdapter();
 const websocketAdapter = new WebSocketAdapter();
+const ethernetIpAdapter = new EthernetIpAdapter();
+const profinetAdapter = new ProfinetAdapter();
+const ethercatAdapter = new EthercatAdapter();
 
 // ============ 统一注册表 ============
 export const protocolAdapters: Record<string, ProtocolAdapter> = {
@@ -50,6 +61,9 @@ export const protocolAdapters: Record<string, ProtocolAdapter> = {
   mqtt: mqttAdapter,
   opcua: opcuaAdapter,
   modbus: modbusAdapter,
+  'ethernet-ip': ethernetIpAdapter,
+  profinet: profinetAdapter,
+  ethercat: ethercatAdapter,
   // 关系型数据库
   mysql: mysqlAdapter,
   postgresql: postgresqlAdapter,
@@ -96,7 +110,7 @@ export function getAllAdapterMetrics() {
 
 /** 按分类获取适配器 */
 export const adapterCategories = {
-  industrial: ['mqtt', 'opcua', 'modbus'] as ProtocolType[],
+  industrial: ['mqtt', 'opcua', 'modbus', 'ethernet-ip', 'profinet', 'ethercat'] as ProtocolType[],
   relational: ['mysql', 'postgresql'] as ProtocolType[],
   analytical: ['clickhouse'] as ProtocolType[],
   timeseries: ['influxdb'] as ProtocolType[],

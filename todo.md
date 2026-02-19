@@ -204,3 +204,31 @@
 - [x] 问题 23: MQTT 改为手动 ack 模式 — gateway-kafka-bridge.service.ts
 - [x] 问题 25: 去重 Set 改为 LRU 策略 — telemetryClickhouseSink.service.ts
 - [x] 问题 26: 编排器关闭改为轮询检查缓冲区 — data-artery.bootstrap.ts
+
+## 八、接入层协议全面审计
+
+### 8.1 协议适配器完整度
+- [ ] 扫描所有适配器文件，确认 15 个协议全部存在
+- [ ] 检查 BaseAdapter 抽象类的接口完整性
+- [ ] 检查每个适配器的 configSchema 完整性
+- [ ] 检查每个适配器的 doTestConnection 实现
+- [ ] 检查每个适配器的 doDiscoverResources 实现
+- [ ] 检查每个适配器的 doHealthCheck 实现
+
+### 8.2 前端配置界面
+- [ ] AccessLayerManager 动态加载协议列表
+- [ ] 新建连接器对话框表单渲染
+- [ ] 连接测试流程完整性
+- [ ] 资源发现流程完整性
+- [ ] 高级配置折叠区域
+
+### 8.3 后端路由
+- [ ] accessLayer.router.ts CRUD 端点完整性
+- [ ] 协议注册中心 API
+- [ ] 连接器持久化逻辑
+
+### 8.4 工业环境适配
+- [ ] 超时/重连/降级策略
+- [ ] TLS/mTLS 安全配置
+- [ ] 连接池管理
+- [ ] 错误分类和恢复

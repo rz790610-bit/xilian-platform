@@ -6,7 +6,7 @@
 // ============ 协议枚举 ============
 
 export const PROTOCOL_TYPES = [
-  'mqtt', 'opcua', 'modbus',
+  'mqtt', 'opcua', 'modbus', 'ethernet-ip', 'profinet', 'ethercat',
   'mysql', 'postgresql', 'kafka', 'clickhouse',
   'redis', 'neo4j', 'minio', 'influxdb', 'qdrant',
   'http', 'grpc', 'websocket',
@@ -14,7 +14,7 @@ export const PROTOCOL_TYPES = [
 export type ProtocolType = typeof PROTOCOL_TYPES[number];
 
 export const PROTOCOL_CATEGORIES: Record<string, { label: string; protocols: ProtocolType[] }> = {
-  industrial: { label: '工业协议', protocols: ['mqtt', 'opcua', 'modbus'] },
+  industrial: { label: '工业协议', protocols: ['mqtt', 'opcua', 'modbus', 'ethernet-ip', 'profinet', 'ethercat'] },
   database: { label: '数据库', protocols: ['mysql', 'postgresql', 'clickhouse', 'influxdb', 'redis', 'neo4j', 'qdrant'] },
   messaging: { label: '消息队列', protocols: ['kafka'] },
   storage: { label: '对象存储', protocols: ['minio'] },
@@ -25,6 +25,9 @@ export const PROTOCOL_META: Record<ProtocolType, { label: string; icon: string; 
   mqtt: { label: 'MQTT', icon: '📡', description: 'IoT 传感器实时数据流', category: 'industrial' },
   opcua: { label: 'OPC-UA', icon: '🏭', description: 'PLC/DCS 工业控制数据', category: 'industrial' },
   modbus: { label: 'Modbus', icon: '⚙️', description: '传统工控设备寄存器', category: 'industrial' },
+  'ethernet-ip': { label: 'EtherNet/IP', icon: '🔌', description: 'Allen-Bradley/Rockwell PLC CIP 协议', category: 'industrial' },
+  profinet: { label: 'PROFINET', icon: '🛠️', description: '西门子 S7 PLC 实时通信', category: 'industrial' },
+  ethercat: { label: 'EtherCAT', icon: '⚡', description: '高性能运动控制与伺服驱动', category: 'industrial' },
   mysql: { label: 'MySQL', icon: '🐬', description: '关系型数据库', category: 'database' },
   postgresql: { label: 'PostgreSQL', icon: '🐘', description: '高级关系型数据库', category: 'database' },
   kafka: { label: 'Kafka', icon: '📨', description: '事件流/日志聚合', category: 'messaging' },
@@ -202,7 +205,7 @@ export interface HealthCheckResult {
 export interface ProtocolConfigField {
   key: string;
   label: string;
-  type: 'string' | 'number' | 'boolean' | 'select' | 'password' | 'json';
+  type: 'string' | 'number' | 'boolean' | 'select' | 'password' | 'json' | 'textarea';
   required: boolean;
   defaultValue?: unknown;
   placeholder?: string;

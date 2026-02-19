@@ -665,6 +665,45 @@ export function listCategories() {
   return Object.fromEntries(categoryMap.entries());
 }
 
+// ============ 批量健康检查 ============
+
+export async function batchHealthCheck(): Promise<{ total: number; healthy: number; unhealthy: number; results: Array<{ connectorId: string; name: string; status: string; message: string; latencyMs: number }> }> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await ensureAccessLayerTables(db);
+
+  const allConnectors = await db.select().from(dataConnectors).all();
+  const results: Array<{ connectorId: string; name: string; status: string; message: string; latencyMs: number }> = [];
+  let healthy = 0;
+  let unhealthy = 0;
+
+  for (const conn of allConnectors) {
+    try {
+      const result = await healthCheck(conn.connectorId);
+      results.push({
+        connectorId: conn.connectorId,
+        name: conn.name,
+        status: result.status,
+        message: result.message,
+        latencyMs: result.latencyMs,
+      });
+      if (result.status === 'healthy') healthy++;
+      else unhealthy++;
+    } catch (err: any) {
+      results.push({
+        connectorId: conn.connectorId,
+        name: conn.name,
+        status: 'error',
+        message: err.message || '检查失败',
+        latencyMs: 0,
+      });
+      unhealthy++;
+    }
+  }
+
+  return { total: allConnectors.length, healthy, unhealthy, results };
+}
+
 // ============ 演示数据种子（基于真实SHM传感器数据格式） ============
 
 export async function seedDemoData() {

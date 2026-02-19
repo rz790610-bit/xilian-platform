@@ -1,5 +1,5 @@
 /**
- * 接入层管理 — 协议注册中心自动同步
+ * 接入层管理 — 工业级协议配置中心
  * 
  * 所有协议列表、分类、配置 Schema 均从后端注册表 API 动态获取，
  * 前端零硬编码。新增适配器后端注册即自动上线。
@@ -7,9 +7,12 @@
  * 功能：
  * - 协议总览（按分类展示所有已注册协议）
  * - 连接器 CRUD（新建/编辑/删除/测试连接）
- * - 端点管理（资源发现/手动添加）
+ * - 端点管理（资源发现/手动添加/编辑/删除/一键导入）
  * - 绑定管理（端点→目标的数据流向）
  * - 健康检查（批量/单个）
+ * - 演示数据加载
+ * - 高级配置按 group 分组渲染
+ * - PEM 证书 textarea 支持
  */
 import { useState, useCallback, useMemo } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
@@ -31,6 +34,7 @@ import {
   CheckCircle, XCircle, AlertTriangle, Loader2, Link2,
   Plug, Settings, Eye, Zap, ArrowRight, ChevronDown, ChevronRight,
   Globe, Database, Radio, Server, HardDrive, Box,
+  Download, FileText, Edit3, PlusCircle,
 } from 'lucide-react';
 import type {
   ProtocolType, ConnectorInfo, EndpointInfo, BindingInfo,
@@ -61,7 +65,7 @@ const CATEGORY_ICONS: Record<string, typeof Network> = {
   storage: Box, api: Globe,
 };
 
-// ============ 动态表单字段渲染 ============
+// ============ 动态表单字段渲染（支持 textarea / group） ============
 function DynamicFormField({
   field, value, onChange,
 }: {
@@ -73,7 +77,7 @@ function DynamicFormField({
 
   if (field.type === 'boolean') {
     return (
-      <label className="flex items-center gap-2 cursor-pointer">
+      <label className="flex items-center gap-2 cursor-pointer col-span-2">
         <input
           type="checkbox"
           checked={!!v}
@@ -81,7 +85,7 @@ function DynamicFormField({
           className="rounded border-zinc-600 bg-zinc-800 text-blue-500 focus:ring-blue-500/30"
         />
         <span className="text-sm text-zinc-300">{field.label}</span>
-        {field.description && <span className="text-xs text-zinc-500">({field.description})</span>}
+        {field.description && <span className="text-xs text-zinc-500 truncate max-w-[300px]">({field.description})</span>}
       </label>
     );
   }
@@ -105,9 +109,26 @@ function DynamicFormField({
     );
   }
 
+  // textarea — 用于 PEM 证书、JSON 片段等多行文本
+  if (field.type === 'textarea') {
+    return (
+      <div className="space-y-1 col-span-2">
+        <label className="text-xs text-zinc-400 font-medium">{field.label}{field.required && <span className="text-red-400">*</span>}</label>
+        <textarea
+          value={String(v)}
+          onChange={e => onChange(field.key, e.target.value)}
+          placeholder={field.placeholder || '-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----'}
+          rows={5}
+          className="w-full rounded-md bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm font-mono text-zinc-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 resize-y"
+        />
+        {field.description && <p className="text-xs text-zinc-500">{field.description}</p>}
+      </div>
+    );
+  }
+
   if (field.type === 'json') {
     return (
-      <div className="space-y-1">
+      <div className="space-y-1 col-span-2">
         <label className="text-xs text-zinc-400 font-medium">{field.label}{field.required && <span className="text-red-400">*</span>}</label>
         <textarea
           value={typeof v === 'string' ? v : JSON.stringify(v, null, 2)}
@@ -116,7 +137,7 @@ function DynamicFormField({
           }}
           placeholder={field.placeholder}
           rows={4}
-          className="w-full rounded-md bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm font-mono text-zinc-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30"
+          className="w-full rounded-md bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm font-mono text-zinc-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 resize-y"
         />
         {field.description && <p className="text-xs text-zinc-500">{field.description}</p>}
       </div>
@@ -134,6 +155,74 @@ function DynamicFormField({
         className="bg-zinc-800 border-zinc-700 text-sm"
       />
       {field.description && <p className="text-xs text-zinc-500">{field.description}</p>}
+    </div>
+  );
+}
+
+// ============ 按 group 分组渲染高级配置 ============
+function GroupedAdvancedFields({
+  fields, values, onChange,
+}: {
+  fields: ProtocolConfigField[];
+  values: Record<string, unknown>;
+  onChange: (key: string, val: unknown) => void;
+}) {
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+
+  // 按 group 分组
+  const groups = useMemo(() => {
+    const map = new Map<string, ProtocolConfigField[]>();
+    for (const f of fields) {
+      const group = f.group || '通用';
+      if (!map.has(group)) map.set(group, []);
+      map.get(group)!.push(f);
+    }
+    return Array.from(map.entries());
+  }, [fields]);
+
+  const toggleGroup = (group: string) => {
+    setExpandedGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(group)) next.delete(group);
+      else next.add(group);
+      return next;
+    });
+  };
+
+  if (groups.length <= 1) {
+    // 没有分组或只有一个分组，直接平铺
+    return (
+      <div className="grid grid-cols-2 gap-3 pl-5 border-l border-zinc-700">
+        {fields.map(f => (
+          <DynamicFormField key={f.key} field={f} value={values[f.key]} onChange={onChange} />
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2 pl-3 border-l border-zinc-700">
+      {groups.map(([group, groupFields]) => {
+        const isExpanded = expandedGroups.has(group);
+        return (
+          <div key={group} className="space-y-2">
+            <button
+              onClick={() => toggleGroup(group)}
+              className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-zinc-200 transition-colors font-medium"
+            >
+              {isExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+              {group} ({groupFields.length})
+            </button>
+            {isExpanded && (
+              <div className="grid grid-cols-2 gap-3 pl-4">
+                {groupFields.map(f => (
+                  <DynamicFormField key={f.key} field={f} value={values[f.key]} onChange={onChange} />
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -303,7 +392,7 @@ function ConnectorDialog({
                   </div>
                 )}
 
-                {/* 高级配置 */}
+                {/* 高级配置 — 按 group 分组渲染 */}
                 {schema.advancedFields && schema.advancedFields.length > 0 && (
                   <div className="space-y-2">
                     <button
@@ -314,11 +403,11 @@ function ConnectorDialog({
                       高级配置 ({schema.advancedFields.length} 项)
                     </button>
                     {showAdvanced && (
-                      <div className="grid grid-cols-2 gap-3 pl-5 border-l border-zinc-700">
-                        {schema.advancedFields.map((f: ProtocolConfigField) => (
-                          <DynamicFormField key={f.key} field={f} value={connectionParams[f.key]} onChange={updateParam} />
-                        ))}
-                      </div>
+                      <GroupedAdvancedFields
+                        fields={schema.advancedFields}
+                        values={connectionParams}
+                        onChange={updateParam}
+                      />
                     )}
                   </div>
                 )}
@@ -432,6 +521,266 @@ function ConnectorCard({
   );
 }
 
+// ============ 端点管理对话框（完整 CRUD + 一键导入） ============
+function EndpointDialog({
+  connectorId, protocolMeta, onClose,
+}: {
+  connectorId: string;
+  protocolMeta: Record<string, { label: string; icon: string }>;
+  onClose: () => void;
+}) {
+  const { toast } = useToast();
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [editingEndpoint, setEditingEndpoint] = useState<EndpointInfo | null>(null);
+  const [newEndpoint, setNewEndpoint] = useState({ name: '', resourcePath: '', resourceType: 'data', dataFormat: 'json' });
+
+  const endpointsQuery = trpc.accessLayer.listEndpoints.useQuery({ connectorId });
+  const endpoints = endpointsQuery.data || [];
+
+  const discoverMutation = trpc.accessLayer.discoverEndpoints.useMutation({
+    onSuccess: (discovered) => {
+      toast({ title: `发现 ${discovered.length} 个资源` });
+      endpointsQuery.refetch();
+    },
+    onError: (err) => toast({ title: '资源发现失败', description: err.message, variant: 'destructive' }),
+  });
+
+  const createMutation = trpc.accessLayer.createEndpoint.useMutation({
+    onSuccess: () => {
+      toast({ title: '端点已创建' });
+      setShowAddForm(false);
+      setNewEndpoint({ name: '', resourcePath: '', resourceType: 'data', dataFormat: 'json' });
+      endpointsQuery.refetch();
+    },
+    onError: (err) => toast({ title: '创建失败', description: err.message, variant: 'destructive' }),
+  });
+
+  const updateMutation = trpc.accessLayer.updateEndpoint.useMutation({
+    onSuccess: () => {
+      toast({ title: '端点已更新' });
+      setEditingEndpoint(null);
+      endpointsQuery.refetch();
+    },
+    onError: (err) => toast({ title: '更新失败', description: err.message, variant: 'destructive' }),
+  });
+
+  const deleteMutation = trpc.accessLayer.deleteEndpoint.useMutation({
+    onSuccess: () => {
+      toast({ title: '端点已删除' });
+      endpointsQuery.refetch();
+    },
+    onError: (err) => toast({ title: '删除失败', description: err.message, variant: 'destructive' }),
+  });
+
+  const handleCreate = () => {
+    if (!newEndpoint.name.trim() || !newEndpoint.resourcePath.trim()) {
+      toast({ title: '请填写名称和资源路径', variant: 'destructive' });
+      return;
+    }
+    createMutation.mutate({
+      connectorId,
+      ...newEndpoint,
+    });
+  };
+
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto bg-zinc-900 border-zinc-700">
+        <DialogHeader>
+          <DialogTitle className="text-zinc-100">端点管理</DialogTitle>
+          <DialogDescription className="text-zinc-400">连接器 {connectorId.slice(0, 8)} 的端点列表</DialogDescription>
+        </DialogHeader>
+
+        {/* 操作栏 */}
+        <div className="flex items-center gap-2 mb-3">
+          <Button variant="outline" size="sm" onClick={() => discoverMutation.mutate({ connectorId })} disabled={discoverMutation.isPending}>
+            {discoverMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Search className="w-4 h-4 mr-1" />}
+            自动发现
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setShowAddForm(!showAddForm)}>
+            <PlusCircle className="w-4 h-4 mr-1" /> 手动添加
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => endpointsQuery.refetch()} className="ml-auto">
+            <RefreshCw className="w-4 h-4 mr-1" /> 刷新
+          </Button>
+        </div>
+
+        {/* 手动添加表单 */}
+        {showAddForm && (
+          <div className="p-3 rounded-lg border border-zinc-700/50 bg-zinc-800/20 space-y-3 mb-3">
+            <h4 className="text-xs font-medium text-zinc-400">手动添加端点</h4>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="text-xs text-zinc-400">名称<span className="text-red-400">*</span></label>
+                <Input
+                  value={newEndpoint.name}
+                  onChange={e => setNewEndpoint(p => ({ ...p, name: e.target.value }))}
+                  placeholder="例: 温度传感器-01"
+                  className="bg-zinc-800 border-zinc-700 text-sm"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs text-zinc-400">资源路径<span className="text-red-400">*</span></label>
+                <Input
+                  value={newEndpoint.resourcePath}
+                  onChange={e => setNewEndpoint(p => ({ ...p, resourcePath: e.target.value }))}
+                  placeholder="例: sensors/temperature/01"
+                  className="bg-zinc-800 border-zinc-700 text-sm"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs text-zinc-400">资源类型</label>
+                <Select value={newEndpoint.resourceType} onValueChange={val => setNewEndpoint(p => ({ ...p, resourceType: val }))}>
+                  <SelectTrigger className="bg-zinc-800 border-zinc-700 text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="data">数据</SelectItem>
+                    <SelectItem value="topic">主题</SelectItem>
+                    <SelectItem value="register">寄存器</SelectItem>
+                    <SelectItem value="node">节点</SelectItem>
+                    <SelectItem value="table">表</SelectItem>
+                    <SelectItem value="io-data">I/O 数据</SelectItem>
+                    <SelectItem value="pdo-entry">PDO 条目</SelectItem>
+                    <SelectItem value="sdo">SDO 对象</SelectItem>
+                    <SelectItem value="diagnostic">诊断</SelectItem>
+                    <SelectItem value="slave">从站</SelectItem>
+                    <SelectItem value="assembly">Assembly</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs text-zinc-400">数据格式</label>
+                <Select value={newEndpoint.dataFormat} onValueChange={val => setNewEndpoint(p => ({ ...p, dataFormat: val }))}>
+                  <SelectTrigger className="bg-zinc-800 border-zinc-700 text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="json">JSON</SelectItem>
+                    <SelectItem value="binary">Binary</SelectItem>
+                    <SelectItem value="csv">CSV</SelectItem>
+                    <SelectItem value="protobuf">Protobuf</SelectItem>
+                    <SelectItem value="sparkplug-b">Sparkplug B</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" size="sm" onClick={() => setShowAddForm(false)}>取消</Button>
+              <Button size="sm" onClick={handleCreate} disabled={createMutation.isPending}>
+                {createMutation.isPending && <Loader2 className="w-3 h-3 animate-spin mr-1" />}
+                创建
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* 端点列表 */}
+        <div className="space-y-2">
+          {(endpoints as EndpointInfo[]).length > 0 ? (
+            (endpoints as EndpointInfo[]).map(ep => (
+              <div key={ep.endpointId} className="group/ep flex items-center justify-between p-3 rounded-lg border border-zinc-700/50 bg-zinc-800/20 hover:border-zinc-600 transition-all">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-zinc-200">{ep.name}</span>
+                    <Badge className={cn("text-[10px] border", STATUS_COLORS[ep.status] || STATUS_COLORS.inactive)}>
+                      {STATUS_LABELS[ep.status] || ep.status}
+                    </Badge>
+                  </div>
+                  <div className="text-xs text-zinc-500 mt-0.5">
+                    <span className="font-mono">{ep.resourcePath}</span>
+                    <span className="mx-1">·</span>
+                    <span>{ep.resourceType}</span>
+                    {ep.dataFormat && <><span className="mx-1">·</span><span>{ep.dataFormat}</span></>}
+                  </div>
+                </div>
+                <div className="flex items-center gap-1 opacity-0 group-hover/ep:opacity-100 transition-opacity">
+                  <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => setEditingEndpoint(ep)}>
+                    <Edit3 className="w-3 h-3 text-zinc-400" />
+                  </Button>
+                  <Button
+                    variant="ghost" size="sm" className="h-6 w-6 p-0"
+                    onClick={() => {
+                      if (confirm(`确认删除端点 "${ep.name}"？`)) {
+                        deleteMutation.mutate({ endpointId: ep.endpointId });
+                      }
+                    }}
+                  >
+                    <Trash2 className="w-3 h-3 text-red-400" />
+                  </Button>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="text-center py-8 text-zinc-500 text-sm">
+              {endpointsQuery.isLoading ? (
+                <><Loader2 className="w-5 h-5 animate-spin inline mr-2" />加载中...</>
+              ) : (
+                <div className="space-y-2">
+                  <FileText className="w-8 h-8 mx-auto opacity-30" />
+                  <p>暂无端点</p>
+                  <p className="text-xs">点击"自动发现"或"手动添加"创建端点</p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="text-xs text-zinc-500 text-right">
+          共 {(endpoints as EndpointInfo[]).length} 个端点
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ============ 批量健康检查结果对话框 ============
+function BatchHealthCheckDialog({
+  open, onClose, results,
+}: {
+  open: boolean;
+  onClose: () => void;
+  results: { total: number; healthy: number; unhealthy: number; results: Array<{ connectorId: string; name: string; status: string; message: string; latencyMs: number }> } | null;
+}) {
+  if (!results) return null;
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-xl max-h-[70vh] overflow-y-auto bg-zinc-900 border-zinc-700">
+        <DialogHeader>
+          <DialogTitle className="text-zinc-100">批量健康检查结果</DialogTitle>
+          <DialogDescription className="text-zinc-400">
+            共 {results.total} 个连接器 · {results.healthy} 健康 · {results.unhealthy} 异常
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-2">
+          {results.results.map(r => (
+            <div key={r.connectorId} className={cn(
+              "flex items-center justify-between p-3 rounded-lg border text-sm",
+              r.status === 'healthy' ? "border-emerald-500/20 bg-emerald-500/5" : "border-red-500/20 bg-red-500/5"
+            )}>
+              <div>
+                <span className="font-medium text-zinc-200">{r.name}</span>
+                <p className="text-xs text-zinc-400 mt-0.5">{r.message}</p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-xs text-zinc-500">{r.latencyMs}ms</span>
+                {r.status === 'healthy' ? (
+                  <CheckCircle className="w-4 h-4 text-emerald-400" />
+                ) : (
+                  <XCircle className="w-4 h-4 text-red-400" />
+                )}
+              </div>
+            </div>
+          ))}
+          {results.results.length === 0 && (
+            <div className="text-center py-8 text-zinc-500 text-sm">暂无连接器</div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ============ 主页面 ============
 export default function AccessLayerManager() {
   const { toast } = useToast();
@@ -442,6 +791,8 @@ export default function AccessLayerManager() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editConnector, setEditConnector] = useState<ConnectorInfo | null>(null);
   const [endpointDialogConnector, setEndpointDialogConnector] = useState<string | null>(null);
+  const [batchCheckResults, setBatchCheckResults] = useState<any>(null);
+  const [batchCheckDialogOpen, setBatchCheckDialogOpen] = useState(false);
 
   // ============ 从注册表 API 动态获取 ============
   const protocolsQuery = trpc.accessLayer.listProtocols.useQuery();
@@ -468,6 +819,22 @@ export default function AccessLayerManager() {
       connectorsQuery.refetch();
     },
     onError: (err) => toast({ title: '资源发现失败', description: err.message, variant: 'destructive' }),
+  });
+  const seedMutation = trpc.accessLayer.seedDemoData.useMutation({
+    onSuccess: (result) => {
+      toast({ title: '演示数据已加载', description: `创建了 ${(result as any)?.connectorCount ?? ''} 个连接器` });
+      connectorsQuery.refetch();
+      statsQuery.refetch();
+    },
+    onError: (err) => toast({ title: '加载失败', description: err.message, variant: 'destructive' }),
+  });
+  const batchCheckMutation = trpc.accessLayer.batchHealthCheck.useMutation({
+    onSuccess: (result) => {
+      setBatchCheckResults(result);
+      setBatchCheckDialogOpen(true);
+      connectorsQuery.refetch();
+    },
+    onError: (err) => toast({ title: '批量检查失败', description: err.message, variant: 'destructive' }),
   });
 
   const protocols = protocolsQuery.data || [];
@@ -522,6 +889,14 @@ export default function AccessLayerManager() {
             <TabsTrigger value="metrics">适配器指标</TabsTrigger>
           </TabsList>
           <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => seedMutation.mutate()} disabled={seedMutation.isPending}>
+              {seedMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Download className="w-4 h-4 mr-1" />}
+              演示数据
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => batchCheckMutation.mutate()} disabled={batchCheckMutation.isPending}>
+              {batchCheckMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Activity className="w-4 h-4 mr-1" />}
+              批量检查
+            </Button>
             <Button variant="outline" size="sm" onClick={handleRefreshAll}>
               <RefreshCw className="w-4 h-4 mr-1" /> 刷新
             </Button>
@@ -541,7 +916,7 @@ export default function AccessLayerManager() {
                 title={catData.label}
                 icon={<CatIcon className="w-5 h-5" />}
               >
-                <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-3">
                   {catData.protocols.map((p: any) => {
                     const connCount = (connectors as ConnectorInfo[]).filter(c => c.protocolType === p.protocolType).length;
                     return (
@@ -635,9 +1010,16 @@ export default function AccessLayerManager() {
             <div className="flex flex-col items-center justify-center py-16 text-zinc-500">
               <Network className="w-12 h-12 mb-3 opacity-30" />
               <p className="text-sm">暂无连接器</p>
-              <Button variant="outline" size="sm" className="mt-3" onClick={() => { setEditConnector(null); setDialogOpen(true); }}>
-                <Plus className="w-4 h-4 mr-1" /> 新建连接器
-              </Button>
+              <p className="text-xs mt-1">点击"演示数据"快速加载示例，或"新建连接器"手动创建</p>
+              <div className="flex gap-2 mt-3">
+                <Button variant="outline" size="sm" onClick={() => seedMutation.mutate()} disabled={seedMutation.isPending}>
+                  {seedMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Download className="w-4 h-4 mr-1" />}
+                  加载演示数据
+                </Button>
+                <Button size="sm" onClick={() => { setEditConnector(null); setDialogOpen(true); }}>
+                  <Plus className="w-4 h-4 mr-1" /> 新建连接器
+                </Button>
+              </div>
             </div>
           )}
         </TabsContent>
@@ -674,7 +1056,7 @@ export default function AccessLayerManager() {
         </TabsContent>
       </Tabs>
 
-      {/* 端点查看对话框 */}
+      {/* 端点管理对话框 */}
       {endpointDialogConnector && (
         <EndpointDialog
           connectorId={endpointDialogConnector}
@@ -693,52 +1075,13 @@ export default function AccessLayerManager() {
           onSaved={() => { connectorsQuery.refetch(); statsQuery.refetch(); }}
         />
       )}
+
+      {/* 批量健康检查结果对话框 */}
+      <BatchHealthCheckDialog
+        open={batchCheckDialogOpen}
+        onClose={() => setBatchCheckDialogOpen(false)}
+        results={batchCheckResults}
+      />
     </MainLayout>
-  );
-}
-
-// ============ 端点查看对话框 ============
-function EndpointDialog({
-  connectorId, protocolMeta, onClose,
-}: {
-  connectorId: string;
-  protocolMeta: Record<string, { label: string; icon: string }>;
-  onClose: () => void;
-}) {
-  const endpointsQuery = trpc.accessLayer.listEndpoints.useQuery({ connectorId });
-  const endpoints = endpointsQuery.data || [];
-
-  return (
-    <Dialog open onOpenChange={onClose}>
-      <DialogContent className="max-w-xl max-h-[70vh] overflow-y-auto bg-zinc-900 border-zinc-700">
-        <DialogHeader>
-          <DialogTitle className="text-zinc-100">端点列表</DialogTitle>
-          <DialogDescription className="text-zinc-400">连接器 {connectorId.slice(0, 8)} 的所有端点</DialogDescription>
-        </DialogHeader>
-        <div className="space-y-2">
-          {(endpoints as EndpointInfo[]).length > 0 ? (
-            (endpoints as EndpointInfo[]).map(ep => (
-              <div key={ep.endpointId} className="flex items-center justify-between p-3 rounded-lg border border-zinc-700/50 bg-zinc-800/20">
-                <div>
-                  <div className="text-sm font-medium text-zinc-200">{ep.name}</div>
-                  <div className="text-xs text-zinc-500">{ep.resourceType} · {ep.resourcePath}</div>
-                </div>
-                <Badge className={cn("text-[10px] border", STATUS_COLORS[ep.status] || STATUS_COLORS.inactive)}>
-                  {STATUS_LABELS[ep.status] || ep.status}
-                </Badge>
-              </div>
-            ))
-          ) : (
-            <div className="text-center py-8 text-zinc-500 text-sm">
-              {endpointsQuery.isLoading ? (
-                <><Loader2 className="w-5 h-5 animate-spin inline mr-2" />加载中...</>
-              ) : (
-                '暂无端点，请先执行资源发现'
-              )}
-            </div>
-          )}
-        </div>
-      </DialogContent>
-    </Dialog>
   );
 }
