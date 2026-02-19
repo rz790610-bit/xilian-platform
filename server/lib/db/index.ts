@@ -32,6 +32,7 @@ const log = createModuleLogger('index');
 
 let _pool: mysql.Pool | null = null;
 let _db: ReturnType<typeof drizzle> | null = null;
+let _healthCheckTimer: ReturnType<typeof setInterval> | null = null;
 
 function createPool(): mysql.Pool {
   const dbUrl = process.env.DATABASE_URL;
@@ -55,6 +56,7 @@ export async function getDb() {
     try {
       _pool = createPool();
       _db = drizzle(_pool);
+      startPoolHealthCheck(_pool);
       log.info({
         connectionLimit: parseInt(process.env.DB_POOL_MAX || '50', 10),
         maxIdle: parseInt(process.env.DB_POOL_MIN_IDLE || '10', 10),
@@ -67,6 +69,26 @@ export async function getDb() {
     }
   }
   return _db;
+}
+
+/**
+ * 修复问题9：连接池定期健康检查
+ * 每 30 秒 ping 一次，检测死连接并自动重连
+ */
+function startPoolHealthCheck(pool: mysql.Pool): void {
+  if (_healthCheckTimer) clearInterval(_healthCheckTimer);
+  _healthCheckTimer = setInterval(async () => {
+    try {
+      const conn = await pool.getConnection();
+      await conn.ping();
+      conn.release();
+    } catch (err) {
+      log.warn({ error: (err as Error).message }, '[Database] Pool health check failed, connections may be stale');
+      // mysql2 连接池会自动移除死连接并创建新连接
+    }
+  }, 30_000);
+  // 不阻塞进程退出
+  _healthCheckTimer.unref();
 }
 
 /** 获取连接池状态（用于监控） */
@@ -85,6 +107,10 @@ export function getPoolStatus(): { total: number; idle: number; waiting: number 
  * 先关闭现有连接池，再清除缓存实例
  */
 export async function resetDb() {
+  if (_healthCheckTimer) {
+    clearInterval(_healthCheckTimer);
+    _healthCheckTimer = null;
+  }
   if (_pool) {
     try {
       await _pool.end();

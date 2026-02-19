@@ -27,7 +27,8 @@ const log = createModuleLogger('kafkaEventBus');
 
 const DB_BUFFER_FLUSH_SIZE = 100;       // 每批最多 100 条
 const DB_BUFFER_FLUSH_INTERVAL_MS = 500; // 最长 500ms 刷写一次
-const DB_BUFFER_MAX_SIZE = 5000;         // 背压上限
+const DB_BUFFER_MAX_SIZE = 5000;         // 背压上限（开始丢弃 info）
+const DB_BUFFER_ABSOLUTE_MAX = 10000;    // 绝对上限（超过时所有级别都丢弃）
 const DB_BUFFER_RETRY_LIMIT = 3;         // 单批最大重试次数
 
 // EventPayload 和 EventHandler 已从 domain.ts 统一导入
@@ -477,6 +478,16 @@ class KafkaEventBus {
    * 背压保护：缓冲区超过上限时丢弃 severity=info 的事件
    */
   private enqueueDbRecord(record: any): void {
+    // 修复问题6：绝对上限 — 超过时所有级别都丢弃，防止内存无限增长
+    if (this.dbBuffer.length >= DB_BUFFER_ABSOLUTE_MAX) {
+      this.dbBufferDropped++;
+      if (this.dbBufferDropped % 500 === 1) {
+        log.error({ dropped: this.dbBufferDropped, bufferSize: this.dbBuffer.length },
+          '[KafkaEventBus] DB 缓冲区达到绝对上限，丢弃所有级别事件');
+      }
+      return;
+    }
+    // 背压上限 — 仅丢弃 info 级别
     if (this.dbBuffer.length >= DB_BUFFER_MAX_SIZE) {
       if (record.severity === 'info') {
         this.dbBufferDropped++;
@@ -486,7 +497,7 @@ class KafkaEventBus {
         }
         return;
       }
-      // warning/error/critical 仍然入队
+      // warning/error/critical 仍然入队（但受绝对上限保护）
     }
     this.dbBuffer.push(record);
 

@@ -75,6 +75,11 @@ const DEFAULT_SCHEDULER_CONFIG: SchedulerConfig = {
   degradationCheckIntervalMs: 10_000,
   concurrencyMultipliers: {
     normal: 1.0,
+    // 修复问题3：high_pressure 设为 1.5 是有意设计
+    // 高压模式下增加并发是为了加速消化积压队列（"排水"策略），
+    // 而非降低处理能力。只有 emergency 模式才降低并发以保护系统。
+    // 如果上游持续高压，degradation 检查会在队列深度达到 emergency 阈值时
+    // 自动切换到 emergency 模式（0.5x 并发）。
     high_pressure: 1.5,
     emergency: 0.5,
   },
@@ -161,6 +166,7 @@ export interface SchedulerMetrics {
   queueDepth: Record<CognitionPriority, number>;
   quotaUsage: Record<CognitionPriority, { used: number; limit: number }>;
   deduplicationMapSize: number;
+  pendingAcquireCount: number;
   totalSubmitted: number;
   totalCompleted: number;
   totalFailed: number;
@@ -228,6 +234,9 @@ export class CognitionScheduler {
     executionTimeSum: 0,
     executionTimeCount: 0,
   };
+
+  // 已从队列取出但尚未获得信号量的 pending 计数（修复问题1：指标准确性）
+  private pendingAcquireCount = 0;
 
   constructor(config?: Partial<SchedulerConfig>) {
     this.config = { ...DEFAULT_SCHEDULER_CONFIG, ...config };
@@ -467,23 +476,37 @@ export class CognitionScheduler {
   /**
    * 尝试从队列中取出并执行认知活动
    * 使用信号量控制并发，避免 race condition
+   *
+   * 修复问题1：先 acquire 信号量，成功后再 dequeue，确保队列深度指标准确
    */
   private scheduleNext(): void {
     if (!this.started || this.draining) return;
 
-    const item = this.dequeue();
-    if (!item) return;
+    // 先检查队列是否有内容（peek，不取出）
+    if (this.getQueueDepth() === 0) return;
 
-    // 检查入队后是否已过期
-    if (item.stimulus.expiresAt && item.stimulus.expiresAt.getTime() < Date.now()) {
-      item.reject(new Error('Stimulus expired while in queue'));
-      this.stats.totalDropped++;
-      this.scheduleNext(); // 继续尝试下一个
-      return;
-    }
-
-    // 异步获取信号量许可
+    // 先获取信号量许可，成功后再从队列取出
+    this.pendingAcquireCount++;
     this.semaphore.acquire().then(() => {
+      this.pendingAcquireCount--;
+
+      // 获得许可后再 dequeue（此时队列可能已被其他调度消费）
+      const item = this.dequeue();
+      if (!item) {
+        // 队列已空，释放许可
+        this.semaphore.release();
+        return;
+      }
+
+      // 检查入队后是否已过期
+      if (item.stimulus.expiresAt && item.stimulus.expiresAt.getTime() < Date.now()) {
+        item.reject(new Error('Stimulus expired while in queue'));
+        this.stats.totalDropped++;
+        this.semaphore.release();
+        this.scheduleNext(); // 继续尝试下一个
+        return;
+      }
+
       this.executeItem(item).finally(() => {
         this.semaphore.release();
         // 执行完后继续调度
@@ -558,9 +581,11 @@ export class CognitionScheduler {
         }, 'Retrying cognition activity');
 
         // 延迟后重新入队
+        // 修复问题2：push 到队列尾部而非 unshift 到头部，
+        // 避免持续失败的 item 反复占据队列头部阻塞同优先级的其他 item
         setTimeout(() => {
           if (this.started && !this.draining) {
-            this.queues[stimulus.priority].unshift(item);
+            this.queues[stimulus.priority].push(item);
             this.scheduleNext();
           } else {
             reject(new Error('Scheduler stopped during retry'));
@@ -731,6 +756,7 @@ export class CognitionScheduler {
         normal: { used: this.quotaCounters.normal, limit: this.config.quotas.normal },
       },
       deduplicationMapSize: this.deduplicationMap.size,
+      pendingAcquireCount: this.pendingAcquireCount,
       totalSubmitted: this.stats.totalSubmitted,
       totalCompleted: this.stats.totalCompleted,
       totalFailed: this.stats.totalFailed,

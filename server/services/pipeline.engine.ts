@@ -178,7 +178,9 @@ class ConnectorFactory {
   // P0 修复：SQL 注入防护 — 查询白名单验证
   private static readonly ALLOWED_SQL_PATTERN = /^\s*SELECT\s/i;
   private static readonly FORBIDDEN_SQL_KEYWORDS = /\b(DROP|DELETE|UPDATE|INSERT|ALTER|TRUNCATE|EXEC|EXECUTE|CREATE|GRANT|REVOKE|UNION|INTO\s+OUTFILE|INTO\s+DUMPFILE|LOAD_FILE|BENCHMARK|SLEEP)\b/i;
-  private static readonly SAFE_IDENTIFIER = /^[a-zA-Z_][a-zA-Z0-9_]{0,63}$/;
+  // 修复问题8：支持中文表名（Unicode 标识符）
+  // 允许字母、数字、下划线、中文/日文/韩文等 CJK 字符
+  private static readonly SAFE_IDENTIFIER = /^[\p{L}_][\p{L}\p{N}_]{0,63}$/u;
 
   private static validateReadOnlyQuery(query: string): void {
     if (!ConnectorFactory.ALLOWED_SQL_PATTERN.test(query)) {
@@ -195,7 +197,7 @@ class ConnectorFactory {
 
   private static validateIdentifier(name: string, type: 'table' | 'column'): void {
     if (!ConnectorFactory.SAFE_IDENTIFIER.test(name)) {
-      throw new Error(`[Pipeline] Invalid ${type} name: "${name}" — only [a-zA-Z0-9_] allowed, max 64 chars`);
+      throw new Error(`[Pipeline] Invalid ${type} name: "${name}" — only letters, digits, underscores allowed (Unicode supported), max 64 chars`);
     }
   }
 
