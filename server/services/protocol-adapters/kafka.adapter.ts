@@ -8,6 +8,7 @@
  */
 
 import { Kafka, logLevel, SASLOptions, CompressionTypes } from 'kafkajs';
+import * as net from 'net';
 import { BaseAdapter, normalizeError, AdapterError, AdapterErrorCode } from './base';
 import type { ConnectionTestResult, DiscoveredEndpoint, ProtocolConfigSchema, HealthCheckResult } from '../../../shared/accessLayerTypes';
 
@@ -161,7 +162,6 @@ export class KafkaAdapter extends BaseAdapter {
    * 这样可以彻底避免 KafkaJS 内部重试产生的 ERROR 日志
    */
   private tcpProbe(host: string, port: number, timeoutMs: number = 5000): Promise<boolean> {
-    const net = require('net');
     return new Promise((resolve) => {
       const socket = new net.Socket();
       const timer = setTimeout(() => {
