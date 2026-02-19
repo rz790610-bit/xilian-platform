@@ -13,7 +13,7 @@ export const accessLayerRouter = router({
   // ============ 演示数据种子 ============
   seedDemoData: publicProcedure.mutation(() => alService.seedDemoData()),
   // ============ 统计 ============
-  stats: publicProcedure.query(() => alService.getStats()),
+  getStats: publicProcedure.query(() => alService.getStats()),
 
   // ============ 协议注册中心（自动同步） ============
   /** 从适配器注册表自动生成协议列表（含 icon/description/category） */

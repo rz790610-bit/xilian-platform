@@ -47,8 +47,8 @@ const DEFAULT_CONFIG: KafkaConfig = {
   connectionTimeout: 10000,
   requestTimeout: 30000,
   retry: {
-    initialRetryTime: 100,
-    retries: 8,
+    initialRetryTime: 300,
+    retries: 3,  // 降低重试次数，避免本地开发时大量错误日志
   },
 };
 
@@ -75,32 +75,34 @@ class KafkaClientManager {
     if (this.kafka) {
       return;
     }
-
     log.debug('[Kafka] 正在初始化 Kafka 客户端...');
     log.debug(`[Kafka] Brokers: ${this.config.brokers.join(', ')}`);
-
-    this.kafka = new Kafka({
-      clientId: this.config.clientId,
-      brokers: this.config.brokers,
-      connectionTimeout: this.config.connectionTimeout,
-      requestTimeout: this.config.requestTimeout,
-      retry: this.config.retry,
-      logLevel: logLevel.WARN,
-    });
-
-    // 初始化 Admin 客户端
-    this.admin = this.kafka.admin();
-    await this.admin.connect();
-
-    // 初始化 Producer
-    this.producer = this.kafka.producer({
-      allowAutoTopicCreation: true,
-      transactionTimeout: 30000,
-    });
-    await this.producer.connect();
-
-    this.isConnected = true;
-    log.debug('[Kafka] Kafka 客户端初始化完成');
+    
+    try {
+      this.kafka = new Kafka({
+        clientId: this.config.clientId,
+        brokers: this.config.brokers,
+        connectionTimeout: this.config.connectionTimeout,
+        requestTimeout: this.config.requestTimeout,
+        retry: this.config.retry,
+        logLevel: logLevel.WARN,
+      });
+      // 初始化 Admin 客户端
+      this.admin = this.kafka.admin();
+      await this.admin.connect();
+      // 初始化 Producer
+      this.producer = this.kafka.producer({
+        allowAutoTopicCreation: true,
+        transactionTimeout: 30000,
+      });
+      await this.producer.connect();
+      this.isConnected = true;
+      log.debug('[Kafka] Kafka 客户端初始化完成');
+    } catch (error: any) {
+      this.isConnected = false;
+      log.error(`[Kafka] 初始化失败 (服务将以降级模式运行): ${error.message}`);
+      // 不抛出异常，允许平台在没有 Kafka 的情况下启动
+    }
   }
 
   /**

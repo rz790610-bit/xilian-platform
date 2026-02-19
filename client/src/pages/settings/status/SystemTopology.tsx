@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { PageCard } from '@/components/common/PageCard';
 import { StatCard } from '@/components/common/StatCard';
@@ -349,9 +349,13 @@ export default function SystemTopology() {
     setIsDragging(true);
   };
   
-  // ST-2 修复：immutable 更新，通过 setLocalNodes 更新而非直接修改数组
-  const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (!isDragging || !dragNode) return;
+  // ST-2 修复：immutable 更新 + requestAnimationFrame 节流防止拖拽卡顿
+  const rafRef = useRef<number | null>(null);
+  const pendingMouseEvent = useRef<MouseEvent | null>(null);
+  
+  const applyDragUpdate = useCallback(() => {
+    const e = pendingMouseEvent.current;
+    if (!e || !dragNode) return;
     
     const svg = svgRef.current;
     if (!svg) return;
@@ -366,6 +370,9 @@ export default function SystemTopology() {
       
       const dx = Math.max(0, x) - primaryNode.x;
       const dy = Math.max(0, y) - primaryNode.y;
+      
+      // 跳过微小移动（< 0.5px），减少无意义的重渲染
+      if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) return prev;
       
       // 多选整体拖动
       if (selectedNodes.size > 0 && selectedNodes.has(dragNode)) {
@@ -383,10 +390,33 @@ export default function SystemTopology() {
         );
       }
     });
-  }, [isDragging, dragNode, zoom, pan, dragOffset, selectedNodes]);
+    
+    pendingMouseEvent.current = null;
+    rafRef.current = null;
+  }, [dragNode, zoom, pan, dragOffset, selectedNodes]);
+  
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    if (!isDragging || !dragNode) return;
+    
+    pendingMouseEvent.current = e;
+    
+    // 使用 rAF 节流：每帧最多更新一次
+    if (rafRef.current === null) {
+      rafRef.current = requestAnimationFrame(applyDragUpdate);
+    }
+  }, [isDragging, dragNode, applyDragUpdate]);
   
   // ST-1 修复：多选拖拽时使用批量接口 updateNodePositions
   const handleMouseUp = useCallback(() => {
+    // 清理 rAF 并应用最后一帧
+    if (rafRef.current !== null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+    if (pendingMouseEvent.current) {
+      applyDragUpdate();
+    }
+    
     if (isDragging && dragNode) {
       // 多选整体拖动时批量保存所有选中节点位置
       if (selectedNodes.size > 0 && selectedNodes.has(dragNode)) {
@@ -408,7 +438,7 @@ export default function SystemTopology() {
     }
     setIsDragging(false);
     setDragNode(null);
-  }, [isDragging, dragNode, localNodes, selectedNodes, updateNodePositionMutation, updateNodePositionsMutation]);
+  }, [isDragging, dragNode, localNodes, selectedNodes, updateNodePositionMutation, updateNodePositionsMutation, applyDragUpdate]);
   
   useEffect(() => {
     if (isDragging) {
@@ -688,9 +718,20 @@ export default function SystemTopology() {
             {/* 服务状态摘要 */}
             {servicesSummary && (
               <div className="flex items-center gap-2 px-2 py-1 bg-secondary rounded-lg text-[10px]">
-                <span className="text-success">✓ {servicesSummary.online}</span>
-                <span className="text-muted-foreground">/</span>
-                <span className="text-muted-foreground">{servicesSummary.total} 服务</span>
+                {servicesSummary.online > 0 ? (
+                  <>
+                    <span className="text-success">✓ {servicesSummary.online}</span>
+                    <span className="text-muted-foreground">/</span>
+                    <span className="text-muted-foreground">{servicesSummary.total} 服务</span>
+                  </>
+                ) : servicesSummary.total > 0 ? (
+                  <>
+                    <span className="text-amber-400">⚠ 服务未连接</span>
+                    <span className="text-muted-foreground">(请检查 Kafka/Redis/ClickHouse 配置)</span>
+                  </>
+                ) : (
+                  <span className="text-muted-foreground">暂无监控服务</span>
+                )}
               </div>
             )}
           </div>
@@ -951,10 +992,18 @@ export default function SystemTopology() {
                     }}
                     onMouseMove={(e) => {
                       if (isPanningCanvas) {
-                        setPan({
-                          x: (e.clientX - panStart.x) / zoom,
-                          y: (e.clientY - panStart.y) / zoom,
-                        });
+                        // 使用 rAF 节流画布平移
+                        const clientX = e.clientX;
+                        const clientY = e.clientY;
+                        if (!rafRef.current) {
+                          rafRef.current = requestAnimationFrame(() => {
+                            setPan({
+                              x: (clientX - panStart.x) / zoom,
+                              y: (clientY - panStart.y) / zoom,
+                            });
+                            rafRef.current = null;
+                          });
+                        }
                       }
                     }}
                     onMouseUp={() => setIsPanningCanvas(false)}
@@ -995,7 +1044,7 @@ export default function SystemTopology() {
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="w-3 h-3 rounded-full bg-muted" />
-                    <span>离线</span>
+                    <span>离线/未连接</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="w-3 h-3 rounded-full bg-danger" />

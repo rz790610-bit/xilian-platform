@@ -24,16 +24,20 @@ export const kafkaRouter = router({
 
     let clusterInfo = null;
     let health = null;
+    let statusMessage = '';
 
     if (isConfigured) {
       try {
-        // 尝试初始化 Kafka 客户端
         await kafkaClient.initialize();
         clusterInfo = await kafkaClient.getClusterInfo();
         health = await kafkaClient.healthCheck();
+        statusMessage = health?.connected ? 'Kafka 集群运行正常' : 'Kafka 集群无法连接';
       } catch (error) {
         log.error('[KafkaRouter] 获取集群状态失败:', error);
+        statusMessage = 'Kafka 连接失败，请检查 Broker 配置';
       }
+    } else {
+      statusMessage = '未配置 KAFKA_BROKERS 环境变量，当前使用内存模式';
     }
 
     return {
@@ -42,6 +46,7 @@ export const kafkaRouter = router({
       mode: isConfigured && health?.connected ? 'kafka' : 'memory',
       cluster: clusterInfo,
       health,
+      statusMessage,
     };
   }),
 

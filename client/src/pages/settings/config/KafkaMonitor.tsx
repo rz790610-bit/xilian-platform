@@ -649,6 +649,11 @@ export default function KafkaMonitor() {
                       <p className="font-medium">{clusterStatus?.isConfigured ? "已配置" : "未配置"}</p>
                     </div>
                   </div>
+                  {clusterStatus?.statusMessage && (
+                    <div className="mt-2 p-2 rounded bg-muted/50 text-xs text-muted-foreground">
+                      💬 {clusterStatus.statusMessage}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
