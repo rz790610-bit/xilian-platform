@@ -26,6 +26,7 @@ import type {
   CognitionStimulus,
   CognitionResult,
   CognitionPriority,
+  StimulusType,
 } from '../types';
 
 const log = createModuleLogger('pipelineHooks');
@@ -226,13 +227,13 @@ export class PipelineHookManager {
       ocProfileId: context.ocProfileId,
       deviceId: context.deviceId,
       deduplicationKey: `${hookPoint}:${context.pipelineRunId}:${context.nodeId}`,
-      createdAt: new Date(),
+      triggeredAt: new Date(),
     };
   }
 
   /** 嵌入点到刺激类型的映射 */
-  private hookPointToStimulusType(hookPoint: PipelineHookPoint): CognitionStimulus['type'] {
-    const mapping: Record<PipelineHookPoint, CognitionStimulus['type']> = {
+  private hookPointToStimulusType(hookPoint: PipelineHookPoint): StimulusType {
+    const mapping: Record<PipelineHookPoint, StimulusType> = {
       POST_COLLECT: 'data_quality',
       POST_LABEL: 'data_quality',
       PRE_TRAIN: 'pipeline_event',

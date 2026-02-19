@@ -22,7 +22,13 @@
 // 基础枚举
 // ============================================================================
 
-/** 认知刺激来源 */
+/**
+ * 认知刺激来源前缀（辅助类型）
+ *
+ * CognitionStimulus.source 为 string 类型，支持以下格式：
+ *   - 简单前缀：'pipeline' | 'drift_detector' | 'anomaly_detector' | 'scheduler' | 'manual' | 'chain'
+ *   - 复合格式：'pipeline:POST_COLLECT' | 'pipeline:PRE_TRAIN' 等
+ */
 export type StimulusSource =
   | 'pipeline'          // 流水线节点触发
   | 'drift_detector'    // 漂移检测触发
@@ -167,12 +173,24 @@ export interface DSFusionLogEntry {
 // 认知刺激与结果
 // ============================================================================
 
+/** 认知刺激类型 */
+export type StimulusType =
+  | 'data_quality'      // 数据质量异常
+  | 'drift_alert'       // 漂移告警
+  | 'model_evaluation'  // 模型评估
+  | 'pipeline_event'    // 流水线事件
+  | 'anomaly_signal'    // 异常信号
+  | 'scheduled_check'   // 定时检查
+  | 'manual_trigger';   // 人工触发
+
 /** 认知刺激 — 触发一次认知活动的输入信号 */
 export interface CognitionStimulus {
   /** 唯一标识 */
   id: string;
-  /** 来源 */
-  source: StimulusSource;
+  /** 来源（格式：'pipeline' | 'pipeline:POST_COLLECT' | 'drift_detector' 等） */
+  source: string;
+  /** 刺激类型 */
+  type: StimulusType;
   /** 优先级 */
   priority: CognitionPriority;
   /** 关联的工况 ID */

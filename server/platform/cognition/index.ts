@@ -4,14 +4,17 @@
  * ============================================================================
  *
  * 模块结构：
- *   types/       — 核心类型定义
- *   engines/     — DS 融合引擎、认知状态机、CognitionUnit
- *   events/      — EventBus Topic 定义和事件发布器
- *   narrative/   — NarrativeLayer 叙事生成层
- *   scheduler/   — 认知调度器
- *   knowledge/   — 知识结晶器
- *   dimensions/  — 四维处理器实现（感知/推演/融合/决策）
- *   tools/       — 工具化框架（采集/存储/标注/训练/评估）
+ *   types/        — 核心类型定义
+ *   engines/      — DS 融合引擎、认知状态机、CognitionUnit、TAS、MetaLearner
+ *   events/       — EventBus Topic 定义和事件发布器
+ *   narrative/    — NarrativeLayer 叙事生成层
+ *   scheduler/    — 认知调度器
+ *   knowledge/    — 知识结晶器
+ *   dimensions/   — 四维处理器实现（感知/推演/融合/决策）
+ *   shadow-eval/  — 影子评估器统一版
+ *   champion/     — Champion-Challenger 挑战赛
+ *   canary/       — 金丝雀发布控制器
+ *   integration/  — 流水线认知嵌入点
  */
 
 // 核心类型
@@ -31,6 +34,18 @@ export * from './scheduler';
 
 // 知识
 export * from './knowledge';
+
+// 四维处理器
+export * from './dimensions';
+
+// 影子评估
+export * from './shadow-eval';
+
+// Champion-Challenger
+export * from './champion';
+
+// 金丝雀发布
+export * from './canary';
 
 // 集成
 export * from './integration';
