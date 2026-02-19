@@ -21,6 +21,20 @@
  *                    ClickHouse Kafka Engine → vibration_features 表
  *                          ↓
  *                    物化视图聚合 → 算法层读取
+ * 
+ * 消费者拓扑说明：
+ *   - 消费者组: feature-extraction-service
+ *   - 输入 Topic: telemetry.raw (KAFKA_TOPICS.TELEMETRY_RAW)
+ *     • 生产者: GatewayKafkaBridge（边缘网关多协议接入后归一化输出）
+ *     • 消息格式: RawTelemetryMessage { device_code, mp_code, values[], sample_rate, data_type }
+ *   - 输出 Topic: telemetry.feature (KAFKA_TOPICS.TELEMETRY_FEATURE)
+ *     • 生产者: 本服务
+ *     • 消息格式: FeatureMessage { device_code, mp_code, features{}, extractor, data_type }
+ *     • 下游消费者 1: ClickHouse Kafka Engine (telemetry_raw_kafka 表 → 物化视图写入 realtime_telemetry)
+ *     • 下游消费者 2: TelemetryClickHouseSink (备用写入通道，当 Kafka Engine 故障时启用)
+ *   - 并发模型: 单消费者组，Kafka 自动分区分配，水平扩展时增加实例即可
+ *   - 背压策略: 批量发布 (publishBatchSize=100) + 定时刷写 (500ms)
+ *   - 失败处理: 记录错误日志，不阻塞后续消息处理，失败消息回插缓冲区（上限 10000）
  */
 
 import { kafkaClient, KAFKA_TOPICS } from '../../lib/clients/kafka.client';

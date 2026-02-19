@@ -303,7 +303,8 @@ class StreamProcessor {
         // 记录异常
         await this.recordAnomaly({
           sensorId,
-          deviceId: deviceCode || 'unknown',
+          deviceCode: deviceCode || 'unknown',
+          deviceId: deviceCode || 'unknown', // @deprecated 向后兼容
           isAnomaly: true,
           algorithm: 'zscore',
           currentValue: latestValue,
@@ -321,6 +322,7 @@ class StreamProcessor {
           {
             sensorId,
             deviceCode,
+            deviceId: deviceCode, // @deprecated 向后兼容，下游消费者应迁移到 deviceCode
             value: latestValue,
             expectedValue: stats.mean,
             deviation: zScoreResult.deviation,

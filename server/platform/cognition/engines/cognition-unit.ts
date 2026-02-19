@@ -421,10 +421,14 @@ export class CognitionUnit {
 
       case 'high_pressure':
         // 跳过推演维（最耗时）
+        log.warn({ unitId: this.id, mode: 'high_pressure', skipped: ['reasoning'] },
+          'CognitionUnit 降级运行：跳过推演维，诊断结果可能缺少因果推理');
         return all.filter(p => p.dimension !== 'reasoning');
 
       case 'emergency':
         // 仅保留感知维和决策维
+        log.warn({ unitId: this.id, mode: 'emergency', skipped: ['reasoning', 'fusion'] },
+          'CognitionUnit 紧急降级：仅保留感知+决策，诊断结果可能不完整');
         return all.filter(p =>
           p.dimension === 'perception' || p.dimension === 'decision',
         );

@@ -209,7 +209,14 @@ export class MqttProtocolHandler implements ProtocolHandler {
     });
 
     this.mqttClient.on('message', (topic: string, payload: Buffer) => {
-      this.handleMqttMessage(topic, payload);
+      // QoS 1 下 MQTT 会自动 ack，但我们在 handleMqttMessage 中先写入缓冲区
+      // 如果缓冲区满则立即 flush 到 Kafka，确保数据不丢失
+      // 注意：如果需要严格的“先写 Kafka 再 ack MQTT”语义，
+      // 需要将 MQTT 客户端配置为 manualAck 模式（mqtt.js v5+）
+      // 并在 flushBuffer 成功后调用 client.puback(packet)
+      this.handleMqttMessage(topic, payload).catch(err => {
+        log.error('[MqttHandler] 消息处理异常:', err);
+      });
     });
 
     this.mqttClient.on('error', (err: Error) => {

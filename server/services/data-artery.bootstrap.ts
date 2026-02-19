@@ -32,6 +32,29 @@ import { createModuleLogger } from '../core/logger';
 const log = createModuleLogger('data-artery');
 
 // ============================================================
+// 工具函数
+// ============================================================
+
+/**
+ * 轮询等待条件满足（用于优雅关闭时等待缓冲区清空）
+ * @param check 检查函数，返回 true 表示条件已满足
+ * @param timeoutMs 最大等待时间
+ * @param intervalMs 轮询间隔
+ */
+async function waitForDrain(
+  check: () => Promise<boolean>,
+  timeoutMs: number = 5000,
+  intervalMs: number = 200
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (await check()) return;
+    await new Promise(resolve => setTimeout(resolve, intervalMs));
+  }
+  log.warn(`[DataArtery] waitForDrain 超时 (${timeoutMs}ms)，继续关闭流程`);
+}
+
+// ============================================================
 // 全链路健康状态
 // ============================================================
 
@@ -123,8 +146,14 @@ export async function stopDataArtery(): Promise<void> {
     log.error('[DataArtery] ✗ Layer 3 关闭失败:', error);
   }
 
-  // 等待 1 秒让中间层处理完剩余消息
-  await new Promise(resolve => setTimeout(resolve, 1000));
+  // 轮询等待特征提取服务缓冲区清空（最多 5 秒）
+  await waitForDrain(async () => {
+    try {
+      const { featureExtractionService } = await import('./feature-extraction');
+      const metrics = featureExtractionService.getMetrics();
+      return (metrics as any).bufferSize === 0 || !featureExtractionService.isActive();
+    } catch { return true; }
+  }, 5000, 200);
 
   try {
     const { stopFeatureExtraction } = await import('./feature-extraction');
@@ -134,8 +163,14 @@ export async function stopDataArtery(): Promise<void> {
     log.error('[DataArtery] ✗ Layer 2 关闭失败:', error);
   }
 
-  // 等待 1 秒让 Sink 刷写完
-  await new Promise(resolve => setTimeout(resolve, 1000));
+  // 轮询等待 Sink 缓冲区刷写完毕（最多 5 秒）
+  await waitForDrain(async () => {
+    try {
+      const { telemetryClickHouseSink } = await import('./telemetryClickhouseSink.service');
+      const metrics = telemetryClickHouseSink.getMetrics();
+      return metrics.bufferSize === 0;
+    } catch { return true; }
+  }, 5000, 200);
 
   try {
     const { stopTelemetrySink } = await import('./telemetryClickhouseSink.service');

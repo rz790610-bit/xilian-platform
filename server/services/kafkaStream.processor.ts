@@ -325,6 +325,7 @@ export class KafkaStreamProcessor {
         await database.insert(anomalyDetections).values({
           detectionId: `det_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
           nodeId: result.nodeId || result.deviceCode,
+          deviceCode: result.deviceCode,
           sensorId: result.sensorId,
           algorithmType: 'zscore',
           windowSize: 60,

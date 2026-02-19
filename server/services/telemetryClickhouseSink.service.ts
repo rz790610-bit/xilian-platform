@@ -125,7 +125,14 @@ export class TelemetryClickHouseSink {
   private isRunning: boolean = false;
   private isPaused: boolean = false;
   private metrics: SinkMetrics;
-  private dedupSet: Set<string> = new Set();
+  /**
+   * 去重缓存：使用双 Map 实现简易 LRU
+   * 当 current 满时，丢弃 previous，将 current 降级为 previous，新建 current
+   * 避免一次性清空导致短暂的重复写入
+   */
+  private dedupCurrent: Set<string> = new Set();
+  private dedupPrevious: Set<string> = new Set();
+  private readonly DEDUP_PARTITION_SIZE = 50000;
   private dedupCleanTimer: NodeJS.Timeout | null = null;
   private writeLatencies: number[] = [];
 
@@ -227,7 +234,8 @@ export class TelemetryClickHouseSink {
     }
 
     // 清理去重集合
-    this.dedupSet.clear();
+    this.dedupCurrent.clear();
+    this.dedupPrevious.clear();
 
     log.info(`[TelemetrySink] 已关闭。总计: consumed=${this.metrics.messagesConsumed}, written=${this.metrics.rowsWritten}, errors=${this.metrics.writeErrors}`);
   }
@@ -266,11 +274,11 @@ export class TelemetryClickHouseSink {
       // 去重检查
       if (this.config.enableDedup) {
         const dedupKey = `${row.device_code}:${row.mp_code}:${row.timestamp}`;
-        if (this.dedupSet.has(dedupKey)) {
+        if (this.dedupCurrent.has(dedupKey) || this.dedupPrevious.has(dedupKey)) {
           this.metrics.dedupDropped++;
           return;
         }
-        this.dedupSet.add(dedupKey);
+        this.dedupCurrent.add(dedupKey);
       }
 
       // 添加到缓冲区
@@ -448,11 +456,14 @@ export class TelemetryClickHouseSink {
    * 清理去重集合（保留最近5分钟的key）
    */
   private cleanDedupSet(): void {
-    const sizeBefore = this.dedupSet.size;
-    // 简单策略：超过 100,000 条时清空（时间窗口内的重复概率极低）
-    if (this.dedupSet.size > 100000) {
-      this.dedupSet.clear();
-      log.debug(`[TelemetrySink] 去重集合已清理: ${sizeBefore} → 0`);
+    // LRU 淘汰：当 current 分区满时，丢弃 previous，降级 current
+    if (this.dedupCurrent.size > this.DEDUP_PARTITION_SIZE) {
+      const prevSize = this.dedupPrevious.size;
+      this.dedupPrevious = this.dedupCurrent;
+      this.dedupCurrent = new Set();
+      log.debug(
+        `[TelemetrySink] 去重 LRU 轮转: 淘汰 ${prevSize} 条，保留 ${this.dedupPrevious.size} 条`
+      );
     }
   }
 

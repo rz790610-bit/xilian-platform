@@ -29,9 +29,12 @@ export class VibrationExtractor implements FeatureExtractor {
   readonly supportedTypes = [DataType.VIBRATION];
 
   private fftPadMultiplier: number;
+  /** 是否启用包络分析（计算量较大，低端设备可关闭） */
+  private enableEnvelope: boolean;
 
-  constructor(fftPadMultiplier: number = 2) {
-    this.fftPadMultiplier = fftPadMultiplier;
+  constructor(options: { fftPadMultiplier?: number; enableEnvelope?: boolean } = {}) {
+    this.fftPadMultiplier = options.fftPadMultiplier ?? 2;
+    this.enableEnvelope = options.enableEnvelope ?? true;
   }
 
   validate(raw: RawTelemetryMessage): { valid: boolean; reason?: string } {
@@ -69,15 +72,17 @@ export class VibrationExtractor implements FeatureExtractor {
     const centroid = spectralCentroid(mag, sampleRate);
     const bandwidth = spectralBandwidth(mag, sampleRate);
 
-    // ---- 包络特征 ----
+    // ---- 包络特征（可选，计算量较大） ----
     let envRms = 0;
     let envPeak = 0;
-    try {
-      const env = envelope(waveform);
-      envRms = rms(env);
-      envPeak = peak(env);
-    } catch {
-      // 包络提取失败时跳过（非关键特征）
+    if (this.enableEnvelope) {
+      try {
+        const env = envelope(waveform);
+        envRms = rms(env);
+        envPeak = peak(env);
+      } catch {
+        // 包络提取失败时跳过（非关键特征）
+      }
     }
 
     const features: VibrationFeatures = {

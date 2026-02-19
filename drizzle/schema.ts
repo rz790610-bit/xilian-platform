@@ -439,6 +439,7 @@ export const anomalyDetections = mysqlTable("anomaly_detections", {
   detectionId: varchar("detection_id", { length: 64 }).notNull().unique(),
   sensorId: varchar("sensor_id", { length: 64 }).notNull(),
   nodeId: varchar("node_id", { length: 64 }).notNull(), // 资产节点ID，引用 asset_nodes
+  deviceCode: varchar("device_code", { length: 128 }), // 设备编码，关联 asset_nodes.code，用于数据流层查询
   algorithmType: mysqlEnum("algorithm_type", ["zscore", "iqr", "mad", "isolation_forest", "custom"]).default("zscore").notNull(),
   windowSize: int("window_size").default(60), // 窗口大小（秒）
   threshold: int("threshold"), // 阈值 * 100
