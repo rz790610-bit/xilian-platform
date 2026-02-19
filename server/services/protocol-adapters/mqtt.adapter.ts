@@ -206,7 +206,7 @@ export class MqttAdapter extends BaseAdapter {
           latencyMs: 0,
           message: `连接超时: ${url}`,
         });
-      }, (params.connectTimeout as number) || 10000);
+      }, Math.min((params.connectTimeout as number) || 10000, 8000));
 
       client.on('connect', () => {
         clearTimeout(timeout);

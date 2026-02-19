@@ -165,7 +165,16 @@ export class KafkaAdapter extends BaseAdapter {
       return { success: false, latencyMs: 0, message: 'Broker 列表不能为空' };
     }
 
-    const kafka = this.createKafka(params, auth);
+    // 连接测试使用更短的超时和更少的重试，避免巡检时 KafkaJS 内部重试刷屏
+    const testParams = {
+      ...params,
+      connectionTimeout: Math.min((params.connectionTimeout as number) || 10000, 8000),
+      retries: 1,              // 测试时只重试 1 次
+      initialRetryTime: 200,   // 快速失败
+      maxRetryTime: 2000,
+      logLevel: 'NOTHING',     // 抑制 KafkaJS 内部日志
+    };
+    const kafka = this.createKafka(testParams, auth);
     const admin = kafka.admin();
 
     try {
@@ -287,7 +296,16 @@ export class KafkaAdapter extends BaseAdapter {
     params: Record<string, unknown>,
     auth?: Record<string, unknown>
   ): Promise<Omit<HealthCheckResult, 'latencyMs' | 'checkedAt'>> {
-    const kafka = this.createKafka(params, auth);
+    // 健康检查使用快速失败参数，避免巡检时 KafkaJS 内部重试刷屏
+    const healthParams = {
+      ...params,
+      connectionTimeout: Math.min((params.connectionTimeout as number) || 10000, 8000),
+      retries: 1,
+      initialRetryTime: 200,
+      maxRetryTime: 2000,
+      logLevel: 'NOTHING',
+    };
+    const kafka = this.createKafka(healthParams, auth);
     const admin = kafka.admin();
 
     try {
