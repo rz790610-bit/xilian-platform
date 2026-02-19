@@ -33,10 +33,14 @@ const DEFAULT_CONFIG: StreamProcessorConfig = {
 };
 
 // 数据点结构
+// ID 体系 v2.0：deviceCode 为设备编码（关联 asset_nodes.code）
 interface DataPoint {
   timestamp: number;
   value: number;
-  deviceId: string;
+  /** 设备编码，关联 asset_nodes.code */
+  deviceCode: string;
+  /** @deprecated 使用 deviceCode 代替 */
+  deviceId?: string;
   sensorId: string;
   metricName: string;
 }
@@ -57,14 +61,22 @@ interface AnomalyResult {
   zScore: number;
   threshold: number;
   timestamp: number;
-  deviceId: string;
+  /** 设备编码，关联 asset_nodes.code */
+  deviceCode: string;
+  /** @deprecated 使用 deviceCode 代替 */
+  deviceId?: string;
+  /** 设备树节点ID（用于写入 anomaly_detections 表） */
+  nodeId?: string;
   sensorId: string;
   metricName: string;
 }
 
 // 聚合结果
 interface AggregationResult {
-  deviceId: string;
+  /** 设备编码 */
+  deviceCode: string;
+  /** @deprecated */
+  deviceId?: string;
   sensorId: string;
   metricName: string;
   windowStart: number;
@@ -177,7 +189,8 @@ export class KafkaStreamProcessor {
       const dataPoint: DataPoint = {
         timestamp: data.timestamp || Date.now(),
         value: data.value,
-        deviceId: data.deviceId,
+        // 兼容旧数据源：优先 deviceCode，回退 deviceId
+        deviceCode: data.deviceCode || data.deviceId,
         sensorId: data.sensorId,
         metricName: data.metricName || 'default',
       };
@@ -202,7 +215,7 @@ export class KafkaStreamProcessor {
    * 添加数据点到窗口
    */
   private addToWindow(point: DataPoint): void {
-    const windowKey = `${point.deviceId}:${point.sensorId}:${point.metricName}`;
+    const windowKey = `${point.deviceCode}:${point.sensorId}:${point.metricName}`;
     const now = Date.now();
 
     if (!this.windows.has(windowKey)) {
@@ -227,7 +240,7 @@ export class KafkaStreamProcessor {
    * 添加到聚合缓冲
    */
   private addToAggregationBuffer(point: DataPoint): void {
-    const bufferKey = `${point.deviceId}:${point.sensorId}:${point.metricName}`;
+    const bufferKey = `${point.deviceCode}:${point.sensorId}:${point.metricName}`;
     
     if (!this.aggregationBuffer.has(bufferKey)) {
       this.aggregationBuffer.set(bufferKey, []);
@@ -260,7 +273,7 @@ export class KafkaStreamProcessor {
    * 实时异常检测（Z-Score 方法）
    */
   private detectAnomaly(point: DataPoint): AnomalyResult {
-    const windowKey = `${point.deviceId}:${point.sensorId}:${point.metricName}`;
+    const windowKey = `${point.deviceCode}:${point.sensorId}:${point.metricName}`;
     const window = this.windows.get(windowKey);
 
     const result: AnomalyResult = {
@@ -271,7 +284,7 @@ export class KafkaStreamProcessor {
       zScore: 0,
       threshold: this.config.anomalyThreshold,
       timestamp: point.timestamp,
-      deviceId: point.deviceId,
+      deviceCode: point.deviceCode,
       sensorId: point.sensorId,
       metricName: point.metricName,
     };
@@ -301,15 +314,17 @@ export class KafkaStreamProcessor {
    * 处理异常
    */
   private async handleAnomaly(result: AnomalyResult): Promise<void> {
-    log.debug(`[KafkaStreamProcessor] 检测到异常: ${result.deviceId}/${result.sensorId} Z-Score=${result.zScore.toFixed(2)}`);
+    log.debug(`[KafkaStreamProcessor] 检测到异常: ${result.deviceCode}/${result.sensorId} Z-Score=${result.zScore.toFixed(2)}`);
 
-    // 保存到数据库（anomaly_detections 表，nodeId 字段对应 deviceId）
+    // 保存到数据库（anomaly_detections 表，nodeId 字段存储设备树节点ID）
+    // 注意：此处用 deviceCode 写入 nodeId 字段，因为异常检测表的 nodeId 实际存储的是设备编码
+    // TODO: 待数据流层完全迁移后，应通过查询获取真正的 nodeId
     try {
       const database = await getDb();
       if (database) {
         await database.insert(anomalyDetections).values({
           detectionId: `det_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-          nodeId: result.deviceId,
+          nodeId: result.nodeId || result.deviceCode,
           sensorId: result.sensorId,
           algorithmType: 'zscore',
           windowSize: 60,
@@ -329,7 +344,7 @@ export class KafkaStreamProcessor {
     // 发送异常事件到 Kafka
     try {
       await kafkaClient.produce(KAFKA_TOPICS.ANOMALIES, [{
-        key: `${result.deviceId}:${result.sensorId}`,
+        key: `${result.deviceCode}:${result.sensorId}`,
         value: JSON.stringify({
           type: 'ANOMALY_DETECTED',
           ...result,
@@ -361,7 +376,7 @@ export class KafkaStreamProcessor {
     for (const [key, points] of Array.from(this.aggregationBuffer.entries())) {
       if (points.length === 0) continue;
 
-      const [deviceId, sensorId, metricName] = key.split(':');
+      const [deviceCode, sensorId, metricName] = key.split(':');
       const values = points.map((p: DataPoint) => p.value);
 
       // 计算聚合统计
@@ -374,7 +389,7 @@ export class KafkaStreamProcessor {
       const stdDev = Math.sqrt(variance);
 
       const aggregation: AggregationResult = {
-        deviceId,
+        deviceCode,
         sensorId,
         metricName,
         windowStart,
@@ -400,7 +415,7 @@ export class KafkaStreamProcessor {
             aggregateId: sensorId,
             aggregateVersion: this.aggregateVersionCounter,
             payload: JSON.stringify({
-              deviceId,
+              deviceCode,
               sensorId,
               metricName,
               windowStart: new Date(windowStart).toISOString(),
@@ -511,6 +526,9 @@ export class KafkaStreamProcessor {
    * 查询历史异常（从 anomaly_detections 查询）
    */
   async queryAnomalies(options: {
+    /** 设备树节点ID（优先） */
+    nodeId?: string;
+    /** @deprecated 使用 nodeId 代替 */
     deviceId?: string;
     sensorId?: string;
     severity?: string;
@@ -522,8 +540,8 @@ export class KafkaStreamProcessor {
     if (!database) return [];
 
     const conditions = [];
-    if (options.deviceId) {
-      conditions.push(eq(anomalyDetections.nodeId, options.deviceId));
+    if (options.nodeId || options.deviceId) {
+      conditions.push(eq(anomalyDetections.nodeId, (options.nodeId || options.deviceId)!));
     }
     if (options.sensorId) {
       conditions.push(eq(anomalyDetections.sensorId, options.sensorId));
@@ -551,6 +569,9 @@ export class KafkaStreamProcessor {
    * 查询聚合数据（从 event_store 查询 aggregation_result 事件）
    */
   async queryAggregations(options: {
+    /** 设备编码（优先） */
+    deviceCode?: string;
+    /** @deprecated 使用 deviceCode 代替 */
     deviceId?: string;
     sensorId?: string;
     metricName?: string;
@@ -596,7 +617,8 @@ export class KafkaStreamProcessor {
         };
       })
       .filter(r => {
-        if (options.deviceId && r.nodeId !== options.deviceId) return false;
+        const matchCode = options.deviceCode || options.deviceId;
+        if (matchCode && r.deviceCode !== matchCode && r.nodeId !== matchCode) return false;
         if (options.metricName && r.metricName !== options.metricName) return false;
         return true;
       });

@@ -7,6 +7,15 @@
  *   - sensors → asset_sensors
  *   - sensor_readings → event_store (event_type='sensor_reading')
  *   - sensor_aggregates → event_store (event_type='aggregation_result')
+ *
+ * ID 体系规范（v2.0）：
+ *   - nodeId: 设备树节点唯一标识 → asset_nodes.node_id
+ *   - deviceCode: 设备编码 → asset_nodes.code（可由编码规则生成，≠ nodeId）
+ *   - sensorId: 传感器唯一标识 → asset_sensors.sensor_id
+ *   - deviceId: @deprecated 旧接口参数，内部映射为 nodeId
+ *
+ * 注意：本文件对外暴露的 API 仍使用 deviceId 参数名（前端兼容），
+ * 但内部已明确区分 nodeId 和 deviceCode。
  */
 
 import { getDb } from '../lib/db';
@@ -23,7 +32,12 @@ import { streamProcessor } from './streamProcessor.service';
 // ============ 类型定义 ============
 
 export type DeviceInfo = {
+  /** @deprecated 旧字段，等同于 nodeId。新代码请使用 nodeId */
   deviceId: string;
+  /** 设备树节点ID（权威标识） */
+  nodeId: string;
+  /** 设备编码（可由编码规则生成） */
+  deviceCode: string;
   name: string;
   type: string;
   location?: string;
@@ -36,6 +50,9 @@ export type DeviceInfo = {
 
 export type SensorInfo = {
   sensorId: string;
+  /** 设备编码（关联 asset_nodes.code） */
+  deviceCode: string;
+  /** @deprecated 旧字段，等同于 deviceCode。新代码请使用 deviceCode */
   deviceId: string;
   name: string;
   type: string;
@@ -135,7 +152,7 @@ class DataSimulator {
             timestamp: new Date().toISOString(),
             type: sensor.type,
           },
-          { source: 'simulator', sensorId: sensor.sensorId, deviceId }
+          { source: 'simulator', sensorId: sensor.sensorId, nodeId: deviceId }
         );
 
         // 添加到流处理器
@@ -146,8 +163,8 @@ class DataSimulator {
       await eventBus.publish(
         TOPICS.DEVICE_HEARTBEAT,
         'heartbeat',
-        { deviceId, timestamp: new Date().toISOString() },
-        { source: 'simulator', deviceId }
+        { nodeId: deviceId, timestamp: new Date().toISOString() },
+        { source: 'simulator', nodeId: deviceId }
       );
     }
   }
@@ -170,7 +187,7 @@ class DataSimulator {
         timestamp: new Date().toISOString(),
         isAnomaly: true,
       },
-      { source: 'anomaly_injection', sensorId, deviceId, severity: 'warning' }
+      { source: 'anomaly_injection', sensorId, nodeId: deviceId, severity: 'warning' }
     );
 
     streamProcessor.addDataPoint(sensorId, anomalyValue);
@@ -218,15 +235,18 @@ class DeviceService {
       if (!db) return null;
 
       const now = new Date();
+      // ID 映射：deviceId → nodeId，deviceCode 默认等于 nodeId（编码规则启用后可不同）
+      const nodeId = data.deviceId;
+      const deviceCode = (data as any).deviceCode || nodeId;
       await db.insert(assetNodes).values({
-        nodeId: data.deviceId,
-        code: data.deviceId,
+        nodeId,
+        code: deviceCode,
         name: data.name,
         level: 1,
         nodeType: data.type,
-        rootNodeId: data.deviceId,
+        rootNodeId: nodeId,
         status: 'unknown',
-        path: `/${data.deviceId}`,
+        path: `/${nodeId}`,
         serialNumber: data.serialNumber,
         location: data.location,
         department: data.department,
@@ -238,7 +258,9 @@ class DeviceService {
       });
 
       return {
-        deviceId: data.deviceId,
+        deviceId: nodeId,
+        nodeId,
+        deviceCode,
         name: data.name,
         type: data.type,
         model: data.model,
@@ -290,7 +312,9 @@ class DeviceService {
       return results.map(d => {
         const attrs = d.attributes ? (typeof d.attributes === 'string' ? JSON.parse(d.attributes) : d.attributes) : {};
         return {
-          deviceId: d.nodeId,
+          deviceId: d.nodeId,  // @deprecated 兼容旧接口
+          nodeId: d.nodeId,
+          deviceCode: d.code,
           name: d.name,
           type: d.nodeType,
           model: attrs?.model || undefined,
@@ -324,16 +348,19 @@ class DeviceService {
 
       const d = result[0];
       
-      // 获取传感器数量
+      // 获取传感器数量 — 使用 deviceCode(=code) 关联传感器
+      const deviceCode = d.code;
       const sensorCountResult = await db
         .select({ count: count() })
         .from(assetSensors)
-        .where(eq(assetSensors.deviceCode, deviceId));
+        .where(eq(assetSensors.deviceCode, deviceCode));
 
       const attrs = d.attributes ? (typeof d.attributes === 'string' ? JSON.parse(d.attributes) : d.attributes) : {};
 
       return {
-        deviceId: d.nodeId,
+        deviceId: d.nodeId,  // @deprecated 兼容旧接口
+        nodeId: d.nodeId,
+        deviceCode,
         name: d.name,
         type: d.nodeType,
         model: attrs?.model || undefined,
@@ -373,8 +400,8 @@ class DeviceService {
       await eventBus.publish(
         TOPICS.DEVICE_STATUS,
         'status_change',
-        { deviceId, status, timestamp: new Date().toISOString() },
-        { deviceId, severity: status === 'error' ? 'error' : 'info' }
+        { nodeId: deviceId, status, timestamp: new Date().toISOString() },
+        { nodeId: deviceId, severity: status === 'error' ? 'error' : 'info' }
       );
 
       return true;
@@ -424,9 +451,11 @@ class SensorService {
       if (!db) return null;
 
       const now = new Date();
+      // ID 映射：deviceId → deviceCode（传感器通过 deviceCode 关联设备）
+      const deviceCode = (data as any).deviceCode || data.deviceId;
       await db.insert(assetSensors).values({
         sensorId: data.sensorId,
-        deviceCode: data.deviceId,
+        deviceCode,
         mpId: data.sensorId, // 测点ID默认与传感器ID一致
         name: data.name,
         physicalQuantity: data.type,
@@ -444,7 +473,8 @@ class SensorService {
 
       return {
         sensorId: data.sensorId,
-        deviceId: data.deviceId,
+        deviceCode,
+        deviceId: data.deviceId,  // @deprecated 兼容旧接口
         name: data.name,
         type: data.type,
         unit: data.unit,
@@ -477,7 +507,8 @@ class SensorService {
 
       return results.map(s => ({
         sensorId: s.sensorId,
-        deviceId: s.deviceCode,
+        deviceCode: s.deviceCode,
+        deviceId: s.deviceCode,  // @deprecated 兼容旧接口
         name: s.name || '',
         type: s.physicalQuantity || '',
         unit: s.unit || undefined,

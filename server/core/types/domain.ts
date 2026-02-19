@@ -22,10 +22,18 @@
 /**
  * 传感器读数 - 统一模型
  * 合并自 streamProcessor.ts, clickhouseClient.ts, flinkProcessor.ts
+ *
+ * ID 体系规范（v2.0）：
+ * - deviceCode: 设备编码，关联 asset_nodes.code，用于传感器/遥测数据关联
+ * - sensorId: 传感器唯一标识，关联 asset_sensors.sensor_id
+ * - deviceId: @deprecated 旧字段，过渡期保留，新代码请使用 deviceCode
  */
 export interface SensorReading {
   sensorId: string;
-  deviceId: string;
+  /** 设备编码，关联 asset_nodes.code */
+  deviceCode: string;
+  /** @deprecated 使用 deviceCode 代替。过渡期内等同于 deviceCode */
+  deviceId?: string;
   metricName?: string;
   value: number;
   unit?: string;
@@ -49,8 +57,12 @@ export interface SensorReading {
  */
 export interface AnomalyResult {
   sensorId?: string;
+  /** 设备树节点ID，关联 asset_nodes.node_id（权威字段） */
+  nodeId: string;
+  /** 设备编码，关联 asset_nodes.code（可选） */
+  deviceCode?: string;
+  /** @deprecated 使用 nodeId 代替 */
   deviceId?: string;
-  nodeId?: string;
   metricName?: string;
   value?: number;
   currentValue?: number;
@@ -80,6 +92,9 @@ export interface AnomalyResult {
  */
 export interface AggregateResult {
   sensorId?: string;
+  /** 设备编码，关联 asset_nodes.code */
+  deviceCode?: string;
+  /** @deprecated 使用 deviceCode 代替 */
   deviceId?: string;
   period?: '1m' | '5m' | '1h' | '1d' | string;
   periodStart?: Date;
@@ -172,6 +187,9 @@ export interface QueryOptions {
   // ClickHouse 扩展字段
   startTime?: Date | string;
   endTime?: Date | string;
+  /** 设备编码列表，关联 asset_nodes.code */
+  deviceCodes?: string[];
+  /** @deprecated 使用 deviceCodes 代替 */
   deviceIds?: string[];
   sensorIds?: string[];
   metricNames?: string[];
@@ -214,10 +232,14 @@ export interface EventPayload {
   eventType?: string;
   severity?: 'info' | 'warning' | 'error' | 'critical';
   topic?: string;
-  // 关联实体
-  deviceId?: string;
-  sensorId?: string;
+  // 关联实体（ID 体系 v2.0）
+  /** 设备树节点ID，关联 asset_nodes.node_id */
   nodeId?: string;
+  /** 设备编码，关联 asset_nodes.code */
+  deviceCode?: string;
+  sensorId?: string;
+  /** @deprecated 使用 nodeId 或 deviceCode 代替 */
+  deviceId?: string;
   userId?: string;
   correlationId?: string;
   // 载荷

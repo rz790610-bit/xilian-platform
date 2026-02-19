@@ -2533,7 +2533,7 @@ export const rollbackExecutions = mysqlTable("rollback_executions", {
     total: number;
     succeeded: number;
     failed: number;
-    details?: Array<{ deviceId: string; status: string; error?: string }>;
+    details?: Array<{ nodeId: string; status: string; error?: string }>;
   }>(),
   startedAt: timestamp("started_at"),
   completedAt: timestamp("completed_at"),

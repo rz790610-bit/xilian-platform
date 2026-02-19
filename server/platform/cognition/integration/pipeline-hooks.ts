@@ -219,13 +219,12 @@ export class PipelineHookManager {
       payload: {
         hookPoint,
         pipelineRunId: context.pipelineRunId,
-        nodeId: context.nodeId,
+        pipelineNodeId: context.nodeId,
         ocProfileId: context.ocProfileId,
-        deviceId: context.deviceId,
         ...context.data,
       },
       ocProfileId: context.ocProfileId,
-      deviceId: context.deviceId,
+      nodeId: context.nodeId,
       deduplicationKey: `${hookPoint}:${context.pipelineRunId}:${context.nodeId}`,
       triggeredAt: new Date(),
     };
@@ -338,7 +337,9 @@ export interface PipelineHookContext {
   nodeId: string;
   /** 工况配置 ID */
   ocProfileId?: string;
-  /** 设备 ID */
+  /** 设备树节点ID（关联设备） */
+  deviceNodeId?: string;
+  /** @deprecated 使用 deviceNodeId 代替 */
   deviceId?: string;
   /** 节点输出数据 */
   data: Record<string, unknown>;

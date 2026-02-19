@@ -197,7 +197,10 @@ export class CognitionEventEmitter {
   // ========== 数据事件 ==========
 
   emitDataCollected(payload: {
-    deviceId: string;
+    /** 设备树节点ID */
+    nodeId: string;
+    /** @deprecated 使用 nodeId 代替 */
+    deviceId?: string;
     dataType: string;
     sampleCount: number;
     collectedAt: Date;
@@ -268,7 +271,10 @@ export class CognitionEventEmitter {
   }
 
   emitDriftDetected(payload: {
-    deviceId: string;
+    /** 设备树节点ID */
+    nodeId: string;
+    /** @deprecated 使用 nodeId 代替 */
+    deviceId?: string;
     driftType: string;
     severity: number;
     detectedAt: Date;

@@ -40,8 +40,8 @@ const log = createModuleLogger('perceptionProcessor');
 export interface BaselineAdapter {
   /** 获取指定工况的基线 */
   getBaseline(ocProfileId: string): Promise<OCBaseline | null>;
-  /** 获取设备的默认基线 */
-  getDeviceBaseline(deviceId: string): Promise<OCBaseline | null>;
+  /** 获取设备的默认基线（按设备树节点ID） */
+  getDeviceBaseline(nodeId: string): Promise<OCBaseline | null>;
 }
 
 // ============================================================================
@@ -150,15 +150,16 @@ export class PerceptionProcessor implements DimensionProcessor<PerceptionOutput>
    */
   private async resolveBaseline(stimulus: CognitionStimulus): Promise<OCBaseline | null> {
     const ocProfileId = stimulus.payload?.ocProfileId as string | undefined;
-    const deviceId = stimulus.payload?.deviceId as string | undefined;
+    // 优先使用 nodeId，回退 deviceId
+    const nodeId = (stimulus.nodeId || stimulus.payload?.nodeId || stimulus.payload?.deviceId) as string | undefined;
 
     if (ocProfileId) {
       const baseline = await this.baselineAdapter.getBaseline(ocProfileId);
       if (baseline) return baseline;
     }
 
-    if (deviceId) {
-      return this.baselineAdapter.getDeviceBaseline(deviceId);
+    if (nodeId) {
+      return this.baselineAdapter.getDeviceBaseline(nodeId);
     }
 
     return null;

@@ -246,14 +246,18 @@ class StreamProcessor {
    * 处理单个传感器读数
    */
   async processReading(event: Event): Promise<void> {
-    const { sensorId, deviceId, value, timestamp } = event.payload as {
+    const payload = event.payload as {
       sensorId: string;
-      deviceId: string;
+      deviceCode?: string;
+      deviceId?: string;  // @deprecated 兼容旧数据源
       value: number;
       timestamp?: string;
     };
+    const { sensorId, value, timestamp } = payload;
+    // 优先 deviceCode，回退 deviceId
+    const deviceCode = payload.deviceCode || payload.deviceId;
 
-    if (!sensorId || !deviceId || value === undefined) return;
+    if (!sensorId || !deviceCode || value === undefined) return;
 
     const ts = timestamp ? new Date(timestamp) : new Date();
     
@@ -261,7 +265,7 @@ class StreamProcessor {
     this.windowManager.addDataPoint(sensorId, value, ts);
     
     // 持久化读数
-    await this.persistReading(sensorId, deviceId, value, ts);
+    await this.persistReading(sensorId, deviceCode, value, ts);
     
     this.metrics.processedReadings++;
     this.metrics.lastProcessTime = new Date();
@@ -293,13 +297,13 @@ class StreamProcessor {
       if (zScoreResult.isAnomaly) {
         const severity = this.anomalyDetector.determineSeverity(zScoreResult.score);
         
-        // 获取设备ID
-        const deviceId = await this.getDeviceIdForSensor(sensorId);
+        // 获取设备编码
+        const deviceCode = await this.getDeviceCodeForSensor(sensorId);
         
         // 记录异常
         await this.recordAnomaly({
           sensorId,
-          deviceId: deviceId || 'unknown',
+          deviceId: deviceCode || 'unknown',
           isAnomaly: true,
           algorithm: 'zscore',
           currentValue: latestValue,
@@ -316,14 +320,14 @@ class StreamProcessor {
           'anomaly_detected',
           {
             sensorId,
-            deviceId,
+            deviceCode,
             value: latestValue,
             expectedValue: stats.mean,
             deviation: zScoreResult.deviation,
             score: zScoreResult.score,
             severity,
           },
-          { severity: severity === 'critical' ? 'critical' : 'warning', sensorId, deviceId: deviceId || undefined }
+          { severity: severity === 'critical' ? 'critical' : 'warning', sensorId, nodeId: deviceCode || undefined }
         );
 
         this.metrics.detectedAnomalies++;
@@ -345,11 +349,11 @@ class StreamProcessor {
       const stats = this.windowManager.getWindowStats(sensorId);
       if (!stats || stats.count === 0) continue;
 
-      const deviceId = await this.getDeviceIdForSensor(sensorId);
+      const deviceCode = await this.getDeviceCodeForSensor(sensorId);
       
       await this.saveAggregate({
         sensorId,
-        deviceId: deviceId || 'unknown',
+        deviceId: deviceCode || 'unknown',
         period: '1m',
         periodStart,
         avg: stats.mean,
@@ -386,7 +390,7 @@ class StreamProcessor {
         aggregateVersion: Date.now(),
         payload: JSON.stringify({
           sensorId,
-          deviceId,
+          deviceCode: deviceId,  // 参数名待后续重命名，实际存储的是 deviceCode
           value: Math.round(value * 100),
           quality: 'good',
         }),
@@ -443,7 +447,7 @@ class StreamProcessor {
         aggregateVersion: Date.now(),
         payload: JSON.stringify({
           sensorId: result.sensorId,
-          deviceId: result.deviceId,
+          deviceCode: result.deviceId,  // 实际存储的是 deviceCode
           period: result.period,
           periodStart: result.periodStart?.toISOString(),
           avg: result.avg,
@@ -462,9 +466,10 @@ class StreamProcessor {
   }
 
   /**
-   * 获取传感器对应的设备ID
+   * 获取传感器对应的设备编码（deviceCode）
+   * 传感器通过 asset_sensors.device_code 关联设备
    */
-  private async getDeviceIdForSensor(sensorId: string): Promise<string | null> {
+  private async getDeviceCodeForSensor(sensorId: string): Promise<string | null> {
     try {
       const db = await getDb();
       if (!db) return null;
@@ -511,12 +516,12 @@ class StreamProcessor {
 
     if (!result.isAnomaly) return null;
 
-    const deviceId = await this.getDeviceIdForSensor(sensorId);
+    const deviceCode = await this.getDeviceCodeForSensor(sensorId);
     const severity = this.anomalyDetector.determineSeverity(result.score);
 
     return {
       sensorId,
-      deviceId: deviceId || 'unknown',
+      deviceId: deviceCode || 'unknown',
       isAnomaly: true,
       algorithm,
       currentValue: latestValue,

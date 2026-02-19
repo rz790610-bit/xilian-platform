@@ -31,7 +31,9 @@ const log = createModuleLogger('metaLearner');
 export interface MetaLearnerQuery {
   /** 当前工况 ID */
   ocProfileId?: string;
-  /** 设备 ID */
+  /** 设备树节点ID */
+  nodeId?: string;
+  /** @deprecated 使用 nodeId 代替 */
   deviceId?: string;
   /** 异常类型 */
   anomalyType?: string;

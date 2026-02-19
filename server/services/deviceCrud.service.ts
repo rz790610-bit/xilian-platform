@@ -9,6 +9,11 @@
  * - 设备配置版本控制
  * - 设备健康检查
  * - 设备关联关系管理
+ *
+ * ID 体系规范（v2.0）：
+ *   - nodeId: 设备树节点唯一标识 → asset_nodes.node_id
+ *   - deviceCode: 设备编码 → asset_nodes.code（可由编码规则生成，≠ nodeId）
+ *   - deviceId: @deprecated 旧接口参数，内部映射为 nodeId
  */
 
 import { getDb } from '../lib/db';
@@ -59,7 +64,12 @@ export type DeviceStatus =
  */
 export interface DeviceFullInfo {
   id: number;
+  /** @deprecated 使用 nodeId 代替 */
   deviceId: string;
+  /** 设备树节点ID（权威标识） */
+  nodeId: string;
+  /** 设备编码（可由编码规则生成） */
+  deviceCode: string;
   name: string;
   type: DeviceType;
   model?: string;
@@ -225,15 +235,18 @@ export class DeviceCrudService {
         throw new Error(`Device with ID ${input.deviceId} already exists`);
       }
 
+      // ID 映射：deviceId → nodeId，deviceCode 默认等于 nodeId（编码规则启用后可不同）
+      const nodeId = input.deviceId;
+      const deviceCode = (input as any).deviceCode || nodeId;
       await db.insert(assetNodes).values({
-        nodeId: input.deviceId,
-        code: input.deviceId,
+        nodeId,
+        code: deviceCode,
         name: input.name,
         level: 1,
         nodeType: input.type || 'other',
-        rootNodeId: input.deviceId,
+        rootNodeId: nodeId,
         status: 'unknown',
-        path: `/${input.deviceId}`,
+        path: `/${nodeId}`,
         serialNumber: input.serialNumber,
         location: input.location,
         department: input.department,
@@ -250,8 +263,8 @@ export class DeviceCrudService {
       await eventBus.publish(
         TOPICS.DEVICE_STATUS,
         'device_created',
-        { deviceId: input.deviceId, name: input.name, type: input.type },
-        { deviceId: input.deviceId }
+        { nodeId, deviceCode, name: input.name, type: input.type },
+        { nodeId }
       );
 
       return this.getById(input.deviceId);
@@ -305,15 +318,18 @@ export class DeviceCrudService {
 
       const d = result[0];
 
-      // 获取传感器数量
+      // 获取传感器数量 — 使用 deviceCode(=code) 关联传感器
+      const deviceCode = d.code;
       const sensorCountResult = await db
         .select({ count: count() })
         .from(assetSensors)
-        .where(eq(assetSensors.deviceCode, deviceId));
+        .where(eq(assetSensors.deviceCode, deviceCode));
 
       return {
         id: d.id,
-        deviceId: d.nodeId,
+        deviceId: d.nodeId,  // @deprecated 兼容旧接口
+        nodeId: d.nodeId,
+        deviceCode,
         name: d.name,
         type: d.nodeType as DeviceType,
         model: (d.attributes as any)?.model || undefined,
@@ -392,18 +408,18 @@ export class DeviceCrudService {
 
       const results = await query;
 
-      // 获取传感器数量
-      const deviceIds = results.map(d => d.nodeId);
+      // 获取传感器数量 — 使用 deviceCode(=code) 关联传感器
+      const deviceCodes = results.map(d => d.code);
       const sensorCounts = new Map<string, number>();
       
-      if (deviceIds.length > 0) {
+      if (deviceCodes.length > 0) {
         const sensorCountResults = await db
           .select({
             deviceCode: assetSensors.deviceCode,
             count: count(),
           })
           .from(assetSensors)
-          .where(inArray(assetSensors.deviceCode, deviceIds))
+          .where(inArray(assetSensors.deviceCode, deviceCodes))
           .groupBy(assetSensors.deviceCode);
 
         for (const sc of sensorCountResults) {
@@ -413,7 +429,9 @@ export class DeviceCrudService {
 
       const items: DeviceFullInfo[] = results.map(d => ({
         id: d.id,
-        deviceId: d.nodeId,
+        deviceId: d.nodeId,  // @deprecated 兼容旧接口
+        nodeId: d.nodeId,
+        deviceCode: d.code,
         name: d.name,
         type: d.nodeType as DeviceType,
         model: (d.attributes as any)?.model || undefined,
@@ -426,7 +444,7 @@ export class DeviceCrudService {
         installDate: d.installDate || undefined,
         warrantyExpiry: d.warrantyExpiry || undefined,
         metadata: d.attributes as any,
-        sensorCount: sensorCounts.get(d.nodeId) || 0,
+        sensorCount: sensorCounts.get(d.code) || sensorCounts.get(d.nodeId) || 0,
         createdAt: d.createdAt,
         updatedAt: d.updatedAt,
       }));
@@ -575,8 +593,8 @@ export class DeviceCrudService {
       await eventBus.publish(
         TOPICS.DEVICE_STATUS,
         'device_updated',
-        { deviceId, updates: Object.keys(input) },
-        { deviceId }
+        { nodeId: deviceId, updates: Object.keys(input) },
+        { nodeId: deviceId }
       );
 
       return this.getById(deviceId);
@@ -629,8 +647,9 @@ export class DeviceCrudService {
         throw new Error(`Device ${deviceId} not found`);
       }
 
-      // 删除关联的传感器
-      await db.delete(assetSensors).where(eq(assetSensors.deviceCode, deviceId));
+      // 删除关联的传感器 — 使用 deviceCode(=code) 关联
+      const deviceCode = existing.deviceCode || existing.deviceId;
+      await db.delete(assetSensors).where(eq(assetSensors.deviceCode, deviceCode));
 
       // 删除设备
       await db.delete(assetNodes).where(eq(assetNodes.nodeId, deviceId));
@@ -639,8 +658,8 @@ export class DeviceCrudService {
       await eventBus.publish(
         TOPICS.DEVICE_STATUS,
         'device_deleted',
-        { deviceId },
-        { deviceId }
+        { nodeId: deviceId },
+        { nodeId: deviceId }
       );
 
       return true;
@@ -702,8 +721,8 @@ export class DeviceCrudService {
       await eventBus.publish(
         TOPICS.DEVICE_STATUS,
         'status_change',
-        { deviceId, status, timestamp: new Date().toISOString() },
-        { deviceId, severity: status === 'error' ? 'error' : 'info' }
+        { nodeId: deviceId, status, timestamp: new Date().toISOString() },
+        { nodeId: deviceId, severity: status === 'error' ? 'error' : 'info' }
       );
 
       return true;
@@ -886,7 +905,7 @@ export class DeviceCrudService {
           count: count(),
         })
         .from(assetSensors)
-        .where(eq(assetSensors.deviceCode, deviceId))
+        .where(eq(assetSensors.deviceCode, device.deviceCode || deviceId))
         .groupBy(assetSensors.status);
 
       const sensorStatus = {
