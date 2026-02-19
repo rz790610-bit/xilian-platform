@@ -299,6 +299,29 @@ export default function SystemTopology() {
     ? edges 
     : (edges || []).filter(e => e.type === viewMode);
   
+  // ============================================================
+  // 拖拽系统 — 使用 useRef 存储拖拽状态，避免闭包陈旧值
+  // ============================================================
+  const dragStateRef = useRef({
+    dragNode: null as string | null,
+    dragOffset: { x: 0, y: 0 },
+    // 多选拖动时记录每个选中节点的初始位置
+    initialPositions: new Map<string, { x: number; y: number }>(),
+    // 鼠标按下时的初始世界坐标
+    startWorldPos: { x: 0, y: 0 },
+  });
+  const nodeRafRef = useRef<number | null>(null);
+  const canvasRafRef = useRef<number | null>(null);
+  
+  // 同步 zoom/pan 到 ref（供 rAF 回调读取）
+  const zoomRef = useRef(zoom);
+  const panRef = useRef(pan);
+  useEffect(() => { zoomRef.current = zoom; }, [zoom]);
+  useEffect(() => { panRef.current = pan; }, [pan]);
+  
+  const selectedNodesRef = useRef(selectedNodes);
+  useEffect(() => { selectedNodesRef.current = selectedNodes; }, [selectedNodes]);
+
   // 处理节点拖拽（支持多选整体拖动）
   const handleMouseDown = (e: React.MouseEvent, nodeId: string) => {
     if (isConnecting) {
@@ -336,109 +359,138 @@ export default function SystemTopology() {
     if (!svg) return;
     
     const rect = svg.getBoundingClientRect();
-    const x = (e.clientX - rect.left) / zoom - pan.x;
-    const y = (e.clientY - rect.top) / zoom - pan.y;
+    const worldX = (e.clientX - rect.left) / zoom - pan.x;
+    const worldY = (e.clientY - rect.top) / zoom - pan.y;
     
     // 如果拖动的节点在多选集中，整体拖动；否则清空多选只拖单个
     if (!selectedNodes.has(nodeId)) {
       setSelectedNodes(new Set());
     }
     
+    // 记录初始状态到 ref（不依赖 useState 的异步更新）
+    const ds = dragStateRef.current;
+    ds.dragNode = nodeId;
+    ds.dragOffset = { x: worldX - node.x, y: worldY - node.y };
+    ds.startWorldPos = { x: worldX, y: worldY };
+    
+    // 记录所有选中节点的初始位置（用于多选整体拖动）
+    ds.initialPositions.clear();
+    const activeSelection = selectedNodes.has(nodeId) ? selectedNodes : new Set<string>();
+    if (activeSelection.size > 0) {
+      for (const nid of activeSelection) {
+        const n = nodes.find(nd => nd.nodeId === nid);
+        if (n) ds.initialPositions.set(nid, { x: n.x, y: n.y });
+      }
+    }
+    
     setDragNode(nodeId);
-    setDragOffset({ x: x - node.x, y: y - node.y });
+    setDragOffset({ x: worldX - node.x, y: worldY - node.y });
     setIsDragging(true);
   };
   
-  // ST-2 修复：immutable 更新 + requestAnimationFrame 节流防止拖拽卡顿
-  const rafRef = useRef<number | null>(null);
-  const pendingMouseEvent = useRef<MouseEvent | null>(null);
-  
-  const applyDragUpdate = useCallback(() => {
-    const e = pendingMouseEvent.current;
-    if (!e || !dragNode) return;
+  // 拖拽更新 — 从 ref 读取状态，不依赖闭包
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    const ds = dragStateRef.current;
+    if (!ds.dragNode) return;
     
     const svg = svgRef.current;
     if (!svg) return;
     
+    // 从 ref 读取最新的 zoom 和 pan
+    const currentZoom = zoomRef.current;
+    const currentPan = panRef.current;
+    
     const rect = svg.getBoundingClientRect();
-    const x = (e.clientX - rect.left) / zoom - pan.x - dragOffset.x;
-    const y = (e.clientY - rect.top) / zoom - pan.y - dragOffset.y;
+    const worldX = (e.clientX - rect.left) / currentZoom - currentPan.x;
+    const worldY = (e.clientY - rect.top) / currentZoom - currentPan.y;
     
-    setLocalNodes(prev => {
-      const primaryNode = prev.find(n => n.nodeId === dragNode);
-      if (!primaryNode) return prev;
+    // 取消上一帧的 rAF
+    if (nodeRafRef.current !== null) {
+      cancelAnimationFrame(nodeRafRef.current);
+    }
+    
+    // 捕获当前帧的值
+    const targetX = Math.max(0, worldX - ds.dragOffset.x);
+    const targetY = Math.max(0, worldY - ds.dragOffset.y);
+    const dragNodeId = ds.dragNode;
+    const initPositions = ds.initialPositions;
+    const startWorld = ds.startWorldPos;
+    const selNodes = selectedNodesRef.current;
+    
+    nodeRafRef.current = requestAnimationFrame(() => {
+      nodeRafRef.current = null;
       
-      const dx = Math.max(0, x) - primaryNode.x;
-      const dy = Math.max(0, y) - primaryNode.y;
-      
-      // 跳过微小移动（< 0.5px），减少无意义的重渲染
-      if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) return prev;
-      
-      // 多选整体拖动
-      if (selectedNodes.size > 0 && selectedNodes.has(dragNode)) {
-        return prev.map(n =>
-          selectedNodes.has(n.nodeId)
-            ? { ...n, x: Math.max(0, n.x + dx), y: Math.max(0, n.y + dy) }
-            : n
-        );
-      } else {
-        // 单节点拖动
-        return prev.map(n =>
-          n.nodeId === dragNode
-            ? { ...n, x: Math.max(0, x), y: Math.max(0, y) }
-            : n
-        );
-      }
+      setLocalNodes(prev => {
+        // 多选整体拖动：基于初始位置 + 鼠标偏移量
+        if (initPositions.size > 0 && selNodes.has(dragNodeId)) {
+          const dx = worldX - startWorld.x;
+          const dy = worldY - startWorld.y;
+          
+          // 跳过微小移动
+          if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) return prev;
+          
+          return prev.map(n => {
+            const initPos = initPositions.get(n.nodeId);
+            if (initPos) {
+              return { ...n, x: Math.max(0, initPos.x + dx), y: Math.max(0, initPos.y + dy) };
+            }
+            return n;
+          });
+        } else {
+          // 单节点拖动：直接设置绝对坐标
+          return prev.map(n =>
+            n.nodeId === dragNodeId
+              ? { ...n, x: targetX, y: targetY }
+              : n
+          );
+        }
+      });
     });
-    
-    pendingMouseEvent.current = null;
-    rafRef.current = null;
-  }, [dragNode, zoom, pan, dragOffset, selectedNodes]);
+  }, []); // 空依赖 — 所有状态从 ref 读取
   
-  const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (!isDragging || !dragNode) return;
-    
-    pendingMouseEvent.current = e;
-    
-    // 使用 rAF 节流：每帧最多更新一次
-    if (rafRef.current === null) {
-      rafRef.current = requestAnimationFrame(applyDragUpdate);
-    }
-  }, [isDragging, dragNode, applyDragUpdate]);
-  
-  // ST-1 修复：多选拖拽时使用批量接口 updateNodePositions
   const handleMouseUp = useCallback(() => {
-    // 清理 rAF 并应用最后一帧
-    if (rafRef.current !== null) {
-      cancelAnimationFrame(rafRef.current);
-      rafRef.current = null;
-    }
-    if (pendingMouseEvent.current) {
-      applyDragUpdate();
+    // 清理 rAF
+    if (nodeRafRef.current !== null) {
+      cancelAnimationFrame(nodeRafRef.current);
+      nodeRafRef.current = null;
     }
     
-    if (isDragging && dragNode) {
-      // 多选整体拖动时批量保存所有选中节点位置
-      if (selectedNodes.size > 0 && selectedNodes.has(dragNode)) {
-        const updates = Array.from(selectedNodes)
-          .map(nid => {
-            const n = localNodes.find(nd => nd.nodeId === nid);
-            return n ? { nodeId: nid, x: Math.round(n.x), y: Math.round(n.y) } : null;
-          })
-          .filter(Boolean) as { nodeId: string; x: number; y: number }[];
-        if (updates.length > 0) {
-          updateNodePositionsMutation.mutate(updates);
+    const ds = dragStateRef.current;
+    const dragNodeId = ds.dragNode;
+    
+    if (dragNodeId) {
+      // 读取最终位置并保存到后端
+      const selNodes = selectedNodesRef.current;
+      
+      // 使用 setLocalNodes 的回调形式读取最新状态
+      setLocalNodes(currentNodes => {
+        // 多选整体拖动时批量保存
+        if (ds.initialPositions.size > 0 && selNodes.has(dragNodeId)) {
+          const updates = Array.from(selNodes)
+            .map(nid => {
+              const n = currentNodes.find(nd => nd.nodeId === nid);
+              return n ? { nodeId: nid, x: Math.round(n.x), y: Math.round(n.y) } : null;
+            })
+            .filter(Boolean) as { nodeId: string; x: number; y: number }[];
+          if (updates.length > 0) {
+            updateNodePositionsMutation.mutate(updates);
         }
-      } else {
-        const node = localNodes.find(n => n.nodeId === dragNode);
-        if (node) {
-          updateNodePositionMutation.mutate({ nodeId: dragNode, x: Math.round(node.x), y: Math.round(node.y) });
+        } else {
+          const node = currentNodes.find(n => n.nodeId === dragNodeId);
+          if (node) {
+            updateNodePositionMutation.mutate({ nodeId: dragNodeId, x: Math.round(node.x), y: Math.round(node.y) });
+          }
         }
-      }
+        return currentNodes; // 不修改状态，只是读取
+      });
     }
+    
+    // 清理拖拽状态
+    ds.dragNode = null;
+    ds.initialPositions.clear();
     setIsDragging(false);
     setDragNode(null);
-  }, [isDragging, dragNode, localNodes, selectedNodes, updateNodePositionMutation, updateNodePositionsMutation, applyDragUpdate]);
+  }, [updateNodePositionMutation, updateNodePositionsMutation]);
   
   useEffect(() => {
     if (isDragging) {
@@ -992,18 +1044,19 @@ export default function SystemTopology() {
                     }}
                     onMouseMove={(e) => {
                       if (isPanningCanvas) {
-                        // 使用 rAF 节流画布平移
+                        // 使用 canvasRafRef 节流画布平移（与节点拖拽分开）
                         const clientX = e.clientX;
                         const clientY = e.clientY;
-                        if (!rafRef.current) {
-                          rafRef.current = requestAnimationFrame(() => {
-                            setPan({
-                              x: (clientX - panStart.x) / zoom,
-                              y: (clientY - panStart.y) / zoom,
-                            });
-                            rafRef.current = null;
-                          });
+                        if (canvasRafRef.current !== null) {
+                          cancelAnimationFrame(canvasRafRef.current);
                         }
+                        canvasRafRef.current = requestAnimationFrame(() => {
+                          canvasRafRef.current = null;
+                          setPan({
+                            x: (clientX - panStart.x) / zoomRef.current,
+                            y: (clientY - panStart.y) / zoomRef.current,
+                          });
+                        });
                       }
                     }}
                     onMouseUp={() => setIsPanningCanvas(false)}
