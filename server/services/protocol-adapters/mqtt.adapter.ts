@@ -41,9 +41,9 @@ export class MqttAdapter extends BaseAdapter {
     authFields: [
       { key: 'username', label: '用户名', type: 'string', required: false },
       { key: 'password', label: '密码', type: 'password', required: false },
-      { key: 'caCert', label: 'CA 证书 (PEM)', type: 'string', required: false, description: 'TLS 模式下的 CA 根证书', group: 'TLS' },
-      { key: 'clientCert', label: '客户端证书 (PEM)', type: 'string', required: false, group: 'TLS' },
-      { key: 'clientKey', label: '客户端私钥 (PEM)', type: 'string', required: false, group: 'TLS' },
+      { key: 'caCert', label: 'CA 证书 (PEM)', type: 'textarea', required: false, description: 'TLS 模式下的 CA 根证书', group: 'TLS' },
+      { key: 'clientCert', label: '客户端证书 (PEM)', type: 'textarea', required: false, group: 'TLS' },
+      { key: 'clientKey', label: '客户端私钥 (PEM)', type: 'textarea', required: false, group: 'TLS' },
       { key: 'rejectUnauthorized', label: '验证服务器证书', type: 'boolean', required: false, defaultValue: true, group: 'TLS' },
     ],
     advancedFields: [

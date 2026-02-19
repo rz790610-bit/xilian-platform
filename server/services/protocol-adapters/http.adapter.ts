@@ -90,9 +90,9 @@ export class HttpAdapter extends BaseAdapter {
       { key: 'customHeaders', label: '自定义请求头 (JSON)', type: 'json', required: false, group: '自定义', description: '键值对形式的自定义请求头' },
       // TLS
       { key: 'tlsRejectUnauthorized', label: '验证 SSL 证书', type: 'boolean', required: false, defaultValue: true },
-      { key: 'tlsCaCert', label: 'CA 证书 (PEM)', type: 'string', required: false, group: 'TLS' },
-      { key: 'tlsClientCert', label: '客户端证书 (PEM)', type: 'string', required: false, group: 'TLS' },
-      { key: 'tlsClientKey', label: '客户端私钥 (PEM)', type: 'string', required: false, group: 'TLS' },
+      { key: 'tlsCaCert', label: 'CA 证书 (PEM)', type: 'textarea', required: false, group: 'TLS' },
+      { key: 'tlsClientCert', label: '客户端证书 (PEM)', type: 'textarea', required: false, group: 'TLS' },
+      { key: 'tlsClientKey', label: '客户端私钥 (PEM)', type: 'textarea', required: false, group: 'TLS' },
     ],
     advancedFields: [
       // 超时与重试

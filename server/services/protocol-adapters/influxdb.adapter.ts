@@ -30,6 +30,12 @@ export class InfluxdbAdapter extends BaseAdapter {
       { key: 'token', label: 'API Token', type: 'password', required: true, description: 'InfluxDB 2.x API Token（在 InfluxDB UI 的 API Tokens 页面生成）' },
     ],
     advancedFields: [
+      // TLS/SSL
+      { key: 'tls', label: '启用 TLS/SSL', type: 'boolean', required: false, defaultValue: false, description: '启用 HTTPS 加密连接（生产环境强烈建议启用）', group: 'TLS' },
+      { key: 'tlsCaCert', label: 'CA 证书 (PEM)', type: 'textarea', required: false, description: '自签名证书场景下的 CA 根证书', group: 'TLS' },
+      { key: 'tlsClientCert', label: '客户端证书 (PEM)', type: 'textarea', required: false, description: '双向 TLS 认证时的客户端证书', group: 'TLS' },
+      { key: 'tlsClientKey', label: '客户端私钥 (PEM)', type: 'textarea', required: false, description: '双向 TLS 认证时的客户端私钥', group: 'TLS' },
+      { key: 'tlsRejectUnauthorized', label: '验证服务器证书', type: 'boolean', required: false, defaultValue: true, description: '是否验证服务器 TLS 证书（生产环境必须启用）', group: 'TLS' },
       // 连接控制
       { key: 'timeout', label: '请求超时(ms)', type: 'number', required: false, defaultValue: 30000 },
       { key: 'maxRetries', label: '最大重试次数', type: 'number', required: false, defaultValue: 3 },

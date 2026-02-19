@@ -55,9 +55,9 @@ export class WebSocketAdapter extends BaseAdapter {
       { key: 'authMessage', label: '认证消息 (JSON)', type: 'json', required: false, group: '消息认证', description: '连接成功后发送的认证消息体' },
       { key: 'customHeaders', label: '自定义请求头 (JSON)', type: 'json', required: false, group: '自定义' },
       // TLS
-      { key: 'tlsCaCert', label: 'CA 证书 (PEM)', type: 'string', required: false, group: 'TLS' },
-      { key: 'tlsClientCert', label: '客户端证书 (PEM)', type: 'string', required: false, group: 'TLS' },
-      { key: 'tlsClientKey', label: '客户端私钥 (PEM)', type: 'string', required: false, group: 'TLS' },
+      { key: 'tlsCaCert', label: 'CA 证书 (PEM)', type: 'textarea', required: false, group: 'TLS' },
+      { key: 'tlsClientCert', label: '客户端证书 (PEM)', type: 'textarea', required: false, group: 'TLS' },
+      { key: 'tlsClientKey', label: '客户端私钥 (PEM)', type: 'textarea', required: false, group: 'TLS' },
       { key: 'tlsRejectUnauthorized', label: '验证服务器证书', type: 'boolean', required: false, defaultValue: true, group: 'TLS' },
     ],
     advancedFields: [

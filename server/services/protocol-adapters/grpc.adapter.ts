@@ -40,9 +40,9 @@ export class GrpcAdapter extends BaseAdapter {
         { label: 'Google 默认凭证', value: 'google' },
       ]},
       // TLS
-      { key: 'rootCert', label: 'CA 根证书 (PEM)', type: 'string', required: false, group: 'TLS' },
-      { key: 'clientCert', label: '客户端证书 (PEM)', type: 'string', required: false, group: 'mTLS' },
-      { key: 'clientKey', label: '客户端私钥 (PEM)', type: 'string', required: false, group: 'mTLS' },
+      { key: 'rootCert', label: 'CA 根证书 (PEM)', type: 'textarea', required: false, group: 'TLS' },
+      { key: 'clientCert', label: '客户端证书 (PEM)', type: 'textarea', required: false, group: 'mTLS' },
+      { key: 'clientKey', label: '客户端私钥 (PEM)', type: 'textarea', required: false, group: 'mTLS' },
       // Token
       { key: 'authToken', label: '认证 Token', type: 'password', required: false, group: 'Token' },
       { key: 'authMetadataKey', label: 'Metadata Key', type: 'string', required: false, defaultValue: 'authorization', group: 'Token', description: '认证 Token 的 metadata 键名' },

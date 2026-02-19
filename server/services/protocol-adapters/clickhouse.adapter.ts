@@ -21,7 +21,8 @@ export class ClickhouseAdapter extends BaseAdapter {
     description: '分析型列式数据库',
     category: 'database',
     connectionFields: [
-      { key: 'host', label: '主机地址', type: 'string', required: true, placeholder: 'http://192.168.1.100:8123', description: '完整 URL，含协议和端口（HTTP 8123 / HTTPS 8443 / Native 9000）' },
+      { key: 'host', label: '主机地址', type: 'string', required: true, placeholder: '192.168.1.100', description: 'ClickHouse 服务器 IP 或域名' },
+      { key: 'port', label: '端口', type: 'number', required: false, defaultValue: 8123, description: 'HTTP 接口默认 8123，HTTPS 默认 8443，Native 默认 9000' },
       { key: 'database', label: '数据库名', type: 'string', required: false, defaultValue: 'default', description: '留空则使用 default 数据库' },
       { key: 'cluster', label: '集群名称', type: 'string', required: false, description: '如果是集群部署，填写集群名称' },
       { key: 'applicationName', label: '应用名称', type: 'string', required: false, defaultValue: 'xilian-platform', description: '在 system.query_log 中显示的应用名' },
@@ -30,7 +31,7 @@ export class ClickhouseAdapter extends BaseAdapter {
       { key: 'username', label: '用户名', type: 'string', required: false, defaultValue: 'default' },
       { key: 'password', label: '密码', type: 'password', required: false },
       { key: 'tls', label: '启用 TLS', type: 'boolean', required: false, defaultValue: false },
-      { key: 'tlsCaCert', label: 'CA 证书 (PEM)', type: 'string', required: false, group: 'TLS' },
+      { key: 'tlsCaCert', label: 'CA 证书 (PEM)', type: 'textarea', required: false, description: '自签名证书场景下的 CA 根证书', group: 'TLS' },
       { key: 'tlsRejectUnauthorized', label: '验证服务器证书', type: 'boolean', required: false, defaultValue: true, group: 'TLS' },
     ],
     advancedFields: [
@@ -58,8 +59,12 @@ export class ClickhouseAdapter extends BaseAdapter {
   };
 
   private createCHClient(params: Record<string, unknown>, auth?: Record<string, unknown>): ClickHouseClient {
-    let host = (params.host as string) || 'http://localhost:8123';
-    if (!host.startsWith('http')) host = `http://${host}`;
+    const rawHost = (params.host as string) || 'localhost';
+    const port = (params.port as number) || 8123;
+    const useTls = (auth?.tls === true);
+    const protocol = useTls ? 'https' : 'http';
+    // 如果用户已经填了完整 URL，直接使用；否则拼接
+    let host = rawHost.startsWith('http') ? rawHost : `${protocol}://${rawHost}:${port}`;
 
     return createClient({
       url: host,

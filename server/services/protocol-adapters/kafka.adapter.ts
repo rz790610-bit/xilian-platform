@@ -43,9 +43,9 @@ export class KafkaAdapter extends BaseAdapter {
       { key: 'awsSessionToken', label: 'AWS Session Token', type: 'password', required: false, group: 'AWS IAM' },
       { key: 'awsRegion', label: 'AWS Region', type: 'string', required: false, group: 'AWS IAM' },
       { key: 'ssl', label: '启用 SSL/TLS', type: 'boolean', required: false, defaultValue: false },
-      { key: 'sslCa', label: 'CA 证书 (PEM)', type: 'string', required: false, group: 'SSL' },
-      { key: 'sslCert', label: '客户端证书 (PEM)', type: 'string', required: false, group: 'SSL' },
-      { key: 'sslKey', label: '客户端私钥 (PEM)', type: 'string', required: false, group: 'SSL' },
+      { key: 'sslCa', label: 'CA 证书 (PEM)', type: 'textarea', required: false, group: 'SSL' },
+      { key: 'sslCert', label: '客户端证书 (PEM)', type: 'textarea', required: false, group: 'SSL' },
+      { key: 'sslKey', label: '客户端私钥 (PEM)', type: 'textarea', required: false, group: 'SSL' },
       { key: 'sslRejectUnauthorized', label: '验证服务器证书', type: 'boolean', required: false, defaultValue: true, group: 'SSL' },
     ],
     advancedFields: [

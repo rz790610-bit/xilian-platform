@@ -30,7 +30,8 @@ export class ModbusAdapter extends BaseAdapter {
     description: 'Modbus TCP/RTU/ASCII 工控设备寄存器读写',
     category: 'industrial',
     connectionFields: [
-      { key: 'host', label: '主机地址', type: 'string', required: true, placeholder: '192.168.1.100', description: 'Modbus TCP 网关或设备 IP（串口模式填串口服务器 IP）' },
+      { key: 'serialPort', label: '串口设备路径', type: 'string', required: false, placeholder: '/dev/ttyS0', description: 'RTU/ASCII 模式下的串口设备路径，如 /dev/ttyS0、/dev/ttyUSB0、COM1。TCP 模式无需填写。', group: '串口参数' },
+      { key: 'host', label: '主机地址', type: 'string', required: true, placeholder: '192.168.1.100', description: 'Modbus TCP 网关或设备 IP（串口直连模式无需填写）' },
       { key: 'port', label: '端口', type: 'number', required: true, defaultValue: 502, description: 'Modbus TCP 默认 502' },
       { key: 'transportType', label: '传输类型', type: 'select', required: true, defaultValue: 'tcp', options: [
         { label: 'Modbus TCP', value: 'tcp' },

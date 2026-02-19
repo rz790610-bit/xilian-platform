@@ -36,9 +36,9 @@ export class MysqlAdapter extends BaseAdapter {
       { key: 'user', label: '用户名', type: 'string', required: true, defaultValue: 'root' },
       { key: 'password', label: '密码', type: 'password', required: false },
       { key: 'ssl', label: '启用 SSL', type: 'boolean', required: false, defaultValue: false },
-      { key: 'sslCa', label: 'CA 证书 (PEM)', type: 'string', required: false, group: 'SSL' },
-      { key: 'sslCert', label: '客户端证书 (PEM)', type: 'string', required: false, group: 'SSL' },
-      { key: 'sslKey', label: '客户端私钥 (PEM)', type: 'string', required: false, group: 'SSL' },
+      { key: 'sslCa', label: 'CA 证书 (PEM)', type: 'textarea', required: false, group: 'SSL' },
+      { key: 'sslCert', label: '客户端证书 (PEM)', type: 'textarea', required: false, group: 'SSL' },
+      { key: 'sslKey', label: '客户端私钥 (PEM)', type: 'textarea', required: false, group: 'SSL' },
       { key: 'sslRejectUnauthorized', label: '验证服务器证书', type: 'boolean', required: false, defaultValue: true, group: 'SSL' },
       { key: 'authPlugin', label: '认证插件', type: 'select', required: false, defaultValue: 'auto', options: [
         { label: '自动检测', value: 'auto' },

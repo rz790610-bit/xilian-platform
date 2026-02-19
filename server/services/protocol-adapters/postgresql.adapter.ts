@@ -38,9 +38,9 @@ export class PostgresqlAdapter extends BaseAdapter {
         { label: 'verify-ca (验证 CA)', value: 'verify-ca' },
         { label: 'verify-full (验证 CA + 主机名)', value: 'verify-full' },
       ], description: 'PostgreSQL SSL 连接模式' },
-      { key: 'sslCa', label: 'CA 证书 (PEM)', type: 'string', required: false, group: 'SSL' },
-      { key: 'sslCert', label: '客户端证书 (PEM)', type: 'string', required: false, group: 'SSL' },
-      { key: 'sslKey', label: '客户端私钥 (PEM)', type: 'string', required: false, group: 'SSL' },
+      { key: 'sslCa', label: 'CA 证书 (PEM)', type: 'textarea', required: false, group: 'SSL' },
+      { key: 'sslCert', label: '客户端证书 (PEM)', type: 'textarea', required: false, group: 'SSL' },
+      { key: 'sslKey', label: '客户端私钥 (PEM)', type: 'textarea', required: false, group: 'SSL' },
     ],
     advancedFields: [
       // 连接控制

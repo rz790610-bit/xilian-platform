@@ -40,7 +40,7 @@ export class Neo4jAdapter extends BaseAdapter {
       { key: 'kerberosTicket', label: 'Kerberos Ticket', type: 'password', required: false, group: 'Kerberos' },
       { key: 'bearerToken', label: 'Bearer Token', type: 'password', required: false, group: 'Bearer' },
       { key: 'encrypted', label: '加密连接', type: 'boolean', required: false, defaultValue: false, description: '使用 bolt:// 时手动启用加密' },
-      { key: 'trustedCertificates', label: '信任证书 (PEM)', type: 'string', required: false, group: 'TLS', description: '自签名证书的 CA 链' },
+      { key: 'trustedCertificates', label: '信任证书 (PEM)', type: 'textarea', required: false, group: 'TLS', description: '自签名证书的 CA 链' },
     ],
     advancedFields: [
       { key: 'maxConnectionPoolSize', label: '最大连接池', type: 'number', required: false, defaultValue: 100 },
