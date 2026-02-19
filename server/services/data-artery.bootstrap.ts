@@ -132,8 +132,8 @@ export async function startDataArtery(): Promise<void> {
   // ---- 第 4 层：连接器定时健康巡检 ----
   try {
     const { startConnectorHealthCheck } = await import('../jobs/connectorHealthCheck.job');
-    startConnectorHealthCheck(60_000); // 每 60 秒巡检一次
-    log.info('[DataArtery] ✓ Layer 4: 连接器健康巡检已启动 (60s 间隔)');
+    startConnectorHealthCheck(); // 使用 Job 内部默认间隔（5分钟正常 / 30分钟降级）
+    log.info('[DataArtery] ✓ Layer 4: 连接器健康巡检已启动 (5分钟间隔, 降级后30分钟)');
   } catch (error) {
     log.error('[DataArtery] ✗ Layer 4: 连接器健康巡检启动失败:', error);
     log.warn('[DataArtery] 数据动脉降级运行：连接器状态将不会自动更新');

@@ -156,6 +156,31 @@ export class KafkaAdapter extends BaseAdapter {
     return map[level] || logLevel.WARN;
   }
 
+  /**
+   * TCP 预检：在调用 KafkaJS 之前先用原生 TCP 检查 Broker 是否可达
+   * 这样可以彻底避免 KafkaJS 内部重试产生的 ERROR 日志
+   */
+  private tcpProbe(host: string, port: number, timeoutMs: number = 5000): Promise<boolean> {
+    const net = require('net');
+    return new Promise((resolve) => {
+      const socket = new net.Socket();
+      const timer = setTimeout(() => {
+        socket.destroy();
+        resolve(false);
+      }, timeoutMs);
+      socket.connect(port, host, () => {
+        clearTimeout(timer);
+        socket.destroy();
+        resolve(true);
+      });
+      socket.on('error', () => {
+        clearTimeout(timer);
+        socket.destroy();
+        resolve(false);
+      });
+    });
+  }
+
   protected async doTestConnection(
     params: Record<string, unknown>,
     auth?: Record<string, unknown>
@@ -165,13 +190,38 @@ export class KafkaAdapter extends BaseAdapter {
       return { success: false, latencyMs: 0, message: 'Broker 列表不能为空' };
     }
 
-    // 连接测试使用更短的超时和更少的重试，避免巡检时 KafkaJS 内部重试刷屏
+    const brokers = brokersStr.split(',').map(b => b.trim()).filter(Boolean);
+
+    // 第 1 步：TCP 预检 — 快速判断 Broker 是否可达（不触发 KafkaJS）
+    const probeTimeout = Math.min((params.connectionTimeout as number) || 8000, 5000);
+    const probeResults = await Promise.all(
+      brokers.map(async (broker) => {
+        const [host, portStr] = broker.split(':');
+        const port = parseInt(portStr) || 9092;
+        const reachable = await this.tcpProbe(host, port, probeTimeout);
+        return { broker, host, port, reachable };
+      })
+    );
+
+    const reachableBrokers = probeResults.filter(r => r.reachable);
+    if (reachableBrokers.length === 0) {
+      const unreachable = probeResults.map(r => r.broker).join(', ');
+      return {
+        success: false,
+        latencyMs: 0,
+        message: `Kafka Broker 不可达: ${unreachable} (网络不通或服务未启动)`,
+        details: { brokers: brokersStr, probeResults },
+      };
+    }
+
+    // 第 2 步：TCP 可达后才用 KafkaJS 获取集群详情
     const testParams = {
       ...params,
+      brokers: reachableBrokers.map(r => r.broker).join(','),
       connectionTimeout: Math.min((params.connectionTimeout as number) || 10000, 8000),
-      retries: 1,              // 测试时只重试 1 次
-      initialRetryTime: 200,   // 快速失败
-      maxRetryTime: 2000,
+      retries: 0,              // TCP 已预检，不需要重试
+      initialRetryTime: 100,
+      maxRetryTime: 1000,
       logLevel: 'NOTHING',     // 抑制 KafkaJS 内部日志
     };
     const kafka = this.createKafka(testParams, auth);
@@ -194,6 +244,7 @@ export class KafkaAdapter extends BaseAdapter {
         topics: topics.slice(0, 50),
         consumerGroupCount: groups.groups.length,
         consumerGroups: groups.groups.slice(0, 20).map(g => ({ groupId: g.groupId, protocolType: g.protocolType })),
+        tcpProbeResults: probeResults,
       };
 
       return {
@@ -208,7 +259,7 @@ export class KafkaAdapter extends BaseAdapter {
         success: false,
         latencyMs: 0,
         message: `Kafka 连接失败: ${(err as Error).message}`,
-        details: { brokers: brokersStr, error: (err as Error).message },
+        details: { brokers: brokersStr, error: (err as Error).message, tcpProbeResults: probeResults },
       };
     } finally {
       try { await admin.disconnect(); } catch { /* ignore */ }
@@ -296,13 +347,39 @@ export class KafkaAdapter extends BaseAdapter {
     params: Record<string, unknown>,
     auth?: Record<string, unknown>
   ): Promise<Omit<HealthCheckResult, 'latencyMs' | 'checkedAt'>> {
-    // 健康检查使用快速失败参数，避免巡检时 KafkaJS 内部重试刷屏
+    const brokersStr = (params.brokers as string) || '';
+    if (!brokersStr) {
+      return { status: 'unhealthy', message: 'Broker 列表未配置' };
+    }
+
+    const brokers = brokersStr.split(',').map(b => b.trim()).filter(Boolean);
+
+    // TCP 预检 — 快速判断 Broker 是否可达（不触发 KafkaJS）
+    const probeTimeout = Math.min((params.connectionTimeout as number) || 8000, 5000);
+    const probeResults = await Promise.all(
+      brokers.map(async (broker) => {
+        const [host, portStr] = broker.split(':');
+        const port = parseInt(portStr) || 9092;
+        return { broker, reachable: await this.tcpProbe(host, port, probeTimeout) };
+      })
+    );
+
+    const reachable = probeResults.filter(r => r.reachable);
+    if (reachable.length === 0) {
+      return {
+        status: 'unhealthy',
+        message: `Kafka Broker 不可达: ${brokers.join(', ')} (网络不通或服务未启动)`,
+      };
+    }
+
+    // TCP 可达后才用 KafkaJS 获取集群状态
     const healthParams = {
       ...params,
+      brokers: reachable.map(r => r.broker).join(','),
       connectionTimeout: Math.min((params.connectionTimeout as number) || 10000, 8000),
-      retries: 1,
-      initialRetryTime: 200,
-      maxRetryTime: 2000,
+      retries: 0,
+      initialRetryTime: 100,
+      maxRetryTime: 1000,
       logLevel: 'NOTHING',
     };
     const kafka = this.createKafka(healthParams, auth);
