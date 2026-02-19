@@ -167,6 +167,10 @@ export class MqttProtocolHandler implements ProtocolHandler {
     this.topicPrefix = config?.topicPrefix || 'xilian';
   }
 
+  private reconnectAttempts = 0;
+  private maxReconnectAttempts = 5;
+  private hasSuppressedLogs = false;
+
   async start(onMessage: MessageCallback): Promise<void> {
     this.onMessage = onMessage;
 
@@ -179,11 +183,19 @@ export class MqttProtocolHandler implements ProtocolHandler {
       return;
     }
 
+    // 检查是否配置了 MQTT Broker
+    const isConfigured = !!process.env.MQTT_BROKER_URL;
+    if (!isConfigured) {
+      log.info('[MqttHandler] 未配置 MQTT_BROKER_URL，MQTT 协议处理器以待机模式运行（可通过配置环境变量启用）');
+      return;
+    }
+
     const options: Record<string, any> = {
       clientId: `xilian-bridge-${Date.now()}`,
       clean: true,
       keepalive: 60,
       reconnectPeriod: 5000,
+      connectTimeout: 5000,
     };
     if (this.username) options.username = this.username;
     if (this.password) options.password = this.password;
@@ -191,6 +203,8 @@ export class MqttProtocolHandler implements ProtocolHandler {
     this.mqttClient = mqtt.connect(this.brokerUrl, options);
 
     this.mqttClient.on('connect', () => {
+      this.reconnectAttempts = 0;
+      this.hasSuppressedLogs = false;
       log.info(`[MqttHandler] 已连接到 ${this.brokerUrl}`);
 
       // 订阅所有网关的遥测数据
@@ -209,22 +223,29 @@ export class MqttProtocolHandler implements ProtocolHandler {
     });
 
     this.mqttClient.on('message', (topic: string, payload: Buffer) => {
-      // QoS 1 下 MQTT 会自动 ack，但我们在 handleMqttMessage 中先写入缓冲区
-      // 如果缓冲区满则立即 flush 到 Kafka，确保数据不丢失
-      // 注意：如果需要严格的“先写 Kafka 再 ack MQTT”语义，
-      // 需要将 MQTT 客户端配置为 manualAck 模式（mqtt.js v5+）
-      // 并在 flushBuffer 成功后调用 client.puback(packet)
       this.handleMqttMessage(topic, payload).catch(err => {
         log.error('[MqttHandler] 消息处理异常:', err);
       });
     });
 
     this.mqttClient.on('error', (err: Error) => {
-      log.error('[MqttHandler] MQTT 错误:', err);
+      this.reconnectAttempts++;
+      if (this.reconnectAttempts <= 3) {
+        log.warn(`[MqttHandler] MQTT 连接失败 (${this.reconnectAttempts}/${this.maxReconnectAttempts}): ${err.message}`);
+      } else if (this.reconnectAttempts === this.maxReconnectAttempts) {
+        log.warn(`[MqttHandler] MQTT Broker 不可达 (${this.brokerUrl})，停止重连。配置正确后重启服务即可恢复。`);
+        // 停止自动重连，避免无限刷屏
+        if (this.mqttClient) {
+          this.mqttClient.end(true);
+        }
+      }
+      // 超过 maxReconnectAttempts 后不再输出日志
     });
 
     this.mqttClient.on('reconnect', () => {
-      log.debug('[MqttHandler] 正在重连...');
+      if (this.reconnectAttempts < this.maxReconnectAttempts) {
+        log.debug(`[MqttHandler] 正在重连 MQTT Broker... (第 ${this.reconnectAttempts + 1} 次)`);
+      }
     });
   }
 
