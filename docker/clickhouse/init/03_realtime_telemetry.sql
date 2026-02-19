@@ -43,7 +43,8 @@ CREATE TABLE IF NOT EXISTS xilian.realtime_telemetry (
 ENGINE = MergeTree()
 PARTITION BY toYYYYMM(timestamp)
 ORDER BY (device_code, mp_code, timestamp)
-SAMPLE BY intHash32(device_code)
+-- 注意：不使用 SAMPLE BY，因为 intHash32(device_code) 不在 ORDER BY 中
+-- 如需采样查询，使用 WHERE cityHash64(device_code) % N = 0 代替
 TTL timestamp + INTERVAL 2 YEAR
 SETTINGS
     index_granularity = 8192,
@@ -53,6 +54,8 @@ SETTINGS
 
 -- ===== 2. Kafka Engine 消费表 =====
 -- 订阅 telemetry.raw 主题，自动消费写入
+-- 这是 telemetry.raw → ClickHouse 的唯一写入路径
+-- TelemetryClickHouseSink 服务订阅 telemetry.feature（特征数据），不订阅 telemetry.raw
 -- 注意：Kafka Engine 表仅在 Kafka 可用时生效
 
 CREATE TABLE IF NOT EXISTS xilian.realtime_telemetry_kafka_queue (

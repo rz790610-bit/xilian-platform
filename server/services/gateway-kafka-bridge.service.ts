@@ -527,15 +527,9 @@ export class GatewayKafkaBridge {
         continue;
       }
 
-      // 添加到缓冲区
-      this.buffer.push({
-        topic,
-        key: `${msg.device_code}:${msg.mp_code}`,
-        value: serialized,
-        timestamp: Date.now().toString(),
-      });
-
-      // 同时写入通用 topic（不带网关后缀，供全局消费者使用）
+      // 写入统一的 telemetry.raw topic
+      // 使用 message key 区分设备，网关信息已包含在消息体的 gateway_id 字段中
+      // 不再双写 telemetry.raw.{gateway_id}，避免 Kafka 存储量翻倍
       this.buffer.push({
         topic: KAFKA_TOPICS.TELEMETRY_RAW,
         key: `${msg.device_code}:${msg.mp_code}`,
@@ -583,7 +577,7 @@ export class GatewayKafkaBridge {
   private async flushBuffer(): Promise<void> {
     if (this.buffer.length === 0) return;
 
-    const batch = this.buffer.splice(0, this.config.kafkaBatchSize * 2); // *2 因为每条消息写两个 topic
+    const batch = this.buffer.splice(0, this.config.kafkaBatchSize);
     this.metrics.bufferSize = this.buffer.length;
 
     // 按 topic 分组

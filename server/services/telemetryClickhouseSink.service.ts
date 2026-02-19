@@ -2,10 +2,11 @@
  * Kafka → ClickHouse 遥测数据消费者服务
  * ============================================================
  * 
- * 数据动脉核心：订阅 telemetry.raw 主题，批量写入 ClickHouse realtime_telemetry 表
+ * 数据动脉核心：订阅 telemetry.feature 主题，批量写入 ClickHouse vibration_features 等特征表
  * 
  * 架构位置：
- *   边缘网关 → MQTT → Kafka(telemetry.raw) → [本服务] → ClickHouse(realtime_telemetry)
+ *   telemetry.raw → Kafka Engine → ClickHouse(realtime_telemetry)  ← 原始数据路径（ClickHouse 原生消费）
+ *   telemetry.raw → FeatureExtractor → Kafka(telemetry.feature) → [本服务] → ClickHouse(vibration_features 等)  ← 特征数据路径
  * 
  * 设计原则：
  *   1. 批量写入 — 累积到 BATCH_SIZE 或 FLUSH_INTERVAL_MS 后批量 INSERT
@@ -18,8 +19,8 @@
  *   xilian.realtime_telemetry (03_realtime_telemetry.sql)
  * 
  * Kafka 主题：
- *   telemetry.raw — 原始遥测数据（按网关分区）
- *   telemetry.feature — 特征值数据（已有 Kafka Engine 表处理）
+ *   telemetry.raw — 原始遥测数据 → 由 ClickHouse Kafka Engine 直接消费（03_realtime_telemetry.sql）
+ *   telemetry.feature — 特征值数据 → 由本服务消费写入特征表
  */
 
 import { getClickHouseClient } from '../lib/clients/clickhouse.client';
@@ -60,8 +61,8 @@ const DEFAULT_CONFIG: SinkConfig = {
   maxRetries: 3,
   retryBaseDelayMs: 500,
   consumerGroup: 'telemetry-clickhouse-sink',
-  topics: [KAFKA_TOPICS.TELEMETRY_RAW],
-  targetTable: 'realtime_telemetry',
+  topics: [KAFKA_TOPICS.TELEMETRY_FEATURE || 'telemetry.feature'],
+  targetTable: 'vibration_features',
   enableDedup: true,
 };
 
@@ -332,10 +333,11 @@ export class TelemetryClickHouseSink {
     }
 
     // 解析值
-    const value = typeof data.value === 'number' ? data.value : parseFloat(data.value);
+    // 注意：特征数据消息的 value 可能不存在（如振动波形数据只有 features 没有单值）
+    // 不应因为 value 缺失而丢弃整条消息
+    let value = typeof data.value === 'number' ? data.value : parseFloat(data.value);
     if (isNaN(value)) {
-      log.debug(`[TelemetrySink] 无效的 value: ${data.value}，跳过`);
-      return null;
+      value = 0; // 默认值，实际特征在 features 字段中
     }
 
     // 解析特征值

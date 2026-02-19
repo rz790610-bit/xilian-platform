@@ -353,7 +353,7 @@ class StreamProcessor {
       
       await this.saveAggregate({
         sensorId,
-        deviceId: deviceCode || 'unknown',
+        deviceCode: deviceCode || 'unknown',
         period: '1m',
         periodStart,
         avg: stats.mean,
@@ -373,7 +373,7 @@ class StreamProcessor {
    */
   private async persistReading(
     sensorId: string,
-    deviceId: string,
+    deviceCode: string,
     value: number,
     timestamp: Date
   ): Promise<void> {
@@ -390,7 +390,7 @@ class StreamProcessor {
         aggregateVersion: Date.now(),
         payload: JSON.stringify({
           sensorId,
-          deviceCode: deviceId,  // 参数名待后续重命名，实际存储的是 deviceCode
+          deviceCode,
           value: Math.round(value * 100),
           quality: 'good',
         }),
@@ -447,7 +447,7 @@ class StreamProcessor {
         aggregateVersion: Date.now(),
         payload: JSON.stringify({
           sensorId: result.sensorId,
-          deviceCode: result.deviceId,  // 实际存储的是 deviceCode
+          deviceCode: result.deviceCode || result.deviceId,  // 优先 deviceCode，回退 deviceId（兼容旧调用方）
           period: result.period,
           periodStart: result.periodStart?.toISOString(),
           avg: result.avg,

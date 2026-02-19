@@ -201,13 +201,24 @@ export function rms(data: number[]): number {
 /** 峰值（绝对值最大） */
 export function peak(data: number[]): number {
   if (data.length === 0) return 0;
-  return Math.max(...data.map(Math.abs));
+  let max = Math.abs(data[0]);
+  for (let i = 1; i < data.length; i++) {
+    const abs = Math.abs(data[i]);
+    if (abs > max) max = abs;
+  }
+  return max;
 }
 
 /** 峰峰值 */
 export function peakToPeak(data: number[]): number {
   if (data.length === 0) return 0;
-  return Math.max(...data) - Math.min(...data);
+  let max = data[0];
+  let min = data[0];
+  for (let i = 1; i < data.length; i++) {
+    if (data[i] > max) max = data[i];
+    if (data[i] < min) min = data[i];
+  }
+  return max - min;
 }
 
 /** 峭度（Kurtosis） */

@@ -177,7 +177,7 @@ class ConnectorFactory {
 
   // P0 修复：SQL 注入防护 — 查询白名单验证
   private static readonly ALLOWED_SQL_PATTERN = /^\s*SELECT\s/i;
-  private static readonly FORBIDDEN_SQL_KEYWORDS = /\b(DROP|DELETE|UPDATE|INSERT|ALTER|TRUNCATE|EXEC|EXECUTE|CREATE|GRANT|REVOKE)\b/i;
+  private static readonly FORBIDDEN_SQL_KEYWORDS = /\b(DROP|DELETE|UPDATE|INSERT|ALTER|TRUNCATE|EXEC|EXECUTE|CREATE|GRANT|REVOKE|UNION|INTO\s+OUTFILE|INTO\s+DUMPFILE|LOAD_FILE|BENCHMARK|SLEEP)\b/i;
   private static readonly SAFE_IDENTIFIER = /^[a-zA-Z_][a-zA-Z0-9_]{0,63}$/;
 
   private static validateReadOnlyQuery(query: string): void {
