@@ -56,11 +56,11 @@
 适配器层更新后，上层 API/类型/前端未自动同步，导致前端只显示 MQTT
 
 ### 待完成
-- [ ] 后端：适配器注册表新增 listProtocols / listCategories API，自动从注册表生成
-- [ ] 后端：protocolSchema API 直接从注册表读取，新增适配器自动可用
-- [ ] 前端：移除硬编码 PROTOCOL_META/PROTOCOL_CATEGORIES，改为从 API 动态获取
-- [ ] 前端：新建连接器对话框动态渲染协议列表和配置表单
-- [ ] 全链路验证：15个协议全部可见可配置
+- [x] 后端：适配器注册表新增 listProtocols / listCategories API，自动从注册表生成
+- [x] 后端：protocolSchema API 直接从注册表读取，新增适配器自动可用
+- [x] 前端：移除硬编码 PROTOCOL_META/PROTOCOL_CATEGORIES，改为从 API 动态获取
+- [x] 前端：新建连接器对话框动态渲染协议列表和配置表单
+- [x] 全链路验证：15个协议全部可见可配置
 
 ## 四、已完成排查任务
 
@@ -186,21 +186,21 @@
 ## 七、代码审查低风险修复（18项全部待修复）
 
 ### 7.1 第一轮：P0 基座加固
-- [ ] 问题 1: scheduleNext 中 dequeue 在 acquire 之前，添加 pending 计数 — cognition-scheduler.ts
-- [ ] 问题 2: 重试 item 改为 push 到队列尾部 — cognition-scheduler.ts
-- [ ] 问题 3: high_pressure 并发乘数添加文档说明 — cognition-scheduler.ts
-- [ ] 问题 6: EventBus 背压添加绝对上限（10000） — kafkaEventBus.ts
-- [ ] 问题 8: validateIdentifier 支持中文表名 — pipeline.engine.ts
-- [ ] 问题 9: 连接池添加定期健康检查 — db/index.ts
+- [x] 问题 1: scheduleNext 中 dequeue 在 acquire 之前，添加 pending 计数 — cognition-scheduler.ts
+- [x] 问题 2: 重试 item 改为 push 到队列尾部 — cognition-scheduler.ts
+- [x] 问题 3: high_pressure 并发乘数添加文档说明 — cognition-scheduler.ts
+- [x] 问题 6: EventBus 背压添加绝对上限（10000） — kafkaEventBus.ts
+- [x] 问题 8: validateIdentifier 支持中文表名 — pipeline.engine.ts
+- [x] 问题 9: 连接池添加定期健康检查 — db/index.ts
 
 ### 7.2 第二轮：ID 体系统一
-- [ ] 问题 13: kafkaStream.processor 异常表添加 deviceCode 列 — kafkaStream.processor.ts
-- [ ] 问题 14: cognition-unit.ts fallback 链添加日志警告 — cognition-unit.ts
-- [ ] 问题 15: streamProcessor 事件 payload 同时输出 deviceCode 和 deviceId — streamProcessor.service.ts
+- [x] 问题 13: kafkaStream.processor 异常表添加 deviceCode 列 — kafkaStream.processor.ts
+- [x] 问题 14: cognition-unit.ts fallback 链添加日志警告 — cognition-unit.ts
+- [x] 问题 15: streamProcessor 事件 payload 同时输出 deviceCode 和 deviceId — streamProcessor.service.ts
 
 ### 7.3 第三轮：数据动脉
-- [ ] 问题 20: 明确消费者拓扑文档 — feature-extraction.service.ts
-- [ ] 问题 21: VibrationExtractor 包络分析改为可选 — vibration.extractor.ts
-- [ ] 问题 23: MQTT 改为手动 ack 模式 — gateway-kafka-bridge.service.ts
-- [ ] 问题 25: 去重 Set 改为 LRU 策略 — telemetryClickhouseSink.service.ts
-- [ ] 问题 26: 编排器关闭改为轮询检查缓冲区 — data-artery.bootstrap.ts
+- [x] 问题 20: 明确消费者拓扑文档 — feature-extraction.service.ts
+- [x] 问题 21: VibrationExtractor 包络分析改为可选 — vibration.extractor.ts
+- [x] 问题 23: MQTT 改为手动 ack 模式 — gateway-kafka-bridge.service.ts
+- [x] 问题 25: 去重 Set 改为 LRU 策略 — telemetryClickhouseSink.service.ts
+- [x] 问题 26: 编排器关闭改为轮询检查缓冲区 — data-artery.bootstrap.ts
