@@ -46,7 +46,13 @@ const LEVEL_COLORS: Record<LogLevel, string> = {
 const RESET = '\x1b[0m';
 
 class Logger {
-  private level: number;
+  /**
+   * P1-1 修复：移除实例级 level 快照。
+   * 原先 this.level 在构造时由 Logger.globalLevel 固化为数值，
+   * 之后 setGlobalLevel() 修改静态变量但已有实例的 this.level 不会跟着变化。
+   * 现改为通过 getter 动态读取 Logger.globalLevel。
+   */
+  private overrideLevel: number | null;
   private module: string;
   private pretty: boolean;
   private static globalLevel: LogLevel = (process.env.LOG_LEVEL as LogLevel) || 'info';
@@ -55,9 +61,15 @@ class Logger {
   private static listeners: Array<(entry: LogEntry) => void> = [];
 
   constructor(options: LoggerOptions = {}) {
-    this.level = LOG_LEVELS[options.level || Logger.globalLevel];
+    // 仅当显式传入 level 时才固化，否则动态跟随 globalLevel
+    this.overrideLevel = options.level ? LOG_LEVELS[options.level] : null;
     this.module = options.module || 'app';
     this.pretty = options.pretty ?? (process.env.NODE_ENV !== 'production');
+  }
+
+  /** 动态计算当前有效级别 */
+  private get effectiveLevel(): number {
+    return this.overrideLevel ?? LOG_LEVELS[Logger.globalLevel];
   }
 
   /** 设置全局日志级别 */
@@ -111,7 +123,7 @@ class Logger {
   }
 
   private log(level: LogLevel, data: Record<string, unknown> | string, message?: string): void {
-    if (LOG_LEVELS[level] < this.level) return;
+    if (LOG_LEVELS[level] < this.effectiveLevel) return;
 
     const timestamp = new Date().toISOString();
     let msg: string;

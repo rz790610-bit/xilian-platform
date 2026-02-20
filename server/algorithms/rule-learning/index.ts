@@ -9,6 +9,8 @@
 
 import type { IAlgorithmExecutor, AlgorithmInput, AlgorithmOutput, AlgorithmRegistration } from '../../algorithms/_core/types';
 import * as dsp from '../../algorithms/_core/dsp';
+import { invokeLLM } from '../../core/llm';
+import type { InvokeResult } from '../../core/llm';
 
 function createOutput(
   algorithmId: string, version: string, input: AlgorithmInput,
@@ -53,39 +55,156 @@ export class LLMAnalysis implements IAlgorithmExecutor {
     const startTime = Date.now();
     const cfg = { ...this.getDefaultConfig(), ...config };
 
-    // LLM分析框架 — 实际调用需要连接LLM服务
+    // P1 修复：实际调用 LLM 服务进行故障分析
     const description = input.context?.description as string || '';
     const features = input.context?.features as Record<string, number> || {};
 
     // 构建结构化分析提示
     const analysisPrompt = this.buildPrompt(cfg.promptTemplate, description, features);
 
-    // 预留LLM API调用接口
-    const llmResult = {
-      prompt: analysisPrompt,
-      status: 'pending_llm_call',
-      suggestedRules: [
-        {
-          condition: '基于输入特征的规则模板',
-          action: '诊断结论模板',
-          confidence: 0,
-          explanation: '需要LLM服务连接后生成',
-        },
-      ],
-      apiEndpoint: '/api/llm/analyze', // 预留API端点
+    let llmResult: {
+      prompt: string;
+      status: string;
+      suggestedRules: Array<{ condition: string; action: string; confidence: number; explanation: string }>;
+      rawResponse?: string;
+      model?: string;
+      tokensUsed?: number;
     };
 
+    try {
+      // 实际调用 LLM 服务
+      const response: InvokeResult = await invokeLLM({
+        messages: [
+          {
+            role: 'system',
+            content: '你是一个工业设备故障诊断专家。请基于输入的故障描述和特征数据，生成结构化的诊断规则。'
+              + '输出格式为 JSON 数组，每个元素包含: condition(条件), action(诊断结论), confidence(0-1置信度), explanation(解释)。'
+              + '只输出 JSON 数组，不要包含其他文字。',
+          },
+          {
+            role: 'user',
+            content: analysisPrompt,
+          },
+        ],
+        maxTokens: cfg.maxTokens,
+      });
+
+      const rawContent = response.choices?.[0]?.message?.content;
+      const rawText = typeof rawContent === 'string' ? rawContent : '';
+      const tokensUsed = response.usage?.total_tokens ?? 0;
+
+      // 解析 LLM 返回的规则
+      let suggestedRules: Array<{ condition: string; action: string; confidence: number; explanation: string }> = [];
+      try {
+        // 尝试从响应中提取 JSON
+        const jsonMatch = rawText.match(/\[\s*\{[\s\S]*\}\s*\]/);
+        if (jsonMatch) {
+          suggestedRules = JSON.parse(jsonMatch[0]);
+        }
+      } catch {
+        // JSON 解析失败，将原始文本作为单条规则
+        suggestedRules = [{
+          condition: '基于 LLM 分析',
+          action: rawText.slice(0, 500),
+          confidence: 0.5,
+          explanation: 'LLM 返回非结构化结果，已保留原始文本',
+        }];
+      }
+
+      llmResult = {
+        prompt: analysisPrompt,
+        status: 'completed',
+        suggestedRules,
+        rawResponse: rawText,
+        model: response.model ?? cfg.model,
+        tokensUsed,
+      };
+    } catch (llmError) {
+      // LLM 服务不可用时降级为基于规则的分析
+      const fallbackRules = this.generateFallbackRules(description, features);
+      llmResult = {
+        prompt: analysisPrompt,
+        status: 'fallback_rule_based',
+        suggestedRules: fallbackRules,
+        rawResponse: `LLM 服务不可用: ${String(llmError)}. 已降级为规则引擎分析。`,
+      };
+    }
+
+    const avgConfidence = llmResult.suggestedRules.length > 0
+      ? llmResult.suggestedRules.reduce((s, r) => s + r.confidence, 0) / llmResult.suggestedRules.length
+      : 0;
+
     return createOutput(this.id, this.version, input, cfg, startTime, {
-      summary: `LLM分析准备完成: 已构建分析提示(${analysisPrompt.length}字符)。` +
-        `需要连接LLM服务(${cfg.model})进行实际推理`,
-      severity: 'normal',
-      urgency: 'monitoring',
-      confidence: (() => { const promptS = Math.min(1, analysisPrompt.length / 2000); return Math.min(0.6, Math.max(0.2, 0.2 + promptS * 0.35)); })(),
+      summary: llmResult.status === 'completed'
+        ? `LLM分析完成: 生成 ${llmResult.suggestedRules.length} 条诊断规则，平均置信度 ${(avgConfidence * 100).toFixed(1)}%`
+        : `LLM服务不可用，已降级为规则引擎分析，生成 ${llmResult.suggestedRules.length} 条规则`,
+      severity: avgConfidence > 0.7 ? 'warning' : 'normal',
+      urgency: avgConfidence > 0.8 ? 'attention' : 'monitoring',
+      confidence: Math.max(0.2, Math.min(0.95, avgConfidence)),
       referenceStandard: 'LLM-Assisted Rule Generation',
     }, {
       ...llmResult,
       config: cfg,
     });
+  }
+
+  /** LLM 不可用时的降级规则生成 */
+  private generateFallbackRules(
+    description: string,
+    features: Record<string, number>
+  ): Array<{ condition: string; action: string; confidence: number; explanation: string }> {
+    const rules: Array<{ condition: string; action: string; confidence: number; explanation: string }> = [];
+
+    // 基于特征阈值的简单规则
+    for (const [key, value] of Object.entries(features)) {
+      const lowerKey = key.toLowerCase();
+      if (lowerKey.includes('vibration') || lowerKey.includes('振动')) {
+        if (value > 7.1) {
+          rules.push({
+            condition: `${key} > 7.1 mm/s`,
+            action: '振动超标，建议检查轴承状态和对中情况',
+            confidence: 0.7,
+            explanation: '基于 ISO 10816 振动严重性标准',
+          });
+        }
+      }
+      if (lowerKey.includes('temperature') || lowerKey.includes('温度')) {
+        if (value > 85) {
+          rules.push({
+            condition: `${key} > 85°C`,
+            action: '温度过高，建议检查冷却系统和润滑状态',
+            confidence: 0.65,
+            explanation: '基于工业设备常规温度阈值',
+          });
+        }
+      }
+    }
+
+    // 基于关键词的描述分析
+    if (description) {
+      const keywords = ['异响', '泄漏', '过热', '卡死', '抛锚', '报警'];
+      for (const kw of keywords) {
+        if (description.includes(kw)) {
+          rules.push({
+            condition: `故障描述包含关键词: ${kw}`,
+            action: `检测到“${kw}”相关故障特征，建议进一步检查`,
+            confidence: 0.4,
+            explanation: '基于关键词匹配的简单规则（LLM 不可用时的降级策略）',
+          });
+        }
+      }
+    }
+
+    if (rules.length === 0) {
+      rules.push({
+        condition: '无明确规则匹配',
+        action: '建议人工检查设备状态',
+        confidence: 0.2,
+        explanation: '特征数据不足以生成高置信度规则（LLM 不可用）',
+      });
+    }
+
+    return rules;
   }
 
   private buildPrompt(template: string, description: string, features: Record<string, number>): string {

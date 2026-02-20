@@ -105,44 +105,47 @@ export async function createGraph(data: {
   const nodes = data.nodes ?? [];
   const edges = data.edges ?? [];
 
-  await db.insert(kgGraphs).values({
-    graphId,
-    name: data.name,
-    description: data.description,
-    scenario: data.scenario,
-    templateId: data.templateId,
-    status: "draft",
-    nodeCount: nodes.length,
-    edgeCount: edges.length,
-    tags: data.tags,
+  // P1 修复：事务化多步写入，确保图谱+节点+边的原子性
+  await db.transaction(async (tx) => {
+    await tx.insert(kgGraphs).values({
+      graphId,
+      name: data.name,
+      description: data.description,
+      scenario: data.scenario,
+      templateId: data.templateId,
+      status: "draft",
+      nodeCount: nodes.length,
+      edgeCount: edges.length,
+      tags: data.tags,
+    });
+
+    if (nodes.length > 0) {
+      await tx.insert(kgGraphNodes).values(nodes.map(n => ({
+        graphId,
+        nodeId: n.nodeId,
+        category: n.category,
+        subType: n.subType,
+        label: n.label,
+        x: n.x,
+        y: n.y,
+        config: n.config,
+        nodeStatus: n.nodeStatus ?? "normal",
+      })));
+    }
+
+    if (edges.length > 0) {
+      await tx.insert(kgGraphEdges).values(edges.map(e => ({
+        graphId,
+        edgeId: e.edgeId,
+        sourceNodeId: e.sourceNodeId,
+        targetNodeId: e.targetNodeId,
+        relationType: e.relationType,
+        label: e.label,
+        weight: e.weight,
+        config: e.config,
+      })));
+    }
   });
-
-  if (nodes.length > 0) {
-    await db.insert(kgGraphNodes).values(nodes.map(n => ({
-      graphId,
-      nodeId: n.nodeId,
-      category: n.category,
-      subType: n.subType,
-      label: n.label,
-      x: n.x,
-      y: n.y,
-      config: n.config,
-      nodeStatus: n.nodeStatus ?? "normal",
-    })));
-  }
-
-  if (edges.length > 0) {
-    await db.insert(kgGraphEdges).values(edges.map(e => ({
-      graphId,
-      edgeId: e.edgeId,
-      sourceNodeId: e.sourceNodeId,
-      targetNodeId: e.targetNodeId,
-      relationType: e.relationType,
-      label: e.label,
-      weight: e.weight,
-      config: e.config,
-    })));
-  }
 
   return graphId;
 }
@@ -165,59 +168,65 @@ export async function updateGraph(graphId: string, data: {
 export async function deleteGraph(graphId: string): Promise<void> {
   const db = await getDb();
   if (!db) throw new Error('Database not available');
-  await Promise.all([
-    db.delete(kgGraphNodes).where(eq(kgGraphNodes.graphId, graphId)),
-    db.delete(kgGraphEdges).where(eq(kgGraphEdges.graphId, graphId)),
-    db.delete(kgDiagnosisRuns).where(eq(kgDiagnosisRuns.graphId, graphId)),
-    db.delete(kgEvolutionLog).where(eq(kgEvolutionLog.graphId, graphId)),
-  ]);
-  await db.delete(kgGraphs).where(eq(kgGraphs.graphId, graphId));
+  // P1 修复：事务化级联删除，防止孤儿记录
+  await db.transaction(async (tx) => {
+    await Promise.all([
+      tx.delete(kgGraphNodes).where(eq(kgGraphNodes.graphId, graphId)),
+      tx.delete(kgGraphEdges).where(eq(kgGraphEdges.graphId, graphId)),
+      tx.delete(kgDiagnosisRuns).where(eq(kgDiagnosisRuns.graphId, graphId)),
+      tx.delete(kgEvolutionLog).where(eq(kgEvolutionLog.graphId, graphId)),
+    ]);
+    await tx.delete(kgGraphs).where(eq(kgGraphs.graphId, graphId));
+  });
 }
 
 /** 保存画布状态（全量替换节点和边） */
 export async function saveCanvasState(graphId: string, nodes: KGEditorNode[], edges: KGEditorEdge[]): Promise<void> {
   const db = await getDb();
   if (!db) throw new Error('Database not available');
-  // 先删旧的
-  await Promise.all([
-    db.delete(kgGraphNodes).where(eq(kgGraphNodes.graphId, graphId)),
-    db.delete(kgGraphEdges).where(eq(kgGraphEdges.graphId, graphId)),
-  ]);
-  // 插入新的
-  if (nodes.length > 0) {
-    await db.insert(kgGraphNodes).values(nodes.map(n => ({
-      graphId,
-      nodeId: n.nodeId,
-      category: n.category,
-      subType: n.subType,
-      label: n.label,
-      x: n.x,
-      y: n.y,
-      config: n.config,
-      nodeStatus: n.nodeStatus ?? "normal",
-      hitCount: n.hitCount ?? 0,
-      accuracy: n.accuracy,
-    })));
-  }
-  if (edges.length > 0) {
-    await db.insert(kgGraphEdges).values(edges.map(e => ({
-      graphId,
-      edgeId: e.edgeId,
-      sourceNodeId: e.sourceNodeId,
-      targetNodeId: e.targetNodeId,
-      relationType: e.relationType,
-      label: e.label,
-      weight: e.weight,
-      config: e.config,
-      pathAccuracy: e.pathAccuracy,
-      hitCount: e.hitCount ?? 0,
-    })));
-  }
-  // 更新统计
-  await db.update(kgGraphs).set({
-    nodeCount: nodes.length,
-    edgeCount: edges.length,
-  }).where(eq(kgGraphs.graphId, graphId));
+  // P1 修复：事务化全量替换，防止删除成功但插入失败导致图谱丢失
+  await db.transaction(async (tx) => {
+    // 先删旧的
+    await Promise.all([
+      tx.delete(kgGraphNodes).where(eq(kgGraphNodes.graphId, graphId)),
+      tx.delete(kgGraphEdges).where(eq(kgGraphEdges.graphId, graphId)),
+    ]);
+    // 插入新的
+    if (nodes.length > 0) {
+      await tx.insert(kgGraphNodes).values(nodes.map(n => ({
+        graphId,
+        nodeId: n.nodeId,
+        category: n.category,
+        subType: n.subType,
+        label: n.label,
+        x: n.x,
+        y: n.y,
+        config: n.config,
+        nodeStatus: n.nodeStatus ?? "normal",
+        hitCount: n.hitCount ?? 0,
+        accuracy: n.accuracy,
+      })));
+    }
+    if (edges.length > 0) {
+      await tx.insert(kgGraphEdges).values(edges.map(e => ({
+        graphId,
+        edgeId: e.edgeId,
+        sourceNodeId: e.sourceNodeId,
+        targetNodeId: e.targetNodeId,
+        relationType: e.relationType,
+        label: e.label,
+        weight: e.weight,
+        config: e.config,
+        pathAccuracy: e.pathAccuracy,
+        hitCount: e.hitCount ?? 0,
+      })));
+    }
+    // 更新统计
+    await tx.update(kgGraphs).set({
+      nodeCount: nodes.length,
+      edgeCount: edges.length,
+    }).where(eq(kgGraphs.graphId, graphId));
+  });
 }
 
 // ============================================================
@@ -333,59 +342,62 @@ export async function runDiagnosis(input: KGDiagnosisInput): Promise<KGDiagnosis
     durationMs,
   };
 
-  // 保存诊断记录
-  await db.insert(kgDiagnosisRuns).values({
-    runId,
-    graphId: input.graphId,
-    triggerType: "manual",
-    inputData: input.inputData,
-    status: "completed",
-    result: {
-      conclusion: result.conclusion,
-      confidence: result.confidence,
-      faultCodes: result.faultCodes,
-      severity: result.severity,
-      recommendedActions: result.recommendedActions,
-    },
-    inferencePathIds: topPaths.map(p => p.nodeSequence.join('->')),
-    inferenceDepth: bestPath?.nodeSequence.length ?? 0,
-    durationMs,
-    createdAt: new Date(),
-  });
-
-  // 保存推理路径详情
-  if (topPaths.length > 0) {
-    await db.insert(kgDiagnosisPaths).values(topPaths.map(p => ({
+  // P1 修复：事务化诊断结果持久化（记录+路径+统计+命中计数）
+  await db.transaction(async (tx) => {
+    // 保存诊断记录
+    await tx.insert(kgDiagnosisRuns).values({
       runId,
       graphId: input.graphId,
-      pathIndex: p.pathIndex,
-      nodeSequence: p.nodeSequence,
-      edgeSequence: p.edgeSequence,
-      confidence: p.confidence,
-      conclusion: p.conclusion,
-      isSelected: p.isSelected,
+      triggerType: "manual",
+      inputData: input.inputData,
+      status: "completed",
+      result: {
+        conclusion: result.conclusion,
+        confidence: result.confidence,
+        faultCodes: result.faultCodes,
+        severity: result.severity,
+        recommendedActions: result.recommendedActions,
+      },
+      inferencePathIds: topPaths.map(p => p.nodeSequence.join('->')),
+      inferenceDepth: bestPath?.nodeSequence.length ?? 0,
+      durationMs,
       createdAt: new Date(),
-    })));
-  }
+    });
 
-  // 更新图谱诊断统计
-  await db.update(kgGraphs).set({
-    totalDiagnosisRuns: sql`total_diagnosis_runs + 1`,
-  }).where(eq(kgGraphs.graphId, input.graphId));
+    // 保存推理路径详情
+    if (topPaths.length > 0) {
+      await tx.insert(kgDiagnosisPaths).values(topPaths.map(p => ({
+        runId,
+        graphId: input.graphId,
+        pathIndex: p.pathIndex,
+        nodeSequence: p.nodeSequence,
+        edgeSequence: p.edgeSequence,
+        confidence: p.confidence,
+        conclusion: p.conclusion,
+        isSelected: p.isSelected,
+        createdAt: new Date(),
+      })));
+    }
 
-  // 更新路径上节点和边的命中计数
-  if (bestPath) {
-    for (const nodeId of bestPath.nodeSequence) {
-      await db.update(kgGraphNodes).set({
-        hitCount: sql`hit_count + 1`,
-      }).where(and(eq(kgGraphNodes.graphId, input.graphId), eq(kgGraphNodes.nodeId, nodeId)));
+    // 更新图谱诊断统计
+    await tx.update(kgGraphs).set({
+      totalDiagnosisRuns: sql`total_diagnosis_runs + 1`,
+    }).where(eq(kgGraphs.graphId, input.graphId));
+
+    // 更新路径上节点和边的命中计数
+    if (bestPath) {
+      for (const nodeId of bestPath.nodeSequence) {
+        await tx.update(kgGraphNodes).set({
+          hitCount: sql`hit_count + 1`,
+        }).where(and(eq(kgGraphNodes.graphId, input.graphId), eq(kgGraphNodes.nodeId, nodeId)));
+      }
+      for (const edgeId of bestPath.edgeSequence) {
+        await tx.update(kgGraphEdges).set({
+          hitCount: sql`hit_count + 1`,
+        }).where(and(eq(kgGraphEdges.graphId, input.graphId), eq(kgGraphEdges.edgeId, edgeId)));
+      }
     }
-    for (const edgeId of bestPath.edgeSequence) {
-      await db.update(kgGraphEdges).set({
-        hitCount: sql`hit_count + 1`,
-      }).where(and(eq(kgGraphEdges.graphId, input.graphId), eq(kgGraphEdges.edgeId, edgeId)));
-    }
-  }
+  });
 
   return result;
 }
@@ -457,56 +469,59 @@ async function evolveFromFeedback(graphId: string, runId: string, direction: 'po
   const weightDelta = direction === 'positive' ? 0.05 : -0.08;
   const changes: InsertKgEvolutionLog['changes'] = { updatedWeights: [] };
 
-  // 调整路径上所有边的权重
-  for (const edgeId of selectedPath.edgeSequence) {
-    const [edge] = await db.select().from(kgGraphEdges)
-      .where(and(eq(kgGraphEdges.graphId, graphId), eq(kgGraphEdges.edgeId, edgeId)))
-      .limit(1);
-    if (!edge) continue;
+  // P1 修复：事务化自进化操作（权重调整+准确率+日志+时间戳）
+  await db.transaction(async (tx) => {
+    // 调整路径上所有边的权重
+    for (const edgeId of selectedPath.edgeSequence) {
+      const [edge] = await tx.select().from(kgGraphEdges)
+        .where(and(eq(kgGraphEdges.graphId, graphId), eq(kgGraphEdges.edgeId, edgeId)))
+        .limit(1);
+      if (!edge) continue;
 
-    const oldWeight = edge.weight;
-    const newWeight = Math.max(0.05, Math.min(1.0, oldWeight + weightDelta));
+      const oldWeight = edge.weight;
+      const newWeight = Math.max(0.05, Math.min(1.0, oldWeight + weightDelta));
 
-    await db.update(kgGraphEdges).set({ weight: newWeight })
-      .where(and(eq(kgGraphEdges.graphId, graphId), eq(kgGraphEdges.edgeId, edgeId)));
+      await tx.update(kgGraphEdges).set({ weight: newWeight })
+        .where(and(eq(kgGraphEdges.graphId, graphId), eq(kgGraphEdges.edgeId, edgeId)));
 
-    changes.updatedWeights!.push({ edgeId, oldWeight, newWeight });
-  }
+      changes.updatedWeights!.push({ edgeId, oldWeight, newWeight });
+    }
 
-  // 更新节点准确率
-  for (const nodeId of selectedPath.nodeSequence) {
-    const [node] = await db.select().from(kgGraphNodes)
-      .where(and(eq(kgGraphNodes.graphId, graphId), eq(kgGraphNodes.nodeId, nodeId)))
-      .limit(1);
-    if (!node) continue;
+    // 更新节点准确率
+    for (const nodeId of selectedPath.nodeSequence) {
+      const [node] = await tx.select().from(kgGraphNodes)
+        .where(and(eq(kgGraphNodes.graphId, graphId), eq(kgGraphNodes.nodeId, nodeId)))
+        .limit(1);
+      if (!node) continue;
 
-    const oldAccuracy = node.accuracy ?? 0.5;
-    const hits = node.hitCount ?? 1;
-    const newAccuracy = direction === 'positive'
-      ? oldAccuracy + (1 - oldAccuracy) / hits
-      : oldAccuracy - oldAccuracy / (hits * 2);
+      const oldAccuracy = node.accuracy ?? 0.5;
+      const hits = node.hitCount ?? 1;
+      const newAccuracy = direction === 'positive'
+        ? oldAccuracy + (1 - oldAccuracy) / hits
+        : oldAccuracy - oldAccuracy / (hits * 2);
 
-    await db.update(kgGraphNodes).set({ accuracy: Math.max(0, Math.min(1, newAccuracy)) })
-      .where(and(eq(kgGraphNodes.graphId, graphId), eq(kgGraphNodes.nodeId, nodeId)));
-  }
+      await tx.update(kgGraphNodes).set({ accuracy: Math.max(0, Math.min(1, newAccuracy)) })
+        .where(and(eq(kgGraphNodes.graphId, graphId), eq(kgGraphNodes.nodeId, nodeId)));
+    }
 
-  // 记录进化日志
-  await db.insert(kgEvolutionLog).values({
-    graphId,
-    evolutionType: 'weight_adjust',
-    description: direction === 'positive'
-      ? `诊断反馈正确，增强路径权重 (${selectedPath.edgeSequence.length} 条边)`
-      : `诊断反馈错误，降低路径权重 (${selectedPath.edgeSequence.length} 条边)`,
-    changes,
-    triggeredBy: 'diagnosis_feedback',
-    status: 'applied',
-    createdAt: new Date(),
+    // 记录进化日志
+    await tx.insert(kgEvolutionLog).values({
+      graphId,
+      evolutionType: 'weight_adjust',
+      description: direction === 'positive'
+        ? `诊断反馈正确，增强路径权重 (${selectedPath.edgeSequence.length} 条边)`
+        : `诊断反馈错误，降低路径权重 (${selectedPath.edgeSequence.length} 条边)`,
+      changes,
+      triggeredBy: 'diagnosis_feedback',
+      status: 'applied',
+      createdAt: new Date(),
+    });
+
+    // 更新图谱进化时间
+    await tx.update(kgGraphs).set({
+      lastEvolvedAt: new Date(),
+    }).where(eq(kgGraphs.graphId, graphId));
   });
-
-  // 更新图谱进化时间
-  await db.update(kgGraphs).set({
-    lastEvolvedAt: new Date(),
-  }).where(eq(kgGraphs.graphId, graphId));
 }
 
 /** 获取进化日志 */

@@ -20,6 +20,7 @@
  */
 
 import { createModuleLogger } from '../../../core/logger';
+import { invokeLLM } from '../../../core/llm';
 import type { DimensionProcessor } from '../engines/cognition-unit';
 import type {
   CognitionStimulus,
@@ -76,6 +77,10 @@ export interface ReasoningConfig {
   quickShadowScenarios: number;
   /** 最小假设先验概率 */
   minPriorProbability: number;
+  /** P1 修复：是否启用 LLM 增强推演 */
+  enableLLMReasoning: boolean;
+  /** LLM 推演的最大 token 数 */
+  llmMaxTokens: number;
 }
 
 const DEFAULT_CONFIG: ReasoningConfig = {
@@ -84,6 +89,8 @@ const DEFAULT_CONFIG: ReasoningConfig = {
   maxHistoricalCases: 20,
   quickShadowScenarios: 50,
   minPriorProbability: 0.05,
+  enableLLMReasoning: true,
+  llmMaxTokens: 1024,
 };
 
 // ============================================================================
@@ -260,7 +267,85 @@ export class ReasoningProcessor implements DimensionProcessor<ReasoningOutput> {
       });
     }
 
+    // P1 修复：策略 4 — LLM 增强推演（异常关联分析和深层因果推理）
+    if (this.config.enableLLMReasoning && anomalies.length > 0) {
+      try {
+        const llmHypotheses = await this.generateLLMHypotheses(anomalies, stimulus);
+        for (const llmHyp of llmHypotheses) {
+          hypothesisCounter++;
+          hypotheses.push({
+            ...llmHyp,
+            id: `hyp_llm_${hypothesisCounter}`,
+          });
+        }
+      } catch (err) {
+        log.warn({
+          error: err instanceof Error ? err.message : String(err),
+        }, 'LLM 增强推演失败，降级为纯规则推演');
+      }
+    }
+
     return hypotheses;
+  }
+
+  /**
+   * P1 修复：LLM 增强假设生成
+   * 利用 LLM 的跨域知识进行深层因果推理，生成传统规则难以覆盖的假设
+   */
+  private async generateLLMHypotheses(
+    anomalies: PerceptionOutput['data']['anomalies'],
+    stimulus: CognitionStimulus,
+  ): Promise<Array<Omit<ReasoningOutput['data']['hypotheses'][0], 'id'>>> {
+    const anomalySummary = anomalies.slice(0, 5).map(a =>
+      `- 来源: ${a.source}, 类型: ${a.type}, 严重度: ${(a.severity * 100).toFixed(0)}%`
+    ).join('\n');
+
+    const response = await invokeLLM({
+      messages: [
+        {
+          role: 'system',
+          content: '你是工业设备故障诊断专家。基于异常信号，生成可能的故障假设。'
+            + '输出 JSON 数组，每个元素包含: description(假设描述), priorProbability(0-1), evidenceRequired(字符串数组), estimatedImpact(0-1)。'
+            + '只输出 JSON，不要包含其他文字。最多生成 3 个假设。',
+        },
+        {
+          role: 'user',
+          content: `刺激类型: ${stimulus.type}\n异常信号:\n${anomalySummary}\n\n请生成故障假设：`,
+        },
+      ],
+      maxTokens: this.config.llmMaxTokens,
+    });
+
+    const rawContent = response.choices?.[0]?.message?.content;
+    const rawText = typeof rawContent === 'string' ? rawContent : '';
+
+    try {
+      const jsonMatch = rawText.match(/\[\s*\{[\s\S]*\}\s*\]/);
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0]) as Array<{
+          description: string;
+          priorProbability: number;
+          evidenceRequired: string[];
+          estimatedImpact: number;
+        }>;
+        return parsed.map(h => ({
+          description: `[LLM] ${h.description}`,
+          priorProbability: Math.max(0.1, Math.min(0.9, h.priorProbability ?? 0.5)),
+          evidenceRequired: h.evidenceRequired ?? [],
+          estimatedImpact: Math.max(0.1, Math.min(1.0, h.estimatedImpact ?? 0.5)),
+        }));
+      }
+    } catch {
+      log.warn('LLM 假设解析失败，将原始文本作为单条假设');
+    }
+
+    // 解析失败时将原始文本作为单条假设
+    return rawText.trim() ? [{
+      description: `[LLM] ${rawText.slice(0, 200)}`,
+      priorProbability: 0.4,
+      evidenceRequired: ['需要人工验证 LLM 推理结果'],
+      estimatedImpact: 0.5,
+    }] : [];
   }
 
   /**

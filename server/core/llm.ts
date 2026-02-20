@@ -1,4 +1,21 @@
-import { ENV } from "./env";
+/**
+ * LLM 调用层
+ * 
+ * 修复清单：
+ *   P1-2: assertApiKey 错误提示从 "OPENAI_API_KEY" 修正为 "BUILT_IN_FORGE_API_KEY"
+ *   P1-3: model 从硬编码 "gemini-2.5-flash" 改为 config 可配置
+ *   P1-4: max_tokens / thinking.budget_tokens 硬编码提取为参数
+ *   P2-A07: 添加指数退避重试（429/5xx），最多 3 次
+ */
+
+import { config } from "./config";
+import { createModuleLogger } from "./logger";
+
+const log = createModuleLogger('llm');
+
+// ============================================================
+// 类型定义（保持不变）
+// ============================================================
 
 export type Role = "system" | "user" | "assistant" | "tool" | "function";
 
@@ -66,6 +83,10 @@ export type InvokeParams = {
   output_schema?: OutputSchema;
   responseFormat?: ResponseFormat;
   response_format?: ResponseFormat;
+  /** 模型名称覆盖（默认读 LLM_MODEL 环境变量或 gemini-2.5-flash） */
+  model?: string;
+  /** thinking budget tokens 覆盖（默认 128） */
+  thinkingBudget?: number;
 };
 
 export type ToolCall = {
@@ -109,6 +130,10 @@ export type ResponseFormat =
   | { type: "text" }
   | { type: "json_object" }
   | { type: "json_schema"; json_schema: JsonSchema };
+
+// ============================================================
+// 内部工具函数
+// ============================================================
 
 const ensureArray = (
   value: MessageContent | MessageContent[]
@@ -209,16 +234,33 @@ const normalizeToolChoice = (
   return toolChoice;
 };
 
-const resolveApiUrl = () =>
-  ENV.forgeApiUrl && ENV.forgeApiUrl.trim().length > 0
-    ? `${ENV.forgeApiUrl.replace(/\/$/, "")}/v1/chat/completions`
+/**
+ * P1-2 修复：错误提示从 "OPENAI_API_KEY" 修正为 "BUILT_IN_FORGE_API_KEY"
+ * 同时改为从 config 统一读取
+ */
+const resolveApiUrl = (): string => {
+  const url = config.externalApis.forgeApiUrl;
+  return url && url.trim().length > 0
+    ? `${url.replace(/\/$/, "")}/v1/chat/completions`
     : "https://forge.manus.im/v1/chat/completions";
-
-const assertApiKey = () => {
-  if (!ENV.forgeApiKey) {
-    throw new Error("OPENAI_API_KEY is not configured");
-  }
 };
+
+const getApiKey = (): string => {
+  const key = config.externalApis.forgeApiKey;
+  if (!key) {
+    throw new Error(
+      "BUILT_IN_FORGE_API_KEY is not configured — set it in .env or environment variables"
+    );
+  }
+  return key;
+};
+
+/** P1-3 修复：模型名称可配置 */
+const DEFAULT_MODEL = process.env.LLM_MODEL || "gemini-2.5-flash";
+
+/** P1-4 修复：默认参数可配置 */
+const DEFAULT_MAX_TOKENS = parseInt(process.env.LLM_MAX_TOKENS || "32768", 10);
+const DEFAULT_THINKING_BUDGET = parseInt(process.env.LLM_THINKING_BUDGET || "128", 10);
 
 const normalizeResponseFormat = ({
   responseFormat,
@@ -265,8 +307,28 @@ const normalizeResponseFormat = ({
   };
 };
 
+// ============================================================
+// P2-A07: 指数退避重试
+// ============================================================
+
+const MAX_RETRIES = 3;
+const BASE_DELAY_MS = 1000;
+
+function isRetryableStatus(status: number): boolean {
+  return status === 429 || status >= 500;
+}
+
+async function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// ============================================================
+// 主入口
+// ============================================================
+
 export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
-  assertApiKey();
+  const apiKey = getApiKey();
+  const apiUrl = resolveApiUrl();
 
   const {
     messages,
@@ -277,10 +339,14 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     output_schema,
     responseFormat,
     response_format,
+    model,
+    maxTokens,
+    max_tokens,
+    thinkingBudget,
   } = params;
 
   const payload: Record<string, unknown> = {
-    model: "gemini-2.5-flash",
+    model: model || DEFAULT_MODEL,
     messages: messages.map(normalizeMessage),
   };
 
@@ -296,10 +362,10 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     payload.tool_choice = normalizedToolChoice;
   }
 
-  payload.max_tokens = 32768
+  payload.max_tokens = maxTokens || max_tokens || DEFAULT_MAX_TOKENS;
   payload.thinking = {
-    "budget_tokens": 128
-  }
+    budget_tokens: thinkingBudget ?? DEFAULT_THINKING_BUDGET,
+  };
 
   const normalizedResponseFormat = normalizeResponseFormat({
     responseFormat,
@@ -312,21 +378,53 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     payload.response_format = normalizedResponseFormat;
   }
 
-  const response = await fetch(resolveApiUrl(), {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      authorization: `Bearer ${ENV.forgeApiKey}`,
-    },
-    body: JSON.stringify(payload),
-  });
+  // P2-A07: 指数退避重试循环
+  let lastError: Error | null = null;
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(
-      `LLM invoke failed: ${response.status} ${response.statusText} – ${errorText}`
-    );
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    if (attempt > 0) {
+      const delay = BASE_DELAY_MS * Math.pow(2, attempt - 1);
+      log.warn({ attempt, delay, model: payload.model }, `LLM retry after ${delay}ms`);
+      await sleep(delay);
+    }
+
+    try {
+      const response = await fetch(apiUrl, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+
+        if (isRetryableStatus(response.status) && attempt < MAX_RETRIES) {
+          lastError = new Error(
+            `LLM invoke failed: ${response.status} ${response.statusText} – ${errorText}`
+          );
+          log.warn({ status: response.status, attempt }, 'Retryable LLM error');
+          continue;
+        }
+
+        throw new Error(
+          `LLM invoke failed: ${response.status} ${response.statusText} – ${errorText}`
+        );
+      }
+
+      return (await response.json()) as InvokeResult;
+    } catch (err) {
+      if (attempt < MAX_RETRIES && (err as NodeJS.ErrnoException).code === 'ECONNRESET') {
+        lastError = err as Error;
+        log.warn({ attempt, err: (err as Error).message }, 'Network error, retrying');
+        continue;
+      }
+      throw err;
+    }
   }
 
-  return (await response.json()) as InvokeResult;
+  // 所有重试均失败
+  throw lastError || new Error('LLM invoke failed after all retries');
 }

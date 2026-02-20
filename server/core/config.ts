@@ -205,6 +205,9 @@ export const config = {
   externalApis: {
     openaiApiKey: env('OPENAI_API_KEY', ''),
     openaiBaseUrl: env('OPENAI_BASE_URL', 'https://api.openai.com/v1'),
+    /** Forge LLM API（原 env.ts 中的 forgeApiUrl/forgeApiKey，现统一到 config） */
+    forgeApiUrl: env('BUILT_IN_FORGE_API_URL', ''),
+    forgeApiKey: env('BUILT_IN_FORGE_API_KEY', ''),
     webhookUrl: env('WEBHOOK_URL', ''),
   },
 } as const;
@@ -226,10 +229,13 @@ export function validateConfig(): ConfigValidationResult {
   // 生产环境必须配置
   if (config.app.env === 'production') {
     if (config.security.jwtSecret === 'change-me-in-production') {
-      errors.push('JWT_SECRET must be set in production');
+      // P2-A05 修复：生产环境弱密钥直接阻断进程启动
+      console.error('[FATAL] JWT_SECRET is using default value in production. Aborting.');
+      process.exit(1);
     }
     if (config.security.corsOrigins.includes('*')) {
-      warnings.push('CORS_ORIGINS is set to wildcard (*) in production');
+      // P2 修复：CORS 通配符从 warning 提升为 error（生产安全隐患）
+      errors.push('CORS_ORIGINS is set to wildcard (*) in production — this is a security risk');
     }
   }
 

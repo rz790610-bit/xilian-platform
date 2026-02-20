@@ -69,17 +69,20 @@ class ServiceRegistry {
 
   /**
    * 初始化注册中心
+   * 
+   * P2-A04 修复：K8s 环境下跳过 Redis 缓存刷新定时器，
+   * 避免无意义的 Redis 轮询空转。
    */
   async initialize(): Promise<void> {
     if (this.isK8s) {
-      log.info('Running in Kubernetes - using DNS-based service discovery');
+      log.info('Running in Kubernetes - using DNS-based service discovery (Redis cache disabled)');
+      // K8s 环境不启动 Redis 缓存刷新，避免空转
     } else {
       log.info('Running standalone - using Redis-based service discovery');
+      // 仅非 K8s 环境启动定期刷新
+      this.cacheRefreshTimer = setInterval(() => this.refreshCache(), 10000);
+      this.cacheRefreshTimer.unref();
     }
-
-    // 定期刷新远程服务缓存
-    this.cacheRefreshTimer = setInterval(() => this.refreshCache(), 10000);
-    this.cacheRefreshTimer.unref();
 
     log.info('Service registry initialized');
   }
@@ -171,18 +174,22 @@ class ServiceRegistry {
       const client = redisClient.getClient();
       if (!client) return topology;
 
-      const keys = await client.keys('svc:*');
-      for (const key of keys) {
-        const raw = await client.get(key);
-        if (!raw) continue;
-
-        try {
-          const instance = JSON.parse(raw) as ServiceInstance;
-          const existing = topology.get(instance.serviceName) || [];
-          existing.push(instance);
-          topology.set(instance.serviceName, existing);
-        } catch { /* skip invalid */ }
-      }
+      // P1-6 修复：keys() 替换为 SCAN 模式，避免生产环境大量 key 时阻塞 Redis
+      let cursor = '0';
+      do {
+        const [nextCursor, keys] = await client.scan(cursor, 'MATCH', 'svc:*', 'COUNT', 100);
+        cursor = nextCursor;
+        for (const key of keys) {
+          const raw = await client.get(key);
+          if (!raw) continue;
+          try {
+            const instance = JSON.parse(raw) as ServiceInstance;
+            const existing = topology.get(instance.serviceName) || [];
+            existing.push(instance);
+            topology.set(instance.serviceName, existing);
+          } catch { /* skip invalid */ }
+        }
+      } while (cursor !== '0');
     } catch (err) {
       log.warn('Failed to load topology from Redis:', (err as Error).message);
     }
@@ -340,19 +347,23 @@ class ServiceRegistry {
       const client = redisClient.getClient();
       if (!client) return [];
 
-      const keys = await client.keys(`svc:${serviceName}:*`);
+      // P1-6 修复：keys() 替换为 SCAN 模式
       const instances: ServiceInstance[] = [];
-
-      for (const key of keys) {
-        const raw = await client.get(key);
-        if (!raw) continue;
-        try {
-          const instance = JSON.parse(raw) as ServiceInstance;
-          if (instance.status === 'healthy') {
-            instances.push(instance);
-          }
-        } catch { /* skip */ }
-      }
+      let cursor = '0';
+      do {
+        const [nextCursor, keys] = await client.scan(cursor, 'MATCH', `svc:${serviceName}:*`, 'COUNT', 100);
+        cursor = nextCursor;
+        for (const key of keys) {
+          const raw = await client.get(key);
+          if (!raw) continue;
+          try {
+            const instance = JSON.parse(raw) as ServiceInstance;
+            if (instance.status === 'healthy') {
+              instances.push(instance);
+            }
+          } catch { /* skip */ }
+        }
+      } while (cursor !== '0');
 
       // 更新缓存
       this.remoteCache.set(serviceName, instances);

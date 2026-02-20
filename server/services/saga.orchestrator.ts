@@ -127,18 +127,33 @@ class SagaOrchestrator {
     const timeout = definition.timeout || this.DEFAULT_TIMEOUT_MS;
     const timeoutAt = new Date(Date.now() + timeout);
 
-    // 创建 Saga 实例
+    // P1 修复：事务化创建 Saga 实例 + 首步骤记录，防止“幽灵 Saga”（有实例无步骤）
     const db = await getDb();
     if (db) {
-      await db.insert(sagaInstances).values({
-        sagaId,
-        sagaType,
-        status: 'running',
-        currentStep: 0,
-        totalSteps: definition.steps.length,
-        input: input as Record<string, unknown>,
-        checkpoint: { processed: [], failed: [], lastCompletedStep: -1 },
-        timeoutAt,
+      await db.transaction(async (tx) => {
+        await tx.insert(sagaInstances).values({
+          sagaId,
+          sagaType,
+          status: 'running',
+          currentStep: 0,
+          totalSteps: definition.steps.length,
+          input: input as Record<string, unknown>,
+          checkpoint: { processed: [], failed: [], lastCompletedStep: -1 },
+          timeoutAt,
+        });
+        // 预创建首步骤记录，确保实例和步骤原子存在
+        if (definition.steps.length > 0) {
+          await tx.insert(sagaSteps).values({
+            stepId: `${sagaId}_step_0`,
+            sagaId,
+            stepIndex: 0,
+            stepName: definition.steps[0].name,
+            stepType: 'action',
+            status: 'pending',
+            input: input as Record<string, unknown>,
+            startedAt: new Date(),
+          });
+        }
       });
     }
 
@@ -160,19 +175,26 @@ class SagaOrchestrator {
         const step = definition.steps[i];
         context.currentStep = i;
 
-        // 创建步骤记录
+        // 创建步骤记录（首步骤已在事务中预创建，更新状态即可）
         const stepId = `${sagaId}_step_${i}`;
         if (db) {
-          await db.insert(sagaSteps).values({
-            stepId,
-            sagaId,
-            stepIndex: i,
-            stepName: step.name,
-            stepType: 'action',
-            status: 'running',
-            input: lastOutput as Record<string, unknown>,
-            startedAt: new Date(),
-          });
+          if (i === 0) {
+            // 首步骤已预创建，更新为 running
+            await db.update(sagaSteps)
+              .set({ status: 'running', input: lastOutput as Record<string, unknown> })
+              .where(eq(sagaSteps.stepId, stepId));
+          } else {
+            await db.insert(sagaSteps).values({
+              stepId,
+              sagaId,
+              stepIndex: i,
+              stepName: step.name,
+              stepType: 'action',
+              status: 'running',
+              input: lastOutput as Record<string, unknown>,
+              startedAt: new Date(),
+            });
+          }
         }
 
         try {
