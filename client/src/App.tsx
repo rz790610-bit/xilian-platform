@@ -220,13 +220,14 @@ function Router() {
 
       {/* 安全运维 */}
       <Route path="/settings/security/falco" component={FalcoSecurityCenter} />
-      {/* API 网关管理 */}
+      {/* API 网关 — 仅保留网关概览，已移入状态监控子菜单 */}
       <Route path="/settings/gateway/dashboard" component={GatewayManagement} />
-      <Route path="/settings/gateway/routes" component={GatewayManagement} />
-      <Route path="/settings/gateway/services" component={GatewayManagement} />
-      <Route path="/settings/gateway/plugins" component={GatewayManagement} />
-      <Route path="/settings/gateway/upstreams" component={GatewayManagement} />
-      <Route path="/settings/gateway/consumers" component={GatewayManagement} />
+      {/* 旧网关子路由重定向到网关概览 */}
+      <Route path="/settings/gateway/routes"><Redirect to="/settings/gateway/dashboard" /></Route>
+      <Route path="/settings/gateway/services"><Redirect to="/settings/gateway/dashboard" /></Route>
+      <Route path="/settings/gateway/plugins"><Redirect to="/settings/gateway/dashboard" /></Route>
+      <Route path="/settings/gateway/upstreams"><Redirect to="/settings/gateway/dashboard" /></Route>
+      <Route path="/settings/gateway/consumers"><Redirect to="/settings/gateway/dashboard" /></Route>
 
       {/* 监控大屏 */}
       <Route path="/monitoring/clickhouse" component={ClickHouseDashboard} />

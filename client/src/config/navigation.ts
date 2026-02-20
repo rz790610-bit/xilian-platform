@@ -146,6 +146,8 @@ export const navigationConfig: NavItem[] = [
       { id: 'status-infrastructure', label: '基础设施', icon: '🏛️', path: '/settings/config/infrastructure' },
       { id: 'status-access-layer', label: '接入层管理', icon: '🔌', path: '/settings/config/access-layer' },
       { id: 'status-topology', label: '系统拓扑', icon: '📊', path: '/settings/status/topology' },
+      { id: 'status-gateway', label: '网关概览', icon: '🛣️', path: '/settings/gateway/dashboard' },
+      { id: 'status-plugin-sandbox', label: '沙箱概览', icon: '🧩', path: '/settings/plugin-sandbox' },
       { id: 'status-microservices', label: '微服务监控', icon: '🔗', path: '/settings/status/microservices' },
       { id: 'status-performance', label: '性能总览', icon: '🚀', path: '/settings/status/performance' },
       { id: 'status-kafka', label: 'Kafka 监控', icon: '📡', path: '/settings/config/kafka' },
@@ -155,33 +157,11 @@ export const navigationConfig: NavItem[] = [
     ]
   },
   {
-    id: 'plugin-sandbox',
-    label: '插件引擎',
-    icon: '🧩',
-    children: [
-      { id: 'plugin-overview', label: '沙箱概览', icon: '🏠', path: '/settings/plugin-sandbox' },
-      { id: 'plugin-marketplace', label: '插件市场', icon: '🏪', path: '/settings/status/plugins' },
-    ]
-  },
-  {
     id: 'security-ops',
     label: '安全运维',
     icon: '🛡️',
     children: [
       { id: 'security-falco', label: '安全中心', icon: '🔍', path: '/settings/security/falco' }
-    ]
-  },
-  {
-    id: 'api-gateway',
-    label: 'API 网关',
-    icon: '🛣️',
-    children: [
-      { id: 'gateway-dashboard', label: '网关概览', icon: '📊', path: '/settings/gateway/dashboard' },
-      { id: 'gateway-routes', label: '路由管理', icon: '🚦', path: '/settings/gateway/routes' },
-      { id: 'gateway-services', label: '服务管理', icon: '⚙️', path: '/settings/gateway/services' },
-      { id: 'gateway-plugins', label: '插件管理', icon: '🔌', path: '/settings/gateway/plugins' },
-      { id: 'gateway-upstreams', label: '上游管理', icon: '🎯', path: '/settings/gateway/upstreams' },
-      { id: 'gateway-consumers', label: '消费者', icon: '👤', path: '/settings/gateway/consumers' },
     ]
   },
 ];

@@ -832,35 +832,16 @@ function ConsumersTab() {
 // 主页面
 // ============================================================
 export default function GatewayManagement() {
-  const [activeTab, setActiveTab] = useState('dashboard');
-
   return (
-    <MainLayout title="API 网关管理">
+    <MainLayout title="网关概览">
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">API 网关管理</h1>
+        <h1 className="text-2xl font-bold">网关概览</h1>
         <p className="text-muted-foreground mt-1">
-          Kong API Gateway — 路由转发、限流认证、插件管理、负载均衡
+          API Gateway — 网关状态监控与流量概览
         </p>
       </div>
-
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid grid-cols-6 w-full max-w-2xl">
-          <TabsTrigger value="dashboard">概览</TabsTrigger>
-          <TabsTrigger value="routes">路由</TabsTrigger>
-          <TabsTrigger value="services">服务</TabsTrigger>
-          <TabsTrigger value="plugins">插件</TabsTrigger>
-          <TabsTrigger value="upstreams">上游</TabsTrigger>
-          <TabsTrigger value="consumers">消费者</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="dashboard"><DashboardTab /></TabsContent>
-        <TabsContent value="routes"><RoutesTab /></TabsContent>
-        <TabsContent value="services"><ServicesTab /></TabsContent>
-        <TabsContent value="plugins"><PluginsTab /></TabsContent>
-        <TabsContent value="upstreams"><UpstreamsTab /></TabsContent>
-        <TabsContent value="consumers"><ConsumersTab /></TabsContent>
-      </Tabs>
+      <DashboardTab />
     </div>
     </MainLayout>
   );
