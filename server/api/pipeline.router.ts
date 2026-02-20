@@ -112,7 +112,12 @@ function legacyConfigToDAG(config: z.infer<typeof pipelineConfigSchema>) {
     nodes,
     connections,
     retryPolicy: config.retryPolicy ? { ...config.retryPolicy, backoffMultiplier: 2 } : undefined,
-    schedule: config.schedule ? { ...config.schedule, type: config.schedule.type as 'interval' | 'cron' } : undefined,
+    // P1-5: 添加默认 timezone，原始问题: cron 调度时区丢失导致定时任务在错误时间执行
+    schedule: config.schedule ? {
+      ...config.schedule,
+      type: config.schedule.type as 'interval' | 'cron',
+      timezone: config.schedule.timezone || 'Asia/Shanghai',
+    } : undefined,
   };
 }
 
@@ -372,6 +377,13 @@ export const pipelineRouter = router({
   /**
    * 执行资源扫描，返回所有自动发现的组件
    * 扫描 MySQL 表、Kafka Topic、Qdrant 集合、模型、插件等
+   *
+   * A2-6: 资源扫描器配置当前硬编码在 resource-discovery.service 中。
+   * 建议从统一注册中心动态加载扫描器配置，新增资源类型时无需修改代码。
+   * 迁移方案：
+   *   1. 在 registryManager 中注册 ResourceScannerRegistry
+   *   2. 每个扫描器实现 IResourceScanner 接口
+   *   3. resourceDiscovery.scan() 从注册中心动态获取扫描器列表
    */
   discoverResources: publicProcedure.query(async () => {
     const components = await resourceDiscovery.scan();

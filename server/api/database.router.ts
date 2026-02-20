@@ -8,6 +8,28 @@
  * - slice: 数据切片（切片规则、切片实例）
  * - clean: 数据清洗（清洗规则、清洗任务、质量报告、校准）
  * - event: 事件溯源（事件存储、快照）
+ *
+ * ======== A2-1 权限控制矩阵 ========
+ * 本文件当前通过别名技巧将所有 publicProcedure 指向 protectedProcedure。
+ * 待统一改造时应按以下规则直接替换：
+ *   - query（公开数据）: publicProcedure
+ *   - query（内部数据）: protectedProcedure
+ *   - mutation: protectedProcedure
+ *   - 管理操作（删库/迁移/清理）: adminProcedure
+ *
+ * ======== A2-2 拆分计划 ========
+ * 本文件 1300+ 行，包含 13 个子路由，严重违反单一职责原则。
+ * 建议拆分为独立文件：
+ *   - server/api/database/asset.router.ts
+ *   - server/api/database/config.router.ts
+ *   - server/api/database/slice.router.ts
+ *   - server/api/database/clean.router.ts
+ *   - server/api/database/event.router.ts
+ *   - server/api/database/pluginDb.router.ts
+ *   - server/api/database/opsDb.router.ts
+ *   - server/api/database/governanceDb.router.ts
+ *   - server/api/database/scheduleDb.router.ts
+ * 由主文件 database.router.ts 通过 router.merge() 组合子路由
  */
 import { z } from 'zod';
 // P0 加固：数据库路由全部改为 protectedProcedure，禁止未认证访问

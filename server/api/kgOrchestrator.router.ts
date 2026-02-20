@@ -2,7 +2,7 @@
  * 知识图谱编排器 tRPC 路由
  */
 import { z } from "zod";
-import { publicProcedure, router } from "../core/trpc";
+import { publicProcedure, protectedProcedure, router } from "../core/trpc";
 import * as kgService from "../services/kg-orchestrator.service";
 
 export const kgOrchestratorRouter = router({
@@ -21,8 +21,8 @@ export const kgOrchestratorRouter = router({
   get: publicProcedure.input(z.object({ graphId: z.string() }))
     .query(({ input }) => kgService.getGraph(input.graphId)),
 
-  /** 创建 */
-  create: publicProcedure.input(z.object({
+  /** 创建 — S0-2: mutation 改为 protectedProcedure */
+  create: protectedProcedure.input(z.object({
     name: z.string(),
     description: z.string().optional(),
     scenario: z.string(),
@@ -49,8 +49,8 @@ export const kgOrchestratorRouter = router({
     })).optional(),
   })).mutation(({ input }) => kgService.createGraph(input as any)),
 
-  /** 更新基本信息 */
-  update: publicProcedure.input(z.object({
+  /** 更新基本信息 — S0-2 */
+  update: protectedProcedure.input(z.object({
     graphId: z.string(),
     name: z.string().optional(),
     description: z.string().optional(),
@@ -62,12 +62,12 @@ export const kgOrchestratorRouter = router({
     return kgService.updateGraph(graphId, data);
   }),
 
-  /** 删除 */
-  delete: publicProcedure.input(z.object({ graphId: z.string() }))
+  /** 删除 — S0-2 */
+  delete: protectedProcedure.input(z.object({ graphId: z.string() }))
     .mutation(({ input }) => kgService.deleteGraph(input.graphId)),
 
-  /** 保存画布状态 */
-  saveCanvas: publicProcedure.input(z.object({
+  /** 保存画布状态 — S0-2 */
+  saveCanvas: protectedProcedure.input(z.object({
     graphId: z.string(),
     nodes: z.array(z.object({
       nodeId: z.string(),
@@ -96,8 +96,8 @@ export const kgOrchestratorRouter = router({
 
   // ============ 诊断推理 ============
 
-  /** 运行诊断 */
-  runDiagnosis: publicProcedure.input(z.object({
+  /** 运行诊断 — S0-2 */
+  runDiagnosis: protectedProcedure.input(z.object({
     graphId: z.string(),
     inputData: z.record(z.string(), z.unknown()),
     startNodeId: z.string().optional(),
@@ -111,8 +111,8 @@ export const kgOrchestratorRouter = router({
     pageSize: z.number().optional(),
   })).query(({ input }) => kgService.listDiagnosisRuns(input.graphId, input)),
 
-  /** 提交诊断反馈 */
-  submitFeedback: publicProcedure.input(z.object({
+  /** 提交诊断反馈 — S0-2 */
+  submitFeedback: protectedProcedure.input(z.object({
     runId: z.string(),
     feedback: z.enum(["correct", "incorrect", "partial"]),
     note: z.string().optional(),
@@ -127,8 +127,8 @@ export const kgOrchestratorRouter = router({
     pageSize: z.number().optional(),
   })).query(({ input }) => kgService.listEvolutionLogs(input.graphId, input)),
 
-  /** 审核进化事件 */
-  reviewEvolution: publicProcedure.input(z.object({
+  /** 审核进化事件 — S0-2 */
+  reviewEvolution: protectedProcedure.input(z.object({
     logId: z.number(),
     action: z.enum(["applied", "rejected"]),
     reviewedBy: z.string().optional(),

@@ -18,6 +18,12 @@ const log = createModuleLogger('microservice-router');
 
 // ============================================================
 // 服务注册表 — 平台实际运行的微服务模块
+// A2-4: 当前硬编码在路由文件中，新增服务需修改路由代码。
+// 建议迁移到 config/services.json 或统一注册中心，支持动态加载。
+// 迁移方案：
+//   1. 创建 server/config/microservices.json 存储服务定义
+//   2. 本文件改为从配置文件加载，并支持运行时通过 API 注册新服务
+//   3. 统一注册中心方案：复用 registryManager 注册微服务定义
 // ============================================================
 interface ServiceDefinition {
   id: string;
@@ -312,6 +318,11 @@ export const microserviceRouter = router({
         totalMetrics: allMetrics.length,
         lastScrape: new Date(),
         timeRange,
+        // P1-3: 明确标记时序数据来源
+        // sparkline 基于当前真实指标值 + 确定性伪随机波动生成，非真实 Prometheus 历史查询
+        isSimulated: true,
+        dataSource: 'prom-client-current-value-with-deterministic-sparkline',
+        _warning: 'Sparkline data is generated from current metric values with deterministic noise, not from real Prometheus range queries.',
       };
     }),
 

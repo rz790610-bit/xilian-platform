@@ -12,7 +12,9 @@
  */
 
 import { z } from 'zod';
-import { publicProcedure, router } from '../core/trpc';
+// S0-3: 统一注册中心暴露平台所有能力元数据，攻击者可枚举平台能力发现攻击面。
+// 改为 protectedProcedure 防止未认证访问；生产环境应额外添加速率限制（建议每 IP 每分钟 100 次）
+import { protectedProcedure, router } from '../core/trpc';
 import { registryManager } from '../core/registries';
 
 export const registryRouter = router({
@@ -20,7 +22,7 @@ export const registryRouter = router({
    * 列出所有注册中心的概览信息
    * 用于前端展示"平台能力总览"
    */
-  listRegistries: publicProcedure.query(() => {
+  listRegistries: protectedProcedure.query(() => {
     return registryManager.getStats();
   }),
 
@@ -28,7 +30,7 @@ export const registryRouter = router({
    * 查询指定注册中心的数据
    * 支持按分类过滤、关键词搜索、标签过滤
    */
-  query: publicProcedure
+  query: protectedProcedure
     .input(z.object({
       registry: z.string(),
       category: z.string().optional(),
@@ -50,7 +52,7 @@ export const registryRouter = router({
   /**
    * 获取指定注册中心的分类列表
    */
-  listCategories: publicProcedure
+  listCategories: protectedProcedure
     .input(z.object({ registry: z.string() }))
     .query(({ input }) => {
       const reg = registryManager.getRegistry(input.registry);
@@ -61,7 +63,7 @@ export const registryRouter = router({
   /**
    * 获取指定注册中心中某个项的详细信息
    */
-  getItem: publicProcedure
+  getItem: protectedProcedure
     .input(z.object({
       registry: z.string(),
       itemId: z.string(),
@@ -78,7 +80,7 @@ export const registryRouter = router({
    * 搜索所有注册中心
    * 全局搜索，返回匹配的项及其所属注册中心
    */
-  globalSearch: publicProcedure
+  globalSearch: protectedProcedure
     .input(z.object({ keyword: z.string().min(1) }))
     .query(({ input }) => {
       const results: Array<{ registry: string; registryLabel: string; items: any[] }> = [];

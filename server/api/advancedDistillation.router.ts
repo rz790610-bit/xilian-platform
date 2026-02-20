@@ -11,7 +11,7 @@
  */
 
 import { z } from 'zod';
-import { publicProcedure, router } from '../core/trpc';
+import { publicProcedure, protectedProcedure, router } from '../core/trpc';
 import {
   recommendStrategy,
   runAdvancedDistillation,
@@ -54,7 +54,8 @@ export const advancedDistillationRouter = router({
   /**
    * 策略推荐 — 对齐 Python recommend_strategy()
    */
-  recommendStrategy: publicProcedure
+  // S0-2: 写操作改为 protectedProcedure（原全部 publicProcedure）
+  recommendStrategy: protectedProcedure
     .input(z.object({
       modalities: z.array(z.number()).min(1).describe('各模态特征维度'),
       computeBudget: z.number().default(1e6).describe('计算预算'),
@@ -76,7 +77,8 @@ export const advancedDistillationRouter = router({
   /**
    * 执行高级蒸馏训练
    */
-  train: publicProcedure
+  // S0-2: 训练执行消耗大量 GPU 资源，必须认证
+  train: protectedProcedure
     .input(z.object({
       config: z.object({
         weights: z.record(z.string(), z.number()).optional(),

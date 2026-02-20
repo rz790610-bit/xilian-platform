@@ -68,45 +68,62 @@ export const observabilityRouter = router({
     return observabilityService.getSystemMetrics();
   }),
 
+  // P1-4: 统一回退逻辑 — 优先真实 prometheusClient，失败才使用模拟数据
+  // 原始问题: 优先使用 PrometheusService 模拟数据，与其他接口优先真实客户端的逻辑相反
   getNodeMetrics: publicProcedure
     .input(z.object({ hostname: z.string().optional() }).optional())
     .query(async ({ input }) => {
-      // 优先使用模拟数据服务，确保返回格式一致
-      // 本地开发环境没有真实的 Prometheus，直接返回模拟数据
+      // 优先使用真实 Prometheus 客户端查询
       try {
-        return PrometheusService.getInstance().getNodeMetrics(input?.hostname);
-      } catch {
-        // 回退到真实 Prometheus 查询
         const [cpu, memory, disk] = await Promise.all([
           prometheusClient.getCpuUsage(input?.hostname),
           prometheusClient.getMemoryUsage(input?.hostname),
           prometheusClient.getDiskUsage(input?.hostname),
         ]);
         
-        return [{
-          hostname: input?.hostname || 'all',
-          cpuUsage: cpu || 0,
-          memoryUsage: memory || 0,
-          memoryTotal: 256 * 1024 * 1024 * 1024,
-          memoryUsed: (memory || 0) * 256 * 1024 * 1024 * 1024 / 100,
-          diskUsage: disk || 0,
-          diskTotal: 10 * 1024 * 1024 * 1024 * 1024,
-          diskUsed: (disk || 0) * 10 * 1024 * 1024 * 1024 * 1024 / 100,
-          networkRxBytes: 0,
-          networkTxBytes: 0,
-          loadAverage1m: 0,
-          loadAverage5m: 0,
-          loadAverage15m: 0,
-          uptime: 0,
-          timestamp: Date.now(),
-        }];
+        // 检查是否获取到真实数据（至少一个指标非零）
+        if (cpu != null || memory != null || disk != null) {
+          return [{
+            hostname: input?.hostname || 'all',
+            cpuUsage: cpu || 0,
+            memoryUsage: memory || 0,
+            memoryTotal: 256 * 1024 * 1024 * 1024,
+            memoryUsed: (memory || 0) * 256 * 1024 * 1024 * 1024 / 100,
+            diskUsage: disk || 0,
+            diskTotal: 10 * 1024 * 1024 * 1024 * 1024,
+            diskUsed: (disk || 0) * 10 * 1024 * 1024 * 1024 * 1024 / 100,
+            networkRxBytes: 0,
+            networkTxBytes: 0,
+            loadAverage1m: 0,
+            loadAverage5m: 0,
+            loadAverage15m: 0,
+            uptime: 0,
+            timestamp: Date.now(),
+            _source: 'prometheus' as const,
+          }];
+        }
+        // Prometheus 返回空数据，回退到模拟服务
+        throw new Error('No real data from Prometheus');
+      } catch {
+        // 回退到模拟数据服务，并标记数据来源
+        const simulated = PrometheusService.getInstance().getNodeMetrics(input?.hostname);
+        // 为模拟数据添加来源标记
+        if (Array.isArray(simulated)) {
+          return simulated.map((item: any) => ({ ...item, _source: 'simulated' as const }));
+        }
+        return simulated;
       }
     }),
 
+  // A2-5: 以下接口仍使用模拟数据服务，待统一改造。
+  // 建议统一数据源策略：
+  //   - 生产环境（NODE_ENV=production）: 仅使用真实客户端（prometheusClient/jaegerClient）
+  //   - 开发环境（NODE_ENV=development）: 优先真实客户端，失败回退模拟数据并标记 _source
+  //   - 所有模拟数据必须添加 _source: 'simulated' 标记
   getContainerMetrics: publicProcedure
     .input(z.object({ containerName: z.string().optional() }).optional())
     .query(({ input }) => {
-      // 保持兼容，使用原有服务
+      // 保持兼容，使用原有服务（待统一改造为优先真实客户端）
       return PrometheusService.getInstance().getContainerMetrics(input?.containerName);
     }),
 

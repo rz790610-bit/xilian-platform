@@ -5,7 +5,7 @@
  */
 
 import { z } from 'zod';
-import { publicProcedure, router } from '../core/trpc';
+import { publicProcedure, protectedProcedure, router } from '../core/trpc';
 import {
   diagnose,
   getAgentStatus,
@@ -21,7 +21,8 @@ export const grokDiagnosticRouter = router({
   /**
    * 执行设备诊断
    */
-  diagnose: publicProcedure
+  // S0-2: 诊断执行消耗 AI 推理资源，必须认证
+  diagnose: protectedProcedure
     .input(
       z.object({
         deviceCode: z.string().min(1, '设备编码不能为空'),
@@ -85,7 +86,7 @@ export const grokDiagnosticRouter = router({
   /**
    * 清除诊断会话
    */
-  clearSession: publicProcedure
+  clearSession: protectedProcedure
     .input(z.object({ sessionId: z.string() }))
     .mutation(({ input }) => {
       const cleared = clearSession(input.sessionId);
@@ -95,7 +96,8 @@ export const grokDiagnosticRouter = router({
   /**
    * 批量诊断（多设备）
    */
-  batchDiagnose: publicProcedure
+  // S0-2: 批量诊断最多10设备，资源消耗大，必须认证
+  batchDiagnose: protectedProcedure
     .input(
       z.object({
         devices: z.array(

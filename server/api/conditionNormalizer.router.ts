@@ -17,7 +17,7 @@
  */
 
 import { z } from 'zod';
-import { publicProcedure, router } from '../core/trpc';
+import { publicProcedure, protectedProcedure, router } from '../core/trpc';
 import { getEngine } from '../services/conditionNormalizer.service';
 import { createModuleLogger } from '../core/logger';
 
@@ -27,7 +27,8 @@ export const conditionNormalizerRouter = router({
   /**
    * 处理单个数据片段
    */
-  processSlice: publicProcedure
+  // S0-2: 写操作改为 protectedProcedure（原全部 publicProcedure）
+  processSlice: protectedProcedure
     .input(z.object({
       dataSlice: z.record(z.string(), z.any()),
       method: z.enum(['ratio', 'zscore']).optional().default('ratio'),
@@ -43,7 +44,7 @@ export const conditionNormalizerRouter = router({
   /**
    * 批量处理
    */
-  processBatch: publicProcedure
+  processBatch: protectedProcedure
     .input(z.object({
       dataSlices: z.array(z.record(z.string(), z.any())),
       method: z.enum(['ratio', 'zscore']).optional().default('ratio'),
@@ -58,7 +59,8 @@ export const conditionNormalizerRouter = router({
   /**
    * 从历史数据学习基线
    */
-  learnBaseline: publicProcedure
+  // S0-2: 工况基线学习可篡改生产数据归一化策略
+  learnBaseline: protectedProcedure
     .input(z.object({
       historicalData: z.array(z.record(z.string(), z.any())),
       targetCondition: z.string().optional(),
@@ -81,7 +83,7 @@ export const conditionNormalizerRouter = router({
   /**
    * 导入基线
    */
-  loadBaselines: publicProcedure
+  loadBaselines: protectedProcedure
     .input(z.object({
       baselines: z.record(z.string(), z.record(z.string(), z.object({
         mean: z.number(),
@@ -116,7 +118,7 @@ export const conditionNormalizerRouter = router({
   /**
    * 更新配置
    */
-  updateConfig: publicProcedure
+  updateConfig: protectedProcedure
     .input(z.object({
       overrides: z.record(z.string(), z.any()),
     }))
@@ -130,7 +132,7 @@ export const conditionNormalizerRouter = router({
   /**
    * 更新自适应阈值
    */
-  updateThreshold: publicProcedure
+  updateThreshold: protectedProcedure
     .input(z.object({
       condition: z.string(),
       featureName: z.string(),
@@ -158,7 +160,7 @@ export const conditionNormalizerRouter = router({
   /**
    * 添加工况
    */
-  addCondition: publicProcedure
+  addCondition: protectedProcedure
     .input(z.object({
       id: z.string().min(1),
       description: z.string(),
@@ -180,7 +182,7 @@ export const conditionNormalizerRouter = router({
   /**
    * 删除工况
    */
-  removeCondition: publicProcedure
+  removeCondition: protectedProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ input }) => {
       log.info({ id: input.id }, 'Removing condition');
@@ -202,7 +204,7 @@ export const conditionNormalizerRouter = router({
   /**
    * 清除历史
    */
-  clearHistory: publicProcedure.mutation(async () => {
+  clearHistory: protectedProcedure.mutation(async () => {
     const engine = getEngine();
     engine.clearHistory();
     return { success: true, message: 'History cleared' };

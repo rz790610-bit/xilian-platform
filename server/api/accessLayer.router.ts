@@ -3,7 +3,7 @@
  * Connector → Endpoint → Binding 三级模型
  */
 import { z } from "zod";
-import { publicProcedure, router } from "../core/trpc";
+import { publicProcedure, protectedProcedure, router } from "../core/trpc";
 import * as alService from "../services/access-layer.service";
 import { PROTOCOL_TYPES } from "../../shared/accessLayerTypes";
 
@@ -11,25 +11,27 @@ const protocolTypeEnum = z.enum(PROTOCOL_TYPES);
 
 export const accessLayerRouter = router({
   // ============ 演示数据种子 ============
-  seedDemoData: publicProcedure.mutation(() => alService.seedDemoData()),
-  batchHealthCheck: publicProcedure.mutation(() => alService.batchHealthCheck()),
+  // S0-1: 所有 mutation 改为 protectedProcedure（原全部 publicProcedure）
+  seedDemoData: protectedProcedure.mutation(() => alService.seedDemoData()),
+  batchHealthCheck: protectedProcedure.mutation(() => alService.batchHealthCheck()),
   // ============ 统计 ============
-  getStats: publicProcedure.query(() => alService.getStats()),
+  // S0-1: 接入层数据含敏感连接信息，query 也需认证
+  getStats: protectedProcedure.query(() => alService.getStats()),
 
   // ============ 协议注册中心（自动同步） ============
   /** 从适配器注册表自动生成协议列表（含 icon/description/category） */
-  listProtocols: publicProcedure.query(() => alService.listProtocols()),
+  listProtocols: protectedProcedure.query(() => alService.listProtocols()),
   /** 从适配器注册表自动生成分类列表 */
-  listCategories: publicProcedure.query(() => alService.listCategories()),
+  listCategories: protectedProcedure.query(() => alService.listCategories()),
   /** 获取所有协议的完整配置 Schema */
-  protocolSchemas: publicProcedure.query(() => alService.getAllProtocolSchemas()),
+  protocolSchemas: protectedProcedure.query(() => alService.getAllProtocolSchemas()),
   /** 获取单个协议的配置 Schema */
-  protocolSchema: publicProcedure
+  protocolSchema: protectedProcedure
     .input(z.object({ protocolType: protocolTypeEnum }))
     .query(({ input }) => alService.getProtocolConfigSchema(input.protocolType)),
 
   // ============ Connector CRUD ============
-  listConnectors: publicProcedure.input(z.object({
+  listConnectors: protectedProcedure.input(z.object({
     protocolType: z.string().optional(),
     status: z.string().optional(),
     search: z.string().optional(),
@@ -37,11 +39,11 @@ export const accessLayerRouter = router({
     pageSize: z.number().optional(),
   }).optional()).query(({ input }) => alService.listConnectors(input ?? {})),
 
-  getConnector: publicProcedure
+  getConnector: protectedProcedure
     .input(z.object({ connectorId: z.string() }))
     .query(({ input }) => alService.getConnector(input.connectorId)),
 
-  createConnector: publicProcedure.input(z.object({
+  createConnector: protectedProcedure.input(z.object({
     name: z.string(),
     protocolType: protocolTypeEnum,
     description: z.string().optional(),
@@ -52,7 +54,7 @@ export const accessLayerRouter = router({
     tags: z.array(z.string()).optional(),
   })).mutation(({ input }) => alService.createConnector(input as any)),
 
-  updateConnector: publicProcedure.input(z.object({
+  updateConnector: protectedProcedure.input(z.object({
     connectorId: z.string(),
     data: z.object({
       name: z.string().optional(),
@@ -65,12 +67,12 @@ export const accessLayerRouter = router({
     }),
   })).mutation(({ input }) => alService.updateConnector(input.connectorId, input.data as any)),
 
-  deleteConnector: publicProcedure
+  deleteConnector: protectedProcedure
     .input(z.object({ connectorId: z.string() }))
     .mutation(({ input }) => alService.deleteConnector(input.connectorId)),
 
   // ============ 连接测试 ============
-  testConnection: publicProcedure.input(z.object({
+  testConnection: protectedProcedure.input(z.object({
     protocolType: protocolTypeEnum,
     connectionParams: z.record(z.string(), z.unknown()),
     authConfig: z.record(z.string(), z.unknown()).optional(),
@@ -81,21 +83,21 @@ export const accessLayerRouter = router({
   )),
 
   // ============ 健康检查 ============
-  healthCheck: publicProcedure
+  healthCheck: protectedProcedure
     .input(z.object({ connectorId: z.string() }))
     .mutation(({ input }) => alService.healthCheck(input.connectorId)),
 
   // ============ 资源发现 ============
-  discoverEndpoints: publicProcedure
+  discoverEndpoints: protectedProcedure
     .input(z.object({ connectorId: z.string() }))
     .mutation(({ input }) => alService.discoverEndpoints(input.connectorId)),
 
   // ============ Endpoint CRUD ============
-  listEndpoints: publicProcedure
+  listEndpoints: protectedProcedure
     .input(z.object({ connectorId: z.string() }))
     .query(({ input }) => alService.listEndpoints(input.connectorId)),
 
-  createEndpoint: publicProcedure.input(z.object({
+  createEndpoint: protectedProcedure.input(z.object({
     connectorId: z.string(),
     name: z.string(),
     resourcePath: z.string(),
@@ -109,7 +111,7 @@ export const accessLayerRouter = router({
     metadata: z.record(z.string(), z.unknown()).optional(),
   })).mutation(({ input }) => alService.createEndpoint(input)),
 
-  createEndpointsBatch: publicProcedure.input(z.object({
+  createEndpointsBatch: protectedProcedure.input(z.object({
     endpoints: z.array(z.object({
       connectorId: z.string(),
       name: z.string(),
@@ -121,7 +123,7 @@ export const accessLayerRouter = router({
     })),
   })).mutation(({ input }) => alService.createEndpointsBatch(input.endpoints)),
 
-  updateEndpoint: publicProcedure.input(z.object({
+  updateEndpoint: protectedProcedure.input(z.object({
     endpointId: z.string(),
     data: z.object({
       name: z.string().optional(),
@@ -136,18 +138,18 @@ export const accessLayerRouter = router({
     }),
   })).mutation(({ input }) => alService.updateEndpoint(input.endpointId, input.data)),
 
-  deleteEndpoint: publicProcedure
+  deleteEndpoint: protectedProcedure
     .input(z.object({ endpointId: z.string() }))
     .mutation(({ input }) => alService.deleteEndpoint(input.endpointId)),
 
   // ============ Binding CRUD ============
-  listBindings: publicProcedure.input(z.object({
+  listBindings: protectedProcedure.input(z.object({
     endpointId: z.string().optional(),
     targetType: z.string().optional(),
     targetId: z.string().optional(),
   }).optional()).query(({ input }) => alService.listBindings(input ?? {})),
 
-  createBinding: publicProcedure.input(z.object({
+  createBinding: protectedProcedure.input(z.object({
     endpointId: z.string(),
     targetType: z.string(),
     targetId: z.string(),
@@ -156,7 +158,7 @@ export const accessLayerRouter = router({
     bufferConfig: z.record(z.string(), z.unknown()).optional(),
   })).mutation(({ input }) => alService.createBinding(input)),
 
-  updateBinding: publicProcedure.input(z.object({
+  updateBinding: protectedProcedure.input(z.object({
     bindingId: z.string(),
     data: z.object({
       transformConfig: z.record(z.string(), z.unknown()).optional(),
@@ -166,7 +168,7 @@ export const accessLayerRouter = router({
     }),
   })).mutation(({ input }) => alService.updateBinding(input.bindingId, input.data)),
 
-  deleteBinding: publicProcedure
+  deleteBinding: protectedProcedure
     .input(z.object({ bindingId: z.string() }))
     .mutation(({ input }) => alService.deleteBinding(input.bindingId)),
 });

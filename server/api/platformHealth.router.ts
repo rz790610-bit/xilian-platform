@@ -14,7 +14,7 @@
  */
 
 import { z } from 'zod';
-import { publicProcedure, router } from '../core/trpc';
+import { publicProcedure, protectedProcedure, router } from '../core/trpc';
 import { moduleRegistry } from '../core/registries/module.registry';
 import { stubTracker } from '../core/stub';
 import { moduleFeatureFlags } from '../core/moduleFeatureFlags';
@@ -81,8 +81,8 @@ export const platformHealthRouter = router({
     };
   }),
 
-  /** 设置模块启停 */
-  setModuleEnabled: publicProcedure
+  /** 设置模块启停 — S0-2: Feature Flag 修改必须认证 */
+  setModuleEnabled: protectedProcedure
     .input(z.object({
       moduleId: z.string(),
       enabled: z.boolean(),
@@ -127,8 +127,8 @@ export const platformHealthRouter = router({
 
   // ============ Grok 平台诊断 Agent 端点 ============
 
-  /** 执行平台自诊断 */
-  diagnose: publicProcedure
+  /** 执行平台自诊断 — S0-2: 诊断报告暴露内部架构信息 */
+  diagnose: protectedProcedure
     .input(z.object({ question: z.string().optional() }).optional())
     .mutation(async ({ input }) => {
       log.info('[PlatformDiagnosis] Starting diagnosis...');
@@ -144,8 +144,8 @@ export const platformHealthRouter = router({
 
   // ============ 综合健康检查 ============
 
-  /** 平台健康总览（一次性获取所有关键指标） */
-  overview: publicProcedure.query(() => {
+  /** 平台健康总览 — S0-2: 包含内部架构信息，需认证 */
+  overview: protectedProcedure.query(() => {
     return {
       modules: {
         total: moduleRegistry.size,

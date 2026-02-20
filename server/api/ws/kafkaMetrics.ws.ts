@@ -1,5 +1,12 @@
 /**
- * Kafka 指标 WebSocket 服务
+ * @deprecated A2-7: 本文件应被废弃，统一使用 gateway.ws.ts 多通道架构。
+ * gateway.ws.ts 已实现 'kafka-metrics' 通道支持，本文件功能完全重复。
+ * 迁移计划：
+ *   1. 确认前端已切换到 gateway.ws.ts 的 kafka-metrics 通道
+ *   2. 移除本文件在 server/index.ts 中的注册
+ *   3. 删除本文件
+ *
+ * Kafka 指标 WebSocket 服务（遗留）
  * 提供实时吞吐量、延迟等指标的推送
  * 
  * 注意：使用 noServer 模式，手动处理 upgrade 事件，

@@ -200,6 +200,15 @@ interface ServiceBootstrapConfig {
   envVars: Record<string, string>;
   waitCheck: () => Promise<boolean>;
   postInit?: () => Promise<{ success: boolean; detail?: string }>;
+  /**
+   * A2-3: 服务依赖声明（待实现拓扑排序）
+   * 当前 getCoreServices() 返回固定顺序，无法根据依赖关系自动调整启动顺序。
+   * 建议后续迭代：
+   *   1. 为每个服务声明 dependsOn（如 Redis 依赖 MySQL）
+   *   2. bootstrapAll 中先计算拓扑排序，再按序启动
+   *   3. 支持并行启动无依赖关系的服务（如 Redis 和 Kafka 可并行）
+   */
+  dependsOn?: string[];
 }
 
 function getCoreServices(): ServiceBootstrapConfig[] {
@@ -218,10 +227,16 @@ function getCoreServices(): ServiceBootstrapConfig[] {
         const ready = await waitForMySQL(dbUrl);
         if (!ready) return { success: false, detail: 'MySQL 连接超时' };
         const migrate = await runMigrations(dbUrl);
+        // P1-1: 迁移失败时立即返回 success:false，阻断后续服务启动
+        // 原始问题: 迁移失败后仍继续启动并返回 success:true，后续服务因表结构缺失报错
+        if (!migrate.success) {
+          log.error(`[bootstrap] MySQL migration failed: ${migrate.error}. Aborting post-init.`);
+          return { success: false, detail: `迁移失败: ${migrate.error}。后续服务启动已阻断，请修复迁移问题后重试。` };
+        }
         resetDb();
         const db = await getDb();
         if (!db) return { success: false, detail: 'ORM 重连失败' };
-        return { success: true, detail: migrate.success ? '迁移完成 + ORM 已连接' : `迁移警告: ${migrate.error}，ORM 已连接` };
+        return { success: true, detail: '迁移完成 + ORM 已连接' };
       },
     },
     {
