@@ -8,6 +8,7 @@
  */
 
 import { useState, useCallback } from 'react';
+import { MainLayout } from '@/components/layout/MainLayout';
 import { trpc } from '@/lib/trpc';
 
 // ============================================================================
@@ -152,6 +153,7 @@ export default function DigitalTwinView() {
   const error = twinsQuery.error;
 
   return (
+    <MainLayout title="数字孪生">
     <div className="p-6 space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-foreground">数字孪生</h1>
@@ -282,5 +284,6 @@ export default function DigitalTwinView() {
         </>
       )}
     </div>
+    </MainLayout>
   );
 }

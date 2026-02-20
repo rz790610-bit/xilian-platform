@@ -8,6 +8,7 @@
  */
 
 import { useState, useCallback } from 'react';
+import { MainLayout } from '@/components/layout/MainLayout';
 import { trpc } from '@/lib/trpc';
 
 // ============================================================================
@@ -146,6 +147,7 @@ export default function KnowledgeExplorer() {
   const error = currentQuery.error;
 
   return (
+    <MainLayout title="知识探索器">
     <div className="p-6 space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-foreground">知识探索器</h1>
@@ -341,5 +343,6 @@ export default function KnowledgeExplorer() {
         </div>
       )}
     </div>
+    </MainLayout>
   );
 }

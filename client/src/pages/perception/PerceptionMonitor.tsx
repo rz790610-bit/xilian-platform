@@ -8,6 +8,7 @@
  */
 
 import { useState, useCallback } from 'react';
+import { MainLayout } from '@/components/layout/MainLayout';
 import { trpc } from '@/lib/trpc';
 
 // ============================================================================
@@ -112,6 +113,7 @@ export default function PerceptionMonitor() {
   const bufferColor = (usage: number) => usage > 0.8 ? 'bg-red-500' : usage > 0.6 ? 'bg-yellow-500' : 'bg-green-500';
 
   return (
+    <MainLayout title="感知层监控">
     <div className="p-6 space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-foreground">感知层监控</h1>
@@ -214,5 +216,6 @@ export default function PerceptionMonitor() {
         </>
       )}
     </div>
+    </MainLayout>
   );
 }

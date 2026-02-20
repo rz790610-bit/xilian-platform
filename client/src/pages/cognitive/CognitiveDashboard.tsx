@@ -8,6 +8,7 @@
  */
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { MainLayout } from '@/components/layout/MainLayout';
 import { trpc } from '@/lib/trpc';
 
 // ============================================================================
@@ -284,6 +285,7 @@ export default function CognitiveDashboard() {
     alertsQuery.refetch;
 
   return (
+    <MainLayout title="认知仪表盘">
     <div className="p-6 space-y-6">
       {/* 标题 */}
       <div>
@@ -396,5 +398,6 @@ export default function CognitiveDashboard() {
         </div>
       )}
     </div>
+    </MainLayout>
   );
 }
