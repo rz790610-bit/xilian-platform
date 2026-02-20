@@ -24,25 +24,26 @@ function isSecureRequest(req: Request) {
 export function getSessionCookieOptions(
   req: Request
 ): Pick<CookieOptions, "domain" | "httpOnly" | "path" | "sameSite" | "secure"> {
-  // const hostname = req.hostname;
-  // const shouldSetDomain =
-  //   hostname &&
-  //   !LOCAL_HOSTS.has(hostname) &&
-  //   !isIpAddress(hostname) &&
-  //   hostname !== "127.0.0.1" &&
-  //   hostname !== "::1";
+  const hostname = req.hostname;
+  const isLocal = LOCAL_HOSTS.has(hostname);
+  const secure = isSecureRequest(req);
 
-  // const domain =
-  //   shouldSetDomain && !hostname.startsWith(".")
-  //     ? `.${hostname}`
-  //     : shouldSetDomain
-  //       ? hostname
-  //       : undefined;
+  // P1-A: 恢复 domain 计算逻辑，确保跨域部署时 cookie 正确设置
+  const shouldSetDomain =
+    hostname &&
+    !isLocal &&
+    !isIpAddress(hostname);
+
+  const domain = shouldSetDomain
+    ? (hostname.startsWith(".") ? hostname : `.${hostname}`)
+    : undefined;
 
   return {
     httpOnly: true,
     path: "/",
-    sameSite: "none",
-    secure: isSecureRequest(req),
+    // 本地开发使用 lax（不要求 HTTPS），生产环境使用 none + secure
+    sameSite: isLocal ? "lax" : "none",
+    secure: isLocal ? false : secure,
+    ...(domain ? { domain } : {}),
   };
 }

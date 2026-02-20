@@ -10,7 +10,14 @@ import * as XLSX from 'xlsx';
 import { recognizeImage, isImageFile, SUPPORTED_IMAGE_EXTENSIONS } from './ocrService';
 
 // 设置 PDF.js worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+// P1-D: 添加 CDN 加载失败时的 fallback
+try {
+  pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+} catch {
+  // fallback: 禁用 worker，使用主线程解析（性能较差但不会崩溃）
+  pdfjsLib.GlobalWorkerOptions.workerSrc = '';
+  console.warn('[documentParser] PDF.js Worker CDN 加载失败，回退到主线程模式');
+}
 
 /**
  * 解析结果接口

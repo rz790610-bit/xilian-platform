@@ -19,7 +19,15 @@ interface CountRow {
 }
 
 export class SchemaRegistryService {
+  // P2-B: 输入校验——表名只允许字母数字下划线
+  private validateTableName(tableName: string): void {
+    if (!/^[a-zA-Z_][a-zA-Z0-9_]{0,63}$/.test(tableName)) {
+      throw new Error(`Invalid table name: ${tableName}`);
+    }
+  }
+
   async getTableSchema(tableName: string): Promise<ColumnSchema[]> {
+    this.validateTableName(tableName);
     const db = (await getDb())!;
     const result = await db.execute(sql`SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE, COLUMN_KEY, COLUMN_COMMENT FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ${tableName} ORDER BY ORDINAL_POSITION`);
     return result[0] as unknown as ColumnSchema[];

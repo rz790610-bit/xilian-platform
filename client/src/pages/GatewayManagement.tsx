@@ -756,7 +756,10 @@ function ConsumersTab() {
   };
 
   const handleGenerateKey = (consumerId: string) => {
-    const key = `key_${Math.random().toString(36).substring(2, 18)}`;
+    // P0-D: 使用密码学安全的随机数生成 API Key
+    const array = new Uint8Array(24);
+    crypto.getRandomValues(array);
+    const key = `key_${Array.from(array, b => b.toString(16).padStart(2, '0')).join('')}`;
     toast.success(`API Key 已生成: ${key}`);
   };
 

@@ -158,15 +158,18 @@ export const config = {
     apiKey: env('QDRANT_API_KEY', ''),
   },
 
-  /** NebulaGraph 图数据库 */
+  /**
+   * @deprecated 项目已迁移至 Neo4j，此配置保留仅为兼容 nebula.connector.ts
+   * TODO: 将 nebula.connector.ts 迁移到 neo4j，然后删除此配置
+   */
   nebula: {
     host: env('NEBULA_HOST', 'localhost'),
     port: envInt('NEBULA_PORT', 9669),
     get url(): string {
       return env('NEBULA_URL', `http://${config.nebula.host}:${config.nebula.port}`);
     },
-    user: env('NEBULA_USER', 'root'),
-    password: env('NEBULA_PASSWORD', 'nebula'),
+    user: env('NEBULA_USER', ''),
+    password: env('NEBULA_PASSWORD', ''),
     space: env('NEBULA_SPACE', 'portai_nexus'),
   },
 
@@ -266,6 +269,12 @@ export function validateConfig(): ConfigValidationResult {
   // 数据库连接检查
   if (!config.mysql.host) {
     warnings.push('MYSQL_HOST is not configured');
+  }
+  // P1-E: 生产环境必须配置的环境变量
+  if (config.app.env === 'production') {
+    if (!config.mysql.password) errors.push('MYSQL_PASSWORD is required in production');
+    if (!config.redis.host) errors.push('REDIS_HOST is required in production');
+    if (!process.env.MYSQL_ROOT_PASSWORD) warnings.push('MYSQL_ROOT_PASSWORD not set, docker-compose healthcheck may fail');
   }
 
   return {

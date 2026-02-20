@@ -1,7 +1,9 @@
 /**
- * NebulaGraph Connector
+ * @deprecated 项目已迁移至 Neo4j，此文件待删除
+ * TODO: 将所有引用迁移到 neo4j.connector.ts，然后删除此文件
  * 
- * P0-S03: 从 config 统一读取配置（不再直接 process.env）
+ * NebulaGraph Connector (Legacy)
+ * P0-S03: 从 config 统一读取配置
  * P0-S03: 添加 Basic Auth 认证头
  * P2-A01: 统一错误处理和超时
  */

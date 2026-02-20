@@ -13,13 +13,14 @@ export type TrpcContext = {
 };
 
 // 本地开发模式的模拟用户
+// P0-B: 默认 role 降为 user，需要 admin 权限时请通过 SKIP_AUTH_ROLE=admin 环境变量覆盖
 const LOCAL_DEV_USER: User = {
   id: 1,
   openId: "local-dev-user",
   name: "本地开发用户",
   email: "dev@localhost",
   loginMethod: "local",
-  role: "admin",
+  role: (process.env.SKIP_AUTH_ROLE as User['role']) || "user",
   lastSignedIn: new Date(),
   createdAt: new Date(),
   updatedAt: new Date(),

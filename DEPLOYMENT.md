@@ -28,7 +28,7 @@ cd xilian-platform
 脚本会自动完成以下步骤：
 1. 检查 Docker、Node.js、pnpm 等依赖
 2. 创建 `.env` 配置文件（如不存在）
-3. 启动所有 Docker 容器（MySQL、Redis、ClickHouse、MinIO、Qdrant、Kafka、NebulaGraph）
+3. 启动所有 Docker 容器（MySQL、Redis、ClickHouse、MinIO、Qdrant、Kafka、Neo4j）
 4. 安装 Node.js 依赖
 5. 启动 PortAI Nexus 平台
 
@@ -91,7 +91,7 @@ pnpm dev
 │  └──────────┘  └──────────┘  └──────────────────┘   │
 │                                                      │
 │  ┌──────────────────────────────────────────────┐   │
-│  │ NebulaGraph                                   │   │
+│  │ Neo4j                                   │   │
 │  │ metad:9559  storaged:9779  graphd:9669/19669  │   │
 │  └──────────────────────────────────────────────┘   │
 │                                                      │
@@ -109,7 +109,7 @@ pnpm dev
 | **MinIO** | 9010 / 9011 | 对象存储 API / 控制台 | http://localhost:9011 |
 | **Qdrant** | 6333 / 6334 | 向量数据库 REST / gRPC | http://localhost:6333/dashboard |
 | **Kafka** | 9092 | 消息队列 | — |
-| **NebulaGraph** | 9669 / 19669 | 图数据库 / HTTP | — |
+| **Neo4j** | 9669 / 19669 | 图数据库 / HTTP | — |
 
 ## 环境变量
 
@@ -147,9 +147,10 @@ REDIS_PORT=6379
 KAFKA_BROKERS=localhost:9092
 KAFKA_CLIENT_ID=xilian-platform
 
-# NebulaGraph
-NEBULA_HOST=localhost
-NEBULA_PORT=9669
+# Neo4j
+NEO4J_HOST=localhost
+NEO4J_HTTP_PORT=7474
+NEO4J_BOLT_PORT=7687
 ```
 
 ## 常用命令
@@ -187,7 +188,7 @@ docker-compose restart clickhouse
 | `portai_minio_data` | MinIO | 对象文件 |
 | `portai_qdrant_data` | Qdrant | 向量索引 |
 | `portai_kafka_data` | Kafka | 消息日志 |
-| `portai_nebula_*` | NebulaGraph | 图数据 |
+| `portai_neo4j_*` | Neo4j | 图数据 |
 
 ## 故障排查
 

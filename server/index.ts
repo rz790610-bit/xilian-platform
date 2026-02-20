@@ -37,6 +37,22 @@ async function startServer() {
   server.listen(port, () => {
     log.debug(`Server running on http://localhost:${port}/`);
   });
+
+  // P2-A: Graceful shutdown — 确保连接排空后再退出
+  const shutdown = (signal: string) => {
+    log.debug(`Received ${signal}, shutting down gracefully...`);
+    server.close(() => {
+      log.debug('HTTP server closed');
+      process.exit(0);
+    });
+    // 强制超时退出，防止连接永远不释放
+    setTimeout(() => {
+      log.error('Forced shutdown after timeout');
+      process.exit(1);
+    }, 30_000);
+  };
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
 }
 
 startServer().catch((err) => log.error({ err }, "Server startup failed"));
