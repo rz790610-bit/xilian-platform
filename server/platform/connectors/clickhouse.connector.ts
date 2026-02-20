@@ -62,6 +62,45 @@ export class ClickHouseConnector {
     }
   }
 
+  /**
+   * P0-10: 参数化查询——通过 ClickHouse HTTP 接口的 param_ 前缀传递参数
+   * 避免 SQL 注入，参数不会被拼接到 SQL 字符串中
+   */
+  async queryWithParams(
+    sql: string,
+    params: Record<string, string | number>,
+    timeoutMs = 30000
+  ): Promise<any[]> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      // 构建 URL 参数：param_name=value
+      const url = new URL('/', this.baseUrl);
+      for (const [key, value] of Object.entries(params)) {
+        url.searchParams.set(`param_${key}`, String(value));
+      }
+      const res = await fetch(url.toString(), {
+        method: 'POST',
+        headers: { ...this.authHeaders, 'Content-Type': 'text/plain' },
+        body: sql + ' FORMAT JSONEachRow',
+        signal: controller.signal,
+      });
+      if (!res.ok) {
+        const body = await res.text().catch(() => '');
+        throw new Error(`ClickHouse error ${res.status}: ${body || res.statusText}`);
+      }
+      const text = await res.text();
+      return text.trim().split('\n').filter(Boolean).map(line => JSON.parse(line));
+    } catch (err: any) {
+      if (err.name === 'AbortError') {
+        throw new Error(`ClickHouse query timeout after ${timeoutMs}ms`);
+      }
+      throw err;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   async healthCheck(): Promise<{ status: string; latency: number }> {
     const start = Date.now();
     try {

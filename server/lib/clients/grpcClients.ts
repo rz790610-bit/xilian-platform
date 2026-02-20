@@ -72,7 +72,7 @@ const connectionState = new Map<string, {
 /**
  * 获取或创建 gRPC 客户端连接
  */
-function getConnection(serviceName: string): grpc.Client {
+async function getConnection(serviceName: string): Promise<grpc.Client> {
   const existing = connections.get(serviceName);
   if (existing) {
     const state = existing.getChannel().getConnectivityState(false);
@@ -116,9 +116,29 @@ function getConnection(serviceName: string): grpc.Client {
   }
 
   const address = `${config.host}:${config.port}`;
+
+  // P0-12: gRPC TLS 支持——生产环境必须启用 TLS，开发环境可回退到 Insecure
+  let channelCredentials: grpc.ChannelCredentials;
+  const tlsCertPath = process.env.GRPC_TLS_CERT_PATH;
+  const tlsKeyPath = process.env.GRPC_TLS_KEY_PATH;
+  const tlsCaPath = process.env.GRPC_TLS_CA_PATH;
+  if (tlsCertPath && tlsKeyPath) {
+    const fs = await import('fs');
+    const rootCerts = tlsCaPath ? fs.readFileSync(tlsCaPath) : undefined;
+    const privateKey = fs.readFileSync(tlsKeyPath);
+    const certChain = fs.readFileSync(tlsCertPath);
+    channelCredentials = grpc.credentials.createSsl(rootCerts, privateKey, certChain);
+    log.debug(`[gRPC] Using mTLS for ${serviceName}`);
+  } else if (process.env.NODE_ENV === 'production') {
+    log.warn(`[gRPC] WARNING: No TLS certs configured for ${serviceName} in production — using insecure channel`);
+    channelCredentials = grpc.credentials.createInsecure();
+  } else {
+    channelCredentials = grpc.credentials.createInsecure();
+  }
+
   const client = new ServiceConstructor(
     address,
-    grpc.credentials.createInsecure(),
+    channelCredentials,
     {
       'grpc.keepalive_time_ms': 30000,
       'grpc.keepalive_timeout_ms': 5000,
@@ -180,52 +200,50 @@ function callUnary<TReq, TRes>(
 // ============================================================
 
 export class DeviceServiceClient {
-  private getClient(): grpc.Client {
+  private async getClient(): Promise<grpc.Client> {
     return getConnection('device');
   }
 
-  async healthCheck(): Promise<any> {
-    return callUnary(this.getClient(), 'healthCheck', {});
+   async healthCheck(): Promise<any> {
+    return callUnary(await this.getClient(), 'healthCheck', {});
   }
-
   async createDevice(request: any): Promise<any> {
-    return callUnary(this.getClient(), 'createDevice', request);
+    return callUnary(await this.getClient(), 'createDevice', request);
   }
-
-  async getDevice(deviceId: string): Promise<any> {
-    return callUnary(this.getClient(), 'getDevice', { deviceId });
+  async getDevice(deviceId: string): Promise<any> {{
+    return callUnary(await this.getClient(), 'getDevice', { deviceId });
   }
 
   async listDevices(request: any): Promise<any> {
-    return callUnary(this.getClient(), 'listDevices', request);
+    return callUnary(await this.getClient(), 'listDevices', request);
   }
 
   async updateDevice(request: any): Promise<any> {
-    return callUnary(this.getClient(), 'updateDevice', request);
+    return callUnary(await this.getClient(), 'updateDevice', request);
   }
 
   async deleteDevice(deviceId: string, force = false): Promise<void> {
-    await callUnary(this.getClient(), 'deleteDevice', { deviceId, force });
+    await callUnary(await this.getClient(), 'deleteDevice', { deviceId, force });
   }
 
   async activateDevice(deviceId: string): Promise<any> {
-    return callUnary(this.getClient(), 'activateDevice', { deviceId });
+    return callUnary(await this.getClient(), 'activateDevice', { deviceId });
   }
 
   async deactivateDevice(deviceId: string): Promise<any> {
-    return callUnary(this.getClient(), 'deactivateDevice', { deviceId });
+    return callUnary(await this.getClient(), 'deactivateDevice', { deviceId });
   }
 
   async createSensor(request: any): Promise<any> {
-    return callUnary(this.getClient(), 'createSensor', request);
+    return callUnary(await this.getClient(), 'createSensor', request);
   }
 
   async listSensors(request: any): Promise<any> {
-    return callUnary(this.getClient(), 'listSensors', request);
+    return callUnary(await this.getClient(), 'listSensors', request);
   }
 
   async getDeviceHealth(deviceId: string): Promise<any> {
-    return callUnary(this.getClient(), 'getDeviceHealth', { deviceId });
+    return callUnary(await this.getClient(), 'getDeviceHealth', { deviceId });
   }
 }
 
@@ -234,53 +252,53 @@ export class DeviceServiceClient {
 // ============================================================
 
 export class AlgorithmServiceClient {
-  private getClient(): grpc.Client {
+  private async getClient(): Promise<grpc.Client> {
     return getConnection('algorithm');
   }
 
   // P2-GRPC-1: TODO 将 any 替换为 proto 生成的类型（待 proto 编译后统一替换）
   async healthCheck(): Promise<Record<string, unknown>> {
-    return callUnary(this.getClient(), 'healthCheck', {});
+    return callUnary(await this.getClient(), 'healthCheck', {});
   }
 
   async createDefinition(request: Record<string, unknown>): Promise<Record<string, unknown>> {
-    return callUnary(this.getClient(), 'createDefinition', request);
+    return callUnary(await this.getClient(), 'createDefinition', request);
   }
 
   async getDefinition(definitionId: string): Promise<Record<string, unknown>> {
-    return callUnary(this.getClient(), 'getDefinition', { definitionId });
+    return callUnary(await this.getClient(), 'getDefinition', { definitionId });
   }
 
   async listDefinitions(request: Record<string, unknown>): Promise<Record<string, unknown>> {
-    return callUnary(this.getClient(), 'listDefinitions', request);
+    return callUnary(await this.getClient(), 'listDefinitions', request);
   }
 
   async executeAlgorithm(request: Record<string, unknown>): Promise<Record<string, unknown>> {
-    return callUnary(this.getClient(), 'executeAlgorithm', request, 120000); // 2min timeout
+    return callUnary(await this.getClient(), 'executeAlgorithm', request, 120000); // 2min timeout
   }
 
   async executeComposition(request: Record<string, unknown>): Promise<Record<string, unknown>> {
-    return callUnary(this.getClient(), 'executeComposition', request, 300000); // 5min timeout
+    return callUnary(await this.getClient(), 'executeComposition', request, 300000); // 5min timeout
   }
 
   async listExecutionHistory(request: Record<string, unknown>): Promise<Record<string, unknown>> {
-    return callUnary(this.getClient(), 'listExecutionHistory', request);
+    return callUnary(await this.getClient(), 'listExecutionHistory', request);
   }
 
   async bindAlgorithmToDevice(request: Record<string, unknown>): Promise<Record<string, unknown>> {
-    return callUnary(this.getClient(), 'bindAlgorithmToDevice', request);
+    return callUnary(await this.getClient(), 'bindAlgorithmToDevice', request);
   }
 
   async getRecommendedAlgorithms(request: Record<string, unknown>): Promise<Record<string, unknown>> {
-    return callUnary(this.getClient(), 'getRecommendedAlgorithms', request);
+    return callUnary(await this.getClient(), 'getRecommendedAlgorithms', request);
   }
 
   async getOverviewStats(): Promise<Record<string, unknown>> {
-    return callUnary(this.getClient(), 'getOverviewStats', {});
+    return callUnary(await this.getClient(), 'getOverviewStats', {});
   }
 
   async getWorkerPoolStatus(): Promise<any> {
-    return callUnary(this.getClient(), 'getWorkerPoolStatus', {});
+    return callUnary(await this.getClient(), 'getWorkerPoolStatus', {});
   }
 }
 

@@ -268,7 +268,8 @@ class SDKServer {
           name: "本地开发用户",
           email: "local@dev.local",
           loginMethod: "local",
-          role: "admin",
+          // P0-1: 开发用户默认 role 降为 user，需要 admin 请通过数据库手动设置
+          role: "user",
           lastSignedIn: new Date(),
         });
         localUser = await db.getUserByOpenId("local-dev-user");

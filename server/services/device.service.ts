@@ -1,3 +1,5 @@
+import crypto from 'crypto';
+
 /**
  * 设备管理和传感器数据流服务
  * 包含设备台账管理、传感器配置、数据模拟等功能
@@ -209,9 +211,11 @@ export const dataSimulator = new DataSimulator();
 
 // ============ 辅助函数 ============
 
-/** 生成唯一事件 ID */
+/** 生成唯一事件 ID
+ * P1: 改用 crypto.randomUUID() 替代 Math.random()，避免高并发下 ID 冲突
+ */
 function generateEventId(): string {
-  return `evt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  return `evt_${Date.now()}_${crypto.randomUUID().replace(/-/g, '').slice(0, 12)}`;
 }
 
 // ============ 设备管理服务 ============

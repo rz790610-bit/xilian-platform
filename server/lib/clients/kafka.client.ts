@@ -79,14 +79,35 @@ class KafkaClientManager {
     log.debug(`[Kafka] Brokers: ${this.config.brokers.join(', ')}`);
     
     try {
-      this.kafka = new Kafka({
+      // P0-13: Kafka SASL/SSL 认证支持
+      // 通过环境变量 KAFKA_SASL_MECHANISM / KAFKA_SASL_USERNAME / KAFKA_SASL_PASSWORD 配置
+      const kafkaOptions: any = {
         clientId: this.config.clientId,
         brokers: this.config.brokers,
         connectionTimeout: this.config.connectionTimeout,
         requestTimeout: this.config.requestTimeout,
         retry: this.config.retry,
         logLevel: logLevel.WARN,
-      });
+      };
+      const saslMechanism = process.env.KAFKA_SASL_MECHANISM as 'plain' | 'scram-sha-256' | 'scram-sha-512' | undefined;
+      const saslUsername = process.env.KAFKA_SASL_USERNAME;
+      const saslPassword = process.env.KAFKA_SASL_PASSWORD;
+      if (saslMechanism && saslUsername && saslPassword) {
+        kafkaOptions.sasl = {
+          mechanism: saslMechanism,
+          username: saslUsername,
+          password: saslPassword,
+        };
+        kafkaOptions.ssl = true;
+        log.debug('[Kafka] SASL authentication enabled');
+      } else if (process.env.NODE_ENV === 'production') {
+        log.warn('[Kafka] WARNING: No SASL credentials configured in production');
+      }
+      // 单独的 SSL 配置（无 SASL 时也可启用 SSL）
+      if (process.env.KAFKA_SSL === 'true' && !kafkaOptions.ssl) {
+        kafkaOptions.ssl = true;
+      }
+      this.kafka = new Kafka(kafkaOptions);
       // 初始化 Admin 客户端
       this.admin = this.kafka.admin();
       await this.admin.connect();

@@ -65,8 +65,9 @@ export const grokDiagnosticRouter = router({
 
   /**
    * 获取会话历史
+   * P0-6: 会话历史包含诊断敏感数据，改为 protectedProcedure
    */
-  sessionHistory: publicProcedure
+  sessionHistory: protectedProcedure
     .input(z.object({ sessionId: z.string() }))
     .query(({ input }) => {
       const history = getSessionHistory(input.sessionId);

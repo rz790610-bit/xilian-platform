@@ -38,6 +38,11 @@ import { securityOrchestrator, type TrustLevel } from '../services/plugin.securi
 const pluginPermissionSchema = z.enum(ALL_PERMISSIONS as [string, ...string[]]);
 const trustLevelSchema = z.enum(['untrusted', 'basic', 'verified', 'trusted', 'system']);
 
+// P0-8: 插件 ID 安全校验——禁止路径穿越字符（../ 、反斜杠、空字节等）
+const safePluginId = z.string().min(1).max(128).regex(/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/, {
+  message: 'Plugin ID must start with alphanumeric and contain only alphanumeric, dots, hyphens, underscores',
+});
+
 const manifestInputSchema = z.object({
   manifestVersion: z.enum(['1.0', '1.1']),
   id: z.string(),
@@ -109,7 +114,7 @@ export const pluginRouter = router({
 
   /** 获取插件详情 */
   get: publicProcedure
-    .input(z.object({ id: z.string() }))
+    .input(z.object({ id: safePluginId }))
     .query(async ({ input }) => {
       const status = pluginEngine.getPluginStatus(input.id);
       if (!status) {
@@ -120,7 +125,7 @@ export const pluginRouter = router({
 
   /** 启用插件 */
   enable: protectedProcedure
-    .input(z.object({ id: z.string() }))
+    .input(z.object({ id: safePluginId }))
     .mutation(async ({ input }) => {
       await pluginEngine.enablePlugin(input.id);
       return { success: true };
@@ -128,7 +133,7 @@ export const pluginRouter = router({
 
   /** 禁用插件 */
   disable: protectedProcedure
-    .input(z.object({ id: z.string() }))
+    .input(z.object({ id: safePluginId }))
     .mutation(async ({ input }) => {
       await pluginEngine.disablePlugin(input.id);
       return { success: true };
@@ -136,7 +141,7 @@ export const pluginRouter = router({
 
   /** 卸载插件 */
   uninstall: protectedProcedure
-    .input(z.object({ id: z.string() }))
+    .input(z.object({ id: safePluginId }))
     .mutation(async ({ input }) => {
       await pluginEngine.uninstallPlugin(input.id);
       return { success: true };
@@ -145,7 +150,7 @@ export const pluginRouter = router({
   /** 执行插件 */
   execute: protectedProcedure
     .input(z.object({
-      id: z.string(),
+      id: safePluginId,
       config: z.record(z.string(), z.unknown()).optional(),
     }))
     .mutation(async ({ input }) => {
@@ -222,7 +227,7 @@ export const pluginRouter = router({
   /** 安全执行插件 */
   secureExecute: protectedProcedure
     .input(z.object({
-      pluginId: z.string(),
+      pluginId: safePluginId,
       method: z.string(),
       args: z.array(z.unknown()).optional().default([]),
       timeout: z.number().optional(),
@@ -238,7 +243,7 @@ export const pluginRouter = router({
 
   /** 安全卸载插件 */
   secureUninstall: protectedProcedure
-    .input(z.object({ pluginId: z.string() }))
+    .input(z.object({ pluginId: safePluginId }))
     .mutation(async ({ input }) => {
       const success = securityOrchestrator.secureUninstall(input.pluginId);
       return { success };
@@ -261,7 +266,7 @@ export const pluginRouter = router({
   /** 管理员审批插件 */
   approvePlugin: protectedProcedure
     .input(z.object({
-      pluginId: z.string(),
+      pluginId: safePluginId,
       approvedBy: z.string(),
       approvedPermissions: z.array(z.string()).optional(),
     }))
@@ -277,7 +282,7 @@ export const pluginRouter = router({
   /** 拒绝插件 */
   rejectPlugin: protectedProcedure
     .input(z.object({
-      pluginId: z.string(),
+      pluginId: safePluginId,
       rejectedBy: z.string(),
       reason: z.string(),
     }))
@@ -292,7 +297,7 @@ export const pluginRouter = router({
 
   /** 获取插件安全概览 — P1-10: 安全信息需认证 */
   getSecurityOverview: protectedProcedure
-    .input(z.object({ pluginId: z.string() }))
+    .input(z.object({ pluginId: safePluginId }))
     .query(async ({ input }) => {
       return securityOrchestrator.getPluginSecurityOverview(input.pluginId);
     }),
@@ -305,7 +310,7 @@ export const pluginRouter = router({
   /** 获取权限审计日志 — P1-10: 审计日志需认证 */
   getAuditLog: protectedProcedure
     .input(z.object({
-      pluginId: z.string().optional(),
+      pluginId: safePluginId.optional(),
       permission: z.string().optional(),
       allowed: z.boolean().optional(),
       since: z.string().optional(),
@@ -318,7 +323,7 @@ export const pluginRouter = router({
   /** 获取安全事件 — P1-10: 安全事件需认证 */
   getSecurityEvents: protectedProcedure
     .input(z.object({
-      pluginId: z.string().optional(),
+      pluginId: safePluginId.optional(),
       type: z.string().optional(),
       severity: z.enum(['low', 'medium', 'high', 'critical']).optional(),
       resolved: z.boolean().optional(),
@@ -345,7 +350,7 @@ export const pluginRouter = router({
   /** 动态授予权限 */
   grantPermission: protectedProcedure
     .input(z.object({
-      pluginId: z.string(),
+      pluginId: safePluginId,
       permission: z.string(),
       grantedBy: z.string(),
     }))
@@ -361,7 +366,7 @@ export const pluginRouter = router({
   /** 动态撤销权限 */
   revokePermission: protectedProcedure
     .input(z.object({
-      pluginId: z.string(),
+      pluginId: safePluginId,
       permission: z.string(),
       revokedBy: z.string(),
     }))
@@ -376,7 +381,7 @@ export const pluginRouter = router({
 
   /** 重置熔断器 */
   resetCircuitBreaker: protectedProcedure
-    .input(z.object({ pluginId: z.string() }))
+    .input(z.object({ pluginId: safePluginId }))
     .mutation(async ({ input }) => {
       securityOrchestrator.getCircuitBreaker().reset(input.pluginId);
       return { success: true };
