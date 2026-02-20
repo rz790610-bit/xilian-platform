@@ -22,6 +22,9 @@
 import { createModuleLogger } from '../../../core/logger';
 import type { DimensionProcessor, DimensionContext } from '../engines/cognition-unit';
 import { DSFusionEngine } from '../engines/ds-fusion.engine';
+// v5.0: 可选接入证据融合引擎和不确定性量化器
+import type { DSFusionEngine as DSFusionEngineV5Type } from '../../perception/fusion/ds-fusion-engine';
+import type { UncertaintyQuantifier } from '../../perception/fusion/uncertainty-quantifier';
 import type {
   CognitionStimulus,
   FusionOutput,
@@ -70,6 +73,10 @@ export class FusionProcessor implements DimensionProcessor<FusionOutput> {
   readonly dimension = 'fusion' as const;
   private readonly config: FusionConfig;
   private readonly dsFusionEngine: DSFusionEngine;
+  /** v5.0: 可选证据融合引擎（Dempster-Shafer + Murphy 高冲突处理 + Bayesian 自调） */
+  private dsFusionEngineV5?: DSFusionEngineV5Type;
+  /** v5.0: 可选不确定性量化器 */
+  private uncertaintyQuantifier?: UncertaintyQuantifier;
 
   constructor(config?: Partial<FusionConfig>) {
     this.config = {
@@ -81,6 +88,16 @@ export class FusionProcessor implements DimensionProcessor<FusionOutput> {
       },
     };
     this.dsFusionEngine = new DSFusionEngine(this.config.dsFusionConfig);
+  }
+
+  /** v5.0: 注入证据融合引擎 V5（支持 Murphy 高冲突处理 + Bayesian 自调） */
+  setDSFusionEngineV5(engine: DSFusionEngineV5Type): void {
+    this.dsFusionEngineV5 = engine;
+  }
+
+  /** v5.0: 注入不确定性量化器 */
+  setUncertaintyQuantifier(quantifier: UncertaintyQuantifier): void {
+    this.uncertaintyQuantifier = quantifier;
   }
 
   /**
@@ -114,8 +131,8 @@ export class FusionProcessor implements DimensionProcessor<FusionOutput> {
       }
 
       // 2. 执行 DS 融合
-      // P0-CODE-3: DSFusionEngine 没有 fuse() 方法，正确方法名为 fuseMultiple()
-      const dsFusionResult = this.dsFusionEngine.fuseMultiple(evidences);
+      // 使用 fuseWithReliability 获取完整的 DSFusionOutput
+      const dsFusionResult = this.dsFusionEngine.fuseWithReliability(evidences as any);
 
       // 3. 冲突分析
       const conflictAnalysis = this.analyzeConflicts(

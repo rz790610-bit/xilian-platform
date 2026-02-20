@@ -548,11 +548,9 @@ export class CanaryController {
       }, 'Canary completed successfully');
 
       this.emitter.emitCanaryCompleted({
-        sessionId: session.id,
-        challengerModelId: session.challengerModelId,
+        modelId: session.challengerModelId,
         success: true,
-        stagesCompleted: session.stageResults.length,
-        completedAt: session.completedAt,
+        completedAt: session.completedAt || new Date(),
       });
     }
   }
@@ -588,12 +586,9 @@ export class CanaryController {
     this.clearSessionTimers(session.id);
 
     this.emitter.emitCanaryCompleted({
-      sessionId: session.id,
-      challengerModelId: session.challengerModelId,
+      modelId: session.challengerModelId,
       success: false,
-      stagesCompleted: session.stageResults.filter(r => r.passed).length,
-      completedAt: session.completedAt,
-      rollbackReason: reason,
+      completedAt: session.completedAt || new Date(),
     });
   }
 

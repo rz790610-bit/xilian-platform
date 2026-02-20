@@ -299,7 +299,7 @@ class ConfigCenter {
       const keys: string[] = [];
       let cursor = '0';
       do {
-        const [nextCursor, batch] = await client.scan(cursor, { MATCH: 'config:*', COUNT: 100 });
+        const [nextCursor, batch] = await (client as any).scan(cursor, { MATCH: 'config:*', COUNT: 100 });
         cursor = nextCursor;
         keys.push(...batch);
       } while (cursor !== '0');
@@ -433,7 +433,73 @@ class ConfigCenter {
 }
 
 // ============================================================
+// v5.0 进化模块配置命名空间
+// ============================================================
+
+/** v5.0 进化模块默认配置值 */
+export const V5_CONFIG_DEFAULTS: Record<string, string> = {
+  // 感知层
+  'v5.perception.ringBuffer.sizeKB': '64',
+  'v5.perception.adaptiveSampler.enabled': 'true',
+  'v5.perception.dsFusion.highConflictThreshold': '0.5',
+  'v5.perception.uncertainty.enabled': 'true',
+  'v5.perception.stateVector.dimensions': '21',
+  // Grok 推理
+  'v5.grok.enabled': 'false',
+  'v5.grok.maxSteps': '10',
+  'v5.grok.timeoutMs': '30000',
+  'v5.grok.model': 'grok-3',
+  'v5.grok.temperature': '0.1',
+  'v5.grok.maxTokens': '4096',
+  'v5.grok.enableToolCalling': 'true',
+  // WorldModel
+  'v5.worldModel.predictionHorizon': '3600',
+  'v5.worldModel.counterfactualEnabled': 'true',
+  'v5.worldModel.anomalyThreshold': '0.8',
+  // 护栏
+  'v5.guardrail.enabled': 'true',
+  'v5.guardrail.cooldownMs': '60000',
+  'v5.guardrail.safetyRulesEnabled': 'true',
+  'v5.guardrail.healthRulesEnabled': 'true',
+  'v5.guardrail.efficiencyRulesEnabled': 'true',
+  // 进化飞轮
+  'v5.evolution.flywheelEnabled': 'false',
+  'v5.evolution.shadowEvalScenarios': '100',
+  'v5.evolution.championMinConfidence': '0.95',
+  'v5.evolution.canaryTrafficPercent': '5',
+  'v5.evolution.crystallizationMinSamples': '50',
+  'v5.evolution.metaLearnerEnabled': 'false',
+  // 知识层
+  'v5.knowledge.graphEnabled': 'true',
+  'v5.knowledge.featureRegistryEnabled': 'true',
+  'v5.knowledge.chainReasoningMaxDepth': '5',
+  // Pipeline
+  'v5.pipeline.dagMaxParallel': '4',
+  'v5.pipeline.dagTimeoutMs': '300000',
+  // 数字孪生
+  'v5.digitalTwin.syncIntervalMs': '1000',
+  'v5.digitalTwin.replaySpeedMultiplier': '1',
+  // 仪表盘
+  'v5.dashboard.wsEnabled': 'true',
+  'v5.dashboard.refreshIntervalMs': '5000',
+};
+
+// ============================================================
 // 单例导出
 // ============================================================
 
 export const configCenter = new ConfigCenter();
+
+/**
+ * v5.0: 初始化进化模块配置默认值
+ * 在平台启动时调用，将 v5 默认值加载到 configCenter（不覆盖已有值）
+ */
+export async function initV5ConfigDefaults(): Promise<void> {
+  for (const [key, defaultValue] of Object.entries(V5_CONFIG_DEFAULTS)) {
+    const existing = configCenter.get(key);
+    if (!existing) {
+      await configCenter.set(key, defaultValue, 'v5-init');
+    }
+  }
+  log.info(`v5.0 config defaults loaded (${Object.keys(V5_CONFIG_DEFAULTS).length} keys)`);
+}

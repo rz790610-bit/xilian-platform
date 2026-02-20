@@ -24,6 +24,9 @@
 import { createModuleLogger } from '../../../core/logger';
 import { CognitionUnit, createCognitionUnit } from '../engines/cognition-unit';
 import { getCognitionEventEmitter } from '../events/emitter';
+// v5.0: 进化模块钩子类型
+import type { GrokReasoningService } from '../grok/grok-reasoning.service';
+import type { GuardrailEngine } from '../safety/guardrail-engine';
 import type {
   CognitionStimulus,
   CognitionResult,
@@ -219,6 +222,12 @@ export class CognitionScheduler {
   private preprocessor?: StimulusPreprocessor;
   private narrativeGenerator?: NarrativeGenerator;
 
+  // v5.0: 进化模块钩子（传递给每个 CognitionUnit）
+  private grokReasoningHook?: CognitionUnit extends { setGrokReasoningHook(h: infer H): any } ? H : never;
+  private worldModelHook?: CognitionUnit extends { setWorldModelHook(h: infer H): any } ? H : never;
+  private guardrailHook?: CognitionUnit extends { setGuardrailHook(h: infer H): any } ? H : never;
+  private evolutionFeedbackHook?: CognitionUnit extends { setEvolutionFeedbackHook(h: infer H): any } ? H : never;
+
   // 运行状态
   private started = false;
   private draining = false; // 优雅关闭中
@@ -365,6 +374,30 @@ export class CognitionScheduler {
 
   registerNarrativeGenerator(generator: NarrativeGenerator): void {
     this.narrativeGenerator = generator;
+  }
+
+  // ==========================================================================
+  // v5.0 进化模块钩子注册
+  // ==========================================================================
+
+  /** 注册 Grok 推理钩子（在 reasoning 维度后触发深度推理） */
+  registerGrokReasoningHook(hook: typeof this.grokReasoningHook): void {
+    this.grokReasoningHook = hook;
+  }
+
+  /** 注册 WorldModel 预测钩子（在感知维度后触发状态预测） */
+  registerWorldModelHook(hook: typeof this.worldModelHook): void {
+    this.worldModelHook = hook;
+  }
+
+  /** 注册 Guardrail 护栏钩子（在决策维度后触发护栏检查） */
+  registerGuardrailHook(hook: typeof this.guardrailHook): void {
+    this.guardrailHook = hook;
+  }
+
+  /** 注册进化飞轮反馈钩子（认知完成后反馈结果） */
+  registerEvolutionFeedbackHook(hook: typeof this.evolutionFeedbackHook): void {
+    this.evolutionFeedbackHook = hook;
   }
 
   // ==========================================================================
@@ -544,6 +577,12 @@ export class CognitionScheduler {
       if (this.decisionProcessor) unit.setDecisionProcessor(this.decisionProcessor);
       if (this.preprocessor) unit.setPreprocessor(this.preprocessor);
       if (this.narrativeGenerator) unit.setNarrativeGenerator(this.narrativeGenerator);
+
+      // v5.0: 注册进化模块钩子
+      if (this.grokReasoningHook) unit.setGrokReasoningHook(this.grokReasoningHook);
+      if (this.worldModelHook) unit.setWorldModelHook(this.worldModelHook);
+      if (this.guardrailHook) unit.setGuardrailHook(this.guardrailHook);
+      if (this.evolutionFeedbackHook) unit.setEvolutionFeedbackHook(this.evolutionFeedbackHook);
 
       this.runningUnits.set(stimulus.id, unit);
 

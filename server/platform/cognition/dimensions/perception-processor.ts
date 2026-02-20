@@ -21,6 +21,9 @@
 
 import { createModuleLogger } from '../../../core/logger';
 import type { DimensionProcessor, DimensionContext } from '../engines/cognition-unit';
+// v5.0: 可选接入感知管线和状态向量编码器
+import type { PerceptionPipeline } from '../../perception/perception-pipeline';
+import type { StateVectorEncoder } from '../../perception/encoding/state-vector-encoder';
 import type {
   CognitionStimulus,
   PerceptionOutput,
@@ -74,10 +77,24 @@ export class PerceptionProcessor implements DimensionProcessor<PerceptionOutput>
   readonly dimension = 'perception' as const;
   private readonly config: PerceptionConfig;
   private readonly baselineAdapter: BaselineAdapter;
+  /** v5.0: 可选感知管线（采集→融合→编码） */
+  private perceptionPipeline?: PerceptionPipeline;
+  /** v5.0: 可选状态向量编码器 */
+  private stateVectorEncoder?: StateVectorEncoder;
 
   constructor(baselineAdapter: BaselineAdapter, config?: Partial<PerceptionConfig>) {
     this.config = { ...DEFAULT_CONFIG, ...config };
     this.baselineAdapter = baselineAdapter;
+  }
+
+  /** v5.0: 注入感知管线 */
+  setPerceptionPipeline(pipeline: PerceptionPipeline): void {
+    this.perceptionPipeline = pipeline;
+  }
+
+  /** v5.0: 注入状态向量编码器 */
+  setStateVectorEncoder(encoder: StateVectorEncoder): void {
+    this.stateVectorEncoder = encoder;
   }
 
   /**
@@ -111,6 +128,26 @@ export class PerceptionProcessor implements DimensionProcessor<PerceptionOutput>
         ? []
         : this.discoverDarkDataFlows(stimulus.payload);
 
+      // v5.0: 如果有状态向量编码器，生成统一状态向量
+      let stateVector: any = undefined;
+      if (this.stateVectorEncoder && stimulus.payload) {
+        try {
+          stateVector = this.stateVectorEncoder.encode(stimulus.payload as any);
+        } catch (encErr) {
+          log.warn({ error: encErr instanceof Error ? encErr.message : String(encErr) }, 'State vector encoding failed (non-fatal)');
+        }
+      }
+
+      // v5.0: 如果有感知管线，触发全链路处理（采集→融合→编码）
+      let pipelineResult: any = undefined;
+      if (this.perceptionPipeline && stimulus.payload) {
+        try {
+          pipelineResult = await (this.perceptionPipeline as any).processAndEmit(stimulus.payload, stimulus.payload);
+        } catch (plErr) {
+          log.warn({ error: plErr instanceof Error ? plErr.message : String(plErr) }, 'Perception pipeline failed (non-fatal)');
+        }
+      }
+
       return {
         dimension: 'perception',
         success: true,
@@ -120,6 +157,9 @@ export class PerceptionProcessor implements DimensionProcessor<PerceptionOutput>
           highEntropyDimensions,
           questionChain,
           darkDataFlows,
+          // v5.0 增强字段
+          ...(stateVector ? { _stateVector: stateVector } : {}),
+          ...(pipelineResult ? { _pipelineResult: pipelineResult } : {}),
         },
       };
     } catch (err) {

@@ -126,7 +126,7 @@ class AuditLogQueue {
           try {
             await db.insert(auditLogs).values(chunk);
           } catch (err) {
-            log.error(`Failed to insert audit logs batch (${chunk.length} entries):`, err);
+            log.error(`Failed to insert audit logs batch (${chunk.length} entries): ${String(err)}`);
           }
         }
       }
@@ -178,13 +178,13 @@ class AuditLogQueue {
             }
           }
         } catch (err) {
-          log.error(`Failed to insert sensitive audit logs (${sensitiveEntries.length} entries):`, err);
+          log.error(`Failed to insert sensitive audit logs (${sensitiveEntries.length} entries): ${String(err)}`);
         }
       }
 
       log.debug(`Flushed ${batch.length} audit log entries (${sensitiveEntries.length} sensitive)`);
     } catch (err) {
-      log.error(`Audit log flush error (${batch.length} entries):`, err);
+      log.error(`Audit log flush error (${batch.length} entries): ${String(err)}`);
     } finally {
       this.flushing = false;
     }

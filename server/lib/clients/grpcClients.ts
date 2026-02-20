@@ -210,7 +210,7 @@ export class DeviceServiceClient {
   async createDevice(request: any): Promise<any> {
     return callUnary(await this.getClient(), 'createDevice', request);
   }
-  async getDevice(deviceId: string): Promise<any> {{
+  async getDevice(deviceId: string): Promise<any> {
     return callUnary(await this.getClient(), 'getDevice', { deviceId });
   }
 
@@ -346,7 +346,7 @@ export function getGrpcConnectionStatus(): Record<string, any> {
     services: {},
   };
 
-  for (const [name, state] of connectionState) {
+  connectionState.forEach((state, name) => {
     const client = connections.get(name);
     status.services[name] = {
       ...state,
@@ -354,7 +354,7 @@ export function getGrpcConnectionStatus(): Record<string, any> {
         ? client.getChannel().getConnectivityState(false) === grpc.connectivityState.READY
         : false,
     };
-  }
+  });
 
   return status;
 }
@@ -363,14 +363,14 @@ export function getGrpcConnectionStatus(): Record<string, any> {
  * 关闭所有 gRPC 连接
  */
 export function closeAllGrpcConnections(): void {
-  for (const [name, client] of connections) {
+  connections.forEach((client, name) => {
     try {
       client.close();
       log.info(`gRPC connection closed: ${name}`);
     } catch (err: any) {
       log.error(`Failed to close gRPC connection ${name}:`, err.message);
     }
-  }
+  });
   connections.clear();
   connectionState.clear();
 }

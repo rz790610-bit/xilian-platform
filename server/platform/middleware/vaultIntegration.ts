@@ -125,7 +125,7 @@ function vaultRequest(
     const tlsOptions: Record<string, any> = {};
     if (isHttps && config.caCert) {
       try {
-        const fs = await import('fs');
+        const fs = require('fs');
         tlsOptions.ca = fs.readFileSync(config.caCert);
         tlsOptions.rejectUnauthorized = true;
       } catch (err: any) {

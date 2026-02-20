@@ -90,6 +90,13 @@ import GatewayManagement from "./pages/GatewayManagement";
 // 平台管理 - 插件安全沙箱
 import PluginSandboxManager from "./pages/settings/PluginSandboxManager";
 
+// v5.0 进化平台仪表盘
+import CognitiveDashboard from "./pages/cognitive/CognitiveDashboard";
+import PerceptionMonitor from "./pages/perception/PerceptionMonitor";
+import GuardrailConsole from "./pages/guardrail/GuardrailConsole";
+import DigitalTwinView from "./pages/cognitive/DigitalTwinView";
+import KnowledgeExplorer from "./pages/cognitive/KnowledgeExplorer";
+
 // 基础设置模块
 import {
   DictionaryManager,
@@ -332,6 +339,13 @@ function Router() {
         <Redirect to="/settings/config/infrastructure" />
       </Route>
       
+      {/* ━━━ v5.0 进化平台仪表盘 ━━━ */}
+      <Route path="/v5/cognitive" component={CognitiveDashboard} />
+      <Route path="/v5/perception" component={PerceptionMonitor} />
+      <Route path="/v5/guardrail" component={GuardrailConsole} />
+      <Route path="/v5/digital-twin" component={DigitalTwinView} />
+      <Route path="/v5/knowledge" component={KnowledgeExplorer} />
+
       {/* 404 */}
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />

@@ -295,11 +295,8 @@ export class ChampionChallengerController {
         `All three gates passed. Gate 3 canary: errorRate=${gate3Result.errorRate.toFixed(4)}, ` +
         `latencyDegradation=${gate3Result.latencyDegradation.toFixed(4)}`;
 
-      this.emitter.emitChampionPromoted({
-        challengeId: challenge.id,
-        newChampionModelId: challenge.challengerModelId,
-        previousChampionModelId: challenge.championModelId,
-        tasScore: challenge.gate2?.shadowEvalResult.tasScore ?? 0,
+      this.emitter.emitFullPromoted({
+        modelId: challenge.challengerModelId,
         promotedAt: new Date(),
       });
 

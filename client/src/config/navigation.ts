@@ -126,6 +126,35 @@ export const navigationConfig: NavItem[] = [
   },
 
 
+  // ━━━ 深度进化（v5.0） ━━━
+  {
+    id: 'v5-cognitive',
+    label: '认知中枢',
+    icon: '🧠',
+    section: '深度进化',
+    children: [
+      { id: 'v5-cognitive-dashboard', label: '认知仪表盘', icon: '📊', path: '/v5/cognitive' },
+      { id: 'v5-digital-twin', label: '数字孪生', icon: '🔮', path: '/v5/digital-twin' },
+      { id: 'v5-knowledge-explorer', label: '知识探索器', icon: '🕸️', path: '/v5/knowledge' },
+    ]
+  },
+  {
+    id: 'v5-perception',
+    label: '感知监控',
+    icon: '📡',
+    children: [
+      { id: 'v5-perception-monitor', label: '感知层监控', icon: '📈', path: '/v5/perception' },
+    ]
+  },
+  {
+    id: 'v5-guardrail',
+    label: '安全护栏',
+    icon: '🛡️',
+    children: [
+      { id: 'v5-guardrail-console', label: '护栏控制台', icon: '🚦', path: '/v5/guardrail' },
+    ]
+  },
+
   // ━━━ 平台管理 ━━━
   {
     id: 'design-tools',

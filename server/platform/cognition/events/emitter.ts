@@ -93,7 +93,7 @@ export class CognitionEventEmitter {
 
   constructor(publishFn?: PublishFn) {
     this.publishFn = publishFn || ((topic, payload) => {
-      eventBusPublish(topic, payload);
+      eventBusPublish(topic, 'cognition_event', payload, { source: 'cognition-emitter' });
     });
   }
 

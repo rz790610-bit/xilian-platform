@@ -29,6 +29,18 @@ import type {
 } from '../types';
 import type { NarrativeGenerator } from '../engines/cognition-unit';
 
+// v5.0: 进化模块叙事扩展接口
+interface V5NarrativeExtension {
+  /** Grok 推理链叙事 */
+  grokReasoning?: string;
+  /** WorldModel 预测叙事 */
+  worldModelPrediction?: string;
+  /** 护栏检查叙事 */
+  guardrailCheck?: string;
+  /** 进化飞轮状态 */
+  evolutionStatus?: string;
+}
+
 // ============================================================================
 // 叙事模板
 // ============================================================================
@@ -211,12 +223,51 @@ export class NarrativeLayer implements NarrativeGenerator {
       phases, keyFindings, result,
     );
 
+    // v5.0: 提取进化模块叙事
+    const v5Extension = this.extractV5Narrative(result);
+
     return {
       phases,
       humanReadableSummary,
       keyFindings,
       suggestedActions,
+      // v5.0 扩展字段
+      ...(Object.keys(v5Extension).length > 0 ? { _v5: v5Extension } : {}),
     };
+  }
+
+  /**
+   * v5.0: 提取进化模块叙事
+   */
+  private extractV5Narrative(result: Omit<CognitionResult, 'narrative'>): V5NarrativeExtension {
+    const ext: V5NarrativeExtension = {};
+    const dims = result.dimensions as any;
+
+    // Grok 推理链叙事
+    if (dims.reasoning?.data?.hypotheses?.some((h: any) => h.id?.startsWith('hyp_grok_'))) {
+      const grokHyps = dims.reasoning.data.hypotheses.filter((h: any) => h.id?.startsWith('hyp_grok_'));
+      ext.grokReasoning = `Grok 深度推理生成${grokHyps.length}个假设：${grokHyps.map((h: any) => h.description).join('；')}`;
+    }
+
+    // WorldModel 预测叙事
+    if (dims.perception?.data?._pipelineResult) {
+      ext.worldModelPrediction = '感知管线已执行全链路处理（采集→融合→编码）';
+    }
+    if (dims.perception?.data?._stateVector) {
+      ext.worldModelPrediction = (ext.worldModelPrediction || '') + '，已生成统一状态向量';
+    }
+
+    // 护栏检查叙事
+    if (dims.decision?.data?._guardrailResult) {
+      const gr = dims.decision.data._guardrailResult;
+      if (gr.violations?.length > 0) {
+        ext.guardrailCheck = `护栏检测到${gr.violations.length}个违规：${gr.violations.map((v: any) => v.ruleId || v.message).join('、')}`;
+      } else {
+        ext.guardrailCheck = '护栏检查通过，无违规';
+      }
+    }
+
+    return ext;
   }
 
   /**

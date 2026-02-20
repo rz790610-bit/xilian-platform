@@ -49,3 +49,19 @@ export * from './canary';
 
 // 集成
 export * from './integration';
+
+// ============================================================================
+// v5.0 进化模块（命名空间导出，避免与 types/dimensions 的同名类型冲突）
+// ============================================================================
+// Grok 深度嵌入
+export * as grokModule from './grok';
+// WorldModel 世界模型
+export * as worldmodelModule from './worldmodel';
+// 融合诊断
+export * as diagnosisModule from './diagnosis';
+// 安全护栏
+export * as safetyModule from './safety';
+// 链式认知
+export * as chainModule from './chain';
+// 认知会话服务
+export * as servicesModule from './services';

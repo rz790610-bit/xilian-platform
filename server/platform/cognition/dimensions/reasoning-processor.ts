@@ -22,6 +22,8 @@
 import { createModuleLogger } from '../../../core/logger';
 import { invokeLLM } from '../../../core/llm';
 import type { DimensionProcessor, DimensionContext } from '../engines/cognition-unit';
+// v5.0: 可选接入 Grok 深度推理服务
+import type { GrokReasoningService } from '../grok/grok-reasoning.service';
 import type {
   CognitionStimulus,
   ReasoningOutput,
@@ -81,6 +83,8 @@ export interface ReasoningConfig {
   enableLLMReasoning: boolean;
   /** LLM 推演的最大 token 数 */
   llmMaxTokens: number;
+  /** v5.0: 是否使用 Grok 深度推理（ReAct + Tool Calling，替代简单 LLM） */
+  enableGrokDeepReasoning: boolean;
 }
 
 const DEFAULT_CONFIG: ReasoningConfig = {
@@ -91,6 +95,7 @@ const DEFAULT_CONFIG: ReasoningConfig = {
   minPriorProbability: 0.05,
   enableLLMReasoning: true,
   llmMaxTokens: 1024,
+  enableGrokDeepReasoning: false,
 };
 
 // ============================================================================
@@ -101,10 +106,18 @@ export class ReasoningProcessor implements DimensionProcessor<ReasoningOutput> {
   readonly dimension = 'reasoning' as const;
   private readonly config: ReasoningConfig;
   private readonly kgAdapter: KGQueryAdapter;
+  /** v5.0: 可选 Grok 推理服务实例 */
+  private grokService?: GrokReasoningService;
 
   constructor(kgAdapter: KGQueryAdapter, config?: Partial<ReasoningConfig>) {
     this.config = { ...DEFAULT_CONFIG, ...config };
     this.kgAdapter = kgAdapter;
+  }
+
+  /** v5.0: 注入 Grok 推理服务 */
+  setGrokService(service: GrokReasoningService): void {
+    this.grokService = service;
+    this.config.enableGrokDeepReasoning = true;
   }
 
   /**
@@ -133,9 +146,9 @@ export class ReasoningProcessor implements DimensionProcessor<ReasoningOutput> {
       const hypotheses = await this.generateHypotheses(anomalies, stimulus);
 
       // 3. 因果推理（紧急模式下跳过）
-      const causalPaths = degradationMode === 'emergency'
+      const causalPaths: ReasoningOutput['data']['causalPaths'] = degradationMode === 'emergency'
         ? []
-        : await this.performCausalReasoning(anomalies);
+        : (await this.performCausalReasoning(anomalies)).map(p => ({ from: p.from, to: p.to, strength: p.strength, mechanism: p.mechanism }));
 
       // 4. 影子评估（仅正常模式下执行）
       const shadowEvaluation = degradationMode === 'normal'
@@ -143,7 +156,7 @@ export class ReasoningProcessor implements DimensionProcessor<ReasoningOutput> {
         : undefined;
 
       // 5. 基于因果路径和历史案例更新假设概率
-      this.updateHypothesisProbabilities(hypotheses, causalPaths);
+      this.updateHypothesisProbabilities(hypotheses, causalPaths as any);
 
       // 6. 排序并截断
       hypotheses.sort((a, b) => b.priorProbability - a.priorProbability);
@@ -241,7 +254,7 @@ export class ReasoningProcessor implements DimensionProcessor<ReasoningOutput> {
     }
 
     // 策略 3：基于刺激类型生成通用假设
-    if (stimulus.type === 'drift_detected') {
+    if (stimulus.type === 'drift_alert') {
       hypothesisCounter++;
       hypotheses.push({
         id: `hyp_${hypothesisCounter}`,
@@ -255,7 +268,7 @@ export class ReasoningProcessor implements DimensionProcessor<ReasoningOutput> {
       });
     }
 
-    if (stimulus.type === 'performance_degraded') {
+    if (stimulus.type === 'model_evaluation') {
       hypothesisCounter++;
       hypotheses.push({
         id: `hyp_${hypothesisCounter}`,
@@ -269,8 +282,36 @@ export class ReasoningProcessor implements DimensionProcessor<ReasoningOutput> {
       });
     }
 
-    // P1 修复：策略 4 — LLM 增强推演（异常关联分析和深层因果推理）
-    if (this.config.enableLLMReasoning && anomalies.length > 0) {
+    // v5.0: 策略 4 — Grok 深度推理 / LLM 增强推演
+    if (this.config.enableGrokDeepReasoning && this.grokService && anomalies.length > 0) {
+      try {
+        const grokResult = await this.grokService.diagnose({
+          question: `分析以下异常的根因和影响：${anomalies.slice(0, 3).map(a => `${a.source}/${a.type}(严重度${(a.severity*100).toFixed(0)}%)`).join('; ')}`,
+        } as any);
+        if ((grokResult as any).reasoning?.steps) {
+          for (const step of ((grokResult as any).reasoning.steps as any[]).slice(0, 3)) {
+            hypothesisCounter++;
+            hypotheses.push({
+              id: `hyp_grok_${hypothesisCounter}`,
+              description: `[Grok-ReAct] ${String(step.thought).slice(0, 200)}`,
+              priorProbability: 0.6 + (step.toolResult ? 0.2 : 0),
+              evidenceRequired: step.toolName ? [`工具验证: ${step.toolName}`] : ['需要人工确认'],
+              estimatedImpact: 0.7,
+            });
+          }
+        }
+        log.info({ stimulusId: stimulus.id, grokSteps: ((grokResult as any).reasoning?.steps as any[])?.length }, 'Grok deep reasoning completed');
+      } catch (err) {
+        log.warn({ error: err instanceof Error ? err.message : String(err) }, 'Grok reasoning failed, falling back to LLM');
+        // 回退到 LLM
+        if (this.config.enableLLMReasoning && anomalies.length > 0) {
+          try {
+            const llmHypotheses = await this.generateLLMHypotheses(anomalies, stimulus);
+            for (const llmHyp of llmHypotheses) { hypothesisCounter++; hypotheses.push({ ...llmHyp, id: `hyp_llm_${hypothesisCounter}` }); }
+          } catch (e2) { log.warn({ error: e2 instanceof Error ? e2.message : String(e2) }, 'LLM fallback also failed'); }
+        }
+      }
+    } else if (this.config.enableLLMReasoning && anomalies.length > 0) {
       try {
         const llmHypotheses = await this.generateLLMHypotheses(anomalies, stimulus);
         for (const llmHyp of llmHypotheses) {

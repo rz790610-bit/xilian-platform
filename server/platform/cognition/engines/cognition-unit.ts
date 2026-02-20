@@ -140,6 +140,16 @@ export class CognitionUnit {
   private preprocessor?: StimulusPreprocessor;
   private narrativeGenerator?: NarrativeGenerator;
 
+  // ========== v5.0 进化模块钩子 ==========
+  /** Grok 推理服务（在 reasoning 维度完成后触发深度推理） */
+  private grokReasoningHook?: (stimulus: CognitionStimulus, reasoningOutput: ReasoningOutput) => Promise<{ enhancedHypotheses?: any[]; toolCallResults?: any[] }>;
+  /** WorldModel 预测钩子（在感知维度完成后触发状态预测） */
+  private worldModelHook?: (stimulus: CognitionStimulus, perceptionOutput: PerceptionOutput) => Promise<{ predictions?: any[]; anomalyPredict?: any[] }>;
+  /** Guardrail 护栏钩子（在决策维度完成后触发护栏检查） */
+  private guardrailHook?: (stimulus: CognitionStimulus, decisionOutput: DecisionOutput) => Promise<{ blocked: boolean; violations?: any[]; adjustedActions?: any[] }>;
+  /** 进化飞轮反馈钩子（认知完成后将结果反馈给飞轮） */
+  private evolutionFeedbackHook?: (result: CognitionResult) => Promise<void>;
+
   // 执行状态
   private startedAt?: Date;
   private completedAt?: Date;
@@ -188,6 +198,28 @@ export class CognitionUnit {
 
   setNarrativeGenerator(generator: NarrativeGenerator): this {
     this.narrativeGenerator = generator;
+    return this;
+  }
+
+  // ========== v5.0 进化模块钩子注册 ==========
+
+  setGrokReasoningHook(hook: CognitionUnit['grokReasoningHook']): this {
+    this.grokReasoningHook = hook;
+    return this;
+  }
+
+  setWorldModelHook(hook: CognitionUnit['worldModelHook']): this {
+    this.worldModelHook = hook;
+    return this;
+  }
+
+  setGuardrailHook(hook: CognitionUnit['guardrailHook']): this {
+    this.guardrailHook = hook;
+    return this;
+  }
+
+  setEvolutionFeedbackHook(hook: CognitionUnit['evolutionFeedbackHook']): this {
+    this.evolutionFeedbackHook = hook;
     return this;
   }
 
@@ -281,7 +313,8 @@ export class CognitionUnit {
       completedAt: new Date(),
     });
 
-    // Step 6: 动作执行（当前阶段仅记录推荐动作，不实际执行）
+    // Step 6: v5.0 进化钩子执行
+    await this.executeEvolutionHooks(dimensionOutputs, processedStimulus);
     this.stateMachine.transition('ACTION_DONE');
 
     // Step 7: 叙事生成
@@ -326,6 +359,13 @@ export class CognitionUnit {
       result: finalResult,
       completedAt: this.completedAt,
     });
+
+    // Step 8: v5.0 进化飞轮反馈（异步非阻塞）
+    if (this.evolutionFeedbackHook) {
+      this.evolutionFeedbackHook(finalResult).catch((err) => {
+        log.warn({ stimulusId: this.stimulus.id, error: err instanceof Error ? err.message : String(err) }, 'Evolution feedback hook failed (non-fatal)');
+      });
+    }
 
     log.info({
       unitId: this.id,
@@ -620,6 +660,94 @@ export class CognitionUnit {
       completedAt: this.completedAt,
       degradationMode: this.config.degradationMode,
     };
+  }
+
+  // ==========================================================================
+  // v5.0 进化钩子执行
+  // ==========================================================================
+
+  /**
+   * 执行 v5.0 进化模块钩子
+   * 
+   * 顺序：
+   *   1. WorldModel 预测（基于感知输出）
+   *   2. Grok 深度推理（基于推演输出）
+   *   3. Guardrail 护栏检查（基于决策输出）
+   * 
+   * 每个钩子独立容错，不影响主流程
+   */
+  private async executeEvolutionHooks(
+    outputs: Map<CognitionDimension, DimensionOutput>,
+    stimulus: CognitionStimulus,
+  ): Promise<void> {
+    const perception = outputs.get('perception') as PerceptionOutput | undefined;
+    const reasoning = outputs.get('reasoning') as ReasoningOutput | undefined;
+    const decision = outputs.get('decision') as DecisionOutput | undefined;
+
+    // Hook 1: WorldModel 状态预测
+    if (this.worldModelHook && perception?.success) {
+      try {
+        const wmResult = await this.executeWithTimeout(
+          this.worldModelHook(stimulus, perception),
+          5000,
+          'WorldModel hook timeout',
+        );
+        // 将预测结果附加到 perception 输出的 metadata 中
+        if (wmResult.predictions || wmResult.anomalyPredict) {
+          (perception.data as any)._worldModelPredictions = wmResult.predictions;
+          (perception.data as any)._worldModelAnomalyPredict = wmResult.anomalyPredict;
+        }
+        log.debug({ stimulusId: stimulus.id, predictions: wmResult.predictions?.length }, 'WorldModel hook executed');
+      } catch (err) {
+        log.warn({ stimulusId: stimulus.id, error: err instanceof Error ? err.message : String(err) }, 'WorldModel hook failed (non-fatal)');
+      }
+    }
+
+    // Hook 2: Grok 深度推理
+    if (this.grokReasoningHook && reasoning?.success) {
+      try {
+        const grokResult = await this.executeWithTimeout(
+          this.grokReasoningHook(stimulus, reasoning),
+          10000,
+          'Grok reasoning hook timeout',
+        );
+        // 将 Grok 增强的假设附加到 reasoning 输出
+        if (grokResult.enhancedHypotheses) {
+          (reasoning.data as any)._grokEnhancedHypotheses = grokResult.enhancedHypotheses;
+        }
+        if (grokResult.toolCallResults) {
+          (reasoning.data as any)._grokToolCallResults = grokResult.toolCallResults;
+        }
+        log.debug({ stimulusId: stimulus.id, toolCalls: grokResult.toolCallResults?.length }, 'Grok reasoning hook executed');
+      } catch (err) {
+        log.warn({ stimulusId: stimulus.id, error: err instanceof Error ? err.message : String(err) }, 'Grok reasoning hook failed (non-fatal)');
+      }
+    }
+
+    // Hook 3: Guardrail 护栏检查
+    if (this.guardrailHook && decision?.success) {
+      try {
+        const grResult = await this.executeWithTimeout(
+          this.guardrailHook(stimulus, decision),
+          3000,
+          'Guardrail hook timeout',
+        );
+        if (grResult.blocked) {
+          log.warn({ stimulusId: stimulus.id, violations: grResult.violations?.length }, 'Guardrail BLOCKED decision actions');
+          // 替换决策输出中的推荐动作为护栏调整后的动作
+          if (grResult.adjustedActions) {
+            (decision.data as any).recommendedActions = grResult.adjustedActions;
+          }
+          (decision.data as any)._guardrailViolations = grResult.violations;
+          (decision.data as any)._guardrailBlocked = true;
+        } else {
+          (decision.data as any)._guardrailBlocked = false;
+        }
+        log.debug({ stimulusId: stimulus.id, blocked: grResult.blocked }, 'Guardrail hook executed');
+      } catch (err) {
+        log.warn({ stimulusId: stimulus.id, error: err instanceof Error ? err.message : String(err) }, 'Guardrail hook failed (non-fatal)');
+      }
+    }
   }
 
   /**

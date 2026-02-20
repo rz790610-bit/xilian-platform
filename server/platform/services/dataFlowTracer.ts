@@ -170,7 +170,7 @@ class DataFlowTracer {
 
       // 订阅所有事件
       // P2-A06: 消除 any，直接使用 Event 类型
-      this.unsubscribe = eventBus.subscribeAll(async (event: Event) => {
+      this.unsubscribe = eventBus.subscribeAll(async (event: any) => {
         this.processEvent(event);
       });
 

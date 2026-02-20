@@ -1,7 +1,11 @@
-export { ChampionChallenger, createChampionChallenger } from './champion-challenger';
+export { ChampionChallengerController, createChampionChallengerController } from './champion-challenger';
 export type {
   ChampionChallengerConfig,
-  ChallengeSession,
-  ChallengeGateResult,
-  GateStatus,
+  ChallengeRecord,
+  ChallengeStatus,
+  Gate1Result,
+  Gate2Result,
+  Gate3Result,
+  Gate1Config,
+  ModelMetricsAdapter,
 } from './champion-challenger';

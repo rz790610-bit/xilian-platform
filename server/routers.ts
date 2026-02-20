@@ -57,6 +57,16 @@ import { conditionNormalizerRouter } from "./api/conditionNormalizer.router";
 // ============ v3.1 自适应智能架构 — 平台健康 ============
 import { platformHealthRouter } from "./api/platformHealth.router";
 
+// ============ v5.0 深度进化 — 8 域路由 ============
+import { perceptionDomainRouter } from "./domains/perception/perception.domain-router";
+import { cognitionDomainRouter } from "./domains/cognition/cognition.domain-router";
+import { guardrailDomainRouter } from "./domains/guardrail/guardrail.domain-router";
+import { evolutionDomainRouter } from "./domains/evolution/evolution.domain-router";
+import { knowledgeDomainRouter } from "./domains/knowledge/knowledge.domain-router";
+import { toolingDomainRouter } from "./domains/tooling/tooling.domain-router";
+import { pipelineDomainRouter } from "./domains/pipeline/pipeline.domain-router";
+import { platformDomainRouter } from "./domains/platform/platform.domain-router";
+
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/core/index.ts, all api should start with '/api/' so that the gateway can route correctly
   system: systemRouter,
@@ -172,6 +182,24 @@ export const appRouter = router({
   conditionNormalizer: conditionNormalizerRouter,
   // ============ v3.1 自适应智能架构 — L1 契约基层 + L2 自省层 ============
   platformHealth: platformHealthRouter,
+
+  // ============ v5.0 深度进化 — 8 域路由 ============
+  // 感知域（采集/融合/编码/工况管理）
+  evoPerception: perceptionDomainRouter,
+  // 认知域（Grok推理/WorldModel/四维诊断/报告）
+  evoCognition: cognitionDomainRouter,
+  // 护栏域（安全/健康/高效规则引擎）
+  evoGuardrail: guardrailDomainRouter,
+  // 进化域（影子评估/冠军挑战者/知识结晶/MetaLearner/飞轮）
+  evoEvolution: evolutionDomainRouter,
+  // 知识域（知识图谱/特征注册表/链式推理）
+  evoKnowledge: knowledgeDomainRouter,
+  // 工具域（工具注册/发现/执行/沙箱）
+  evoTooling: toolingDomainRouter,
+  // 管线域（DAG引擎/数字孪生/回放/仿真）
+  evoPipeline: pipelineDomainRouter,
+  // 平台域（编排器/仪表盘/健康检查/配置）
+  evoPlatform: platformDomainRouter,
 });
 
 export type AppRouter = typeof appRouter;

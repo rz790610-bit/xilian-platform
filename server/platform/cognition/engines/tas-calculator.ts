@@ -399,11 +399,10 @@ export class TASCalculator {
     const monteCarloResult: MonteCarloResult = {
       robustnessScore: monteCarloScore,
       challengerWinRate: monteCarloScore, // 近似
-      iterations: 0,
-      challengerMean: 0,
-      championMean: 0,
-      challengerStd: 0,
-      championStd: 0,
+      challengerMeanAccuracy: 0,
+      championMeanAccuracy: 0,
+      challengerStdAccuracy: 0,
+      championStdAccuracy: 0,
     };
 
     const tasOutput = calculateTAS({

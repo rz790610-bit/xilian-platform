@@ -3108,3 +3108,8 @@ export const algorithmRoutingRules = mysqlTable("algorithm_routing_rules", {
 ]);
 export type AlgorithmRoutingRule = typeof algorithmRoutingRules.$inferSelect;
 export type InsertAlgorithmRoutingRule = typeof algorithmRoutingRules.$inferInsert;
+
+// ============================================================================
+// v5.0 深度进化 — 新增 24 张表
+// ============================================================================
+export * from './evolution-schema';

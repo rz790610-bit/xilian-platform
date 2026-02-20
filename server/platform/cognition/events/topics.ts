@@ -154,6 +154,74 @@ export const COGNITION_TOPICS = {
 } as const;
 
 // ============================================================================
+// 感知闭环 Topic（v5.0 数据契约层对齐）
+// ============================================================================
+
+export const PERCEPTION_TOPICS = {
+  /** 传感器原始数据到达 */
+  SENSOR_DATA_RAW: 'sensor.data.raw',
+  /** 统一状态向量生成 */
+  STATE_VECTOR_GENERATED: 'perception.state.vector',
+  /** 工况切换 */
+  CONDITION_SWITCHED: 'condition.switched',
+  /** 自适应采样率调整 */
+  SAMPLING_RATE_ADJUSTED: 'perception.sampling.adjusted',
+  /** 数据质量降级 */
+  DATA_QUALITY_DEGRADED: 'perception.quality.degraded',
+} as const;
+
+// ============================================================================
+// 诊断闭环 Topic（v5.0 数据契约层对齐）
+// ============================================================================
+
+export const DIAGNOSIS_TOPICS = {
+  /** 认知会话开始 */
+  SESSION_STARTED: 'cognition.session.started',
+  /** 认知维度完成 */
+  DIMENSION_COMPLETED: 'cognition.dimension.completed',
+  /** 诊断报告生成 */
+  REPORT_GENERATED: 'diagnosis.report.generated',
+  /** Grok 推理步骤 */
+  GROK_REASONING_STEP: 'grok.reasoning.step',
+  /** 物理公式计算完成 */
+  PHYSICS_COMPUTED: 'diagnosis.physics.computed',
+} as const;
+
+// ============================================================================
+// 护栏闭环 Topic（v5.0 数据契约层对齐）
+// ============================================================================
+
+export const GUARDRAIL_TOPICS = {
+  /** 安全干预 */
+  SAFETY_INTERVENTION: 'guardrail.safety.intervention',
+  /** 健康干预 */
+  HEALTH_INTERVENTION: 'guardrail.health.intervention',
+  /** 高效调参 */
+  EFFICIENCY_ADJUSTMENT: 'guardrail.efficiency.adjustment',
+  /** 护栏规则触发 */
+  RULE_TRIGGERED: 'guardrail.rule.triggered',
+  /** 护栏规则解除 */
+  RULE_CLEARED: 'guardrail.rule.cleared',
+} as const;
+
+// ============================================================================
+// 进化闭环 Topic（v5.0 数据契约层对齐）
+// ============================================================================
+
+export const EVOLUTION_TOPICS = {
+  /** 边缘案例发现 */
+  EDGE_CASE_DISCOVERED: 'evolution.edge-case.discovered',
+  /** 模型更新 */
+  MODEL_UPDATED: 'evolution.model.updated',
+  /** 知识结晶 */
+  KNOWLEDGE_CRYSTALLIZED_V2: 'evolution.knowledge.crystallized',
+  /** 飞轮周期完成 */
+  FLYWHEEL_CYCLE_COMPLETED: 'evolution.flywheel.cycle_completed',
+  /** 特征注册表更新 */
+  FEATURE_REGISTRY_UPDATED: 'evolution.feature_registry.updated',
+} as const;
+
+// ============================================================================
 // 汇总所有认知 Topic
 // ============================================================================
 
@@ -166,6 +234,10 @@ export const ALL_COGNITION_TOPICS = {
   ...EVAL_TOPICS,
   ...RELEASE_TOPICS,
   ...COGNITION_TOPICS,
+  ...PERCEPTION_TOPICS,
+  ...DIAGNOSIS_TOPICS,
+  ...GUARDRAIL_TOPICS,
+  ...EVOLUTION_TOPICS,
 } as const;
 
 /** Topic 值类型 */
@@ -199,5 +271,9 @@ export function getTopicGroups(): Record<string, Record<string, string>> {
     eval: { ...EVAL_TOPICS },
     release: { ...RELEASE_TOPICS },
     cognition: { ...COGNITION_TOPICS },
+    perception: { ...PERCEPTION_TOPICS },
+    diagnosis: { ...DIAGNOSIS_TOPICS },
+    guardrail: { ...GUARDRAIL_TOPICS },
+    evolution: { ...EVOLUTION_TOPICS },
   };
 }

@@ -11,7 +11,7 @@ export const authRoutes = router({
   // 刷新 token — 需要已认证
   refresh: protectedProcedure
     .mutation(async ({ ctx }) => {
-      return authService.refreshToken(ctx.user!);
+      return authService.generateToken({ userId: (ctx.user as any).id, role: (ctx.user as any).role || 'user' });
     }),
 
   // 获取当前用户信息 — 需要已认证

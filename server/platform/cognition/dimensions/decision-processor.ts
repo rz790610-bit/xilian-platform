@@ -21,6 +21,8 @@
 
 import { createModuleLogger } from '../../../core/logger';
 import type { DimensionProcessor, DimensionContext } from '../engines/cognition-unit';
+// v5.0: 可选接入护栏引擎
+import type { GuardrailEngine } from '../safety/guardrail-engine';
 import type {
   CognitionStimulus,
   DecisionOutput,
@@ -108,10 +110,17 @@ export class DecisionProcessor implements DimensionProcessor<DecisionOutput> {
   readonly dimension = 'decision' as const;
   private readonly config: DecisionConfig;
   private readonly actionTemplates: ActionTemplate[];
+  /** v5.0: 可选护栏引擎（在动作推荐后进行安全/健康/高效检查） */
+  private guardrailEngine?: GuardrailEngine;
 
   constructor(config?: Partial<DecisionConfig>) {
     this.config = { ...DEFAULT_CONFIG, ...config };
     this.actionTemplates = this.buildActionTemplates();
+  }
+
+  /** v5.0: 注入护栏引擎 */
+  setGuardrailEngine(engine: GuardrailEngine): void {
+    this.guardrailEngine = engine;
   }
 
   /**
@@ -158,6 +167,33 @@ export class DecisionProcessor implements DimensionProcessor<DecisionOutput> {
         resourceAllocation,
       );
 
+      // v5.0: 护栏检查（如果注入了 GuardrailEngine）
+      let guardrailResult: any = undefined;
+      if (this.guardrailEngine && recommendedActions.length > 0) {
+        try {
+          // 构建护栏检查上下文
+          const guardrailContext = {
+            stimulus,
+            actions: recommendedActions,
+            perception: context.perception,
+            reasoning: context.reasoning,
+            fusion: context.fusion,
+          };
+          const evalResult = this.guardrailEngine.evaluate('unknown', guardrailContext as any);
+          guardrailResult = evalResult;
+          
+          // 如果护栏触发，记录警告但不阻断（阻断由 cognition-unit 的 guardrailHook 处理）
+          if (evalResult?.length > 0) {
+            log.warn({
+              stimulusId: stimulus.id,
+              violations: evalResult.length,
+            }, 'Guardrail violations detected in decision actions');
+          }
+        } catch (grErr) {
+          log.warn({ error: grErr instanceof Error ? grErr.message : String(grErr) }, 'Guardrail check failed (non-fatal)');
+        }
+      }
+
       return {
         dimension: 'decision',
         success: true,
@@ -166,6 +202,8 @@ export class DecisionProcessor implements DimensionProcessor<DecisionOutput> {
           recommendedActions,
           resourceAllocation,
           entropyRanking,
+          // v5.0 增强字段
+          ...(guardrailResult ? { _guardrailResult: guardrailResult } : {}),
         },
       };
     } catch (err) {
@@ -479,7 +517,7 @@ export class DecisionProcessor implements DimensionProcessor<DecisionOutput> {
         type: 'deploy',
         description: '部署新训练的模型到生产环境',
         trigger: (ctx) => {
-          return ctx.stimulus.type === 'training_completed';
+          return ctx.stimulus.type === 'pipeline_event';
         },
         priorityFn: () => 0.7,
         costFn: () => 10,
