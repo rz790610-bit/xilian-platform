@@ -104,17 +104,21 @@ export default function SystemTopology() {
   const [refreshInterval, setRefreshInterval] = useState(10); // 秒
   const [isPanningCanvas, setIsPanningCanvas] = useState(false);
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
+  // [拖拽修复] 用 ref 存储 panStart，避免 onMouseMove 闭包读到陈旧 state
+  const panStartRef = useRef({ x: 0, y: 0 });
   const [selectedNodes, setSelectedNodes] = useState<Set<string>>(new Set());
   const [hasFittedView, setHasFittedView] = useState(false);
   const [lastStateHash, setLastStateHash] = useState<string>('');
   const [statusChanged, setStatusChanged] = useState(false);
   
   // tRPC 查询 - 使用快照API支持变化检测
+  // [拖拽修复] 拖拽期间暂停自动刷新，避免后端数据覆盖本地拖拽位置
+  const isDraggingRef = useRef(false);
   const { data: topologyData, refetch: refetchTopology, isLoading } = trpc.topology.getTopologySnapshot.useQuery(
     undefined,
     {
-      refetchInterval: autoRefresh ? refreshInterval * 1000 : false,
-      refetchIntervalInBackground: true,
+      refetchInterval: (autoRefresh && !isDragging) ? refreshInterval * 1000 : false,
+      refetchIntervalInBackground: false,
     }
   );
   const { data: layouts } = trpc.topology.getLayouts.useQuery();
@@ -247,11 +251,12 @@ export default function SystemTopology() {
   const edges = topologyData?.edges || [];
 
   // 当后端数据更新时同步到本地（仅在非拖拽时）
+  // [拖拽修复] 使用 ref 做双重保护，避免 state 异步更新的时间窗口
   useEffect(() => {
-    if (!isDragging && topologyData?.nodes) {
+    if (!isDraggingRef.current && topologyData?.nodes) {
       setLocalNodes(topologyData.nodes as TopoNode[]);
     }
-  }, [topologyData?.nodes, isDragging]);
+  }, [topologyData?.nodes]);
 
   const nodes = localNodes;
   
@@ -386,6 +391,7 @@ export default function SystemTopology() {
     setDragNode(nodeId);
     setDragOffset({ x: worldX - node.x, y: worldY - node.y });
     setIsDragging(true);
+    isDraggingRef.current = true;
   };
   
   // 拖拽更新 — 从 ref 读取状态，不依赖闭包
@@ -404,12 +410,8 @@ export default function SystemTopology() {
     const worldX = (e.clientX - rect.left) / currentZoom - currentPan.x;
     const worldY = (e.clientY - rect.top) / currentZoom - currentPan.y;
     
-    // 取消上一帧的 rAF
-    if (nodeRafRef.current !== null) {
-      cancelAnimationFrame(nodeRafRef.current);
-    }
-    
-    // 捕获当前帧的值
+    // [拖拽修复] 移除 rAF 节流，直接同步更新位置以消除拖拽延迟感
+    // React 18 的 batching 已经会自动合并多次 setState，无需手动 rAF
     const targetX = Math.max(0, worldX - ds.dragOffset.x);
     const targetY = Math.max(0, worldY - ds.dragOffset.y);
     const dragNodeId = ds.dragNode;
@@ -417,45 +419,36 @@ export default function SystemTopology() {
     const startWorld = ds.startWorldPos;
     const selNodes = selectedNodesRef.current;
     
-    nodeRafRef.current = requestAnimationFrame(() => {
-      nodeRafRef.current = null;
-      
-      setLocalNodes(prev => {
-        // 多选整体拖动：基于初始位置 + 鼠标偏移量
-        if (initPositions.size > 0 && selNodes.has(dragNodeId)) {
-          const dx = worldX - startWorld.x;
-          const dy = worldY - startWorld.y;
-          
-          // 跳过微小移动
-          if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) return prev;
-          
-          return prev.map(n => {
-            const initPos = initPositions.get(n.nodeId);
-            if (initPos) {
-              return { ...n, x: Math.max(0, initPos.x + dx), y: Math.max(0, initPos.y + dy) };
-            }
-            return n;
-          });
-        } else {
-          // 单节点拖动：直接设置绝对坐标
-          return prev.map(n =>
-            n.nodeId === dragNodeId
-              ? { ...n, x: targetX, y: targetY }
-              : n
-          );
-        }
-      });
+    setLocalNodes(prev => {
+      // 多选整体拖动：基于初始位置 + 鼠标偏移量
+      if (initPositions.size > 0 && selNodes.has(dragNodeId)) {
+        const dx = worldX - startWorld.x;
+        const dy = worldY - startWorld.y;
+        
+        // 跳过微小移动
+        if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) return prev;
+        
+        return prev.map(n => {
+          const initPos = initPositions.get(n.nodeId);
+          if (initPos) {
+            return { ...n, x: Math.max(0, initPos.x + dx), y: Math.max(0, initPos.y + dy) };
+          }
+          return n;
+        });
+      } else {
+        // 单节点拖动：直接设置绝对坐标
+        return prev.map(n =>
+          n.nodeId === dragNodeId
+            ? { ...n, x: targetX, y: targetY }
+            : n
+        );
+      }
     });
   }, []); // 空依赖 — 所有状态从 ref 读取
   
   // [P2-Tp1 修复] 节点拖拽仅在 mouseup 时提交最终位置到后端
   // mousemove 期间只更新本地状态，避免每 16ms 触发一次 tRPC 请求
   const handleMouseUp = useCallback(() => {
-    // 清理 rAF
-    if (nodeRafRef.current !== null) {
-      cancelAnimationFrame(nodeRafRef.current);
-      nodeRafRef.current = null;
-    }
     
     const ds = dragStateRef.current;
     const dragNodeId = ds.dragNode;
@@ -491,6 +484,7 @@ export default function SystemTopology() {
     ds.dragNode = null;
     ds.initialPositions.clear();
     setIsDragging(false);
+    isDraggingRef.current = false;
     setDragNode(null);
   }, [updateNodePositionMutation, updateNodePositionsMutation]);
   
@@ -626,7 +620,7 @@ export default function SystemTopology() {
             strokeWidth={isSelected ? 3 : 2}
             fill="none"
             strokeDasharray={edge.type === 'dependency' ? '8,4' : edge.type === 'control' ? '4,4' : 'none'}
-            className="transition-all duration-200"
+            /* [拖拽修复] 移除 transition 避免连接线拖拽延迟 */
           />
           {/* 箭头 */}
           <polygon
@@ -679,7 +673,11 @@ export default function SystemTopology() {
         <g 
           key={node.nodeId} 
           transform={`translate(${node.x}, ${node.y})`}
-          className={cn("cursor-move", isDragging && dragNode === node.nodeId && "opacity-70")}
+          className={cn(
+            "cursor-move",
+            isDragging && dragNode === node.nodeId && "opacity-70",
+          )}
+          style={{ pointerEvents: isDragging && dragNode !== node.nodeId ? 'none' : 'auto' }}
           onMouseDown={(e) => handleMouseDown(e, node.nodeId)}
           onClick={(e) => {
             e.stopPropagation();
@@ -1025,6 +1023,7 @@ export default function SystemTopology() {
                   <svg 
                     ref={svgRef} 
                     className="w-full h-full"
+                    style={isDragging ? { userSelect: 'none', WebkitUserSelect: 'none', touchAction: 'none' } : undefined}
                     onWheel={(e) => {
                       e.preventDefault();
                       const delta = e.deltaY > 0 ? -0.08 : 0.08;
@@ -1039,7 +1038,9 @@ export default function SystemTopology() {
                           if (!e.ctrlKey && !e.metaKey) {
                             setSelectedNodes(new Set());
                           }
-                          setPanStart({ x: e.clientX - pan.x * zoom, y: e.clientY - pan.y * zoom });
+                          const ps = { x: e.clientX - pan.x * zoom, y: e.clientY - pan.y * zoom };
+                          setPanStart(ps);
+                          panStartRef.current = ps;
                           setIsPanningCanvas(true);
                         }
                       }
@@ -1054,9 +1055,11 @@ export default function SystemTopology() {
                         }
                         canvasRafRef.current = requestAnimationFrame(() => {
                           canvasRafRef.current = null;
+                          // [拖拽修复] 从 ref 读取 panStart，避免闭包陈旧值
+                          const ps = panStartRef.current;
                           setPan({
-                            x: (clientX - panStart.x) / zoomRef.current,
-                            y: (clientY - panStart.y) / zoomRef.current,
+                            x: (clientX - ps.x) / zoomRef.current,
+                            y: (clientY - ps.y) / zoomRef.current,
                           });
                         });
                       }
