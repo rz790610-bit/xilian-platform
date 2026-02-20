@@ -1019,18 +1019,28 @@ function SignersTab() {
 
 // ==================== 主组件 ====================
 
-// Tab definitions simplified - only sandbox overview retained
+const tabs: { id: TabId; label: string; icon: string }[] = [
+  { id: 'overview', label: '沙箱概览', icon: '🏠' },
+  { id: 'marketplace', label: '插件市场', icon: '🏪' },
+  { id: 'permissions', label: '权限管理', icon: '🔐' },
+  { id: 'resources', label: '资源监控', icon: '📊' },
+  { id: 'events', label: '安全事件', icon: '🔔' },
+  { id: 'signers', label: '受信任签名者', icon: '🔑' },
+];
 
 export default function PluginSandboxManager() {
+  const [activeTab, setActiveTab] = useState<TabId>('overview');
+
   return (
-    <MainLayout title="沙箱概览">
+    <MainLayout title="插件安全沙箱">
     <div className="h-full flex flex-col bg-zinc-950">
+      {/* 页头 */}
       <div className="px-6 pt-5 pb-3 border-b border-zinc-800">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-lg font-bold text-zinc-100">🧩 沙箱概览</h1>
+            <h1 className="text-lg font-bold text-zinc-100">🧩 插件安全沙箱</h1>
             <p className="text-[12px] text-zinc-500 mt-0.5">
-              插件安全沙箱 — 三层隔离架构状态监控
+              三层隔离架构：VM Context 代码隔离 → 权限网关拦截 → 资源配额限制
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -1045,9 +1055,33 @@ export default function PluginSandboxManager() {
             </Badge>
           </div>
         </div>
+
+        {/* Tab 导航 */}
+        <div className="flex gap-1 mt-4 -mb-px">
+          {tabs.map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`px-3 py-2 text-[12px] rounded-t-lg border border-b-0 transition-colors ${
+                activeTab === tab.id
+                  ? 'bg-zinc-900 text-cyan-400 border-zinc-700'
+                  : 'text-zinc-500 border-transparent hover:text-zinc-300 hover:bg-zinc-900/50'
+              }`}
+            >
+              {tab.icon} {tab.label}
+            </button>
+          ))}
+        </div>
       </div>
+
+      {/* Tab 内容 */}
       <div className="flex-1 overflow-auto p-6">
-        <OverviewTab />
+        {activeTab === 'overview' && <OverviewTab />}
+        {activeTab === 'marketplace' && <MarketplaceTab />}
+        {activeTab === 'permissions' && <PermissionsTab />}
+        {activeTab === 'resources' && <ResourcesTab />}
+        {activeTab === 'events' && <SecurityEventsTab />}
+        {activeTab === 'signers' && <SignersTab />}
       </div>
     </div>
     </MainLayout>
