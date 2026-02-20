@@ -238,43 +238,44 @@ export class AlgorithmServiceClient {
     return getConnection('algorithm');
   }
 
-  async healthCheck(): Promise<any> {
+  // P2-GRPC-1: TODO 将 any 替换为 proto 生成的类型（待 proto 编译后统一替换）
+  async healthCheck(): Promise<Record<string, unknown>> {
     return callUnary(this.getClient(), 'healthCheck', {});
   }
 
-  async createDefinition(request: any): Promise<any> {
+  async createDefinition(request: Record<string, unknown>): Promise<Record<string, unknown>> {
     return callUnary(this.getClient(), 'createDefinition', request);
   }
 
-  async getDefinition(definitionId: string): Promise<any> {
+  async getDefinition(definitionId: string): Promise<Record<string, unknown>> {
     return callUnary(this.getClient(), 'getDefinition', { definitionId });
   }
 
-  async listDefinitions(request: any): Promise<any> {
+  async listDefinitions(request: Record<string, unknown>): Promise<Record<string, unknown>> {
     return callUnary(this.getClient(), 'listDefinitions', request);
   }
 
-  async executeAlgorithm(request: any): Promise<any> {
+  async executeAlgorithm(request: Record<string, unknown>): Promise<Record<string, unknown>> {
     return callUnary(this.getClient(), 'executeAlgorithm', request, 120000); // 2min timeout
   }
 
-  async executeComposition(request: any): Promise<any> {
+  async executeComposition(request: Record<string, unknown>): Promise<Record<string, unknown>> {
     return callUnary(this.getClient(), 'executeComposition', request, 300000); // 5min timeout
   }
 
-  async listExecutionHistory(request: any): Promise<any> {
+  async listExecutionHistory(request: Record<string, unknown>): Promise<Record<string, unknown>> {
     return callUnary(this.getClient(), 'listExecutionHistory', request);
   }
 
-  async bindAlgorithmToDevice(request: any): Promise<any> {
+  async bindAlgorithmToDevice(request: Record<string, unknown>): Promise<Record<string, unknown>> {
     return callUnary(this.getClient(), 'bindAlgorithmToDevice', request);
   }
 
-  async getRecommendedAlgorithms(request: any): Promise<any> {
+  async getRecommendedAlgorithms(request: Record<string, unknown>): Promise<Record<string, unknown>> {
     return callUnary(this.getClient(), 'getRecommendedAlgorithms', request);
   }
 
-  async getOverviewStats(): Promise<any> {
+  async getOverviewStats(): Promise<Record<string, unknown>> {
     return callUnary(this.getClient(), 'getOverviewStats', {});
   }
 

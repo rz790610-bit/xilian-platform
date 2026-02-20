@@ -94,8 +94,9 @@ export async function getMySQLStatus(): Promise<DatabaseStatus> {
       },
       storage: {
         usedBytes: totalSize,
-        totalBytes: 100 * 1024 * 1024 * 1024, // 100GB 默认
-        usagePercent: (totalSize / (100 * 1024 * 1024 * 1024)) * 100,
+        // P1-DB-1: 硬编码容量改为环境变量配置
+        totalBytes: parseInt(process.env.MYSQL_TOTAL_STORAGE_GB || '100') * 1024 * 1024 * 1024,
+        usagePercent: (totalSize / (parseInt(process.env.MYSQL_TOTAL_STORAGE_GB || '100') * 1024 * 1024 * 1024)) * 100,
       },
       lastCheck: new Date(),
       uptime: parseInt(statusMap.get('Uptime') || '0'),
@@ -314,7 +315,8 @@ export async function getQdrantStatus(): Promise<DatabaseStatus> {
       name: 'Qdrant',
       type: 'qdrant',
       status: 'online',
-      version: '1.7.0', // Qdrant API 没有直接返回版本
+      // P1-DB-2: 版本号从环境变量获取，避免硬编码
+      version: process.env.QDRANT_VERSION || 'unknown',
       host: process.env.QDRANT_HOST || 'localhost',
       port: parseInt(process.env.QDRANT_PORT || '6333'),
       connections: {
@@ -329,8 +331,9 @@ export async function getQdrantStatus(): Promise<DatabaseStatus> {
       },
       storage: {
         usedBytes: totalBytes,
-        totalBytes: 100 * 1024 * 1024 * 1024, // 100GB 默认
-        usagePercent: (totalBytes / (100 * 1024 * 1024 * 1024)) * 100,
+        // P1-DB-2: 硬编码容量改为环境变量配置
+        totalBytes: parseInt(process.env.QDRANT_TOTAL_STORAGE_GB || '100') * 1024 * 1024 * 1024,
+        usagePercent: (totalBytes / (parseInt(process.env.QDRANT_TOTAL_STORAGE_GB || '100') * 1024 * 1024 * 1024)) * 100,
       },
       lastCheck: new Date(),
       uptime: 0,

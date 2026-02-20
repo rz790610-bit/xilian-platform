@@ -39,9 +39,11 @@ export class ClickHouseConnector {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      const res = await fetch(`${this.baseUrl}/?query=${encodeURIComponent(sql)}`, {
-        method: 'GET',
-        headers: this.authHeaders,
+      // P1-R4-1: 改用 POST 请求，SQL 放请求体，避免 URL 长度限制和日志泄露
+      const res = await fetch(`${this.baseUrl}/`, {
+        method: 'POST',
+        headers: { ...this.authHeaders, 'Content-Type': 'text/plain' },
+        body: sql + ' FORMAT JSONEachRow',
         signal: controller.signal,
       });
       if (!res.ok) {

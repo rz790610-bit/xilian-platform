@@ -1130,7 +1130,11 @@ export async function startAlgorithmService(): Promise<grpc.Server> {
   return new Promise((resolve, reject) => {
     server.bindAsync(
       `${CONFIG.host}:${CONFIG.port}`,
-      grpc.ServerCredentials.createInsecure(),
+      // P0-R7-04: 生产环境应启用 TLS，配置 GRPC_TLS_CERT 和 GRPC_TLS_KEY 环境变量
+      // TODO: 实现 grpc.ServerCredentials.createSsl() 支持
+      process.env.NODE_ENV === 'production' && !process.env.GRPC_TLS_CERT
+        ? (() => { log.warn('P0-R7-04: gRPC running without TLS in production! Set GRPC_TLS_CERT/GRPC_TLS_KEY'); return grpc.ServerCredentials.createInsecure(); })()
+        : grpc.ServerCredentials.createInsecure(),
       (err, port) => {
         if (err) {
           log.error('Failed to bind algorithm service:', err.message);

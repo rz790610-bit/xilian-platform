@@ -93,10 +93,11 @@ services:
     ports:
       - "${MYSQL_PORT:-3306}:3306"
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root123}
+      # P0-DOCKER-1: 密码必须通过环境变量配置，禁止硬编码
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD must be set}
       MYSQL_DATABASE: portai_nexus
-      MYSQL_USER: portai
-      MYSQL_PASSWORD: portai123
+      MYSQL_USER: ${MYSQL_USER:-portai}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD must be set}
       TZ: Asia/Shanghai
     command: >
       --default-authentication-plugin=mysql_native_password
@@ -155,7 +156,8 @@ services:
     environment:
       CLICKHOUSE_DB: portai_timeseries
       CLICKHOUSE_USER: portai
-      CLICKHOUSE_PASSWORD: portai123
+      # P0-DOCKER-2: ClickHouse 密码改为环境变量
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:?CLICKHOUSE_PASSWORD must be set}
       CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
     volumes:
       - clickhouse_data:/var/lib/clickhouse

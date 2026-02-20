@@ -238,12 +238,14 @@ class ConfigCenter {
    * 回滚配置到指定版本
    */
   async rollback(key: string, targetVersion: number, updatedBy: string = 'system'): Promise<boolean> {
+    // P2-CC1: rollback 添加审计日志
     const historyEntry = this.history.find(e => e.key === key && e.version === targetVersion);
     if (!historyEntry) {
       log.error(`Cannot rollback "${key}" to version ${targetVersion}: not found in history`);
       return false;
     }
-
+    const current = this.store.get(key);
+    log.info(`[ConfigCenter] Rolling back "${key}" from v${current?.version ?? '?'} to v${targetVersion} by ${updatedBy}`);
     return this.set(key, historyEntry.newValue, `rollback:${updatedBy}`);
   }
 

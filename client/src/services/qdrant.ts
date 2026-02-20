@@ -1,12 +1,14 @@
 // Qdrant 向量数据库服务模块
 // 用于存储和检索诊断知识库
+//
+// P1-QD1: 安全警告——前端直连 Qdrant 可绕过 nginx 认证层
+// TODO: 所有向量库操作应通过 tRPC 代理（server/api/knowledge.router.ts）
+// 本文件仅作为开发阶段的临时方案，生产环境必须禁用前端直连
+// @deprecated 请使用 tRPC knowledge 路由替代
 
 // Qdrant API 基础地址
-// 生产环境通过 nginx 代理 /qdrant -> qdrant:6333
-const QDRANT_BASE_URL = import.meta.env.VITE_QDRANT_URL || 
-  (typeof window !== 'undefined' && window.location.hostname === 'localhost' 
-    ? `${window.location.protocol}//${window.location.hostname}:6333`
-    : '/qdrant');
+// P1-QD1: 生产环境必须通过 nginx 代理，禁止直连 6333 端口
+const QDRANT_BASE_URL = import.meta.env.VITE_QDRANT_URL || '/qdrant';
 
 // 集合名称
 export const COLLECTIONS = {

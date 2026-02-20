@@ -1,4 +1,4 @@
-import { router, publicProcedure } from "../../core/trpc";
+import { router, publicProcedure, protectedProcedure } from "../../core/trpc";
 import { telemetryService } from "../services/telemetry.service";
 import { clickhouseClient } from "../../lib/clients/clickhouse.client";
 import { getDb } from "../../lib/db";
@@ -29,7 +29,8 @@ const clickhouseDashboardRouter = router({
       return { error: "ClickHouse not available", tables: [] };
     }
   }),
-  recentQueries: publicProcedure
+  // P1-R7-02: 审计日志查询必须认证
+  recentQueries: protectedProcedure
     .input(z.object({ limit: z.number().default(20) }).optional())
     .query(async ({ input }) => {
       const db = (await getDb())!;
@@ -40,11 +41,11 @@ const clickhouseDashboardRouter = router({
         .limit(input?.limit || 20);
       return rows;
     }),
-  capacityMetrics: publicProcedure.query(async () => {
+  capacityMetrics: protectedProcedure.query(async () => {
     const db = (await getDb())!;
     return db.select().from(schema.systemCapacityMetrics).orderBy(desc(schema.systemCapacityMetrics.createdAt)).limit(50);
   }),
-  dataQuality: publicProcedure
+  dataQuality: protectedProcedure
     .input(z.object({ limit: z.number().default(20) }).optional())
     .query(async ({ input }) => {
       const db = (await getDb())!;

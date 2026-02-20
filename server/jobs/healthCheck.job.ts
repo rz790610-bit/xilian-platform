@@ -380,8 +380,11 @@ export async function checkAllServicesAndUpdateTopology(): Promise<{
     error?: string;
   }> = [];
   
+  // P2-HC-1: TODO 当前串行检查所有服务，建议改为 Promise.allSettled + 并发控制 (concurrency=5)
+  // 以避免服务数量多时健康检查超时累积
   for (const service of SYSTEM_SERVICES) {
-    // 检查服务状态
+   try {
+    // P1-R7-03: 每服务独立 try-catch，单个失败不中断后续检查
     const health = await checkServiceHealth(service);
     
     // 确保节点存在
@@ -418,6 +421,16 @@ export async function checkAllServicesAndUpdateTopology(): Promise<{
       latency: health.latency,
       error: health.error,
     });
+   } catch (err: any) {
+    // P1-R7-03: 单服务检查失败不中断后续
+    results.push({
+      nodeId: service.nodeId,
+      name: service.name,
+      online: false,
+      latency: -1,
+      error: err?.message ?? 'Health check failed',
+    });
+   }
   }
   
   return {

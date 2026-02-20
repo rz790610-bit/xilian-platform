@@ -339,8 +339,12 @@ export async function getSystemInfo(): Promise<{
 }
 
 /**
- * 计算 CPU 使用率（使用 Node.js 原生 API）
+ * P0-CPU-1: CPU 使用率计算修复为差值采样
+ * 原先的实现计算的是自开机以来的累计平均值，而非实时使用率。
+ * 现在改为两次采样的差值计算，反映真实的即时 CPU 使用率。
  */
+let prevCpuSnapshot: { idle: number; total: number } | null = null;
+
 function calculateCpuUsage(cpus: os.CpuInfo[]): number {
   let totalIdle = 0;
   let totalTick = 0;
@@ -352,5 +356,14 @@ function calculateCpuUsage(cpus: os.CpuInfo[]): number {
     totalIdle += cpu.times.idle;
   });
 
+  if (prevCpuSnapshot) {
+    const idleDiff = totalIdle - prevCpuSnapshot.idle;
+    const totalDiff = totalTick - prevCpuSnapshot.total;
+    prevCpuSnapshot = { idle: totalIdle, total: totalTick };
+    return totalDiff > 0 ? ((totalDiff - idleDiff) / totalDiff) * 100 : 0;
+  }
+
+  // 首次调用时保存快照，返回累计平均值作为初始值
+  prevCpuSnapshot = { idle: totalIdle, total: totalTick };
   return ((totalTick - totalIdle) / totalTick) * 100;
 }

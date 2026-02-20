@@ -337,3 +337,89 @@ function std(arr: number[]): number {
   const variance = arr.reduce((sum, v) => sum + (v - m) ** 2, 0) / arr.length;
   return Math.sqrt(variance);
 }
+
+// ============================================================================
+// TASCalculator 类封装 — 供 ShadowEvaluator 使用
+// P0-CODE-2: shadow-evaluator.ts 引用了 TASCalculator 类，但之前只导出函数
+// ============================================================================
+
+export interface TASConfig {
+  /** TAS 各维度权重 */
+  tasWeights: ShadowEvalConfig['tasWeights'];
+  /** PROMOTE 阈值 */
+  promoteThreshold: number;
+  /** REJECT 阈值 */
+  rejectThreshold: number;
+}
+
+const DEFAULT_TAS_CONFIG: TASConfig = {
+  tasWeights: { mcNemar: 0.3, dsFusion: 0.4, monteCarlo: 0.3 },
+  promoteThreshold: 0.7,
+  rejectThreshold: 0.4,
+};
+
+/**
+ * TAS 计算器类 — 对 calculateTAS 函数的面向对象封装
+ * 
+ * 支持通过构造函数注入配置，并提供 compute() 方法供 ShadowEvaluator 调用。
+ */
+export class TASCalculator {
+  private readonly config: TASConfig;
+
+  constructor(config?: Partial<TASConfig>) {
+    this.config = { ...DEFAULT_TAS_CONFIG, ...config };
+  }
+
+  /**
+   * 计算 TAS 综合保证分数
+   * 
+   * @param mcNemarInput McNemar 2×2 列联表输入
+   * @param dsFusionScore DS 融合证据评分 [0, 1]
+   * @param monteCarloScore Monte Carlo 鲁棒性评分 [0, 1]
+   * @param weightsOverride 可选的权重覆盖
+   */
+  compute(
+    mcNemarInput: McNemarInput,
+    dsFusionScore: number,
+    monteCarloScore: number,
+    weightsOverride?: ShadowEvalConfig['tasWeights'],
+  ): {
+    mcNemar: McNemarResult;
+    dsFusionScore: number;
+    monteCarloScore: number;
+    tasScore: number;
+    decision: 'PROMOTE' | 'CANARY_EXTENDED' | 'REJECT';
+    decisionReason: string;
+  } {
+    // Step 1: 执行 McNemar 检验
+    const mcNemarResult = mcNemarTest(mcNemarInput);
+
+    // Step 2: 构建 TASInput 并计算
+    const weights = weightsOverride || this.config.tasWeights;
+    const monteCarloResult: MonteCarloResult = {
+      robustnessScore: monteCarloScore,
+      challengerWinRate: monteCarloScore, // 近似
+      iterations: 0,
+      challengerMean: 0,
+      championMean: 0,
+      challengerStd: 0,
+      championStd: 0,
+    };
+
+    const tasOutput = calculateTAS({
+      mcNemar: mcNemarResult,
+      dsFusionScore,
+      monteCarlo: monteCarloResult,
+      weights,
+    });
+
+    return {
+      mcNemar: mcNemarResult,
+      dsFusionScore,
+      monteCarloScore,
+      tasScore: tasOutput.score,
+      decision: tasOutput.decision,
+      decisionReason: tasOutput.reason,
+    };
+  }
+}

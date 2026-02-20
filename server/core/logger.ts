@@ -57,7 +57,9 @@ class Logger {
   private pretty: boolean;
   private static globalLevel: LogLevel = (process.env.LOG_LEVEL as LogLevel) || 'info';
   private static logBuffer: LogEntry[] = [];
-  private static maxBufferSize = 1000;
+  // P2-LOG-1: 生产环境建议通过 addListener 将日志转发到 Loki/ELK，而非依赖内存缓冲区
+  // 内存缓冲区仅用于诊断端点和开发环境，生产环境应配置外部日志收集器
+  private static maxBufferSize = parseInt(process.env.LOG_BUFFER_SIZE || '1000', 10);
   private static listeners: Array<(entry: LogEntry) => void> = [];
 
   constructor(options: LoggerOptions = {}) {

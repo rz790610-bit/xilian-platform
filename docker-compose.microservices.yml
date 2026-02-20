@@ -27,16 +27,17 @@ version: '3.9'
 x-common-env: &common-env
   NODE_ENV: production
   REDIS_URL: redis://redis:6379
-  DATABASE_URL: mysql://xilian:xilian_secret@mysql:3306/xilian_platform
+  # P0-DOCKER-3: 数据库连接串密码改为环境变量引用
+  DATABASE_URL: mysql://${MYSQL_USER:-xilian}:${MYSQL_PASSWORD:?MYSQL_PASSWORD must be set}@mysql:3306/xilian_platform
   KAFKA_BROKERS: kafka:9092
   CLICKHOUSE_URL: http://clickhouse:8123
   NEO4J_URI: bolt://neo4j:7687
   NEO4J_USER: neo4j
-  NEO4J_PASSWORD: xilian_neo4j
+  NEO4J_PASSWORD: ${NEO4J_PASSWORD:?NEO4J_PASSWORD must be set}
   QDRANT_URL: http://qdrant:6333
   MINIO_ENDPOINT: minio:9000
   MINIO_ACCESS_KEY: xilian_minio
-  MINIO_SECRET_KEY: xilian_minio_secret
+  MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:?MINIO_SECRET_KEY must be set}
   ELASTICSEARCH_URL: http://elasticsearch:9200
   OLLAMA_URL: http://ollama:11434
   JAEGER_ENDPOINT: http://jaeger:14268/api/traces
@@ -291,17 +292,18 @@ services:
     image: mysql:8.0
     container_name: portai-mysql
     environment:
-      MYSQL_ROOT_PASSWORD: xilian_root
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD must be set}
       MYSQL_DATABASE: xilian_platform
       MYSQL_USER: xilian
-      MYSQL_PASSWORD: xilian_secret
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD must be set}
     ports:
       - "3306:3306"
     volumes:
       - mysql-data:/var/lib/mysql
       - ./docker/mysql/init:/docker-entrypoint-initdb.d
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uxilian", "-pxilian_secret"]
+      # P0-DOCKER-3: healthcheck 不应包含密码，改用无密码 ping
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       <<: *healthcheck-defaults
     networks:
       - portai-network
@@ -369,7 +371,7 @@ services:
     environment:
       CLICKHOUSE_DB: xilian_ts
       CLICKHOUSE_USER: xilian
-      CLICKHOUSE_PASSWORD: xilian_ch
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:?CLICKHOUSE_PASSWORD must be set}
     ports:
       - "8123:8123"
       - "9000:9000"
@@ -421,7 +423,7 @@ services:
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: xilian_minio
-      MINIO_ROOT_PASSWORD: xilian_minio_secret
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:?MINIO_SECRET_KEY must be set}
     ports:
       - "9010:9000"
       - "9011:9001"
@@ -479,7 +481,7 @@ services:
     container_name: portai-grafana
     environment:
       GF_SECURITY_ADMIN_USER: admin
-      GF_SECURITY_ADMIN_PASSWORD: xilian_grafana
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:?GRAFANA_PASSWORD must be set}
       GF_INSTALL_PLUGINS: grafana-clock-panel,grafana-piechart-panel
     ports:
       - "3100:3000"

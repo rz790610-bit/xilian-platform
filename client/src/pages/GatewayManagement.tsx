@@ -10,8 +10,9 @@
  * - 上游管理（负载均衡 + 健康检查 + 目标节点）
  * - 消费者管理（API Key 生成）
  * 
- * 当前使用 Mock 数据，待后端 gateway router 注册后
- * 可替换为 trpc.gateway.* 调用
+ * P2-GW-1: 当前使用 Mock 数据，待后端 gateway router 注册后
+ * TODO: 替换为 trpc.gateway.* 调用
+ * 需要后端提供: trpc.gateway.getDashboard / getRoutes / getServices / getPlugins / getUpstreams
  * ============================================================
  */
 

@@ -20,7 +20,7 @@
  */
 
 import { createModuleLogger } from '../../../core/logger';
-import type { DimensionProcessor } from '../engines/cognition-unit';
+import type { DimensionProcessor, DimensionContext } from '../engines/cognition-unit';
 import type {
   CognitionStimulus,
   PerceptionOutput,
@@ -85,8 +85,10 @@ export class PerceptionProcessor implements DimensionProcessor<PerceptionOutput>
    */
   async process(
     stimulus: CognitionStimulus,
-    degradationMode: DegradationMode,
+    context: DimensionContext,
   ): Promise<PerceptionOutput> {
+    // P0-CODE-4: 统一签名为 (stimulus, context)，从 context 中取 degradationMode
+    const degradationMode = context.degradationMode;
     const startTime = Date.now();
 
     try {

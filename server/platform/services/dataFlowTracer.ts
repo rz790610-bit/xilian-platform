@@ -109,6 +109,8 @@ const TOPIC_MODULE_MAP: Record<string, string> = {
  * 推断事件的目标模块
  * 基于 topic 语义和事件类型推断消费者
  */
+// P2-DFT1: TODO 硬编码的 Topic-目标模块映射应迁移到注册中心
+// 当前新增 Topic 必须手动修改此文件，建议改为动态注册机制
 const TOPIC_TARGET_MAP: Record<string, string[]> = {
   'device.status': ['monitoring', 'alert'],
   'device.heartbeat': ['monitoring'],

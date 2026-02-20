@@ -21,7 +21,7 @@
 
 import { createModuleLogger } from '../../../core/logger';
 import { invokeLLM } from '../../../core/llm';
-import type { DimensionProcessor } from '../engines/cognition-unit';
+import type { DimensionProcessor, DimensionContext } from '../engines/cognition-unit';
 import type {
   CognitionStimulus,
   ReasoningOutput,
@@ -116,9 +116,11 @@ export class ReasoningProcessor implements DimensionProcessor<ReasoningOutput> {
    */
   async process(
     stimulus: CognitionStimulus,
-    degradationMode: DegradationMode,
-    perceptionOutput?: PerceptionOutput,
+    context: DimensionContext,
   ): Promise<ReasoningOutput> {
+    // P0-CODE-4: 统一签名为 (stimulus, context)
+    const degradationMode = context.degradationMode;
+    const perceptionOutput = context.completedDimensions.get('perception') as PerceptionOutput | undefined;
     const startTime = Date.now();
 
     try {

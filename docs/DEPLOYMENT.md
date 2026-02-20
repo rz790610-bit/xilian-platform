@@ -116,8 +116,8 @@ cd xilian-platform
 3.  **访问平台:**
 
     -   **PortAI Nexus 平台**: `http://localhost:3000`
-    -   **Grafana 监控面板**: `http://localhost:3001` (用户: `admin`, 密码: `admin123`)
-    -   **MinIO 对象存储控制台**: `http://localhost:9011` (用户: `portai`, 密码: `portai123456`)
+    -   **Grafana 监控面板**: `http://localhost:3001` (用户: `admin`, 密码: 见 `.env` 中 `GRAFANA_PASSWORD`)
+    -   **MinIO 对象存储控制台**: `http://localhost:9011` (用户: `portai`, 密码: 见 `.env` 中 `MINIO_SECRET_KEY`)
 
 ### 4.2. 环境变量 (Docker)
 

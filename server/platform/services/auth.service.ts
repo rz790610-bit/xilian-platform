@@ -94,10 +94,13 @@ export class AuthService {
 
     // 1. 验证签名
     const expectedSignature = hmacSign(`${headerB64}.${payloadB64}`, this.jwtSecret);
-    const signatureValid = crypto.timingSafeEqual(
-      Buffer.from(expectedSignature),
-      Buffer.from(signatureB64),
-    );
+    // P1-AUTH-1: timingSafeEqual 要求两个 Buffer 长度相同，否则抛异常
+    const expectedBuf = Buffer.from(expectedSignature);
+    const actualBuf = Buffer.from(signatureB64);
+    if (expectedBuf.length !== actualBuf.length) {
+      return { valid: false, reason: 'Invalid signature' };
+    }
+    const signatureValid = crypto.timingSafeEqual(expectedBuf, actualBuf);
 
     if (!signatureValid) {
       return { valid: false, reason: 'Invalid signature' };

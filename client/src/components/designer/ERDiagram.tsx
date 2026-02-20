@@ -90,7 +90,12 @@ export default function ERDiagram() {
     const timer = setTimeout(() => {
       try {
         localStorage.setItem(LS_KEY, JSON.stringify(positions));
-      } catch { /* quota exceeded, ignore */ }
+      } catch (e) {
+        // P2-ER2: QuotaExceededError 时提示用户
+        if (e instanceof DOMException && e.name === 'QuotaExceededError') {
+          console.warn('[ERDiagram] localStorage 容量已满，ER 位置无法保存');
+        }
+      }
     }, 500);
     return () => clearTimeout(timer);
   }, [positions]);

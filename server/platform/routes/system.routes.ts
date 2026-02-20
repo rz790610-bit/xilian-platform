@@ -42,16 +42,17 @@ const healthRouter = router({
       responseMs: Date.now() - startTime,
     };
   }),
-  listTables: publicProcedure.query(() => schemaRegistry.listTables()),
-  tableSchema: publicProcedure
+  // P0-AUTH-1: Schema 信息属于敏感元数据
+  listTables: protectedProcedure.query(() => schemaRegistry.listTables()),
+  tableSchema: protectedProcedure
     .input(z.object({ tableName: z.string() }))
     .query(({ input }) => schemaRegistry.getTableSchema(input.tableName)),
-  tableCount: publicProcedure.query(() => schemaRegistry.getTableCount()),
+  tableCount: protectedProcedure.query(() => schemaRegistry.getTableCount()),
 });
 
 // ============ 告警规则 CRUD（读取公开，写操作需鉴权） ============
 const alertRulesRouter = router({
-  list: publicProcedure
+  list: protectedProcedure
     .input(z.object({
       page: z.number().min(1).default(1),
       pageSize: z.number().min(1).max(100).default(20),
@@ -75,7 +76,7 @@ const alertRulesRouter = router({
       ]);
       return { rows, total: total[0]?.count || 0, page: p.page, pageSize: p.pageSize };
     }),
-  getById: publicProcedure
+  getById: protectedProcedure
     .input(z.object({ id: z.number() }))
     .query(async ({ input }) => {
       const db = (await getDb())!;
@@ -135,7 +136,7 @@ const alertRulesRouter = router({
       const db = (await getDb())!;
       return db.update(schema.alertRules).set({ isActive: input.isActive, updatedAt: new Date() } as typeof schema.alertRules.$inferInsert).where(eq(schema.alertRules.id, input.id));
     }),
-  stats: publicProcedure.query(async () => {
+  stats: protectedProcedure.query(async () => {
     const db = (await getDb())!;
     const [total, active, critical, warning] = await Promise.all([
       db.select({ count: count() }).from(schema.alertRules).where(eq(schema.alertRules.isDeleted, 0)),
@@ -149,7 +150,8 @@ const alertRulesRouter = router({
 
 // ============ 审计日志查询（只读公开，敏感日志需鉴权） ============
 const auditLogsRouter = router({
-  list: publicProcedure
+  // P0-AUTH-1: 审计日志包含操作记录，需要认证
+  list: protectedProcedure
     .input(z.object({
       page: z.number().min(1).default(1),
       pageSize: z.number().min(1).max(100).default(20),
@@ -175,7 +177,7 @@ const auditLogsRouter = router({
       ]);
       return { rows, total: total[0]?.count || 0, page: p.page, pageSize: p.pageSize };
     }),
-  stats: publicProcedure.query(async () => {
+  stats: protectedProcedure.query(async () => {
     const db = (await getDb())!;
     const [total, success, fail] = await Promise.all([
       db.select({ count: count() }).from(schema.auditLogs),
@@ -197,7 +199,8 @@ const auditLogsRouter = router({
 
 // ============ 定时任务 CRUD（全部需鉴权，删除需管理员） ============
 const scheduledTasksRouter = router({
-  list: publicProcedure
+  // P0-AUTH-1: 定时任务信息需要认证
+  list: protectedProcedure
     .input(z.object({
       page: z.number().min(1).default(1),
       pageSize: z.number().min(1).max(100).default(20),
@@ -267,7 +270,7 @@ const scheduledTasksRouter = router({
       const db = (await getDb())!;
       return db.update(schema.scheduledTasks).set({ status: input.status } as typeof schema.scheduledTasks.$inferInsert).where(eq(schema.scheduledTasks.id, input.id));
     }),
-  stats: publicProcedure.query(async () => {
+  stats: protectedProcedure.query(async () => {
     const db = (await getDb())!;
     const [total, active, paused] = await Promise.all([
       db.select({ count: count() }).from(schema.scheduledTasks),
@@ -276,7 +279,8 @@ const scheduledTasksRouter = router({
     ]);
     return { total: total[0]?.count || 0, active: active[0]?.count || 0, paused: paused[0]?.count || 0 };
   }),
-  asyncLogs: publicProcedure
+  // P0-AUTH-1: 异步日志包含运行时信息，需要认证
+  asyncLogs: protectedProcedure
     .input(z.object({ page: z.number().default(1), pageSize: z.number().default(20), status: z.string().optional() }).optional())
     .query(async ({ input }) => {
       const db = (await getDb())!;

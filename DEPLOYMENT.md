@@ -116,24 +116,25 @@ pnpm dev
 所有配置集中在 `.env` 文件中：
 
 ```bash
+# ❗ 安全提示：生产环境必须使用强密码，以下为示例占位符
 # MySQL
-DATABASE_URL=mysql://portai:portai123@localhost:3306/portai_nexus
-MYSQL_ROOT_PASSWORD=root123
+DATABASE_URL=mysql://portai:<YOUR_MYSQL_PASSWORD>@localhost:3306/portai_nexus
+MYSQL_ROOT_PASSWORD=<YOUR_ROOT_PASSWORD>   # 至少 16 位随机字符
 MYSQL_DATABASE=portai_nexus
 MYSQL_USER=portai
-MYSQL_PASSWORD=portai123
+MYSQL_PASSWORD=<YOUR_MYSQL_PASSWORD>       # 至少 16 位随机字符
 
 # ClickHouse
 CLICKHOUSE_HOST=localhost
 CLICKHOUSE_PORT=8123
 CLICKHOUSE_DATABASE=portai_timeseries
 CLICKHOUSE_USER=portai
-CLICKHOUSE_PASSWORD=portai123
+CLICKHOUSE_PASSWORD=<YOUR_CH_PASSWORD>     # 至少 16 位随机字符
 
 # MinIO
 MINIO_ENDPOINT=http://localhost:9010
 MINIO_ACCESS_KEY=portai
-MINIO_SECRET_KEY=portai123456
+MINIO_SECRET_KEY=<YOUR_MINIO_SECRET>       # 至少 16 位随机字符
 
 # Qdrant
 QDRANT_URL=http://localhost:6333

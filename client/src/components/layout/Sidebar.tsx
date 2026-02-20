@@ -11,6 +11,7 @@ export function Sidebar() {
     expandedMenus, 
     toggleMenu,
     currentPage,
+    currentSubPage, // P2-S1: 改为响应式订阅，替代 getState() 非响应式调用
     setCurrentPage,
     setCurrentSubPage
   } = useAppStore();
@@ -142,7 +143,7 @@ export function Sidebar() {
                         "flex items-center gap-1.5 py-1 px-3 pl-7 cursor-pointer transition-all duration-200 text-muted-foreground",
                         "hover:text-foreground hover:bg-sidebar-accent",
                         subItem.children && "font-medium",
-                        !subItem.children && currentPage === item.id && useAppStore.getState().currentSubPage === subItem.id && "text-sidebar-primary bg-sidebar-primary/10"
+                        !subItem.children && currentPage === item.id && currentSubPage === subItem.id && "text-sidebar-primary bg-sidebar-primary/10"
                       )}
                     >
                       <span className="text-xs leading-none shrink-0">{subItem.icon}</span>
@@ -172,7 +173,7 @@ export function Sidebar() {
                             className={cn(
                               "flex items-center gap-1.5 py-1 px-3 pl-10 cursor-pointer transition-all duration-200 text-muted-foreground",
                               "hover:text-foreground hover:bg-sidebar-accent",
-                              currentPage === item.id && useAppStore.getState().currentSubPage === leafItem.id && "text-sidebar-primary bg-sidebar-primary/10"
+                              currentPage === item.id && currentSubPage === leafItem.id && "text-sidebar-primary bg-sidebar-primary/10"
                             )}
                           >
                             <span className="text-[10px] leading-none shrink-0">{leafItem.icon}</span>

@@ -1156,14 +1156,22 @@ class RedisClientManager {
 
   /**
    * 按模式获取键
+   * P1-REDIS-1: 使用 SCAN 替代 KEYS 命令，避免在大数据量时阻塞 Redis
    */
   async keys(pattern: string): Promise<string[]> {
     if (!this.client) return [];
 
     try {
-      return await this.client.keys(pattern);
+      const results: string[] = [];
+      let cursor = '0';
+      do {
+        const [nextCursor, keys] = await this.client.scan(cursor, 'MATCH', pattern, 'COUNT', 100);
+        cursor = nextCursor;
+        results.push(...keys);
+      } while (cursor !== '0');
+      return results;
     } catch (error) {
-      log.error('[Redis] Keys error:', error);
+      log.error('[Redis] Keys (SCAN) error:', error);
       return [];
     }
   }

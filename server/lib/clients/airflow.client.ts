@@ -14,8 +14,9 @@ const AIRFLOW_CONFIG = {
   host: process.env.AIRFLOW_HOST || 'localhost',
   port: parseInt(process.env.AIRFLOW_PORT || '8080'),
   protocol: process.env.AIRFLOW_PROTOCOL || 'http',
-  username: process.env.AIRFLOW_USERNAME || 'admin',
-  password: process.env.AIRFLOW_PASSWORD || 'admin',
+  // P0-CRED-1: 移除硬编码默认凭证，生产环境必须通过环境变量配置
+  username: process.env.AIRFLOW_USERNAME || (() => { console.warn('[SECURITY] AIRFLOW_USERNAME not set, using fallback'); return 'admin'; })(),
+  password: process.env.AIRFLOW_PASSWORD || (() => { console.warn('[SECURITY] AIRFLOW_PASSWORD not set — MUST configure in production'); return ''; })(),
   timeout: 30000,
 };
 

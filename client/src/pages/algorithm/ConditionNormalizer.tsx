@@ -1,4 +1,7 @@
 /**
+ * P2-CN1: 工况定义 Tab 已通过 fetch 对接 tRPC，但应迁移为 trpc.useQuery/useMutation hooks
+ * TODO: 将 fetch('/api/trpc/...') 调用统一替换为 trpc client hooks
+ *
  * 工况归一化页面
  *
  * 5 个 Tab：

@@ -271,7 +271,11 @@ export async function deleteTopoLayout(id: number): Promise<boolean> {
 
 // ============ 初始化默认拓扑数据 ============
 
+// P1-R7-07: 应用级 flag，避免每次请求都查询数据库检查是否已初始化
+let _topologyInitialized = false;
+
 export async function initializeDefaultTopology(): Promise<boolean> {
+  if (_topologyInitialized) return true;
   const db = await getDb();
   if (!db) return false;
   
@@ -279,6 +283,7 @@ export async function initializeDefaultTopology(): Promise<boolean> {
     // 检查是否已有数据
     const existingNodes = await db.select().from(topoNodes).limit(1);
     if (existingNodes.length > 0) {
+      _topologyInitialized = true;
       return true; // 已有数据，不需要初始化
     }
     
@@ -326,6 +331,7 @@ export async function initializeDefaultTopology(): Promise<boolean> {
     
     await db.insert(topoLayouts).values(defaultLayout);
     
+    _topologyInitialized = true;
     return true;
   } catch (error) {
     log.error("[Topology] Failed to initialize default topology:", error);
@@ -582,7 +588,8 @@ export const topologyRouter = router({
   }),
   
   // 重置为默认拓扑
-  resetToDefault: publicProcedure.mutation(async () => {
+  // P0-AUTH-2: 重置拓扑是破坏性操作，必须认证
+  resetToDefault: protectedProcedure.mutation(async () => {
     const db = await getDb();
     if (!db) return false;
     
@@ -601,7 +608,8 @@ export const topologyRouter = router({
   }),
 
   // 检查所有服务状态并更新拓扑
-  checkServicesHealth: publicProcedure.mutation(async () => {
+  // P0-AUTH-2: 服务健康检查触发外部调用，需要认证
+  checkServicesHealth: protectedProcedure.mutation(async () => {
     const { checkAllServicesAndUpdateTopology } = await import('../jobs/healthCheck.job');
     return await checkAllServicesAndUpdateTopology();
   }),

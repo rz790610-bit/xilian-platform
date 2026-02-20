@@ -215,7 +215,12 @@ class HttpClient {
           method,
           headers,
           body: options?.body ? JSON.stringify(options.body) : undefined,
-          signal: options?.signal ?? controller.signal,
+          // P1-R7-06: 每次重试创建新 AbortController，合并用户 signal 和超时 signal
+          signal: options?.signal
+            ? (typeof AbortSignal.any === 'function'
+              ? AbortSignal.any([options.signal, controller.signal])
+              : controller.signal)
+            : controller.signal,
         });
 
         clearTimeout(timeoutId);

@@ -20,7 +20,7 @@
  */
 
 import { createModuleLogger } from '../../../core/logger';
-import type { DimensionProcessor } from '../engines/cognition-unit';
+import type { DimensionProcessor, DimensionContext } from '../engines/cognition-unit';
 import { DSFusionEngine } from '../engines/ds-fusion.engine';
 import type {
   CognitionStimulus,
@@ -93,10 +93,12 @@ export class FusionProcessor implements DimensionProcessor<FusionOutput> {
    */
   async process(
     stimulus: CognitionStimulus,
-    degradationMode: DegradationMode,
-    perceptionOutput?: PerceptionOutput,
-    reasoningOutput?: ReasoningOutput,
+    context: DimensionContext,
   ): Promise<FusionOutput> {
+    // P0-CODE-4: 统一签名为 (stimulus, context)
+    const degradationMode = context.degradationMode;
+    const perceptionOutput = context.completedDimensions.get('perception') as PerceptionOutput | undefined;
+    const reasoningOutput = context.completedDimensions.get('reasoning') as ReasoningOutput | undefined;
     const startTime = Date.now();
 
     try {
@@ -112,7 +114,8 @@ export class FusionProcessor implements DimensionProcessor<FusionOutput> {
       }
 
       // 2. 执行 DS 融合
-      const dsFusionResult = this.dsFusionEngine.fuse(evidences);
+      // P0-CODE-3: DSFusionEngine 没有 fuse() 方法，正确方法名为 fuseMultiple()
+      const dsFusionResult = this.dsFusionEngine.fuseMultiple(evidences);
 
       // 3. 冲突分析
       const conflictAnalysis = this.analyzeConflicts(

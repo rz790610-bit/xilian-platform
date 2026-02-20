@@ -4,8 +4,10 @@
 // Ollama API 基础地址
 // - 开发环境：直接访问 localhost:11434
 // - Docker 部署：通过 nginx 代理，使用相对路径 /api
+// P2-OL1: 生产环境必须配置 VITE_OLLAMA_URL 或通过 nginx 代理
+// 原来生产环境为空字符串会导致所有调用失败
 const OLLAMA_BASE_URL = import.meta.env.VITE_OLLAMA_URL || 
-  (import.meta.env.DEV ? 'http://localhost:11434' : '');
+  (import.meta.env.DEV ? 'http://localhost:11434' : '/api/ollama');
 
 // 模型信息接口
 export interface OllamaModel {

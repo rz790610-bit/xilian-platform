@@ -134,7 +134,8 @@ const deviceServiceImpl = {
       const db = await getDb();
       if (!db) throw new Error('Database not available');
 
-      const nodeId = `dev_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      // P1-R7-04: 使用 crypto.randomUUID() 替代 Date.now()+Math.random() 避免碰撞
+      const nodeId = `dev_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`;
       
       const [inserted] = await db.insert(assetNodes).values({
         nodeId,
@@ -406,7 +407,8 @@ const deviceServiceImpl = {
 
       for (const dev of devices) {
         try {
-          const nodeId = `dev_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+          // P1-R7-04: 使用 crypto.randomUUID() 替代 Date.now()+Math.random() 避免碰撞
+      const nodeId = `dev_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`;
           await db.insert(assetNodes).values({
             nodeId,
             code: `DEV_${nodeId}`,

@@ -12,8 +12,9 @@ const log = createModuleLogger('clickhouse');
 
 const CLICKHOUSE_CONFIG = {
   host: process.env.CLICKHOUSE_HOST || 'http://localhost:8123',
-  username: process.env.CLICKHOUSE_USER || 'xilian',
-  password: process.env.CLICKHOUSE_PASSWORD || 'xilian123',
+  username: process.env.CLICKHOUSE_USER || 'default',
+  // P0-CRED-2: 移除硬编码密码，生产环境必须配置 CLICKHOUSE_PASSWORD
+  password: process.env.CLICKHOUSE_PASSWORD || (() => { console.warn('[SECURITY] CLICKHOUSE_PASSWORD not set — MUST configure in production'); return ''; })(),
   database: process.env.CLICKHOUSE_DATABASE || 'xilian',
 };
 

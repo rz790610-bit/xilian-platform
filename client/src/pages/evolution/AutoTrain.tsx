@@ -71,6 +71,10 @@ interface TrainJob {
 }
 
 // ==================== Mock 数据 ====================
+// P2-Tr1: TODO 待后端 autoTrain 路由实现后，替换为 tRPC 调用
+// 当前整页使用 Mock 数据，需要后端提供：
+// - trpc.autoTrain.listJobs / createJob / stopJob / getJobMetrics
+// - trpc.autoTrain.getTrainingLogs (WebSocket 推送)
 
 const mockJobs: TrainJob[] = [
   {

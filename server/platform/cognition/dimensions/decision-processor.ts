@@ -20,7 +20,7 @@
  */
 
 import { createModuleLogger } from '../../../core/logger';
-import type { DimensionProcessor } from '../engines/cognition-unit';
+import type { DimensionProcessor, DimensionContext } from '../engines/cognition-unit';
 import type {
   CognitionStimulus,
   DecisionOutput,
@@ -119,11 +119,13 @@ export class DecisionProcessor implements DimensionProcessor<DecisionOutput> {
    */
   async process(
     stimulus: CognitionStimulus,
-    degradationMode: DegradationMode,
-    perceptionOutput?: PerceptionOutput,
-    reasoningOutput?: ReasoningOutput,
-    fusionOutput?: FusionOutput,
+    dimContext: DimensionContext,
   ): Promise<DecisionOutput> {
+    // P0-CODE-4: 统一签名为 (stimulus, context)
+    const degradationMode = dimContext.degradationMode;
+    const perceptionOutput = dimContext.completedDimensions.get('perception') as PerceptionOutput | undefined;
+    const reasoningOutput = dimContext.completedDimensions.get('reasoning') as ReasoningOutput | undefined;
+    const fusionOutput = dimContext.completedDimensions.get('fusion') as FusionOutput | undefined;
     const startTime = Date.now();
 
     try {

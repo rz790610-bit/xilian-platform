@@ -261,8 +261,24 @@ export async function checkService(serviceName: string): Promise<ServiceHealth |
 
 /**
  * 添加自定义服务检查
+ * P1-HC-1: 添加 URL 校验，防止注入恶意地址
  */
 export function addServiceConfig(config: HealthCheckConfig): void {
+  // 校验 URL 格式
+  try {
+    const parsed = new URL(config.url);
+    if (!['http:', 'https:'].includes(parsed.protocol)) {
+      throw new Error(`Invalid protocol: ${parsed.protocol}`);
+    }
+    // 阻止内网地址注入（可根据实际需求调整）
+    const hostname = parsed.hostname;
+    if (hostname === '169.254.169.254' || hostname === 'metadata.google.internal') {
+      throw new Error('Cloud metadata endpoint is not allowed');
+    }
+  } catch (e) {
+    throw new Error(`Invalid service URL for ${config.name}: ${(e as Error).message}`);
+  }
+
   const existingIndex = SERVICE_CONFIGS.findIndex(c => c.name === config.name);
   if (existingIndex >= 0) {
     SERVICE_CONFIGS[existingIndex] = config;

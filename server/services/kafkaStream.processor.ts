@@ -124,10 +124,10 @@ export class KafkaStreamProcessor {
     log.debug('[KafkaStreamProcessor] 启动流处理器...');
     this.isRunning = true;
 
-    // 订阅遥测数据主题
+    // 订阅遥测数据主题 — 使用新 Topic（TELEMETRY 已 @deprecated）
     await kafkaClient.subscribe(
       'stream-processor-group',
-      [KAFKA_TOPICS.TELEMETRY],
+      [KAFKA_TOPICS.TELEMETRY_FEATURE],
       this.handleTelemetryMessage.bind(this)
     );
 

@@ -66,6 +66,14 @@ const validatePayload = (input: NotificationPayload): NotificationPayload => {
  * cannot be reached (callers can fall back to email/slack). Validation errors
  * bubble up as TRPC errors so callers can fix the payload.
  */
+// P2-NOTIF-1: 添加指数退避重试逻辑
+const MAX_RETRIES = 3;
+const BASE_DELAY_MS = 500;
+
+async function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 export async function notifyOwner(
   payload: NotificationPayload
 ): Promise<boolean> {
@@ -87,31 +95,51 @@ export async function notifyOwner(
 
   const endpoint = buildEndpointUrl(ENV.forgeApiUrl);
 
-  try {
-    const response = await fetch(endpoint, {
-      method: "POST",
-      headers: {
-        accept: "application/json",
-        authorization: `Bearer ${ENV.forgeApiKey}`,
-        "content-type": "application/json",
-        "connect-protocol-version": "1",
-      },
-      body: JSON.stringify({ title, content }),
-    });
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          accept: "application/json",
+          authorization: `Bearer ${ENV.forgeApiKey}`,
+          "content-type": "application/json",
+          "connect-protocol-version": "1",
+        },
+        body: JSON.stringify({ title, content }),
+      });
 
-    if (!response.ok) {
+      if (response.ok) {
+        return true;
+      }
+
+      // 4xx 客户端错误不重试
+      if (response.status >= 400 && response.status < 500) {
+        const detail = await response.text().catch(() => "");
+        log.warn(
+          `[Notification] Client error (${response.status} ${response.statusText})${
+            detail ? `: ${detail}` : ""
+          }`
+        );
+        return false;
+      }
+
+      // 5xx 服务端错误可重试
       const detail = await response.text().catch(() => "");
       log.warn(
-        `[Notification] Failed to notify owner (${response.status} ${response.statusText})${
+        `[Notification] Server error attempt ${attempt + 1}/${MAX_RETRIES + 1} (${response.status})${
           detail ? `: ${detail}` : ""
         }`
       );
-      return false;
+    } catch (error) {
+      log.warn(`[Notification] Network error attempt ${attempt + 1}/${MAX_RETRIES + 1}:`, error);
     }
 
-    return true;
-  } catch (error) {
-    log.warn("[Notification] Error calling notification service:", error);
-    return false;
+    if (attempt < MAX_RETRIES) {
+      const delay = BASE_DELAY_MS * Math.pow(2, attempt);
+      await sleep(delay);
+    }
   }
+
+  log.warn(`[Notification] All ${MAX_RETRIES + 1} attempts failed`);
+  return false;
 }

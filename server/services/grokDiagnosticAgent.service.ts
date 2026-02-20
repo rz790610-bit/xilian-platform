@@ -306,7 +306,8 @@ async function executeToolCall(
   toolName: string,
   args: Record<string, unknown>
 ): Promise<unknown> {
-  const db = getDb();
+  // P0-CODE-1: getDb() 是 async 函数，必须 await
+  const db = await getDb();
   if (!db) {
     return { error: '数据库未连接' };
   }
@@ -1061,7 +1062,7 @@ function parseDiagnosticOutput(
 // ============================================================
 
 async function persistDiagnosticResult(result: DiagnosticResult): Promise<void> {
-  const db = getDb();
+  const db = await getDb();
   if (!db) return;
 
   try {

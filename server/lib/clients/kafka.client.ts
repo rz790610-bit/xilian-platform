@@ -180,25 +180,31 @@ class KafkaClientManager {
     await consumer.subscribe({ topics, fromBeginning });
 
     await consumer.run({
+      // P1-KAFKA-1: 添加异常处理，防止单条消息处理失败导致消费者崩溃
       eachMessage: async ({ topic, partition, message }) => {
-        const headers: Record<string, string> = {};
-        if (message.headers) {
-          for (const [key, value] of Object.entries(message.headers)) {
-            if (value) {
-              headers[key] = value.toString();
+        try {
+          const headers: Record<string, string> = {};
+          if (message.headers) {
+            for (const [key, value] of Object.entries(message.headers)) {
+              if (value) {
+                headers[key] = value.toString();
+              }
             }
           }
-        }
 
-        await handler({
-          topic,
-          partition,
-          offset: message.offset,
-          key: message.key?.toString() || null,
-          value: message.value?.toString() || null,
-          headers,
-          timestamp: message.timestamp,
-        });
+          await handler({
+            topic,
+            partition,
+            offset: message.offset,
+            key: message.key?.toString() || null,
+            value: message.value?.toString() || null,
+            headers,
+            timestamp: message.timestamp,
+          });
+        } catch (err) {
+          log.error(`[Kafka] 消息处理失败 topic=${topic} partition=${partition} offset=${message.offset}:`, err);
+          // 不抛出异常，避免消费者崩溃，消息将被跳过
+        }
       },
     });
 
