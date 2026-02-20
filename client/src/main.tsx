@@ -8,16 +8,28 @@ import App from "./App";
 import { getLoginUrl } from "./const";
 import "./index.css";
 
-const queryClient = new QueryClient();
+// [P3-E1 修复] 配置全局 staleTime，避免窗口重新聚焦时频繁重新请求
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 60 * 1000, // 1 分钟内认为数据新鲜，不重新获取
+      refetchOnWindowFocus: false, // 禁止窗口聚焦时自动重新获取
+    },
+  },
+});
 
 const redirectToLoginIfUnauthorized = (error: unknown) => {
   if (!(error instanceof TRPCClientError)) return;
   if (typeof window === "undefined") return;
 
-  // Skip redirect in local development (when SKIP_AUTH is enabled on server)
-  const isLocalDev = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+  // [P2-E1 修复] 本地开发认证跳过改为环境变量控制，避免 hostname 检测在 Docker Compose 环境中失效
+  // 实际的 SKIP_AUTH 由服务端控制（见批次 13-14 P1-D1），前端仅做视觉行为匹配
+  const isLocalDev = import.meta.env.DEV || 
+    window.location.hostname === "localhost" || 
+    window.location.hostname === "127.0.0.1" ||
+    window.location.hostname.endsWith('.local');
   if (isLocalDev) {
-    console.log("[Auth] Skipping redirect in local development");
+    console.log("[Auth] Skipping redirect in local development (hostname:", window.location.hostname, ")");
     return;
   }
 

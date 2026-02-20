@@ -38,14 +38,16 @@ export function useAuth(options?: UseAuthOptions) {
     } finally {
       utils.auth.me.setData(undefined, null);
       await utils.auth.me.invalidate();
+      // [P1-A1] logout 时显式清除可能残留的用户信息
+      try { localStorage.removeItem('manus-runtime-user-info'); } catch { /* ignore */ }
     }
   }, [logoutMutation, utils]);
 
+  // [P1-A1 修复] 移除 localStorage 明文写入用户信息（含 roles/permissions 等敏感字段）
+  // 若需跨 Tab 共享用户状态，应使用 BroadcastChannel API 或 sessionStorage
   const state = useMemo(() => {
-    localStorage.setItem(
-      "manus-runtime-user-info",
-      JSON.stringify(meQuery.data)
-    );
+    // 清除历史遗留的 localStorage 条目（兼容旧版本升级）
+    try { localStorage.removeItem('manus-runtime-user-info'); } catch { /* ignore */ }
     return {
       user: meQuery.data ?? null,
       loading: meQuery.isLoading || logoutMutation.isPending,

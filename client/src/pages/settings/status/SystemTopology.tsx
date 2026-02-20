@@ -448,6 +448,8 @@ export default function SystemTopology() {
     });
   }, []); // 空依赖 — 所有状态从 ref 读取
   
+  // [P2-Tp1 修复] 节点拖拽仅在 mouseup 时提交最终位置到后端
+  // mousemove 期间只更新本地状态，避免每 16ms 触发一次 tRPC 请求
   const handleMouseUp = useCallback(() => {
     // 清理 rAF
     if (nodeRafRef.current !== null) {

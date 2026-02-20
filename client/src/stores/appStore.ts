@@ -16,8 +16,10 @@ import type {
   Tag
 } from '@/types';
 
-// API 基础地址
-export const API_BASE = 'http://localhost:8000';
+// [P1-A2 修复] 已删除硬编码 API_BASE = 'http://localhost:8000'
+// 所有 API 调用应统一通过 tRPC 的 /api/trpc 代理发出
+// 若仍有组件需要直接 fetch，应使用相对路径（如 '/api/analyze'）而非绝对 URL
+// export const API_BASE = 'http://localhost:8000'; // REMOVED
 
 interface AppState {
   // 导航状态

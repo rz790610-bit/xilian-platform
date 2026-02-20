@@ -298,8 +298,15 @@ function DockerEnginePanel() {
   });
 
   const handleStart = (name: string) => { setActionLoading(`start-${name}`); startMut.mutate({ containerName: name }); };
-  const handleStop = (name: string) => { setActionLoading(`stop-${name}`); stopMut.mutate({ containerName: name }); };
-  const handleRestart = (name: string) => { setActionLoading(`restart-${name}`); restartMut.mutate({ containerName: name }); };
+  // [P2-I1 修复] 容器 stop/restart 添加确认弹窗，防止生产环境误触
+  const handleStop = (name: string) => {
+    if (!window.confirm(`确认要停止容器 "${name}" 吗？\n\n警告：停止关键服务可能导致平台功能中断。`)) return;
+    setActionLoading(`stop-${name}`); stopMut.mutate({ containerName: name });
+  };
+  const handleRestart = (name: string) => {
+    if (!window.confirm(`确认要重启容器 "${name}" 吗？\n\n重启期间服务将短暂不可用。`)) return;
+    setActionLoading(`restart-${name}`); restartMut.mutate({ containerName: name });
+  };
   const handleViewLogs = (containerName: string, displayName: string) => {
     setLogsTarget(containerName);
     setLogsTargetName(displayName);

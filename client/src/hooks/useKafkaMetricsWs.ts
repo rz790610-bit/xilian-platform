@@ -156,6 +156,7 @@ export function useKafkaMetricsWs(): UseKafkaMetricsWsResult {
   }, []);
 
   // 断开连接
+  // [P2-H1 修复] disconnect 时重置 reconnectAttempts，避免手动 reconnect 后只能再尝试剩余次数
   const disconnect = useCallback(() => {
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
@@ -167,6 +168,7 @@ export function useKafkaMetricsWs(): UseKafkaMetricsWsResult {
       wsRef.current = null;
     }
     
+    reconnectAttempts.current = 0; // 重置重连计数器
     setIsConnected(false);
   }, []);
 

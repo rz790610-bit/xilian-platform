@@ -146,16 +146,20 @@ export default function PlatformDiagnostic() {
   }, [diagQuestion, diagnoseMutation, toast]);
 
   // ============ 切换模块开关 ============
+  // [P2-Pd1 修复] 模块开关修改后同步刷新 overviewQuery，确保顶部统计卡片立即更新
   const toggleModule = useCallback(async (moduleId: string, enabled: boolean) => {
     try {
       await setModuleEnabledMutation.mutateAsync({ moduleId, enabled });
+      // 同时刷新所有受影响的查询
       featureFlagsQuery.refetch();
+      overviewQuery.refetch();
+      modulesQuery.refetch();
       toast.success(`模块 ${moduleId} 已${enabled ? '启用' : '禁用'}`);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : '操作失败';
       toast.error(msg);
     }
-  }, [setModuleEnabledMutation, featureFlagsQuery, toast]);
+  }, [setModuleEnabledMutation, featureFlagsQuery, overviewQuery, modulesQuery, toast]);
 
   // ============ 过滤模块 ============
   const filteredModules = useMemo(() => {

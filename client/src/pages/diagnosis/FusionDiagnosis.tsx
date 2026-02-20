@@ -168,9 +168,17 @@ function BeliefMassChart({ beliefMass }: { beliefMass: Record<string, number> })
     .sort((a, b) => b[1] - a[1]);
   const theta = beliefMass.theta || 0;
   const maxVal = Math.max(...entries.map(([, v]) => v), 0.01);
+  // [P2-F1 修复] 归一化校验：检查信念质量总和是否约等于 1
+  const totalMass = entries.reduce((sum, [, v]) => sum + v, 0) + theta;
+  const isAbnormal = Math.abs(totalMass - 1) > 0.05;
 
   return (
     <div className="space-y-2">
+      {isAbnormal && (
+        <div className="text-[10px] text-amber-400 bg-amber-500/10 px-2 py-1 rounded flex items-center gap-1">
+          ⚠️ 信念质量总和 = {totalMass.toFixed(3)}，偏离 1.0（差值 {Math.abs(totalMass - 1).toFixed(3)}），融合结果可能异常
+        </div>
+      )}
       {entries.map(([key, value]) => {
         const label = FAULT_TYPE_LABELS[key] || FAULT_TYPE_LABELS.unknown;
         const pct = (value * 100).toFixed(1);

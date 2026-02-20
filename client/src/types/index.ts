@@ -209,7 +209,9 @@ export interface DataSourceConfig {
   port?: number;
   database?: string;
   username?: string;
-  password?: string;
+  // [P2-T1 修复] 已移除 password 字段，避免通过 zustand persist 明文持久化到 localStorage
+  // 数据库密码应由后端持有，前端仅传递 connectionId 引用
+  // password?: string; // REMOVED — 敏感字段不应存在于前端类型
   ssl?: boolean;
   
   // API 类型

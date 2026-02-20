@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useAppStore, API_BASE } from '@/stores/appStore';
+import { useAppStore } from '@/stores/appStore';
 import { trpc } from '@/lib/trpc';
 import { Upload, Play, FileUp } from 'lucide-react';
 import { useToast } from '@/components/common/Toast';
@@ -71,7 +71,8 @@ export default function ModelInference() {
       formData.append('file', file);
 
       const response = await axios.post(
-        `${API_BASE}/api/analyze?sample_rate=${sampleRate}`,
+        // [P1-A2 修复] 使用相对路径替代硬编码 localhost:8000
+        `/api/analyze?sample_rate=${sampleRate}`,
         formData
       );
 

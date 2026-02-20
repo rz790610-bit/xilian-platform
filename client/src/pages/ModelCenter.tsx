@@ -127,10 +127,13 @@ export default function ModelCenter() {
     },
   });
 
+  // [P2-M1 修复] 使用 tempId 精准匹配删除临时消息，避免并发发送时 slice(0,-1) 误删错误消息
+  const lastTempIdRef = useRef<string>('');
   const sendMessageMutation = trpc.model.sendMessage.useMutation({
     onSuccess: (data) => {
+      const tempId = lastTempIdRef.current;
       setMessages(prev => [
-        ...prev.slice(0, -1), // 移除临时用户消息
+        ...prev.filter(m => m.id !== tempId), // 精准移除对应的临时消息
         {
           id: data.userMessage.messageId,
           role: 'user',
@@ -150,7 +153,8 @@ export default function ModelCenter() {
     },
     onError: () => {
       toast.error('发送失败');
-      setMessages(prev => prev.slice(0, -1)); // 移除临时消息
+      const tempId = lastTempIdRef.current;
+      setMessages(prev => prev.filter(m => m.id !== tempId)); // [P2-M1] 精准移除对应的临时消息
       setIsSending(false);
     },
   });
@@ -191,8 +195,10 @@ export default function ModelCenter() {
     }
 
     // 添加临时用户消息
+    const tempId = `temp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    lastTempIdRef.current = tempId; // [P2-M1] 记录当前 tempId 供 mutation 回调精准匹配
     const tempUserMessage: Message = {
-      id: `temp_${Date.now()}`,
+      id: tempId,
       role: 'user',
       content: inputMessage,
       timestamp: new Date(),

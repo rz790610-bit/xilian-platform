@@ -25,6 +25,7 @@ import {
   Layers, Gauge
 } from 'lucide-react';
 import { useToast } from '@/components/common/Toast';
+import { trpc } from '@/lib/trpc';
 
 // ==================== 类型 ====================
 
@@ -70,6 +71,9 @@ interface HealthMetric {
 }
 
 // ==================== Mock 数据 ====================
+// [P1-V1 修复] TODO: 以下 Mock 数据应替换为 tRPC 接口调用
+// 后端需实现: trpc.evolution.getModels / trpc.evolution.getRules / trpc.evolution.getHealthMetrics
+// 当前状态: 进化引擎是平台核心价值主张，整页 Mock 数据导致用户看到的模型版本/健康分/演化规则均为虚假数据
 
 const mockModels: ModelEvolution[] = [
   {
@@ -163,6 +167,14 @@ export default function EvolutionBoard() {
   const toast = useToast();
   const [activeTab, setActiveTab] = useState('overview');
   const [rules, setRules] = useState(mockRules);
+
+  // [P1-V1] TODO: 待后端实现 evolution 路由后，替换为以下 tRPC 调用：
+  // const modelsQuery = trpc.evolution.getModels.useQuery(undefined, { refetchInterval: 30000 });
+  // const rulesQuery = trpc.evolution.getRules.useQuery();
+  // const healthQuery = trpc.evolution.getHealthMetrics.useQuery();
+  // const models = modelsQuery.data ?? mockModels; // 降级到 Mock
+  // const rules = rulesQuery.data ?? mockRules;
+  // const healthMetrics = healthQuery.data ?? mockHealthMetrics;
 
   const overallHealth = useMemo(() => {
     const avg = mockModels.reduce((s, m) => s + m.healthScore, 0) / mockModels.length;

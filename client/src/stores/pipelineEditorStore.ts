@@ -230,6 +230,26 @@ export const usePipelineEditorStore = create<PipelineEditorState>()(
       set({ isConnecting: false, connectingFromNodeId: null });
       return false;
     }
+    // [P2-S1 修复] DAG 环路检测：从 toNodeId 出发 BFS，检测是否存在到 fromNodeId 的可达路径
+    // 若存在，则添加这条连接会形成有向环，导致 Pipeline 执行引擎无限循环
+    const hasPathTo = (startId: string, targetId: string): boolean => {
+      const visited = new Set<string>();
+      const queue = [startId];
+      while (queue.length > 0) {
+        const current = queue.shift()!;
+        if (current === targetId) return true;
+        if (visited.has(current)) continue;
+        visited.add(current);
+        state.editor.connections
+          .filter(c => c.fromNodeId === current)
+          .forEach(c => queue.push(c.toNodeId));
+      }
+      return false;
+    };
+    if (hasPathTo(toNodeId, fromNodeId)) {
+      set({ isConnecting: false, connectingFromNodeId: null });
+      return false; // 拒绝连接：会形成环路
+    }
     // 检查目标节点输入上限（DAG 允许多输入，但有上限）
     if (toInfo) {
       const maxInputs = toInfo.inputs ?? 1;

@@ -58,8 +58,17 @@ export function useTableSchema(): UseTableSchemaReturn {
     return TOPO_MAP[tableName];
   }, []);
 
+  // [P3-H1 修复] 使用确定性 hash 替代 Math.random()，避免 ER 图未注册节点每次加载位置随机跳动
   const getERPosition = useCallback((tableName: string) => {
-    return ER_POSITIONS[tableName] || { x: Math.random() * 800 + 100, y: Math.random() * 600 + 100 };
+    if (ER_POSITIONS[tableName]) return ER_POSITIONS[tableName];
+    // 确定性 hash：同一表名始终返回相同位置
+    let hash = 0;
+    for (let i = 0; i < tableName.length; i++) {
+      hash = ((hash << 5) - hash + tableName.charCodeAt(i)) | 0;
+    }
+    const x = ((hash & 0xFFFF) % 800) + 100;
+    const y = (((hash >>> 16) & 0xFFFF) % 600) + 100;
+    return { x, y };
   }, []);
 
   const getFields = useCallback((tableName: string) => {
