@@ -3,8 +3,8 @@
  * 提供容器生命周期管理 API + 一键启动全部核心环境
  */
 import { z } from 'zod';
-// P0 加固：Docker 路由全部改为 adminProcedure，禁止未认证访问
-import { adminProcedure, router } from '../core/trpc';
+// P0 加固：Docker 容器操作保持 adminProcedure，环境启动降为 protectedProcedure
+import { adminProcedure, protectedProcedure, router } from '../core/trpc';
 import { dockerManager, ENGINE_REGISTRY } from '../services/docker/dockerManager.service';
 import { resetDb, getDb } from '../lib/db/index';
 import { createModuleLogger } from '../core/logger';
@@ -300,14 +300,16 @@ export const dockerRouter = router({
   /**
    * 检查 Docker Engine 连接状态
    */
-  checkConnection: adminProcedure.query(async () => {
+  // Docker 连接状态检查是只读操作，降为 protectedProcedure
+  checkConnection: protectedProcedure.query(async () => {
     return dockerManager.checkConnection();
   }),
 
   /**
    * 列出所有 PortAI 引擎容器
    */
-  listEngines: adminProcedure.query(async () => {
+  // 容器列表是只读操作，降为 protectedProcedure
+  listEngines: protectedProcedure.query(async () => {
     try {
       const engines = await dockerManager.listEngines();
       return { success: true, engines };
@@ -378,7 +380,8 @@ export const dockerRouter = router({
   /**
    * 获取引擎日志
    */
-  getEngineLogs: adminProcedure
+  // 日志查看是只读操作，降为 protectedProcedure
+  getEngineLogs: protectedProcedure
     .input(z.object({
       containerName: z.string(),
       tail: z.number().optional().default(100),
@@ -395,7 +398,8 @@ export const dockerRouter = router({
   /**
    * 获取引擎资源统计
    */
-  getEngineStats: adminProcedure
+  // 状态查看是只读操作，降为 protectedProcedure
+  getEngineStats: protectedProcedure
     .input(z.object({ containerName: z.string() }))
     .query(async ({ input }) => {
       return dockerManager.getEngineStats(input.containerName);
@@ -406,7 +410,8 @@ export const dockerRouter = router({
    * 智能检测：优先检测本地服务（brew services 等），不通才回退 Docker 启动
    * 流程：检测/启动服务 → 配置环境变量 → 等待就绪 → 后置初始化（迁移/种子数据）
    */
-  bootstrapAll: adminProcedure.mutation(async () => {
+  // 一键启动是开发者日常操作，降为 protectedProcedure（仅需登录，无需 admin）
+  bootstrapAll: protectedProcedure.mutation(async () => {
     const services = getCoreServices();
     const allSteps: { service: string; icon: string; steps: BootstrapStep[] }[] = [];
 
@@ -487,7 +492,8 @@ export const dockerRouter = router({
    * 启动单个可选服务（Ollama/Neo4j/Prometheus/Grafana）
    * 仅启动容器 + 配置环境变量，不做复杂初始化
    */
-  bootstrapOptionalService: adminProcedure
+  // 可选服务启动同样降为 protectedProcedure
+  bootstrapOptionalService: protectedProcedure
     .input(z.object({ containerName: z.string() }))
     .mutation(async ({ input }) => {
       const steps: BootstrapStep[] = [];

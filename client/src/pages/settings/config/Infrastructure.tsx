@@ -37,7 +37,24 @@ function BootstrapAllDialog({ open, onOpenChange }: { open: boolean; onOpenChang
 
   const bootstrapMut = trpc.docker.bootstrapAll.useMutation({
     onSuccess: (data) => { setResult(data); setRunning(false); },
-    onError: (e) => { setResult({ success: false, error: e.message }); setRunning(false); },
+    onError: (e) => {
+      // 确保错误状态也包含完整字段，避免 undefined 显示
+      const isPermission = e.message.includes('10002') || e.message.includes('permission');
+      const isDocker = e.message.includes('Docker') || e.message.includes('docker');
+      setResult({
+        success: false,
+        total: 0,
+        succeeded: 0,
+        failed: 0,
+        services: [],
+        error: isPermission
+          ? '权限不足：请确保已登录并具有相应权限'
+          : isDocker
+            ? 'Docker Engine 未连接：请确保 Docker Desktop 正在运行'
+            : e.message,
+      });
+      setRunning(false);
+    },
   });
 
   const handleStart = () => {
@@ -130,12 +147,12 @@ function BootstrapAllDialog({ open, onOpenChange }: { open: boolean; onOpenChang
               )}
               <div>
                 <p className="font-medium">
-                  {result.success ? '全部核心服务就绪' : `${result.succeeded}/${result.total} 服务就绪`}
+                  {result.success ? '全部核心服务就绪' : `${result.succeeded ?? 0}/${result.total ?? 0} 服务就绪`}
                 </p>
                 <p className="text-sm text-muted-foreground">
                   {result.success
                     ? '环境变量已配置，数据库已迁移，所有服务就绪'
-                    : `${result.failed} 个服务未就绪，请检查本地服务或 Docker 容器状态`}
+                    : result.error || `${result.failed ?? 0} 个服务未就绪，请检查本地服务或 Docker 容器状态`}
                 </p>
               </div>
             </div>
