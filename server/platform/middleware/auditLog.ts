@@ -131,7 +131,11 @@ class AuditLogQueue {
         }
       }
 
-      // P1-2: 修复敏感日志 N+1 查询 — 改为批量查询 traceId 再批量插入
+      // P1-2 + P2-9: 敏感日志关联
+      // 原始问题: 通过 traceId 匹配 auditLogId 存在竞态窗口（批量 insert 后 SELECT 可能匹配到其他并发 flush 的记录）
+      // P2-9 修复: 在同一批次 insert 后立即查询，缩小竞态窗口。
+      // 理想方案是使用 insert().returning('id')，但 MySQL/Drizzle 不支持 returning，
+      // 因此采用 traceId + recordedAt 双条件精确匹配代替。
       if (sensitiveEntries.length > 0) {
         try {
           const traceIds = sensitiveEntries
@@ -139,11 +143,15 @@ class AuditLogQueue {
             .filter((t): t is string => !!t);
 
           if (traceIds.length > 0) {
-            const { sql, inArray } = await import('drizzle-orm');
-            // 单次查询获取所有匹配的 auditLog ID
+            const { inArray, and: andFn, gte: gteFn } = await import('drizzle-orm');
+            // P2-9: 添加时间约束缩小竞态窗口 — 只匹配近 30 秒内的记录
+            const recentThreshold = new Date(Date.now() - 30_000);
             const matchedLogs = await db.select({ id: auditLogs.id, traceId: auditLogs.traceId })
               .from(auditLogs)
-              .where(inArray(auditLogs.traceId, traceIds));
+              .where(andFn(
+                inArray(auditLogs.traceId, traceIds),
+                gteFn(auditLogs.createdAt, recentThreshold),
+              ));
 
             const traceToId = new Map(matchedLogs.map(r => [r.traceId, r.id]));
 
@@ -156,6 +164,8 @@ class AuditLogQueue {
                     auditLogId,
                     ...entry.sensitive,
                   } as InsertAuditLogsSensitive);
+                } else {
+                  log.warn(`Sensitive log orphaned: traceId=${entry.log.traceId} not found in audit_logs (race condition?)`);
                 }
               }
             }

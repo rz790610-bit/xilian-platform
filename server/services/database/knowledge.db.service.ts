@@ -102,17 +102,49 @@ export const kbConversationMessageService = {
 // ============================================
 // 知识库向量嵌入
 // ============================================
+// P2-8 架构说明: vectorData (TEXT) 字段存储向量字符串是历史设计。
+// MySQL TEXT 无法做向量相似度搜索，实际检索全部由 Qdrant 完成。
+// 建议后续进化: vectorData 字段改为仅存储 Qdrant point ID，
+// 真实向量数据完全由 Qdrant 管理，消除双写冗余。
 export const kbEmbeddingService = {
   async listByChunk(chunkId: number) {
     const db = await getDb();
     if (!db) return [];
     return db.select().from(kbEmbeddings).where(eq(kbEmbeddings.chunkId, chunkId));
   },
-  async create(input: { chunkId: number; modelName: string; dimensions: number; vectorData: string; norm?: number }) {
+  /**
+   * 创建嵌入记录
+   * @param vectorData - 当前为向量字符串，未来应改为 Qdrant point ID
+   * @param qdrantPointId - Qdrant 向量存储的 point ID（新增字段，可选）
+   */
+  async create(input: {
+    chunkId: number; modelName: string; dimensions: number;
+    vectorData: string; norm?: number; qdrantPointId?: string;
+  }) {
     const db = await getDb();
     if (!db) throw new Error('Database not available');
-    await db.insert(kbEmbeddings).values({ ...input, createdAt: new Date() });
+    // P2-8: 如果提供了 qdrantPointId，将其存储在 vectorData 字段中（作为过渡方案）
+    // 待 schema 进化后应拆分为独立字段
+    const values = {
+      chunkId: input.chunkId,
+      modelName: input.modelName,
+      dimensions: input.dimensions,
+      vectorData: input.qdrantPointId ? `qdrant:${input.qdrantPointId}` : input.vectorData,
+      norm: input.norm,
+      createdAt: new Date(),
+    };
+    await db.insert(kbEmbeddings).values(values);
     return { success: true };
+  },
+  /** 根据 Qdrant point ID 查找嵌入记录 */
+  async findByQdrantPointId(qdrantPointId: string) {
+    const db = await getDb();
+    if (!db) return null;
+    // 使用 like 查找 qdrant: 前缀的记录
+    const { like: likeFn } = await import('drizzle-orm');
+    const rows = await db.select().from(kbEmbeddings)
+      .where(likeFn(kbEmbeddings.vectorData, `qdrant:${qdrantPointId}`));
+    return rows[0] || null;
   },
 };
 

@@ -2,18 +2,27 @@
  * 融合诊断 tRPC 路由
  *
  * 提供：
- *   - diagnose      — 执行融合诊断（mutation）
- *   - getExperts     — 获取已注册专家列表
- *   - updateWeight   — 更新专家权重
- *   - registerExpert — 注册新专家（内置类型）
- *   - unregisterExpert — 注销专家
- *   - getFaultTypes  — 获取故障类型映射
- *   - getConfig      — 获取引擎配置
- *   - getHistory     — 获取诊断历史（内存缓存）
+ *   - diagnose      — 执行融合诊断（mutation, 需认证）
+ *   - getExperts     — 获取已注册专家列表（只读, 公开）
+ *   - updateWeight   — 更新专家权重（mutation, 需认证）
+ *   - registerExpert — 注册新专家（mutation, 需认证）
+ *   - unregisterExpert — 注销专家（mutation, 需认证）
+ *   - getFaultTypes  — 获取故障类型映射（只读, 公开）
+ *   - getConfig      — 获取引擎配置（只读, 公开）
+ *   - getHistory     — 获取诊断历史（只读, 公开）
+ *   - clearHistory   — 清空诊断历史（mutation, 需认证）
+ *   - setConflictPenalty — 设置冲突惩罚因子（mutation, 需认证）
+ *
+ * P0-6 修复: 所有 mutation 端点改为 protectedProcedure（原全部使用 publicProcedure）
+ * P1-9 修复: diagnosisHistory 内存存储添加容量限制 + 持久化迁移 TODO
+ *
+ * 鉴权模式参考 algorithm.router.ts（本批最佳实践）：
+ *   - 只读查询 → publicProcedure
+ *   - 写操作/mutation → protectedProcedure
  */
 
 import { z } from 'zod';
-import { publicProcedure, router } from '../core/trpc';
+import { publicProcedure, protectedProcedure, router } from '../core/trpc';
 import {
   getFusionEngine,
   FAULT_TYPES,
@@ -28,11 +37,17 @@ import { createModuleLogger } from '../core/logger';
 
 const log = createModuleLogger('fusionDiagnosisRouter');
 
-// 诊断历史缓存（内存，最多保留 200 条）
+// ============================================================
+// 诊断历史缓存
+// ============================================================
+// P1-9: 当前为内存存储，服务重启即丢失，多实例部署时各实例历史不共享。
+// TODO: 迁移至 Redis ZSET 或 MySQL diagnosis_history 表实现持久化。
+// 临时方案：保留内存缓存 + 容量限制 + 启动时日志警告。
+
 interface DiagnosisHistoryEntry {
   id: string;
   timestamp: string;
-  inputData: Record<string, any>;
+  inputData: Record<string, unknown>;
   result: FinalDiagnosis;
   duration: number;
 }
@@ -47,11 +62,18 @@ function addHistory(entry: DiagnosisHistoryEntry) {
   }
 }
 
+// 启动时警告
+log.warn(
+  `[P1-9] diagnosisHistory 使用内存存储（最多 ${MAX_HISTORY} 条），` +
+  '服务重启将丢失所有历史。请尽快迁移至 Redis ZSET 或 MySQL 持久化。'
+);
+
 export const fusionDiagnosisRouter = router({
   /**
    * 执行融合诊断
+   * P0-6: mutation → protectedProcedure（原 publicProcedure）
    */
-  diagnose: publicProcedure
+  diagnose: protectedProcedure
     .input(
       z.object({
         /** 传感器数据 */
@@ -68,7 +90,7 @@ export const fusionDiagnosisRouter = router({
 
       log.info(`Fusion diagnosis requested: device=${input.deviceCode || 'N/A'}, experts=${engine.registry.getExpertCount()}`);
 
-      const data: Record<string, any> = {
+      const data: Record<string, unknown> = {
         ...input.sensorData,
         component: input.component,
         deviceCode: input.deviceCode,
@@ -103,7 +125,7 @@ export const fusionDiagnosisRouter = router({
     }),
 
   /**
-   * 获取已注册专家列表
+   * 获取已注册专家列表（只读 → publicProcedure）
    */
   getExperts: publicProcedure.query(() => {
     const engine = getFusionEngine();
@@ -120,8 +142,9 @@ export const fusionDiagnosisRouter = router({
 
   /**
    * 更新专家权重
+   * P0-6: mutation → protectedProcedure（原 publicProcedure）
    */
-  updateWeight: publicProcedure
+  updateWeight: protectedProcedure
     .input(
       z.object({
         expertName: z.string(),
@@ -139,8 +162,9 @@ export const fusionDiagnosisRouter = router({
 
   /**
    * 注册内置专家
+   * P0-6: mutation → protectedProcedure（原 publicProcedure）
    */
-  registerExpert: publicProcedure
+  registerExpert: protectedProcedure
     .input(
       z.object({
         type: z.enum(['vibration', 'temperature', 'current']),
@@ -182,8 +206,9 @@ export const fusionDiagnosisRouter = router({
 
   /**
    * 注销专家
+   * P0-6: mutation → protectedProcedure（已是 protectedProcedure，保持不变）
    */
-  unregisterExpert: publicProcedure
+  unregisterExpert: protectedProcedure
     .input(z.object({ expertName: z.string() }))
     .mutation(({ input }) => {
       const engine = getFusionEngine();
@@ -197,7 +222,7 @@ export const fusionDiagnosisRouter = router({
     }),
 
   /**
-   * 获取故障类型映射表
+   * 获取故障类型映射表（只读 → publicProcedure）
    */
   getFaultTypes: publicProcedure.query(() => {
     return {
@@ -208,7 +233,7 @@ export const fusionDiagnosisRouter = router({
   }),
 
   /**
-   * 获取引擎配置信息
+   * 获取引擎配置信息（只读 → publicProcedure）
    */
   getConfig: publicProcedure.query(() => {
     const engine = getFusionEngine();
@@ -223,8 +248,9 @@ export const fusionDiagnosisRouter = router({
 
   /**
    * 设置冲突惩罚因子
+   * P0-6: mutation → protectedProcedure（已是 protectedProcedure，保持不变）
    */
-  setConflictPenalty: publicProcedure
+  setConflictPenalty: protectedProcedure
     .input(z.object({ factor: z.number().min(0).max(1) }))
     .mutation(({ input }) => {
       const engine = getFusionEngine();
@@ -233,7 +259,7 @@ export const fusionDiagnosisRouter = router({
     }),
 
   /**
-   * 获取诊断历史
+   * 获取诊断历史（只读 → publicProcedure）
    */
   getHistory: publicProcedure
     .input(
@@ -249,15 +275,19 @@ export const fusionDiagnosisRouter = router({
       return {
         total: diagnosisHistory.length,
         items,
+        // P1-9: 提示前端当前为内存存储
+        _warning: 'History is stored in memory and will be lost on server restart',
       };
     }),
 
   /**
    * 清空诊断历史
+   * P0-6: mutation → protectedProcedure（原 publicProcedure）
    */
-  clearHistory: publicProcedure.mutation(() => {
+  clearHistory: protectedProcedure.mutation(() => {
     const count = diagnosisHistory.length;
     diagnosisHistory.length = 0;
+    log.warn(`Diagnosis history cleared: ${count} entries removed`);
     return { success: true, cleared: count };
   }),
 });

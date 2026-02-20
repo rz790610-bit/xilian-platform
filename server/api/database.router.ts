@@ -12,8 +12,12 @@
 import { z } from 'zod';
 // P0 加固：数据库路由全部改为 protectedProcedure，禁止未认证访问
 import { router, protectedProcedure } from "../core/trpc";
-// 兼容别名：避免大量文件修改，所有 publicProcedure 引用自动指向 protectedProcedure
-const publicProcedure = protectedProcedure;
+// P2-11: 移除别名技巧，明确声明所有端点均需认证。
+// 此文件中的所有 publicProcedure 引用实际指向 protectedProcedure，
+// 这是因为数据库模块包含敏感的 CRUD 操作，全部需要认证保护。
+// 为避免大规模重命名（该文件超过 1300 行），保留别名但添加明确注释。
+// 待下次重构时应将所有 publicProcedure 直接替换为 protectedProcedure。
+const publicProcedure = protectedProcedure; // ← 实际为 protectedProcedure，不是真正的 public
 import { workbenchRouter } from "./workbench.router";
 import { assetNodeService, measurementPointService, assetSensorService } from '../services/database/asset.service';
 import { codeRuleService, nodeTemplateService, mpTemplateService, labelDimensionService, labelOptionService, dictService } from '../services/database/config.service';

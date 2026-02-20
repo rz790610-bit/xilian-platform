@@ -440,6 +440,14 @@ export const eventStoreService = {
     return { items, total: totalResult.count };
   },
 
+  /**
+   * 追加事件到事件存储
+   *
+   * P2-10: 添加乐观锁检测 — 在插入前检查 aggregateVersion 是否已存在，
+   * 防止并发写入导致 aggregateVersion 冲突。
+   * 完整的乐观锁应使用 INSERT ... SELECT COALESCE(MAX(aggregate_version), 0) + 1，
+   * 但 Drizzle ORM 不支持 INSERT ... SELECT 语法，因此采用应用层检查作为过渡方案。
+   */
   async append(input: {
     eventId: string; eventType: string; aggregateType: string;
     aggregateId: string; aggregateVersion: number; payload: any;
@@ -448,6 +456,21 @@ export const eventStoreService = {
   }) {
     const db = await getDb();
     if (!db) throw new Error('Database not available');
+
+    // P2-10: 乐观锁检测 — 检查同一聚合的版本是否已存在
+    const existing = await db.select({ count: count() }).from(eventStore)
+      .where(and(
+        eq(eventStore.aggregateId, input.aggregateId),
+        eq(eventStore.aggregateType, input.aggregateType),
+        eq(eventStore.aggregateVersion, input.aggregateVersion),
+      ));
+    if (existing[0]?.count > 0) {
+      throw new Error(
+        `Optimistic lock conflict: aggregate ${input.aggregateType}/${input.aggregateId} ` +
+        `version ${input.aggregateVersion} already exists. Retry with incremented version.`
+      );
+    }
+
     const now = new Date();
     await db.insert(eventStore).values({
       eventId: input.eventId, eventType: input.eventType,

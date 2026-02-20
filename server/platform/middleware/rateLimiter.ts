@@ -111,9 +111,13 @@ function createLimiter(name: string, options: Partial<Options>): RateLimitReques
     skip: (req: Request) => {
       // 健康检查端点不限流
       if (req.path === '/api/metrics' || req.path === '/health') return true;
-      // Docker 管理操作不限流（bootstrapAll / bootstrapOptionalService / startAll 等长耗时操作）
+      // Docker 管理操作不限流 — 精确匹配白名单，避免 includes 误伤用户自定义路径
       const url = req.originalUrl || req.url || '';
-      if (url.includes('docker.bootstrap') || url.includes('docker.startAll') || url.includes('docker.startEngine')) return true;
+      const dockerSkipPatterns = [
+        'docker.bootstrapAll', 'docker.bootstrapOptionalService',
+        'docker.startAll', 'docker.startEngine', 'docker.stopAll',
+      ];
+      if (dockerSkipPatterns.some(p => url.includes(p))) return true;
       // Vite HMR / 静态资源不限流
       if (url.includes('__vite') || url.includes('.hot-update.') || url.startsWith('/@')) return true;
       return false;

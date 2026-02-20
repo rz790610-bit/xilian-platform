@@ -300,23 +300,37 @@ class CircuitBreakerRegistry {
 
   /**
    * 手动打开断路器（用于维护模式）
+   *
+   * P1-6 安全加固: operatorId 改为必填参数。
+   * 调用方必须通过 admin protectedProcedure 路由暴露此方法，
+   * 并在路由层做角色检查（仅允许 admin/operator 角色）。
    */
-  forceOpen(serviceName: string): boolean {
+  forceOpen(serviceName: string, operatorId: string): boolean {
+    if (!operatorId) {
+      log.error(`[${serviceName}] forceOpen rejected: operatorId is required`);
+      return false;
+    }
     const breaker = this.breakers.get(serviceName);
     if (!breaker) return false;
     breaker.open();
-    log.warn(`[${serviceName}] Circuit force-opened by admin`);
+    log.warn(`[${serviceName}] Circuit FORCE-OPENED by operator=${operatorId}`);
     return true;
   }
 
   /**
    * 手动关闭断路器
+   *
+   * P1-6 安全加固: operatorId 改为必填参数。
    */
-  forceClose(serviceName: string): boolean {
+  forceClose(serviceName: string, operatorId: string): boolean {
+    if (!operatorId) {
+      log.error(`[${serviceName}] forceClose rejected: operatorId is required`);
+      return false;
+    }
     const breaker = this.breakers.get(serviceName);
     if (!breaker) return false;
     breaker.close();
-    log.info(`[${serviceName}] Circuit force-closed by admin`);
+    log.info(`[${serviceName}] Circuit FORCE-CLOSED by operator=${operatorId}`);
     return true;
   }
 

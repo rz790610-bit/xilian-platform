@@ -290,20 +290,20 @@ export const pluginRouter = router({
       return { success };
     }),
 
-  /** 获取插件安全概览 */
-  getSecurityOverview: publicProcedure
+  /** 获取插件安全概览 — P1-10: 安全信息需认证 */
+  getSecurityOverview: protectedProcedure
     .input(z.object({ pluginId: z.string() }))
     .query(async ({ input }) => {
       return securityOrchestrator.getPluginSecurityOverview(input.pluginId);
     }),
 
-  /** 获取全局安全仪表盘 */
-  getSecurityDashboard: publicProcedure.query(async () => {
+  /** 获取全局安全仪表盘 — P1-10: 安全信息需认证 */
+  getSecurityDashboard: protectedProcedure.query(async () => {
     return securityOrchestrator.getSecurityDashboard();
   }),
 
-  /** 获取权限审计日志 */
-  getAuditLog: publicProcedure
+  /** 获取权限审计日志 — P1-10: 审计日志需认证 */
+  getAuditLog: protectedProcedure
     .input(z.object({
       pluginId: z.string().optional(),
       permission: z.string().optional(),
@@ -315,8 +315,8 @@ export const pluginRouter = router({
       return sandboxManager.getPermissionGateway().getAuditLog(input);
     }),
 
-  /** 获取安全事件 */
-  getSecurityEvents: publicProcedure
+  /** 获取安全事件 — P1-10: 安全事件需认证 */
+  getSecurityEvents: protectedProcedure
     .input(z.object({
       pluginId: z.string().optional(),
       type: z.string().optional(),
@@ -337,8 +337,8 @@ export const pluginRouter = router({
       return { success };
     }),
 
-  /** 获取安全统计 */
-  getSecurityStats: publicProcedure.query(async () => {
+  /** 获取安全统计 — P1-10: 安全统计需认证 */
+  getSecurityStats: protectedProcedure.query(async () => {
     return securityOrchestrator.getSecurityEvents().getStats();
   }),
 
@@ -382,8 +382,8 @@ export const pluginRouter = router({
       return { success: true };
     }),
 
-  /** 获取资源使用快照 */
-  getResourceSnapshots: publicProcedure.query(async () => {
+  /** 获取资源使用快照 — P1-10: 资源信息需认证 */
+  getResourceSnapshots: protectedProcedure.query(async () => {
     return sandboxManager.getResourceMonitor().getAllSnapshots();
   }),
 
