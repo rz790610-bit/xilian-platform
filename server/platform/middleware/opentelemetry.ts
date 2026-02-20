@@ -44,8 +44,9 @@ function getConfig(): OTelConfig {
 // SDK 初始化
 // ============================================================
 
-let sdkInstance: any = null;
-let tracerInstance: any = null;
+// P2-A04: 消除顶层 any，使用类型守卫
+let sdkInstance: { shutdown(): Promise<void> } | null = null;
+let tracerInstance: { startActiveSpan: Function } | null = null;
 
 /**
  * 初始化 OpenTelemetry SDK
@@ -362,5 +363,34 @@ export async function tracePipeline<T>(
   return withSpan(`pipeline.${pipelineName}`, {
     'pipeline.name': pipelineName,
     'pipeline.stage_count': stageCount,
+  }, fn);
+}
+
+/**
+ * P2-A04: 追踪 Kafka 生产者发送
+ */
+export async function traceKafkaProduce<T>(
+  topic: string,
+  fn: (span: any) => Promise<T>,
+): Promise<T> {
+  return withSpan('kafka.produce', {
+    'messaging.system': 'kafka',
+    'messaging.destination': topic,
+    'messaging.operation': 'publish',
+  }, fn);
+}
+
+/**
+ * P2-A04: 追踪 ClickHouse 查询
+ */
+export async function traceClickHouseQuery<T>(
+  operation: string,
+  table: string,
+  fn: (span: any) => Promise<T>,
+): Promise<T> {
+  return withSpan(`clickhouse.${operation}`, {
+    'db.system': 'clickhouse',
+    'db.operation': operation,
+    'db.sql.table': table,
   }, fn);
 }

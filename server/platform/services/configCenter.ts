@@ -293,7 +293,14 @@ class ConfigCenter {
       const client = redisClient.getClient();
       if (!client) return;
 
-      const keys = await client.keys('config:*');
+      // P1-5: 替换 keys() 为 SCAN 模式，避免大量 key 时阻塞 Redis
+      const keys: string[] = [];
+      let cursor = '0';
+      do {
+        const [nextCursor, batch] = await client.scan(cursor, { MATCH: 'config:*', COUNT: 100 });
+        cursor = nextCursor;
+        keys.push(...batch);
+      } while (cursor !== '0');
       let count = 0;
 
       for (const redisKey of keys) {

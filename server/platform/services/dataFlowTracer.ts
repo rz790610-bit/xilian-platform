@@ -167,8 +167,9 @@ class DataFlowTracer {
       const { eventBus } = await import('../../services/eventBus.service');
 
       // 订阅所有事件
-      this.unsubscribe = eventBus.subscribeAll(async (event: any) => {
-        this.processEvent(event as Event);
+      // P2-A06: 消除 any，直接使用 Event 类型
+      this.unsubscribe = eventBus.subscribeAll(async (event: Event) => {
+        this.processEvent(event);
       });
 
       // 启动定期清理
@@ -176,8 +177,8 @@ class DataFlowTracer {
 
       this.initialized = true;
       log.info(`[DataFlowTracer] Initialized — monitoring ${Object.keys(TOPICS).length} topics`);
-    } catch (err: any) {
-      log.error('[DataFlowTracer] Initialization failed:', err.message);
+    } catch (err: unknown) {
+      log.error('[DataFlowTracer] Initialization failed:', err instanceof Error ? err.message : String(err));
     }
   }
 
@@ -187,13 +188,15 @@ class DataFlowTracer {
     const topicPrefix = topic.split('.')[0];
 
     // 推断源模块
-    const sourceModule = (event as any).metadata?.sourceModule
+    // P2-A06: 使用类型守卫替代 any
+    const metadata = (event as Event & { metadata?: { sourceModule?: string; targetModule?: string } }).metadata;
+    const sourceModule = metadata?.sourceModule
       || TOPIC_MODULE_MAP[topicPrefix]
       || topicPrefix;
 
     // 推断目标模块（可能有多个）
     const targetModules = TOPIC_TARGET_MAP[topic]
-      || [(event as any).metadata?.targetModule || 'unknown'];
+      || [metadata?.targetModule || 'unknown'];
 
     // 计算延迟
     const eventTime = event.timestamp ? new Date(event.timestamp).getTime() : Date.now();
@@ -286,7 +289,7 @@ class DataFlowTracer {
     let isolated: string[] = [];
     try {
       const { moduleRegistry } = require('../../core/registries/module.registry');
-      const allModuleIds = moduleRegistry.listItems().map((m: any) => m.id);
+      const allModuleIds = moduleRegistry.listItems().map((m: { id: string }) => m.id);
       isolated = allModuleIds.filter((id: string) => !allActive.has(id));
     } catch {
       // ModuleRegistry 不可用时忽略

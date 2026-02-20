@@ -108,7 +108,8 @@ export function protectKafkaClient<T extends object>(kafkaClient: T): T {
  * 降级策略: 事件发布失败时写入 Outbox
  */
 export function protectKafkaEventBus<T extends object>(eventBus: T): T {
-  return wrapWithCircuitBreaker(eventBus, 'kafka', [
+  // P1-3: 使用独立的服务名称，避免与 KafkaClient 共享断路器状态
+  return wrapWithCircuitBreaker(eventBus, 'kafka-eventbus', [
     'publish', 'publishBatch', 'subscribe',
   ]);
 }

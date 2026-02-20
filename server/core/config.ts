@@ -158,6 +158,30 @@ export const config = {
     apiKey: env('QDRANT_API_KEY', ''),
   },
 
+  /** NebulaGraph 图数据库 */
+  nebula: {
+    host: env('NEBULA_HOST', 'localhost'),
+    port: envInt('NEBULA_PORT', 9669),
+    get url(): string {
+      return env('NEBULA_URL', `http://${config.nebula.host}:${config.nebula.port}`);
+    },
+    user: env('NEBULA_USER', 'root'),
+    password: env('NEBULA_PASSWORD', 'nebula'),
+    space: env('NEBULA_SPACE', 'portai_nexus'),
+  },
+
+  /** Elasticsearch 搜索引擎 */
+  elasticsearch: {
+    host: env('ELASTICSEARCH_HOST', 'localhost'),
+    port: envInt('ELASTICSEARCH_PORT', 9200),
+    get url(): string {
+      return env('ELASTICSEARCH_URL', `http://${config.elasticsearch.host}:${config.elasticsearch.port}`);
+    },
+    user: env('ELASTICSEARCH_USER', ''),
+    password: env('ELASTICSEARCH_PASSWORD', ''),
+    ssl: envBool('ELASTICSEARCH_SSL', false),
+  },
+
   /** Docker 引擎 */
   docker: {
     socketPath: env('DOCKER_SOCKET_PATH', '/var/run/docker.sock'),

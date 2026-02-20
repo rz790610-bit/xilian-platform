@@ -93,7 +93,9 @@ function rateLimitResponse(message: string) {
 // 透传中间件（限流禁用时使用）
 // ============================================================
 
-const passthrough: RateLimitRequestHandler = ((_req: any, _res: any, next: any) => next()) as any;
+// P2-A06: 消除 any 类型
+import type { NextFunction } from 'express';
+const passthrough = ((_req: Request, _res: Response, next: NextFunction) => next()) as RateLimitRequestHandler;
 
 // ============================================================
 // 限流器工厂

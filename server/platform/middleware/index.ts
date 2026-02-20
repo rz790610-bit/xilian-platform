@@ -36,6 +36,8 @@ export {
   traceRedis,
   traceHttpCall,
   tracePipeline,
+  traceKafkaProduce,
+  traceClickHouseQuery,
   createTrpcTracingMiddleware,
 } from './opentelemetry';
 

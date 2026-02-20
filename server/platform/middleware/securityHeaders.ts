@@ -167,8 +167,14 @@ export function createRequestIdMiddleware(): RequestHandler {
   };
 }
 
+// P1-6: 使用 crypto.randomUUID 替代 Math.random，避免弱随机数碰撞
 function generateRequestId(): string {
-  const timestamp = Date.now().toString(36);
-  const random = Math.random().toString(36).substring(2, 10);
-  return `${timestamp}-${random}`;
+  try {
+    return require('crypto').randomUUID();
+  } catch {
+    // fallback: 无 crypto 时使用时间戳+随机数
+    const timestamp = Date.now().toString(36);
+    const random = Math.random().toString(36).substring(2, 10);
+    return `${timestamp}-${random}`;
+  }
 }

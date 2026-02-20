@@ -121,6 +121,22 @@ function vaultRequest(
       headers['Content-Length'] = Buffer.byteLength(bodyStr).toString();
     }
 
+    // P0-S04: 当配置了 caCert 时，实际启用 TLS 证书验证
+    const tlsOptions: Record<string, any> = {};
+    if (isHttps && config.caCert) {
+      try {
+        const fs = await import('fs');
+        tlsOptions.ca = fs.readFileSync(config.caCert);
+        tlsOptions.rejectUnauthorized = true;
+      } catch (err: any) {
+        log.error(`Failed to load Vault CA cert from ${config.caCert}: ${err.message}`);
+        tlsOptions.rejectUnauthorized = true; // 仍然拒绝未验证的连接
+      }
+    } else if (isHttps) {
+      // 无 caCert 时仍启用 TLS 验证（不跳过）
+      tlsOptions.rejectUnauthorized = true;
+    }
+
     const req = transport.request(
       {
         hostname: url.hostname,
@@ -129,6 +145,7 @@ function vaultRequest(
         method,
         headers,
         timeout: 10000,
+        ...tlsOptions,
       },
       (res) => {
         let data = '';

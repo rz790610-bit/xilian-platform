@@ -131,28 +131,44 @@ class AuditLogQueue {
         }
       }
 
-      // 插入敏感日志（需要先获取 auditLogId）
+      // P1-2: 修复敏感日志 N+1 查询 — 改为批量查询 traceId 再批量插入
       if (sensitiveEntries.length > 0) {
-        for (const entry of sensitiveEntries) {
-          try {
-            // 查找刚插入的审计日志 ID（通过 traceId 匹配）
-            if (entry.log.traceId && entry.sensitive) {
-              const { sql } = await import('drizzle-orm');
-              const result = await db.select({ id: auditLogs.id })
-                .from(auditLogs)
-                .where(sql`${auditLogs.traceId} = ${entry.log.traceId}`)
-                .limit(1);
-              
-              if (result[0]) {
-                await db.insert(auditLogsSensitive).values({
-                  auditLogId: result[0].id,
-                  ...entry.sensitive,
-                } as InsertAuditLogsSensitive);
+        try {
+          const traceIds = sensitiveEntries
+            .map(e => e.log.traceId)
+            .filter((t): t is string => !!t);
+
+          if (traceIds.length > 0) {
+            const { sql, inArray } = await import('drizzle-orm');
+            // 单次查询获取所有匹配的 auditLog ID
+            const matchedLogs = await db.select({ id: auditLogs.id, traceId: auditLogs.traceId })
+              .from(auditLogs)
+              .where(inArray(auditLogs.traceId, traceIds));
+
+            const traceToId = new Map(matchedLogs.map(r => [r.traceId, r.id]));
+
+            const sensitiveValues: InsertAuditLogsSensitive[] = [];
+            for (const entry of sensitiveEntries) {
+              if (entry.log.traceId && entry.sensitive) {
+                const auditLogId = traceToId.get(entry.log.traceId);
+                if (auditLogId) {
+                  sensitiveValues.push({
+                    auditLogId,
+                    ...entry.sensitive,
+                  } as InsertAuditLogsSensitive);
+                }
               }
             }
-          } catch (err) {
-            log.error('Failed to insert sensitive audit log:', err);
+
+            // 批量插入敏感日志
+            if (sensitiveValues.length > 0) {
+              for (let i = 0; i < sensitiveValues.length; i += 100) {
+                await db.insert(auditLogsSensitive).values(sensitiveValues.slice(i, i + 100));
+              }
+            }
           }
+        } catch (err) {
+          log.error(`Failed to insert sensitive audit logs (${sensitiveEntries.length} entries):`, err);
         }
       }
 

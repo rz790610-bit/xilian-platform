@@ -735,9 +735,14 @@ export class ResourceDiscoveryService {
     return allComponents;
   }
 
-  /** 获取缓存的组件列表（如果没有缓存则触发扫描） */
+  /** P2-A03: 缓存 TTL（60s），避免频繁扫描 */
+  private cacheTTLMs = 60_000;
+
+  /** 获取缓存的组件列表（带 TTL，过期自动刷新） */
   async getComponents(): Promise<DiscoveredComponent[]> {
-    if (this.cache.length === 0) {
+    const now = Date.now();
+    const lastScanTime = this.lastScanAt ? new Date(this.lastScanAt).getTime() : 0;
+    if (this.cache.length === 0 || (now - lastScanTime) > this.cacheTTLMs) {
       await this.scan();
     }
     return this.cache;

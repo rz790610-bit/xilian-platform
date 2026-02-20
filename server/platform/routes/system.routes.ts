@@ -1,29 +1,55 @@
-import { router, publicProcedure } from "../../core/trpc";
+import { router, publicProcedure, protectedProcedure, adminProcedure } from "../../core/trpc";
 import { schemaRegistry } from "../services/schema-registry.service";
 import { mysqlConnector } from "../connectors/mysql.connector";
 import { clickhouseConnector } from "../connectors/clickhouse.connector";
 import { redisConnector } from "../connectors/redis.connector";
 import { getDb } from "../../lib/db";
 import * as schema from "../../../drizzle/schema";
-import { eq, desc, like, and, count } from "drizzle-orm";
+import { eq, desc, like, and, count, sql } from "drizzle-orm";
 import { z } from "zod";
 
-// ============ 系统健康检查 ============
+// ============ Zod Schemas（P2-A07: 消除 any 穿透） ============
+const alertConditionSchema = z.object({
+  operator: z.enum(["gt", "lt", "gte", "lte", "eq", "ne", "between", "outside"]),
+  threshold: z.number(),
+  thresholdHigh: z.number().optional(),
+  duration: z.number().optional(),
+  aggregation: z.enum(["avg", "max", "min", "sum", "count", "last"]).optional(),
+});
+
+const notificationChannelSchema = z.object({
+  type: z.enum(["email", "webhook", "sms", "dingtalk", "wechat"]),
+  target: z.string(),
+  template: z.string().optional(),
+});
+
+// ============ 系统健康检查（公开端点） ============
 const healthRouter = router({
   check: publicProcedure.query(async () => {
+    const startTime = Date.now();
     const [mysql, ch, redis] = await Promise.all([
       mysqlConnector.healthCheck(),
       clickhouseConnector.healthCheck(),
       redisConnector.healthCheck(),
     ]);
-    return { mysql, clickhouse: ch, redis, timestamp: new Date().toISOString() };
+    return {
+      mysql,
+      clickhouse: ch,
+      redis,
+      version: process.env.APP_VERSION || "0.0.0",
+      uptime: process.uptime(),
+      timestamp: new Date().toISOString(),
+      responseMs: Date.now() - startTime,
+    };
   }),
   listTables: publicProcedure.query(() => schemaRegistry.listTables()),
-  tableSchema: publicProcedure.input(z.object({ tableName: z.string() })).query(({ input }) => schemaRegistry.getTableSchema(input.tableName)),
+  tableSchema: publicProcedure
+    .input(z.object({ tableName: z.string() }))
+    .query(({ input }) => schemaRegistry.getTableSchema(input.tableName)),
   tableCount: publicProcedure.query(() => schemaRegistry.getTableCount()),
 });
 
-// ============ 告警规则 CRUD ============
+// ============ 告警规则 CRUD（读取公开，写操作需鉴权） ============
 const alertRulesRouter = router({
   list: publicProcedure
     .input(z.object({
@@ -37,7 +63,7 @@ const alertRulesRouter = router({
     .query(async ({ input }) => {
       const db = (await getDb())!;
       const p = input || { page: 1, pageSize: 20 };
-      const conditions: any[] = [eq(schema.alertRules.isDeleted, 0)];
+      const conditions = [eq(schema.alertRules.isDeleted, 0)];
       if (p.severity) conditions.push(eq(schema.alertRules.severity, p.severity));
       if (p.deviceType) conditions.push(eq(schema.alertRules.deviceType, p.deviceType));
       if (p.isActive !== undefined) conditions.push(eq(schema.alertRules.isActive, p.isActive));
@@ -49,41 +75,66 @@ const alertRulesRouter = router({
       ]);
       return { rows, total: total[0]?.count || 0, page: p.page, pageSize: p.pageSize };
     }),
-  getById: publicProcedure.input(z.object({ id: z.number() })).query(async ({ input }) => {
-    const db = (await getDb())!;
-    const rows = await db.select().from(schema.alertRules).where(eq(schema.alertRules.id, input.id)).limit(1);
-    return rows[0] || null;
-  }),
-  create: publicProcedure
+  getById: publicProcedure
+    .input(z.object({ id: z.number() }))
+    .query(async ({ input }) => {
+      const db = (await getDb())!;
+      const rows = await db.select().from(schema.alertRules).where(eq(schema.alertRules.id, input.id)).limit(1);
+      return rows[0] || null;
+    }),
+  create: protectedProcedure
     .input(z.object({
-      ruleCode: z.string(), name: z.string(), deviceType: z.string(), measurementType: z.string(),
-      severity: z.string().default("warning"), condition: z.any(), cooldownSeconds: z.number().default(300),
-      notificationChannels: z.any().optional(), description: z.string().optional(), priority: z.number().default(0),
+      ruleCode: z.string(),
+      name: z.string(),
+      deviceType: z.string(),
+      measurementType: z.string(),
+      severity: z.string().default("warning"),
+      condition: alertConditionSchema,
+      cooldownSeconds: z.number().default(300),
+      notificationChannels: z.array(notificationChannelSchema).optional(),
+      description: z.string().optional(),
+      priority: z.number().default(0),
     }))
     .mutation(async ({ input }) => {
       const db = (await getDb())!;
-      return db.insert(schema.alertRules).values(input as any);
+      return db.insert(schema.alertRules).values({
+        ...input,
+        condition: JSON.stringify(input.condition),
+        notificationChannels: input.notificationChannels ? JSON.stringify(input.notificationChannels) : null,
+      } as typeof schema.alertRules.$inferInsert);
     }),
-  update: publicProcedure
+  update: protectedProcedure
     .input(z.object({
-      id: z.number(), name: z.string().optional(), severity: z.string().optional(),
-      condition: z.any().optional(), cooldownSeconds: z.number().optional(),
-      notificationChannels: z.any().optional(), isActive: z.number().optional(),
-      description: z.string().optional(), priority: z.number().optional(),
+      id: z.number(),
+      name: z.string().optional(),
+      severity: z.string().optional(),
+      condition: alertConditionSchema.optional(),
+      cooldownSeconds: z.number().optional(),
+      notificationChannels: z.array(notificationChannelSchema).optional(),
+      isActive: z.number().optional(),
+      description: z.string().optional(),
+      priority: z.number().optional(),
     }))
     .mutation(async ({ input }) => {
       const db = (await getDb())!;
-      const { id, ...data } = input;
-      return db.update(schema.alertRules).set({ ...data, updatedAt: new Date() } as any).where(eq(schema.alertRules.id, id));
+      const { id, condition, notificationChannels, ...rest } = input;
+      const data: Record<string, unknown> = { ...rest, updatedAt: new Date() };
+      if (condition) data.condition = JSON.stringify(condition);
+      if (notificationChannels) data.notificationChannels = JSON.stringify(notificationChannels);
+      return db.update(schema.alertRules).set(data as typeof schema.alertRules.$inferInsert).where(eq(schema.alertRules.id, id));
     }),
-  delete: publicProcedure.input(z.object({ id: z.number() })).mutation(async ({ input }) => {
-    const db = (await getDb())!;
-    return db.update(schema.alertRules).set({ isDeleted: 1 } as any).where(eq(schema.alertRules.id, input.id));
-  }),
-  toggleActive: publicProcedure.input(z.object({ id: z.number(), isActive: z.number() })).mutation(async ({ input }) => {
-    const db = (await getDb())!;
-    return db.update(schema.alertRules).set({ isActive: input.isActive, updatedAt: new Date() } as any).where(eq(schema.alertRules.id, input.id));
-  }),
+  delete: adminProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      const db = (await getDb())!;
+      return db.update(schema.alertRules).set({ isDeleted: 1, updatedAt: new Date() } as typeof schema.alertRules.$inferInsert).where(eq(schema.alertRules.id, input.id));
+    }),
+  toggleActive: protectedProcedure
+    .input(z.object({ id: z.number(), isActive: z.number() }))
+    .mutation(async ({ input }) => {
+      const db = (await getDb())!;
+      return db.update(schema.alertRules).set({ isActive: input.isActive, updatedAt: new Date() } as typeof schema.alertRules.$inferInsert).where(eq(schema.alertRules.id, input.id));
+    }),
   stats: publicProcedure.query(async () => {
     const db = (await getDb())!;
     const [total, active, critical, warning] = await Promise.all([
@@ -96,7 +147,7 @@ const alertRulesRouter = router({
   }),
 });
 
-// ============ 审计日志查询 ============
+// ============ 审计日志查询（只读公开，敏感日志需鉴权） ============
 const auditLogsRouter = router({
   list: publicProcedure
     .input(z.object({
@@ -111,7 +162,7 @@ const auditLogsRouter = router({
     .query(async ({ input }) => {
       const db = (await getDb())!;
       const p = input || { page: 1, pageSize: 20 };
-      const conditions: any[] = [];
+      const conditions: ReturnType<typeof eq>[] = [];
       if (p.action) conditions.push(eq(schema.auditLogs.action, p.action));
       if (p.operator) conditions.push(eq(schema.auditLogs.operator, p.operator));
       if (p.resourceType) conditions.push(like(schema.auditLogs.resourceType, `%${p.resourceType}%`));
@@ -133,7 +184,7 @@ const auditLogsRouter = router({
     ]);
     return { total: total[0]?.count || 0, success: success[0]?.count || 0, fail: fail[0]?.count || 0 };
   }),
-  sensitiveList: publicProcedure
+  sensitiveList: protectedProcedure
     .input(z.object({ page: z.number().default(1), pageSize: z.number().default(20) }).optional())
     .query(async ({ input }) => {
       const db = (await getDb())!;
@@ -144,7 +195,7 @@ const auditLogsRouter = router({
     }),
 });
 
-// ============ 定时任务 CRUD ============
+// ============ 定时任务 CRUD（全部需鉴权，删除需管理员） ============
 const scheduledTasksRouter = router({
   list: publicProcedure
     .input(z.object({
@@ -156,7 +207,7 @@ const scheduledTasksRouter = router({
     .query(async ({ input }) => {
       const db = (await getDb())!;
       const p = input || { page: 1, pageSize: 20 };
-      const conditions: any[] = [];
+      const conditions: ReturnType<typeof eq>[] = [];
       if (p.status) conditions.push(eq(schema.scheduledTasks.status, p.status));
       if (p.taskType) conditions.push(eq(schema.scheduledTasks.taskType, p.taskType));
       const where = conditions.length > 0 ? and(...conditions) : undefined;
@@ -166,37 +217,56 @@ const scheduledTasksRouter = router({
       ]);
       return { rows, total: total[0]?.count || 0, page: p.page, pageSize: p.pageSize };
     }),
-  create: publicProcedure
+  create: protectedProcedure
     .input(z.object({
-      taskCode: z.string(), name: z.string(), taskType: z.string(), handler: z.string(),
-      cronExpression: z.string().optional(), intervalSeconds: z.number().optional(),
-      params: z.any().optional(), status: z.string().default("active"),
-      maxRetries: z.number().default(3), timeoutSeconds: z.number().default(300),
+      taskCode: z.string(),
+      name: z.string(),
+      taskType: z.string(),
+      handler: z.string(),
+      cronExpression: z.string().optional(),
+      intervalSeconds: z.number().optional(),
+      params: z.record(z.unknown()).optional(),
+      status: z.string().default("active"),
+      maxRetries: z.number().default(3),
+      timeoutSeconds: z.number().default(300),
     }))
     .mutation(async ({ input }) => {
       const db = (await getDb())!;
-      return db.insert(schema.scheduledTasks).values(input as any);
+      return db.insert(schema.scheduledTasks).values({
+        ...input,
+        params: input.params ? JSON.stringify(input.params) : null,
+      } as typeof schema.scheduledTasks.$inferInsert);
     }),
-  update: publicProcedure
+  update: protectedProcedure
     .input(z.object({
-      id: z.number(), name: z.string().optional(), cronExpression: z.string().optional(),
-      intervalSeconds: z.number().optional(), params: z.any().optional(),
-      status: z.string().optional(), maxRetries: z.number().optional(),
+      id: z.number(),
+      name: z.string().optional(),
+      cronExpression: z.string().optional(),
+      intervalSeconds: z.number().optional(),
+      params: z.record(z.unknown()).optional(),
+      status: z.string().optional(),
+      maxRetries: z.number().optional(),
       timeoutSeconds: z.number().optional(),
     }))
     .mutation(async ({ input }) => {
       const db = (await getDb())!;
-      const { id, ...data } = input;
-      return db.update(schema.scheduledTasks).set(data as any).where(eq(schema.scheduledTasks.id, id));
+      const { id, params, ...rest } = input;
+      const data: Record<string, unknown> = { ...rest };
+      if (params) data.params = JSON.stringify(params);
+      return db.update(schema.scheduledTasks).set(data as typeof schema.scheduledTasks.$inferInsert).where(eq(schema.scheduledTasks.id, id));
     }),
-  delete: publicProcedure.input(z.object({ id: z.number() })).mutation(async ({ input }) => {
-    const db = (await getDb())!;
-    return db.delete(schema.scheduledTasks).where(eq(schema.scheduledTasks.id, input.id));
-  }),
-  toggleStatus: publicProcedure.input(z.object({ id: z.number(), status: z.string() })).mutation(async ({ input }) => {
-    const db = (await getDb())!;
-    return db.update(schema.scheduledTasks).set({ status: input.status } as any).where(eq(schema.scheduledTasks.id, input.id));
-  }),
+  delete: adminProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      const db = (await getDb())!;
+      return db.delete(schema.scheduledTasks).where(eq(schema.scheduledTasks.id, input.id));
+    }),
+  toggleStatus: protectedProcedure
+    .input(z.object({ id: z.number(), status: z.string() }))
+    .mutation(async ({ input }) => {
+      const db = (await getDb())!;
+      return db.update(schema.scheduledTasks).set({ status: input.status } as typeof schema.scheduledTasks.$inferInsert).where(eq(schema.scheduledTasks.id, input.id));
+    }),
   stats: publicProcedure.query(async () => {
     const db = (await getDb())!;
     const [total, active, paused] = await Promise.all([
@@ -211,7 +281,7 @@ const scheduledTasksRouter = router({
     .query(async ({ input }) => {
       const db = (await getDb())!;
       const p = input || { page: 1, pageSize: 20 };
-      const conditions: any[] = [];
+      const conditions: ReturnType<typeof eq>[] = [];
       if (p.status) conditions.push(eq(schema.asyncTaskLog.status, p.status));
       const where = conditions.length > 0 ? and(...conditions) : undefined;
       const rows = await db.select().from(schema.asyncTaskLog).where(where).orderBy(desc(schema.asyncTaskLog.createdAt)).limit(p.pageSize).offset((p.page - 1) * p.pageSize);
@@ -220,11 +290,9 @@ const scheduledTasksRouter = router({
     }),
 });
 
-
 export const systemRoutes = router({
   health: healthRouter,
   alertRules: alertRulesRouter,
   auditLogs: auditLogsRouter,
   scheduledTasks: scheduledTasksRouter,
-
 });

@@ -314,13 +314,13 @@ export async function registerBuiltinShutdownHooks(): Promise<void> {
     } catch { /* 忽略 */ }
   }, 90);
 
-  // v4.0 数据动脉关闭（优先级 50，在 kafka/redis 之前关闭上层服务）
+  // P1-4: 修复优先级冲突 — data-artery 是上层服务，应在 Kafka/Redis 之前关闭
   gracefulShutdown.addHook('data-artery', async () => {
     try {
       const { stopDataArtery } = await import('../../services/data-artery.bootstrap');
       await stopDataArtery();
     } catch { /* 忽略 */ }
-  }, 50);
+  }, 25);
 
   log.info('Built-in shutdown hooks registered');
 }

@@ -99,6 +99,15 @@ const pipelineExecutionsTotal = new Counter({
   registers: [register],
 });
 
+/** P2-A05: 管道执行耗时分布（Histogram） */
+const pipelineExecutionDuration = new Histogram({
+  name: 'nexus_pipeline_execution_duration_seconds',
+  help: 'Pipeline execution duration in seconds',
+  labelNames: ['pipeline_name', 'status'] as const,
+  buckets: [0.1, 0.5, 1, 2, 5, 10, 30, 60, 120, 300],
+  registers: [register],
+});
+
 /** EventBus 事件计数 */
 const eventBusEventsTotal = new Counter({
   name: 'nexus_eventbus_events_total',
@@ -228,9 +237,12 @@ class MetricsCollector {
     algorithmExecutionDuration.observe({ algorithm_name: name, status }, durationSeconds);
   }
 
-  /** 记录管道执行 */
-  recordPipelineExecution(name: string, status: 'success' | 'failure' | 'timeout'): void {
+  /** 记录管道执行（P2-A05: 同时记录 Counter + Histogram） */
+  recordPipelineExecution(name: string, status: 'success' | 'failure' | 'timeout', durationSeconds?: number): void {
     pipelineExecutionsTotal.inc({ pipeline_name: name, status });
+    if (durationSeconds !== undefined) {
+      pipelineExecutionDuration.observe({ pipeline_name: name, status }, durationSeconds);
+    }
   }
 
   /** 记录 EventBus 事件 */

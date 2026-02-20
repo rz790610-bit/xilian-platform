@@ -40,8 +40,8 @@ export class RedisConnector {
     try {
       const result = await redisClient.healthCheck();
       return { status: result.connected ? "healthy" : "unhealthy", engine: "ioredis", latencyMs: result.latencyMs };
-    } catch (e: any) {
-      return { status: "unhealthy", error: e.message, engine: "ioredis" };
+    } catch (e: unknown) {
+      return { status: "unhealthy", error: e instanceof Error ? e.message : String(e), engine: "ioredis" };
     }
   }
 }

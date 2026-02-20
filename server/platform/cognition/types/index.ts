@@ -74,8 +74,13 @@ export type CognitionDimension = 'perception' | 'reasoning' | 'fusion' | 'decisi
 /** 叙事阶段（对外展示用） */
 export type NarrativePhase = 'curiosity' | 'hypothesis' | 'experiment' | 'verification';
 
-/** 降级模式 */
-export type DegradationMode = 'normal' | 'high_pressure' | 'emergency';
+/** 降级模式（P1-1: 提升为常量数组 + 派生类型，避免字符串字面量散落） */
+export const DEGRADATION_MODES = ['normal', 'high_pressure', 'emergency'] as const;
+export type DegradationMode = (typeof DEGRADATION_MODES)[number];
+
+/** 决策动作类型（P1-1: 提升为常量数组 + 派生类型） */
+export const ACTION_TYPES = ['retrain', 'relabel', 'recollect', 'alert', 'deploy', 'rollback', 'investigate'] as const;
+export type ActionType = (typeof ACTION_TYPES)[number];
 
 // ============================================================================
 // DS 融合引擎类型
@@ -315,7 +320,7 @@ export interface DecisionOutput extends DimensionOutput {
     /** 推荐的动作列表（按优先级排序） */
     recommendedActions: Array<{
       id: string;
-      type: 'retrain' | 'relabel' | 'recollect' | 'alert' | 'deploy' | 'rollback' | 'investigate';
+      type: ActionType;
       description: string;
       priority: number;
       estimatedCost: number;

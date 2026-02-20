@@ -1,4 +1,6 @@
 import { getDb } from "../../lib/db";
+import { sql } from "drizzle-orm";
+
 export class MySQLConnector {
   private static instance: MySQLConnector;
   static getInstance(): MySQLConnector {
@@ -13,9 +15,10 @@ export class MySQLConnector {
     const db = (await getDb())!;
     const start = Date.now();
     try {
-      await db.execute("SELECT 1" as any);
+      // P2-A06: 消除 any，使用 drizzle sql`` 模板
+      await db.execute(sql`SELECT 1`);
       return { status: "healthy", latency: Date.now() - start };
-    } catch (e) {
+    } catch {
       return { status: "unhealthy", latency: Date.now() - start };
     }
   }
