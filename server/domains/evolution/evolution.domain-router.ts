@@ -7,6 +7,17 @@
 
 import { router, publicProcedure, protectedProcedure } from '../../core/trpc';
 import { z } from 'zod';
+import { getDb } from '../../lib/db';
+import { eq, desc, count, gte } from 'drizzle-orm';
+import {
+  shadowEvalRecords,
+  shadowEvalMetrics,
+  championChallengerExperiments,
+  canaryDeployments,
+  edgeCases,
+  evolutionCycles,
+  knowledgeCrystals,
+} from '../../../drizzle/evolution-schema';
 
 // ============================================================================
 // 影子评估路由
@@ -45,14 +56,30 @@ const shadowEvalRouter = router({
       limit: z.number().default(20),
     }))
     .query(async ({ input }) => {
-      return { records: [], total: 0 };
+      const db = await getDb();
+      if (!db) return { records: [], total: 0 };
+      try {
+        const rows = await db.select().from(shadowEvalRecords)
+          .orderBy(desc(shadowEvalRecords.createdAt))
+          .limit(input.limit);
+        const totalRows = await db.select({ cnt: count() }).from(shadowEvalRecords);
+        return { records: rows, total: totalRows[0]?.cnt ?? 0 };
+      } catch { return { records: [], total: 0 }; }
     }),
 
   /** 获取评估详情 */
   get: publicProcedure
     .input(z.object({ id: z.number() }))
     .query(async ({ input }) => {
-      return { record: null, metrics: [] };
+      const db = await getDb();
+      if (!db) return { record: null, metrics: [] };
+      try {
+        const records = await db.select().from(shadowEvalRecords)
+          .where(eq(shadowEvalRecords.id, input.id)).limit(1);
+        const metrics = await db.select().from(shadowEvalMetrics)
+          .where(eq(shadowEvalMetrics.recordId, input.id));
+        return { record: records[0] ?? null, metrics };
+      } catch { return { record: null, metrics: [] }; }
     }),
 
   /** 启动评估 */
@@ -87,14 +114,28 @@ const championChallengerRouter = router({
       limit: z.number().default(20),
     }))
     .query(async ({ input }) => {
-      return { experiments: [], total: 0 };
+      const db = await getDb();
+      if (!db) return { experiments: [], total: 0 };
+      try {
+        const rows = await db.select().from(championChallengerExperiments)
+          .orderBy(desc(championChallengerExperiments.createdAt))
+          .limit(input.limit);
+        const totalRows = await db.select({ cnt: count() }).from(championChallengerExperiments);
+        return { experiments: rows, total: totalRows[0]?.cnt ?? 0 };
+      } catch { return { experiments: [], total: 0 }; }
     }),
 
   /** 获取实验详情 */
   get: publicProcedure
     .input(z.object({ id: z.number() }))
     .query(async ({ input }) => {
-      return { experiment: null };
+      const db = await getDb();
+      if (!db) return { experiment: null };
+      try {
+        const rows = await db.select().from(championChallengerExperiments)
+          .where(eq(championChallengerExperiments.id, input.id)).limit(1);
+        return { experiment: rows[0] ?? null };
+      } catch { return { experiment: null }; }
     }),
 
   /** 手动裁决 */
@@ -131,7 +172,13 @@ const canaryRouter = router({
       status: z.enum(['active', 'completed', 'rolled_back', 'failed']).optional(),
     }))
     .query(async ({ input }) => {
-      return { deployments: [], total: 0 };
+      const db = await getDb();
+      if (!db) return { deployments: [], total: 0 };
+      try {
+        const rows = await db.select().from(canaryDeployments)
+          .orderBy(desc(canaryDeployments.createdAt));
+        return { deployments: rows, total: rows.length };
+      } catch { return { deployments: [], total: 0 }; }
     }),
 
   /** 回滚金丝雀 */
@@ -175,7 +222,15 @@ const dataEngineRouter = router({
       limit: z.number().default(50),
     }))
     .query(async ({ input }) => {
-      return { edgeCases: [], total: 0 };
+      const db = await getDb();
+      if (!db) return { edgeCases: [], total: 0 };
+      try {
+        const rows = await db.select().from(edgeCases)
+          .orderBy(desc(edgeCases.discoveredAt))
+          .limit(input.limit);
+        const totalRows = await db.select({ cnt: count() }).from(edgeCases);
+        return { edgeCases: rows, total: totalRows[0]?.cnt ?? 0 };
+      } catch { return { edgeCases: [], total: 0 }; }
     }),
 
   /** 标注边缘案例 */
@@ -198,10 +253,18 @@ const cycleRouter = router({
   list: publicProcedure
     .input(z.object({ limit: z.number().default(20) }))
     .query(async ({ input }) => {
-      return { cycles: [], total: 0 };
+      const db = await getDb();
+      if (!db) return { cycles: [], total: 0 };
+      try {
+        const rows = await db.select().from(evolutionCycles)
+          .orderBy(desc(evolutionCycles.startedAt))
+          .limit(input.limit);
+        const totalRows = await db.select({ cnt: count() }).from(evolutionCycles);
+        return { cycles: rows, total: totalRows[0]?.cnt ?? 0 };
+      } catch { return { cycles: [], total: 0 }; }
     }),
 
-  /** 获取进化趋势（ClickHouse 物化视图） */
+  /** 获取进化趋势 */
   getTrend: publicProcedure
     .input(z.object({ weeks: z.number().default(12) }))
     .query(async ({ input }) => {
@@ -211,7 +274,14 @@ const cycleRouter = router({
   /** 获取当前周期状态 */
   getCurrent: publicProcedure
     .query(async () => {
-      return { cycle: null };
+      const db = await getDb();
+      if (!db) return { cycle: null };
+      try {
+        const rows = await db.select().from(evolutionCycles)
+          .orderBy(desc(evolutionCycles.startedAt))
+          .limit(1);
+        return { cycle: rows[0] ?? null };
+      } catch { return { cycle: null }; }
     }),
 });
 
@@ -227,14 +297,28 @@ const crystalRouter = router({
       limit: z.number().default(50),
     }))
     .query(async ({ input }) => {
-      return { crystals: [], total: 0 };
+      const db = await getDb();
+      if (!db) return { crystals: [], total: 0 };
+      try {
+        const rows = await db.select().from(knowledgeCrystals)
+          .orderBy(desc(knowledgeCrystals.createdAt))
+          .limit(input.limit);
+        const totalRows = await db.select({ cnt: count() }).from(knowledgeCrystals);
+        return { crystals: rows, total: totalRows[0]?.cnt ?? 0 };
+      } catch { return { crystals: [], total: 0 }; }
     }),
 
   /** 获取结晶详情 */
   get: publicProcedure
     .input(z.object({ id: z.number() }))
     .query(async ({ input }) => {
-      return { crystal: null };
+      const db = await getDb();
+      if (!db) return { crystal: null };
+      try {
+        const rows = await db.select().from(knowledgeCrystals)
+          .where(eq(knowledgeCrystals.id, input.id)).limit(1);
+        return { crystal: rows[0] ?? null };
+      } catch { return { crystal: null }; }
     }),
 
   /** 验证结晶 */
@@ -245,7 +329,20 @@ const crystalRouter = router({
       notes: z.string().optional(),
     }))
     .mutation(async ({ input }) => {
-      return { success: true };
+      const db = await getDb();
+      if (!db) return { success: false };
+      try {
+        // knowledgeCrystals has no 'status' field; use verificationCount as proxy
+        if (input.verified) {
+          const rows = await db.select().from(knowledgeCrystals).where(eq(knowledgeCrystals.id, input.id)).limit(1);
+          if (rows[0]) {
+            await db.update(knowledgeCrystals)
+              .set({ verificationCount: rows[0].verificationCount + 1, lastVerifiedAt: new Date() })
+              .where(eq(knowledgeCrystals.id, input.id));
+          }
+        }
+        return { success: true };
+      } catch { return { success: false }; }
     }),
 });
 
@@ -266,14 +363,56 @@ export const evolutionDomainRouter = router({
   /** 获取飞轮状态（进化循环概览） */
   getFlywheelStatus: publicProcedure
     .query(async () => {
-      // TODO: Phase 4 — 从 evolution_cycles 和 knowledge_crystals 表聚合
-      return {
-        currentCycle: null as string | null,
-        status: 'idle' as 'idle' | 'discovering' | 'hypothesizing' | 'evaluating' | 'deploying' | 'crystallizing',
-        totalCycles: 0,
-        totalImprovements: 0,
-        lastCycleAt: null as string | null,
-        crystalCount: 0,
-      };
+      const db = await getDb();
+      if (!db) {
+        return {
+          currentCycle: null as string | null,
+          status: 'idle' as 'idle' | 'discovering' | 'hypothesizing' | 'evaluating' | 'deploying' | 'crystallizing',
+          totalCycles: 0,
+          totalImprovements: 0,
+          lastCycleAt: null as string | null,
+          crystalCount: 0,
+        };
+      }
+
+      try {
+        // 获取最新进化周期
+        const latestCycle = await db.select().from(evolutionCycles)
+          .orderBy(desc(evolutionCycles.startedAt))
+          .limit(1);
+
+        // 统计总周期数
+        const totalCycleRows = await db.select({ cnt: count() }).from(evolutionCycles);
+        const totalCycles = totalCycleRows[0]?.cnt ?? 0;
+
+        // 统计知识结晶数
+        const crystalRows = await db.select({ cnt: count() }).from(knowledgeCrystals);
+        const crystalCount = crystalRows[0]?.cnt ?? 0;
+
+        // 统计已应用的结晶数（= 改进数）
+        // knowledgeCrystals has no 'status' field; use verificationCount > 0 as 'applied' proxy
+        const appliedRows = await db.select({ cnt: count() }).from(knowledgeCrystals)
+          .where(gte(knowledgeCrystals.verificationCount, 1));
+        const totalImprovements = appliedRows[0]?.cnt ?? 0;
+
+        const current = latestCycle[0];
+        return {
+          currentCycle: current ? String(current.id) : null,
+          status: (current?.status === 'running' ? 'evaluating' : current?.status === 'completed' ? 'crystallizing' : 'idle') as 'idle' | 'discovering' | 'hypothesizing' | 'evaluating' | 'deploying' | 'crystallizing',
+          totalCycles,
+          totalImprovements,
+          lastCycleAt: current?.startedAt?.toISOString() ?? null,
+          crystalCount,
+        };
+      } catch {
+        return {
+          currentCycle: null,
+          status: 'idle' as const,
+          totalCycles: 0,
+          totalImprovements: 0,
+          lastCycleAt: null,
+          crystalCount: 0,
+        };
+      }
     }),
 });
