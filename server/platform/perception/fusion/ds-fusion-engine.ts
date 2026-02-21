@@ -121,43 +121,56 @@ export class DSFusionEngine {
   private readonly frame: DiscernmentFrame;
   private sourceConfigs: Map<string, EvidenceSourceConfig> = new Map();
 
-  constructor(hypotheses: string[], sourceConfigs?: EvidenceSourceConfig[]) {
-    // 构建辨识框架
-    this.frame = this.buildFrame(hypotheses);
-
-    // 初始化认知层引擎
-    this.cognitiveEngine = new CognitiveDSFusionEngine({
-      frameOfDiscernment: hypotheses,
-      defaultStrategy: 'dempster',
-      highConflictThreshold: 0.7,
-      extremeConflictThreshold: 0.95,
-      conflictPenaltyFactor: 0.3,
-      sources: (sourceConfigs || []).map(sc => ({
-        id: sc.name,
-        name: sc.name,
-        type: 'sensor' as const,
-        initialReliability: 1.0,
-        currentReliability: 1.0,
-        decayFactor: 0.95,
-        recoveryFactor: 0.1,
-        minReliability: 0.1,
-        enabled: true,
-        correctCount: 0,
-        errorCount: 0,
-        lastUpdatedAt: new Date(),
-      })),
-    });
+  /**
+   * 构造函数 — 支持两种模式：
+   *   1. 依赖注入模式（推荐）：传入已创建的 CognitiveDSFusionEngine 实例
+   *   2. 自动创建模式（向后兼容）：传入 hypotheses + sourceConfigs
+   */
+  constructor(
+    hypothesesOrEngine: string[] | CognitiveDSFusionEngine,
+    sourceConfigs?: EvidenceSourceConfig[],
+  ) {
+    if (hypothesesOrEngine instanceof CognitiveDSFusionEngine) {
+      // 依赖注入模式
+      this.cognitiveEngine = hypothesesOrEngine;
+      this.frame = this.buildFrame([]);
+      log.info('Perception DS fusion engine initialized (injected cognitive engine)');
+    } else {
+      // 向后兼容：自动创建认知层引擎
+      const hypotheses = hypothesesOrEngine;
+      this.frame = this.buildFrame(hypotheses);
+      this.cognitiveEngine = new CognitiveDSFusionEngine({
+        frameOfDiscernment: hypotheses,
+        defaultStrategy: 'dempster',
+        highConflictThreshold: 0.7,
+        extremeConflictThreshold: 0.95,
+        conflictPenaltyFactor: 0.3,
+        sources: (sourceConfigs || []).map(sc => ({
+          id: sc.name,
+          name: sc.name,
+          type: 'sensor' as const,
+          initialReliability: 1.0,
+          currentReliability: 1.0,
+          decayFactor: 0.95,
+          recoveryFactor: 0.1,
+          minReliability: 0.1,
+          enabled: true,
+          correctCount: 0,
+          errorCount: 0,
+          lastUpdatedAt: new Date(),
+        })),
+      });
+      log.info({
+        hypotheses,
+        sourceCount: sourceConfigs?.length ?? 0,
+      }, 'Perception DS fusion engine initialized (auto-created cognitive engine)');
+    }
 
     if (sourceConfigs) {
       for (const cfg of sourceConfigs) {
         this.sourceConfigs.set(cfg.name, cfg);
       }
     }
-
-    log.info({
-      hypotheses,
-      sourceCount: sourceConfigs?.length ?? 0,
-    }, 'Perception DS fusion engine initialized (unified adapter)');
   }
 
   // ==========================================================================

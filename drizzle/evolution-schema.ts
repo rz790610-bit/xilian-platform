@@ -900,3 +900,245 @@ export const stateVectorLogs = mysqlTable('state_vector_logs', {
 ]);
 export type StateVectorLogRow = typeof stateVectorLogs.$inferSelect;
 export type InsertStateVectorLog = typeof stateVectorLogs.$inferInsert;
+
+
+// ============================================================================
+// ⑥ Phase 2 — 认知层推理引擎增强（6 张）
+// ============================================================================
+
+/**
+ * 因果图节点 — 港口机械领域因果知识
+ */
+export const causalNodes = mysqlTable('causal_nodes', {
+  id: bigint('id', { mode: 'number' }).autoincrement().primaryKey(),
+  /** 节点唯一标识（如 bearing_inner_race_fault） */
+  nodeId: varchar('node_id', { length: 200 }).notNull().unique(),
+  /** 节点标签（中文显示名） */
+  label: varchar('label', { length: 200 }).notNull(),
+  /** 节点类型 */
+  nodeType: mysqlEnum('node_type', ['symptom', 'mechanism', 'root_cause', 'condition']).notNull(),
+  /** 所属异常域 */
+  domain: varchar('domain', { length: 100 }).notNull(),
+  /** 先验概率 [0, 1] */
+  priorProbability: float('prior_probability').notNull().default(0.5),
+  /** 关联的物理方程 ID 列表 */
+  equationIds: json('equation_ids').$type<string[]>().notNull().default([]),
+  /** 关联的测点标签列表 */
+  sensorTags: json('sensor_tags').$type<string[]>().notNull().default([]),
+  /** 元数据（描述、单位、阈值等） */
+  metadata: json('metadata').$type<Record<string, unknown>>().notNull().default({}),
+  /** 数据来源 */
+  sourceType: mysqlEnum('source_type', ['seed', 'grok_discovered', 'experience_learned']).notNull().default('seed'),
+  /** 是否激活 */
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at', { fsp: 3 }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { fsp: 3 }).defaultNow().notNull().onUpdateNow(),
+}, (table) => [
+  index('idx_cn_domain').on(table.domain),
+  index('idx_cn_type').on(table.nodeType),
+  index('idx_cn_source').on(table.sourceType),
+]);
+export type CausalNodeRow = typeof causalNodes.$inferSelect;
+export type InsertCausalNode = typeof causalNodes.$inferInsert;
+
+/**
+ * 因果图边 — 节点间因果关系（贝叶斯自更新权重）
+ */
+export const causalEdges = mysqlTable('causal_edges', {
+  id: bigint('id', { mode: 'number' }).autoincrement().primaryKey(),
+  /** 边唯一标识 */
+  edgeId: varchar('edge_id', { length: 400 }).notNull().unique(),
+  /** 源节点 ID */
+  sourceNodeId: varchar('source_node_id', { length: 200 }).notNull(),
+  /** 目标节点 ID */
+  targetNodeId: varchar('target_node_id', { length: 200 }).notNull(),
+  /** 边权重 [0, 1]（贝叶斯自更新） */
+  weight: float('weight').notNull().default(0.5),
+  /** 因果机制描述 */
+  mechanism: text('mechanism').notNull(),
+  /** 证据计数 */
+  evidenceCount: int('evidence_count').notNull().default(0),
+  /** 数据来源 */
+  sourceType: mysqlEnum('source_type', ['seed', 'grok_discovered', 'experience_learned']).notNull().default('seed'),
+  /** 最后衰减时间 */
+  lastDecayAt: timestamp('last_decay_at', { fsp: 3 }).defaultNow().notNull(),
+  createdAt: timestamp('created_at', { fsp: 3 }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { fsp: 3 }).defaultNow().notNull().onUpdateNow(),
+}, (table) => [
+  index('idx_ce_source_node').on(table.sourceNodeId),
+  index('idx_ce_target_node').on(table.targetNodeId),
+  index('idx_ce_weight').on(table.weight),
+  uniqueIndex('idx_ce_pair').on(table.sourceNodeId, table.targetNodeId),
+]);
+export type CausalEdgeRow = typeof causalEdges.$inferSelect;
+export type InsertCausalEdge = typeof causalEdges.$inferInsert;
+
+/**
+ * 推理经验记录 — 三层内存持久化
+ */
+export const reasoningExperiences = mysqlTable('reasoning_experiences', {
+  id: bigint('id', { mode: 'number' }).autoincrement().primaryKey(),
+  /** 经验唯一标识 */
+  experienceId: varchar('experience_id', { length: 200 }).notNull().unique(),
+  /** 经验层级 */
+  layer: mysqlEnum('layer', ['episodic', 'semantic', 'procedural']).notNull(),
+  /** 关联的认知会话 ID */
+  sessionId: varchar('session_id', { length: 200 }),
+  /** 异常域 */
+  domain: varchar('domain', { length: 100 }).notNull(),
+  /** 设备类型 */
+  deviceType: varchar('device_type', { length: 100 }),
+  /** 设备编码 */
+  deviceCode: varchar('device_code', { length: 100 }),
+  /** 异常描述 / 规则描述 / 程序名称 */
+  description: text('description').notNull(),
+  /** 诊断假设 */
+  hypothesis: varchar('hypothesis', { length: 500 }),
+  /** 最终根因 */
+  rootCause: varchar('root_cause', { length: 500 }),
+  /** 解决方案 */
+  resolution: text('resolution'),
+  /** 是否正确（人工反馈） */
+  wasCorrect: boolean('was_correct'),
+  /** 置信度 [0, 1] */
+  confidence: float('confidence').notNull().default(0),
+  /** 特征向量（JSON 数组，用于向量检索） */
+  featureVector: json('feature_vector').$type<number[]>(),
+  /** 上下文快照 */
+  context: json('context').$type<Record<string, unknown>>().notNull().default({}),
+  /** 来源情景 ID 列表（语义记忆用） */
+  sourceEpisodicIds: json('source_episodic_ids').$type<string[]>(),
+  /** 操作步骤（程序记忆用） */
+  steps: json('steps').$type<Array<{
+    order: number; action: string; expectedOutcome: string; toolId?: string;
+  }>>(),
+  /** 验证次数（语义记忆用） */
+  verificationCount: int('verification_count').notNull().default(0),
+  /** 成功率（语义记忆用） */
+  successRate: float('success_rate'),
+  /** 执行次数（程序记忆用） */
+  executionCount: int('execution_count').notNull().default(0),
+  /** 平均耗时 ms（程序记忆用） */
+  avgDurationMs: int('avg_duration_ms'),
+  /** 最后访问时间 */
+  lastAccessedAt: timestamp('last_accessed_at', { fsp: 3 }).defaultNow().notNull(),
+  createdAt: timestamp('created_at', { fsp: 3 }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { fsp: 3 }).defaultNow().notNull().onUpdateNow(),
+}, (table) => [
+  index('idx_re_layer').on(table.layer),
+  index('idx_re_domain').on(table.domain),
+  index('idx_re_session').on(table.sessionId),
+  index('idx_re_device').on(table.deviceType, table.deviceCode),
+  index('idx_re_confidence').on(table.confidence),
+  index('idx_re_accessed').on(table.lastAccessedAt),
+]);
+export type ReasoningExperienceRow = typeof reasoningExperiences.$inferSelect;
+export type InsertReasoningExperience = typeof reasoningExperiences.$inferInsert;
+
+/**
+ * 推理决策日志 — 每次推理的完整决策追溯
+ */
+export const reasoningDecisionLogs = mysqlTable('reasoning_decision_logs', {
+  id: bigint('id', { mode: 'number' }).autoincrement().primaryKey(),
+  /** 关联的认知会话 ID */
+  sessionId: varchar('session_id', { length: 200 }).notNull(),
+  /** 选择的推理路由 */
+  route: mysqlEnum('route', ['fast_path', 'standard_path', 'deep_path', 'fallback_path']).notNull(),
+  /** 各阶段耗时 (ms) */
+  phaseDurations: json('phase_durations').$type<Record<string, number>>().notNull(),
+  /** 关键决策点列表 */
+  decisions: json('decisions').$type<Array<{
+    point: string; choice: string; reason: string; confidence: number;
+  }>>().notNull(),
+  /** 最终假设 */
+  finalHypothesis: varchar('final_hypothesis', { length: 500 }),
+  /** 最终置信度 */
+  finalConfidence: float('final_confidence'),
+  /** 是否物理验证通过 */
+  physicsVerified: boolean('physics_verified').notNull().default(false),
+  /** 是否使用了 Grok */
+  grokUsed: boolean('grok_used').notNull().default(false),
+  /** Grok 调用次数 */
+  grokCallCount: int('grok_call_count').notNull().default(0),
+  /** 端到端不确定性 */
+  totalUncertainty: float('total_uncertainty'),
+  /** 不确定性分解 */
+  uncertaintyDecomposition: json('uncertainty_decomposition').$type<Record<string, number>>(),
+  /** 总耗时 (ms) */
+  totalDurationMs: int('total_duration_ms').notNull(),
+  /** 解释图（JSON-LD） */
+  explanationGraph: json('explanation_graph').$type<Record<string, unknown>>(),
+  createdAt: timestamp('created_at', { fsp: 3 }).defaultNow().notNull(),
+}, (table) => [
+  index('idx_rdl_session').on(table.sessionId),
+  index('idx_rdl_route').on(table.route),
+  index('idx_rdl_grok').on(table.grokUsed),
+  index('idx_rdl_time').on(table.createdAt),
+]);
+export type ReasoningDecisionLogRow = typeof reasoningDecisionLogs.$inferSelect;
+export type InsertReasoningDecisionLog = typeof reasoningDecisionLogs.$inferInsert;
+
+/**
+ * 修订日志 — 知识反馈环的所有权重修改记录（支持回滚）
+ */
+export const revisionLogs = mysqlTable('revision_logs', {
+  id: bigint('id', { mode: 'number' }).autoincrement().primaryKey(),
+  /** 修订唯一标识 */
+  revisionId: varchar('revision_id', { length: 200 }).notNull().unique(),
+  /** 修改的组件 */
+  component: mysqlEnum('component', ['causal_edge', 'experience_weight', 'physics_param', 'bpa_config']).notNull(),
+  /** 修改的实体 ID */
+  entityId: varchar('entity_id', { length: 400 }).notNull(),
+  /** 修改前的值 */
+  previousValue: json('previous_value').$type<Record<string, unknown>>().notNull(),
+  /** 修改后的值 */
+  newValue: json('new_value').$type<Record<string, unknown>>().notNull(),
+  /** 触发的反馈事件类型 */
+  feedbackEventType: varchar('feedback_event_type', { length: 100 }).notNull(),
+  /** 关联的认知会话 ID */
+  sessionId: varchar('session_id', { length: 200 }).notNull(),
+  /** 是否已回滚 */
+  rolledBack: boolean('rolled_back').notNull().default(false),
+  /** 回滚时间 */
+  rolledBackAt: timestamp('rolled_back_at', { fsp: 3 }),
+  createdAt: timestamp('created_at', { fsp: 3 }).defaultNow().notNull(),
+}, (table) => [
+  index('idx_rl_component').on(table.component),
+  index('idx_rl_entity').on(table.entityId),
+  index('idx_rl_session').on(table.sessionId),
+  index('idx_rl_time').on(table.createdAt),
+]);
+export type RevisionLogRow = typeof revisionLogs.$inferSelect;
+export type InsertRevisionLog = typeof revisionLogs.$inferInsert;
+
+/**
+ * Shadow 推理对比记录 — Champion vs Challenger 逐会话对比
+ */
+export const shadowReasoningComparisons = mysqlTable('shadow_reasoning_comparisons', {
+  id: bigint('id', { mode: 'number' }).autoincrement().primaryKey(),
+  /** 关联的认知会话 ID */
+  sessionId: varchar('session_id', { length: 200 }).notNull(),
+  /** Champion（旧引擎）结果 */
+  championResult: json('champion_result').$type<{
+    hypothesis: string; confidence: number; durationMs: number;
+  }>().notNull(),
+  /** Challenger（新引擎）结果 */
+  challengerResult: json('challenger_result').$type<{
+    hypothesis: string; confidence: number; durationMs: number;
+    route: string; grokUsed: boolean;
+  }>().notNull(),
+  /** 实际结果（人工标注后填入） */
+  groundTruth: varchar('ground_truth', { length: 500 }),
+  /** Champion 是否命中 */
+  championHit: boolean('champion_hit'),
+  /** Challenger 是否命中 */
+  challengerHit: boolean('challenger_hit'),
+  /** 延迟比（Challenger / Champion） */
+  latencyRatio: float('latency_ratio'),
+  createdAt: timestamp('created_at', { fsp: 3 }).defaultNow().notNull(),
+}, (table) => [
+  index('idx_src_session').on(table.sessionId),
+  index('idx_src_time').on(table.createdAt),
+]);
+export type ShadowReasoningComparisonRow = typeof shadowReasoningComparisons.$inferSelect;
+export type InsertShadowReasoningComparison = typeof shadowReasoningComparisons.$inferInsert;

@@ -205,7 +205,7 @@ export const observabilityRouter = router({
       const stats = await observabilityService.getLogLevelStats();
       return {
         levels: stats,
-        total: Object.values(stats).reduce((a, b) => a + b, 0),
+        total: (Object.values(stats) as number[]).reduce((a, b) => a + b, 0),
       };
     } catch {
       return ELKService.getInstance().getLogStats();

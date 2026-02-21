@@ -238,7 +238,7 @@ export class EnhancedObservabilityService {
     if (!elasticsearchClient) return [];
     const result = await elasticsearchClient.searchLogs(options);
     
-    return result.hits.hits.map((hit) => ({
+    return result.hits.hits.map((hit: any) => ({
       id: hit._id,
       timestamp: new Date(hit._source.timestamp),
       level: hit._source.level || 'info',
@@ -422,7 +422,7 @@ export class EnhancedObservabilityService {
     const serviceHealth = await Promise.all(serviceHealthPromises);
 
     // 计算日志每分钟数
-    const totalLogs = Object.values(logStats).reduce((a, b) => a + b, 0);
+    const totalLogs = (Object.values(logStats) as number[]).reduce((a, b) => a + b, 0);
     const logsPerMinute = totalLogs / 60;
 
     // 计算追踪每分钟数
