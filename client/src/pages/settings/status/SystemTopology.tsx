@@ -1023,7 +1023,10 @@ export default function SystemTopology() {
                   <svg 
                     ref={svgRef} 
                     className="w-full h-full"
-                    style={isDragging ? { userSelect: 'none', WebkitUserSelect: 'none', touchAction: 'none' } : undefined}
+                    style={{
+                      ...(isDragging ? { userSelect: 'none' as const, WebkitUserSelect: 'none' as const, touchAction: 'none' as const } : {}),
+                      cursor: isPanningCanvas ? 'grabbing' : 'grab',
+                    }}
                     onWheel={(e) => {
                       e.preventDefault();
                       const delta = e.deltaY > 0 ? -0.08 : 0.08;
@@ -1066,7 +1069,6 @@ export default function SystemTopology() {
                     }}
                     onMouseUp={() => setIsPanningCanvas(false)}
                     onMouseLeave={() => setIsPanningCanvas(false)}
-                    style={{ cursor: isPanningCanvas ? 'grabbing' : 'grab' }}
                   >
                     {/* 网格背景 */}
                     <defs>
