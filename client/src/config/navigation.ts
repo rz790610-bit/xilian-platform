@@ -135,6 +135,9 @@ export const navigationConfig: NavItem[] = [
     children: [
       { id: 'v5-cognitive-dashboard', label: '认知仪表盘', icon: '📊', path: '/v5/cognitive' },
       { id: 'v5-perception-monitor', label: '感知层监控', icon: '📡', path: '/v5/perception' },
+      { id: 'v5-perception-dashboard', label: '感知增强仪表盘', icon: '📐', path: '/v5/perception/dashboard' },
+      { id: 'v5-bpa-config', label: 'BPA 配置管理', icon: '📏', path: '/v5/perception/bpa-config' },
+      { id: 'v5-dimension-manager', label: '维度定义管理', icon: '📊', path: '/v5/perception/dimensions' },
       { id: 'v5-guardrail-console', label: '护栏控制台', icon: '🛡️', path: '/v5/guardrail' },
       { id: 'v5-digital-twin', label: '数字孪生', icon: '🔮', path: '/v5/digital-twin' },
       { id: 'v5-knowledge-explorer', label: '知识探索器', icon: '🕸️', path: '/v5/knowledge' },

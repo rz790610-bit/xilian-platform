@@ -93,6 +93,9 @@ import PluginSandboxManager from "./pages/settings/PluginSandboxManager";
 // v5.0 进化平台仪表盘
 import CognitiveDashboard from "./pages/cognitive/CognitiveDashboard";
 import PerceptionMonitor from "./pages/perception/PerceptionMonitor";
+import PerceptionDashboard from "./pages/perception/PerceptionDashboard";
+import BPAConfigManager from "./pages/perception/BPAConfigManager";
+import DimensionManager from "./pages/perception/DimensionManager";
 import GuardrailConsole from "./pages/guardrail/GuardrailConsole";
 import DigitalTwinView from "./pages/cognitive/DigitalTwinView";
 import KnowledgeExplorer from "./pages/cognitive/KnowledgeExplorer";
@@ -342,6 +345,9 @@ function Router() {
       {/* ━━━ v5.0 进化平台仪表盘 ━━━ */}
       <Route path="/v5/cognitive" component={CognitiveDashboard} />
       <Route path="/v5/perception" component={PerceptionMonitor} />
+      <Route path="/v5/perception/dashboard" component={PerceptionDashboard} />
+      <Route path="/v5/perception/bpa-config" component={BPAConfigManager} />
+      <Route path="/v5/perception/dimensions" component={DimensionManager} />
       <Route path="/v5/guardrail" component={GuardrailConsole} />
       <Route path="/v5/digital-twin" component={DigitalTwinView} />
       <Route path="/v5/knowledge" component={KnowledgeExplorer} />
