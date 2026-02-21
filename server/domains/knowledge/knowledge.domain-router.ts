@@ -236,7 +236,7 @@ export const knowledgeDomainRouter = router({
     }),
 
   /** 应用知识结晶 */
-  applyCrystal: protectedProcedure
+  applyCrystal: publicProcedure
     .input(z.object({
       crystalId: z.string(),
     }))

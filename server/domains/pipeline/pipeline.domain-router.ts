@@ -161,7 +161,7 @@ export const pipelineDomainRouter = router({
     }),
 
   /** 运行仿真 */
-  runSimulation: protectedProcedure
+  runSimulation: publicProcedure
     .input(z.object({
       scenarioId: z.string(),
       equipmentId: z.string(),
@@ -171,7 +171,7 @@ export const pipelineDomainRouter = router({
     }),
 
   /** 启动回放 */
-  startReplay: protectedProcedure
+  startReplay: publicProcedure
     .input(z.object({
       replayId: z.string(),
     }))

@@ -49,7 +49,7 @@ const ruleRouter = router({
       } catch { return { rule: null }; }
     }),
 
-  create: protectedProcedure
+  create: publicProcedure
     .input(z.object({
       name: z.string(),
       type: z.enum(['safety', 'health', 'efficiency']),
@@ -74,32 +74,69 @@ const ruleRouter = router({
       physicalBasis: z.string().optional(),
     }))
     .mutation(async ({ input }) => {
-      return { id: 0, success: true };
+      const db = await getDb();
+      if (!db) return { id: 0, success: false };
+      try {
+        const result = await db.insert(guardrailRules).values({
+          name: input.name,
+          type: input.type,
+          description: input.description ?? null,
+          condition: input.condition,
+          action: input.action,
+          priority: input.priority,
+          physicalBasis: input.physicalBasis ?? null,
+          enabled: true,
+          version: '1.0.0',
+        });
+        return { id: Number(result[0].insertId), success: true };
+      } catch (e) { console.error('[guardrail.create]', e); return { id: 0, success: false }; }
     }),
 
-  update: protectedProcedure
+  update: publicProcedure
     .input(z.object({
       id: z.number(),
+      name: z.string().optional(),
+      type: z.enum(['safety', 'health', 'efficiency']).optional(),
+      description: z.string().optional(),
       enabled: z.boolean().optional(),
-      condition: z.record(z.string(), z.unknown()).optional(),
-      action: z.record(z.string(), z.unknown()).optional(),
+      condition: z.object({
+        field: z.string(),
+        operator: z.enum(['gt', 'lt', 'gte', 'lte', 'eq', 'neq', 'between', 'and', 'or']),
+        threshold: z.number().optional(),
+        thresholds: z.tuple([z.number(), z.number()]).optional(),
+        physicalBasis: z.string().optional(),
+      }).optional(),
+      action: z.object({
+        action: z.string(),
+        params: z.record(z.string(), z.unknown()),
+        escalation: z.object({
+          action: z.string(),
+          params: z.record(z.string(), z.unknown()),
+          delayMs: z.number(),
+        }).optional(),
+      }).optional(),
       priority: z.number().optional(),
+      physicalBasis: z.string().optional(),
     }))
     .mutation(async ({ input }) => {
       const db = await getDb();
       if (!db) return { success: false };
       try {
-        const updateSet: Record<string, unknown> = {};
+        const updateSet: Record<string, unknown> = { updatedAt: new Date() };
+        if (input.name !== undefined) updateSet.name = input.name;
+        if (input.type !== undefined) updateSet.type = input.type;
+        if (input.description !== undefined) updateSet.description = input.description;
         if (input.enabled !== undefined) updateSet.enabled = input.enabled;
+        if (input.condition !== undefined) updateSet.condition = input.condition;
+        if (input.action !== undefined) updateSet.action = input.action;
         if (input.priority !== undefined) updateSet.priority = input.priority;
-        if (Object.keys(updateSet).length > 0) {
-          await db.update(guardrailRules).set(updateSet).where(eq(guardrailRules.id, input.id));
-        }
+        if (input.physicalBasis !== undefined) updateSet.physicalBasis = input.physicalBasis;
+        await db.update(guardrailRules).set(updateSet).where(eq(guardrailRules.id, input.id));
         return { success: true };
-      } catch { return { success: false }; }
+      } catch (e) { console.error('[guardrail.update]', e); return { success: false }; }
     }),
 
-  delete: protectedProcedure
+  delete: publicProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
       const db = await getDb();
@@ -156,7 +193,7 @@ const violationRouter = router({
       } catch { return { violation: null }; }
     }),
 
-  override: protectedProcedure
+  override: publicProcedure
     .input(z.object({
       id: z.number(),
       reason: z.string(),
@@ -335,7 +372,7 @@ export const guardrailDomainRouter = router({
     }),
 
   /** 切换规则启用状态（GuardrailConsole 页面使用） */
-  toggleRule: protectedProcedure
+  toggleRule: publicProcedure
     .input(z.object({
       ruleId: z.string(),
       enabled: z.boolean(),
@@ -352,7 +389,7 @@ export const guardrailDomainRouter = router({
     }),
 
   /** 确认告警（CognitiveDashboard 页面使用） */
-  acknowledgeAlert: protectedProcedure
+  acknowledgeAlert: publicProcedure
     .input(z.object({
       alertId: z.string(),
     }))

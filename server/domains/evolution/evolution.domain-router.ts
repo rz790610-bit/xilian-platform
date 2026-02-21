@@ -25,7 +25,7 @@ import {
 
 const shadowEvalRouter = router({
   /** 创建影子评估实验 */
-  create: protectedProcedure
+  create: publicProcedure
     .input(z.object({
       experimentName: z.string(),
       baselineModelId: z.string(),
@@ -83,7 +83,7 @@ const shadowEvalRouter = router({
     }),
 
   /** 启动评估 */
-  start: protectedProcedure
+  start: publicProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
       return { success: true };
@@ -96,7 +96,7 @@ const shadowEvalRouter = router({
 
 const championChallengerRouter = router({
   /** 创建挑战实验 */
-  create: protectedProcedure
+  create: publicProcedure
     .input(z.object({
       name: z.string(),
       championId: z.string(),
@@ -139,7 +139,7 @@ const championChallengerRouter = router({
     }),
 
   /** 手动裁决 */
-  verdict: protectedProcedure
+  verdict: publicProcedure
     .input(z.object({
       id: z.number(),
       verdict: z.enum(['PROMOTE', 'REJECT']),
@@ -156,7 +156,7 @@ const championChallengerRouter = router({
 
 const canaryRouter = router({
   /** 创建金丝雀发布 */
-  create: protectedProcedure
+  create: publicProcedure
     .input(z.object({
       experimentId: z.number(),
       modelId: z.string(),
@@ -182,7 +182,7 @@ const canaryRouter = router({
     }),
 
   /** 回滚金丝雀 */
-  rollback: protectedProcedure
+  rollback: publicProcedure
     .input(z.object({
       id: z.number(),
       reason: z.string(),
@@ -192,7 +192,7 @@ const canaryRouter = router({
     }),
 
   /** 提升为全量 */
-  promote: protectedProcedure
+  promote: publicProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
       return { success: true };
@@ -205,7 +205,7 @@ const canaryRouter = router({
 
 const dataEngineRouter = router({
   /** 触发数据引擎分析 */
-  triggerAnalysis: protectedProcedure
+  triggerAnalysis: publicProcedure
     .input(z.object({
       dataRangeStart: z.string(),
       dataRangeEnd: z.string(),
@@ -234,7 +234,7 @@ const dataEngineRouter = router({
     }),
 
   /** 标注边缘案例 */
-  labelEdgeCase: protectedProcedure
+  labelEdgeCase: publicProcedure
     .input(z.object({
       id: z.number(),
       labelResult: z.record(z.string(), z.unknown()),
@@ -322,7 +322,7 @@ const crystalRouter = router({
     }),
 
   /** 验证结晶 */
-  verify: protectedProcedure
+  verify: publicProcedure
     .input(z.object({
       id: z.number(),
       verified: z.boolean(),

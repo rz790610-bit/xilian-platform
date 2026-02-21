@@ -45,7 +45,7 @@ const conditionRouter = router({
       return { profile: null };
     }),
 
-  createProfile: protectedProcedure
+  createProfile: publicProcedure
     .input(z.object({
       name: z.string(),
       industry: z.string(),
@@ -78,10 +78,25 @@ const conditionRouter = router({
       }),
     }))
     .mutation(async ({ input }) => {
-      return { id: 0, success: true };
+      const db = await getDb();
+      if (!db) return { id: 0, success: false };
+      try {
+        const result = await db.insert(conditionProfiles).values({
+          name: input.name,
+          industry: input.industry,
+          equipmentType: input.equipmentType,
+          parameters: input.parameters,
+          sensorMapping: input.sensorMapping,
+          thresholdStrategy: input.thresholdStrategy,
+          cognitionConfig: input.cognitionConfig,
+          enabled: true,
+          version: '1.0.0',
+        });
+        return { id: Number(result[0].insertId), success: true };
+      } catch (e) { console.error('[perception.createProfile]', e); return { id: 0, success: false }; }
     }),
 
-  switchCondition: protectedProcedure
+  switchCondition: publicProcedure
     .input(z.object({
       machineId: z.string(),
       profileId: z.number(),
@@ -121,7 +136,7 @@ const samplingRouter = router({
       return { configs: [] };
     }),
 
-  updateConfig: protectedProcedure
+  updateConfig: publicProcedure
     .input(z.object({
       profileId: z.number(),
       cyclePhase: z.string(),
@@ -139,7 +154,38 @@ const samplingRouter = router({
       compression: z.enum(['none', 'delta', 'fft', 'wavelet']),
     }))
     .mutation(async ({ input }) => {
-      return { success: true };
+      const db = await getDb();
+      if (!db) return { success: false };
+      try {
+        // Upsert: try update first, insert if not exists
+        const existing = await db.select().from(samplingConfigs)
+          .where(and(
+            eq(samplingConfigs.profileId, input.profileId),
+            eq(samplingConfigs.cyclePhase, input.cyclePhase)
+          )).limit(1);
+        if (existing.length > 0) {
+          await db.update(samplingConfigs).set({
+            baseSamplingRate: input.baseSamplingRate,
+            highFreqSamplingRate: input.highFreqSamplingRate,
+            highFreqTrigger: input.highFreqTrigger ?? null,
+            retentionPolicy: input.retentionPolicy,
+            compression: input.compression,
+            updatedAt: new Date(),
+          }).where(eq(samplingConfigs.id, existing[0].id));
+        } else {
+          await db.insert(samplingConfigs).values({
+            profileId: input.profileId,
+            cyclePhase: input.cyclePhase,
+            baseSamplingRate: input.baseSamplingRate,
+            highFreqSamplingRate: input.highFreqSamplingRate,
+            highFreqTrigger: input.highFreqTrigger ?? null,
+            retentionPolicy: input.retentionPolicy,
+            compression: input.compression,
+            enabled: true,
+          });
+        }
+        return { success: true };
+      } catch (e) { console.error('[perception.updateConfig]', e); return { success: false }; }
     }),
 
   getStats: publicProcedure

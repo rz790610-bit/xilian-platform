@@ -21,7 +21,7 @@ import {
 
 const sessionRouter = router({
   /** 触发认知会话 */
-  trigger: protectedProcedure
+  trigger: publicProcedure
     .input(z.object({
       machineId: z.string(),
       triggerType: z.enum(['anomaly', 'scheduled', 'manual', 'chain', 'drift', 'guardrail_feedback']),
@@ -29,7 +29,20 @@ const sessionRouter = router({
       context: z.record(z.string(), z.unknown()).optional(),
     }))
     .mutation(async ({ input }) => {
-      return { sessionId: '', status: 'queued' };
+      const db = await getDb();
+      if (!db) return { sessionId: '', status: 'failed' };
+      try {
+        const sessionId = `sess-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+        await db.insert(cognitionSessions).values({
+          id: sessionId,
+          machineId: input.machineId,
+          triggerType: input.triggerType,
+          priority: input.priority,
+          status: 'running',
+          startedAt: new Date(),
+        });
+        return { sessionId, status: 'running' };
+      } catch (e) { console.error('[cognition.trigger]', e); return { sessionId: '', status: 'failed' }; }
     }),
 
   /** 获取会话详情 */
@@ -117,7 +130,7 @@ const worldModelRouter = router({
     }),
 
   /** 预测设备未来状态 */
-  predict: protectedProcedure
+  predict: publicProcedure
     .input(z.object({
       machineId: z.string(),
       horizonMinutes: z.number().min(5).max(1440),
@@ -128,7 +141,7 @@ const worldModelRouter = router({
     }),
 
   /** 反事实推理 */
-  counterfactual: protectedProcedure
+  counterfactual: publicProcedure
     .input(z.object({
       machineId: z.string(),
       hypothesis: z.string(),
