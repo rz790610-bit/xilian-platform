@@ -358,82 +358,92 @@ export const cognitionDomainRouter = router({
       const db = await getDb();
       if (!db) return null;
 
-      // 安全查询辅助函数：单表查询失败不影响其他层
-      async function safeCount(table: any): Promise<number> {
-        try {
-          const rows = await db.select({ cnt: count() }).from(table);
-          return rows[0]?.cnt ?? 0;
-        } catch { return 0; }
-      }
-      async function safeCountWhere(table: any, condition: any): Promise<number> {
-        try {
-          const rows = await db.select({ cnt: count() }).from(table).where(condition);
-          return rows[0]?.cnt ?? 0;
-        } catch { return 0; }
-      }
-      async function safeSelectAll(table: any): Promise<any[]> {
-        try {
-          return await db.select().from(table);
-        } catch { return []; }
-      }
-
       const todayStart = new Date();
       todayStart.setHours(0, 0, 0, 0);
 
       // ---- L0 数据契约层 ----
-      const connectorRows = await safeSelectAll(dataConnectors);
+      const connectorRows = await db.select().from(dataConnectors);
       const connectorTotal = connectorRows.length;
-      const connectorOnline = connectorRows.filter((c: any) => c.status === 'active' || c.status === 'healthy').length;
-      const connectorError = connectorRows.filter((c: any) => c.status === 'error' || c.status === 'degraded').length;
-      const connectors = connectorRows.map((c: any) => ({
-        id: c.connectorId ?? c.connector_id ?? 'unknown',
-        name: c.name ?? 'unknown',
-        protocol: c.protocolType ?? c.protocol_type ?? 'unknown',
-        status: c.status ?? 'unknown',
-        lastCheck: c.lastHealthCheck?.toISOString?.() ?? c.last_health_check ?? null,
-        lastError: c.lastError ?? c.last_error ?? null,
+      const connectorOnline = connectorRows.filter(c => c.status === 'active' || c.status === 'healthy').length;
+      const connectorError = connectorRows.filter(c => c.status === 'error' || c.status === 'degraded').length;
+      const connectors = connectorRows.map(c => ({
+        id: c.connectorId,
+        name: c.name,
+        protocol: c.protocolType,
+        status: c.status,
+        lastCheck: c.lastHealthCheck?.toISOString() ?? null,
+        lastError: c.lastError,
       }));
 
       // ---- L1 感知层 ----
-      const conditionProfileCount = await safeCount(conditionProfiles);
-      const samplingConfigCount = await safeCount(samplingConfigs);
+      const [cpRow] = await db.select({ cnt: count() }).from(conditionProfiles);
+      const [scRow] = await db.select({ cnt: count() }).from(samplingConfigs);
+      const conditionProfileCount = cpRow.cnt;
+      const samplingConfigCount = scRow.cnt;
 
       // ---- L2 认知诊断层 ----
-      const activeSessions = await safeCountWhere(cognitionSessions, eq(cognitionSessions.status, 'running'));
-      const todayDiagnosis = await safeCountWhere(cognitionSessions, gte(cognitionSessions.startedAt, todayStart));
-      const completedSessions = await safeCountWhere(cognitionSessions, eq(cognitionSessions.status, 'completed'));
-      const failedSessions = await safeCountWhere(cognitionSessions, eq(cognitionSessions.status, 'failed'));
-      const totalSessionCount = await safeCount(cognitionSessions);
-      const grokChainsTotal = await safeCount(grokReasoningChains);
-      const grokChainsToday = await safeCountWhere(grokReasoningChains, gte(grokReasoningChains.createdAt, todayStart));
+      const [activeRow] = await db.select({ cnt: count() }).from(cognitionSessions).where(eq(cognitionSessions.status, 'running'));
+      const [todayDiagRow] = await db.select({ cnt: count() }).from(cognitionSessions).where(gte(cognitionSessions.startedAt, todayStart));
+      const [completedRow] = await db.select({ cnt: count() }).from(cognitionSessions).where(eq(cognitionSessions.status, 'completed'));
+      const [failedRow] = await db.select({ cnt: count() }).from(cognitionSessions).where(eq(cognitionSessions.status, 'failed'));
+      const [totalRow] = await db.select({ cnt: count() }).from(cognitionSessions);
+      const [grokTotalRow] = await db.select({ cnt: count() }).from(grokReasoningChains);
+      const [grokTodayRow] = await db.select({ cnt: count() }).from(grokReasoningChains).where(gte(grokReasoningChains.createdAt, todayStart));
+
+      const activeSessions = activeRow.cnt;
+      const todayDiagnosis = todayDiagRow.cnt;
+      const completedSessions = completedRow.cnt;
+      const failedSessions = failedRow.cnt;
+      const totalSessionCount = totalRow.cnt;
+      const grokChainsTotal = grokTotalRow.cnt;
+      const grokChainsToday = grokTodayRow.cnt;
 
       // ---- L2 护栏层 ----
-      const rulesTotal = await safeCount(guardrailRules);
-      const rulesEnabled = await safeCountWhere(guardrailRules, eq(guardrailRules.enabled, true));
-      const violationsTotal = await safeCount(guardrailViolations);
-      const violationsToday = await safeCountWhere(guardrailViolations, gte(guardrailViolations.createdAt, todayStart));
+      const [ruleTotalRow] = await db.select({ cnt: count() }).from(guardrailRules);
+      const [ruleEnabledRow] = await db.select({ cnt: count() }).from(guardrailRules).where(eq(guardrailRules.enabled, true));
+      const [violTotalRow] = await db.select({ cnt: count() }).from(guardrailViolations);
+      const [violTodayRow] = await db.select({ cnt: count() }).from(guardrailViolations).where(gte(guardrailViolations.createdAt, todayStart));
+
+      const rulesTotal = ruleTotalRow.cnt;
+      const rulesEnabled = ruleEnabledRow.cnt;
+      const violationsTotal = violTotalRow.cnt;
+      const violationsToday = violTodayRow.cnt;
 
       // ---- L3 知识层 ----
-      const crystalsCount = await safeCount(knowledgeCrystals);
-      const featuresCount = await safeCount(featureDefinitions);
-      const kgNodeCount = await safeCount(kgNodes);
-      const kgEdgeCount = await safeCount(kgEdges);
+      const [crystalRow] = await db.select({ cnt: count() }).from(knowledgeCrystals);
+      const [featureRow] = await db.select({ cnt: count() }).from(featureDefinitions);
+      const [kgNodeRow] = await db.select({ cnt: count() }).from(kgNodes);
+      const [kgEdgeRow] = await db.select({ cnt: count() }).from(kgEdges);
+
+      const crystalsCount = crystalRow.cnt;
+      const featuresCount = featureRow.cnt;
+      const kgNodeCount = kgNodeRow.cnt;
+      const kgEdgeCount = kgEdgeRow.cnt;
 
       // ---- L4 进化层 ----
-      const cyclesCount = await safeCount(evolutionCycles);
-      const shadowEvalsCount = await safeCount(shadowEvalRecords);
-      const championCount = await safeCount(championChallengerExperiments);
-      const edgeCaseCount = await safeCount(edgeCases);
+      const [cycleRow] = await db.select({ cnt: count() }).from(evolutionCycles);
+      const [shadowRow] = await db.select({ cnt: count() }).from(shadowEvalRecords);
+      const [championRow] = await db.select({ cnt: count() }).from(championChallengerExperiments);
+      const [edgeCaseRow] = await db.select({ cnt: count() }).from(edgeCases);
+
+      const cyclesCount = cycleRow.cnt;
+      const shadowEvalsCount = shadowRow.cnt;
+      const championCount = championRow.cnt;
+      const edgeCaseCount = edgeCaseRow.cnt;
 
       // ---- L5 工具层 ----
-      const toolsCount = await safeCount(toolDefinitions);
+      const [toolRow] = await db.select({ cnt: count() }).from(toolDefinitions);
+      const toolsCount = toolRow.cnt;
 
       // ---- L6 管线层 ----
-      const pipelinesCount = await safeCount(pipelines);
-      const pipelineRunsCount = await safeCount(pipelineRuns);
+      const [pipeRow] = await db.select({ cnt: count() }).from(pipelines);
+      const [pipeRunRow] = await db.select({ cnt: count() }).from(pipelineRuns);
+      const pipelinesCount = pipeRow.cnt;
+      const pipelineRunsCount = pipeRunRow.cnt;
 
       // ---- L7 数字孪生 ----
-      const equipCount = await safeCount(equipmentProfiles);
+      const [equipRow] = await db.select({ cnt: count() }).from(equipmentProfiles);
+      const equipCount = equipRow.cnt;
 
       return {
         timestamp: new Date().toISOString(),
