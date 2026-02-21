@@ -21,6 +21,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
+import { CognitiveTopology } from '@/components/cognitive/CognitiveTopology';
 
 // ============================================================================
 // 类型定义
@@ -212,7 +213,7 @@ function ReasoningChainView({ chain }: { chain: ReasoningChainEntry }) {
 // ============================================================================
 
 export default function CognitiveDashboard() {
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState('topology');
   const [triggerDialogOpen, setTriggerDialogOpen] = useState(false);
   const [sessionFilter, setSessionFilter] = useState<{ status?: string; machineId?: string }>({});
 
@@ -340,6 +341,7 @@ export default function CognitiveDashboard() {
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
+          <TabsTrigger value="topology">实时拓扑</TabsTrigger>
           <TabsTrigger value="overview">四维认知</TabsTrigger>
           <TabsTrigger value="sessions">会话管理</TabsTrigger>
           <TabsTrigger value="reasoning">Grok 推理链</TabsTrigger>
@@ -349,6 +351,11 @@ export default function CognitiveDashboard() {
             {alerts.length > 0 && <span className="ml-1.5 text-xs bg-red-500 text-white rounded-full px-1.5">{alerts.length}</span>}
           </TabsTrigger>
         </TabsList>
+
+        {/* ===== 实时拓扑 Tab ===== */}
+        <TabsContent value="topology" className="mt-4">
+          <CognitiveTopology />
+        </TabsContent>
 
         {/* ===== 四维认知 Tab ===== */}
         <TabsContent value="overview" className="mt-4">

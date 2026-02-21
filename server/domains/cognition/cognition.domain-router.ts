@@ -13,7 +13,19 @@ import {
   cognitionSessions,
   grokReasoningChains,
   guardrailViolations,
+  guardrailRules,
+  conditionProfiles,
+  samplingConfigs,
+  knowledgeCrystals,
+  featureDefinitions,
+  evolutionCycles,
+  shadowEvalRecords,
+  championChallengerExperiments,
+  equipmentProfiles,
+  toolDefinitions,
+  edgeCases,
 } from '../../../drizzle/evolution-schema';
+import { dataConnectors, kgNodes, kgEdges, pipelines, pipelineRuns } from '../../../drizzle/schema';
 
 // ============================================================================
 // 认知会话路由
@@ -337,6 +349,188 @@ export const cognitionDomainRouter = router({
             decision: { accuracy: 0, latencyMs: 0, guardrailTriggers: 0 },
           },
         };
+      }
+    }),
+
+  /** ====== 实时拓扑状态（聚合全域真实数据）====== */
+  getTopologyStatus: publicProcedure
+    .query(async () => {
+      const db = await getDb();
+      if (!db) return null;
+      try {
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+
+        // ---- L0 数据契约层 ----
+        // 连接器状态
+        const connectorRows = await db.select().from(dataConnectors);
+        const connectorTotal = connectorRows.length;
+        const connectorOnline = connectorRows.filter(c => c.status === 'active' || c.status === 'healthy').length;
+        const connectorError = connectorRows.filter(c => c.status === 'error' || c.status === 'degraded').length;
+        const connectors = connectorRows.map(c => ({
+          id: c.connectorId,
+          name: c.name,
+          protocol: c.protocolType,
+          status: c.status,
+          lastCheck: c.lastHealthCheck?.toISOString() ?? null,
+          lastError: c.lastError,
+        }));
+
+        // ---- L1 感知层 ----
+        const [cpRows] = await db.select({ cnt: count() }).from(conditionProfiles);
+        const [scRows] = await db.select({ cnt: count() }).from(samplingConfigs);
+        const conditionProfileCount = cpRows?.cnt ?? 0;
+        const samplingConfigCount = scRows?.cnt ?? 0;
+
+        // ---- L2 认知诊断层 ----
+        const [activeRows] = await db.select({ cnt: count() }).from(cognitionSessions)
+          .where(eq(cognitionSessions.status, 'running'));
+        const [todayDiag] = await db.select({ cnt: count() }).from(cognitionSessions)
+          .where(gte(cognitionSessions.startedAt, todayStart));
+        const [completedRows] = await db.select({ cnt: count() }).from(cognitionSessions)
+          .where(eq(cognitionSessions.status, 'completed'));
+        const [failedRows] = await db.select({ cnt: count() }).from(cognitionSessions)
+          .where(eq(cognitionSessions.status, 'failed'));
+        const [totalSessions] = await db.select({ cnt: count() }).from(cognitionSessions);
+
+        // Grok 推理链
+        const [grokTotal] = await db.select({ cnt: count() }).from(grokReasoningChains);
+        const [grokToday] = await db.select({ cnt: count() }).from(grokReasoningChains)
+          .where(gte(grokReasoningChains.createdAt, todayStart));
+
+        // ---- L2 护栏层 ----
+        const [ruleTotal] = await db.select({ cnt: count() }).from(guardrailRules);
+        const [ruleEnabled] = await db.select({ cnt: count() }).from(guardrailRules)
+          .where(eq(guardrailRules.enabled, true));
+        const [violationTotal] = await db.select({ cnt: count() }).from(guardrailViolations);
+        const [violationToday] = await db.select({ cnt: count() }).from(guardrailViolations)
+          .where(gte(guardrailViolations.createdAt, todayStart));
+
+        // ---- L3 知识层 ----
+        const [crystalTotal] = await db.select({ cnt: count() }).from(knowledgeCrystals);
+        const [featureTotal] = await db.select({ cnt: count() }).from(featureDefinitions);
+        const [kgNodeTotal] = await db.select({ cnt: count() }).from(kgNodes);
+        const [kgEdgeTotal] = await db.select({ cnt: count() }).from(kgEdges);
+
+        // ---- L4 进化层 ----
+        const [cycleTotal] = await db.select({ cnt: count() }).from(evolutionCycles);
+        const [shadowTotal] = await db.select({ cnt: count() }).from(shadowEvalRecords);
+        const [championTotal] = await db.select({ cnt: count() }).from(championChallengerExperiments);
+        const [edgeCaseTotal] = await db.select({ cnt: count() }).from(edgeCases);
+
+        // ---- L5 工具层 ----
+        const [toolTotal] = await db.select({ cnt: count() }).from(toolDefinitions);
+
+        // ---- L6 管线层 ----
+        const [pipelineTotal] = await db.select({ cnt: count() }).from(pipelines);
+        const [pipelineRunTotal] = await db.select({ cnt: count() }).from(pipelineRuns);
+
+        // ---- L7 数字孪生 ----
+        const [equipTotal] = await db.select({ cnt: count() }).from(equipmentProfiles);
+
+        return {
+          timestamp: new Date().toISOString(),
+          layers: {
+            L0_contracts: {
+              label: '数据契约层',
+              status: connectorError > 0 ? 'degraded' : connectorOnline > 0 ? 'online' : 'offline',
+              metrics: {
+                connectorTotal,
+                connectorOnline,
+                connectorError,
+              },
+              connectors,
+            },
+            L1_perception: {
+              label: '感知层',
+              status: conditionProfileCount > 0 ? 'online' : 'idle',
+              metrics: {
+                conditionProfiles: conditionProfileCount,
+                samplingConfigs: samplingConfigCount,
+              },
+            },
+            L2_cognition: {
+              label: '认知诊断层',
+              status: (activeRows?.cnt ?? 0) > 0 ? 'active' : 'idle',
+              metrics: {
+                activeSessions: activeRows?.cnt ?? 0,
+                todayDiagnosis: todayDiag?.cnt ?? 0,
+                totalSessions: totalSessions?.cnt ?? 0,
+                completedSessions: completedRows?.cnt ?? 0,
+                failedSessions: failedRows?.cnt ?? 0,
+                grokChainsTotal: grokTotal?.cnt ?? 0,
+                grokChainsToday: grokToday?.cnt ?? 0,
+              },
+            },
+            L2_guardrail: {
+              label: '安全护栏',
+              status: (ruleEnabled?.cnt ?? 0) > 0 ? 'active' : 'idle',
+              metrics: {
+                rulesTotal: ruleTotal?.cnt ?? 0,
+                rulesEnabled: ruleEnabled?.cnt ?? 0,
+                violationsTotal: violationTotal?.cnt ?? 0,
+                violationsToday: violationToday?.cnt ?? 0,
+              },
+            },
+            L3_knowledge: {
+              label: '知识层',
+              status: (crystalTotal?.cnt ?? 0) > 0 ? 'online' : 'idle',
+              metrics: {
+                crystals: crystalTotal?.cnt ?? 0,
+                features: featureTotal?.cnt ?? 0,
+                kgNodes: kgNodeTotal?.cnt ?? 0,
+                kgEdges: kgEdgeTotal?.cnt ?? 0,
+              },
+            },
+            L4_evolution: {
+              label: '进化层',
+              status: (cycleTotal?.cnt ?? 0) > 0 ? 'active' : 'idle',
+              metrics: {
+                cycles: cycleTotal?.cnt ?? 0,
+                shadowEvals: shadowTotal?.cnt ?? 0,
+                championExperiments: championTotal?.cnt ?? 0,
+                edgeCases: edgeCaseTotal?.cnt ?? 0,
+              },
+            },
+            L5_tooling: {
+              label: '工具层',
+              status: (toolTotal?.cnt ?? 0) > 0 ? 'online' : 'idle',
+              metrics: {
+                toolsRegistered: toolTotal?.cnt ?? 0,
+              },
+            },
+            L6_pipeline: {
+              label: '管线层',
+              status: (pipelineTotal?.cnt ?? 0) > 0 ? 'online' : 'idle',
+              metrics: {
+                pipelinesDefined: pipelineTotal?.cnt ?? 0,
+                pipelineRuns: pipelineRunTotal?.cnt ?? 0,
+              },
+            },
+            L7_digitalTwin: {
+              label: '数字孪生',
+              status: (equipTotal?.cnt ?? 0) > 0 ? 'online' : 'idle',
+              metrics: {
+                equipmentProfiles: equipTotal?.cnt ?? 0,
+              },
+            },
+          },
+          dataFlow: [
+            { from: 'L0_contracts', to: 'L1_perception', label: '原始数据', active: connectorOnline > 0 },
+            { from: 'L1_perception', to: 'L2_cognition', label: '状态向量', active: conditionProfileCount > 0 },
+            { from: 'L2_cognition', to: 'L2_guardrail', label: '诊断结果', active: (todayDiag?.cnt ?? 0) > 0 },
+            { from: 'L2_guardrail', to: 'L3_knowledge', label: '安全校验', active: (ruleEnabled?.cnt ?? 0) > 0 },
+            { from: 'L2_cognition', to: 'L3_knowledge', label: '推理结论', active: (grokTotal?.cnt ?? 0) > 0 },
+            { from: 'L3_knowledge', to: 'L4_evolution', label: '知识沉淀', active: (crystalTotal?.cnt ?? 0) > 0 },
+            { from: 'L4_evolution', to: 'L1_perception', label: '模型更新', active: (cycleTotal?.cnt ?? 0) > 0 },
+            { from: 'L4_evolution', to: 'L2_cognition', label: '策略优化', active: (shadowTotal?.cnt ?? 0) > 0 },
+            { from: 'L2_cognition', to: 'L7_digitalTwin', label: '状态同步', active: (equipTotal?.cnt ?? 0) > 0 },
+            { from: 'L5_tooling', to: 'L2_cognition', label: '工具调用', active: (toolTotal?.cnt ?? 0) > 0 },
+            { from: 'L6_pipeline', to: 'L2_cognition', label: 'DAG编排', active: (pipelineTotal?.cnt ?? 0) > 0 },
+          ],
+        };
+      } catch (e) {
+        return null;
       }
     }),
 
