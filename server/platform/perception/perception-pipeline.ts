@@ -1,25 +1,42 @@
 /**
  * ============================================================================
- * 感知管线 — 采集→融合→编码全链路
+ * 感知管线 — 采集→融合→编码全链路（Phase 1 增强版）
  * ============================================================================
  *
  * 数据流：
  *   边缘层 (100kHz) → RingBuffer → AdaptiveSampler → FeatureVector
- *     → DSFusionEngine → UncertaintyQuantifier → StateVectorEncoder
- *       → UnifiedStateVector → EventBus → 认知层
+ *     → StateVectorSynthesizer → SensorStats
+ *       → BPABuilder → BasicProbabilityAssignment[]
+ *         → DSFusionEngine → EnhancedFusionResult
+ *           → StateVectorEncoder → UnifiedStateVector → EventBus → 认知层
+ *
+ * Phase 1 增强点：
+ *   1. 用 BPABuilder 替换硬编码的 buildEvidences()（C2/C3）
+ *   2. 用 StateVectorSynthesizer 从 ClickHouse 合成 21D 向量（C4）
+ *   3. 集成 EvidenceLearner 进行权重自学习（H4/H5）
+ *   4. 完整追溯日志链路
  *
  * 三层架构：
  *   1. 边缘层：RingBuffer + 自适应采样
- *   2. 汇聚层：特征提取 + DS 融合
+ *   2. 汇聚层：BPABuilder + DS 融合
  *   3. 平台层：状态向量编码 + 事件发射
+ *
+ * 三原则：可配置、可追溯、可复用
  */
 
 import { MultiChannelRingBufferManager, type SensorSample } from './collection/ring-buffer';
 import { AdaptiveSamplingEngine, type SamplingProfile, type FeatureVector } from './collection/adaptive-sampler';
-import { DSFusionEngine, type BPA, type EvidenceSourceConfig } from './fusion/ds-fusion-engine';
+import { DSFusionEngine, type BPA, type EvidenceSourceConfig, type EnhancedFusionResult } from './fusion/ds-fusion-engine';
 import { UncertaintyQuantifier, type UncertaintyInput } from './fusion/uncertainty-quantifier';
 import { StateVectorEncoder, type UnifiedStateVector, type EncoderInput } from './encoding/state-vector-encoder';
 import { ConditionProfileManager, type ConditionProfile } from './condition/condition-profile-manager';
+import { BPABuilder, createBPABuilder, type BPABuilderOptions } from './fusion/bpa-builder';
+import { type BpaConfig, type SensorStats, type BasicProbabilityAssignment, toPerceptionBPA } from './fusion/bpa.types';
+import { EvidenceLearner } from './fusion/evidence-learner';
+import { StateVectorSynthesizer, createCraneSynthesizer, type DimensionDef, type SynthesizedStateVector } from './encoding/state-vector-synthesizer';
+import { createModuleLogger } from '../../core/logger';
+
+const log = createModuleLogger('perception-pipeline');
 
 // ============================================================================
 // 类型定义
@@ -38,6 +55,16 @@ export interface PerceptionPipelineConfig {
   emitIntervalMs: number;
   /** 是否启用自动工况检测 */
   enableAutoDetection: boolean;
+  /** BPA 配置（可选，不提供则使用默认岸桥配置） */
+  bpaConfig?: BpaConfig;
+  /** BPA 构建器选项 */
+  bpaOptions?: Partial<BPABuilderOptions>;
+  /** 维度定义（可选，不提供则使用默认 21 维） */
+  dimensionDefs?: DimensionDef[];
+  /** ClickHouse 查询时间窗口（秒） */
+  clickhouseWindowSeconds?: number;
+  /** 是否启用证据权重自学习 */
+  enableEvidenceLearning?: boolean;
 }
 
 export interface PipelineStats {
@@ -49,6 +76,21 @@ export interface PipelineStats {
   avgUncertainty: number;
   uptimeMs: number;
   channelStats: Array<{ name: string; used: number; capacity: number }>;
+  /** Phase 1 新增统计 */
+  bpaBuilderStats: {
+    totalBuilds: number;
+    configVersion: string;
+    logBufferSize: number;
+  };
+  synthesizerStats: {
+    totalSyntheses: number;
+    avgCompleteness: number;
+    logBufferSize: number;
+  };
+  evidenceLearnerStats: {
+    registeredSources: number;
+    degradedSources: number;
+  };
 }
 
 // ============================================================================
@@ -61,13 +103,14 @@ const DEFAULT_CONFIG: PerceptionPipelineConfig = {
   evidenceSources: [
     { name: 'vibration', initialWeight: 0.3, reliabilityHalfLife: 24, maxContribution: 0.4, bayesianAdaptive: true },
     { name: 'electrical', initialWeight: 0.25, reliabilityHalfLife: 48, maxContribution: 0.35, bayesianAdaptive: true },
-    { name: 'environmental', initialWeight: 0.2, reliabilityHalfLife: 12, maxContribution: 0.3, bayesianAdaptive: false },
-    { name: 'maintenance', initialWeight: 0.15, reliabilityHalfLife: 168, maxContribution: 0.25, bayesianAdaptive: true },
-    { name: 'production', initialWeight: 0.1, reliabilityHalfLife: 72, maxContribution: 0.2, bayesianAdaptive: false },
+    { name: 'temperature', initialWeight: 0.2, reliabilityHalfLife: 12, maxContribution: 0.3, bayesianAdaptive: true },
+    { name: 'stress', initialWeight: 0.15, reliabilityHalfLife: 168, maxContribution: 0.25, bayesianAdaptive: true },
+    { name: 'wind', initialWeight: 0.1, reliabilityHalfLife: 72, maxContribution: 0.2, bayesianAdaptive: false },
   ],
   conflictThreshold: 0.7,
   emitIntervalMs: 5000,
   enableAutoDetection: true,
+  enableEvidenceLearning: true,
 };
 
 // ============================================================================
@@ -83,11 +126,17 @@ export class PerceptionPipeline {
   private stateVectorEncoder: StateVectorEncoder;
   private conditionManager: ConditionProfileManager;
 
+  // Phase 1 新增组件
+  private bpaBuilder: BPABuilder;
+  private synthesizer: StateVectorSynthesizer;
+  private evidenceLearner: EvidenceLearner;
+
   // 运行时状态
   private isRunning: boolean = false;
   private startTime: number = 0;
   private featureCache: Map<string, FeatureVector> = new Map();
   private latestStateVectors: Map<string, UnifiedStateVector> = new Map();
+  private latestSynthesizedVectors: Map<string, SynthesizedStateVector> = new Map();
 
   // 统计
   private stats = {
@@ -97,15 +146,20 @@ export class PerceptionPipeline {
     totalFusionRuns: 0,
     fusionConflictSum: 0,
     uncertaintySum: 0,
+    totalBpaBuilds: 0,
+    totalSyntheses: 0,
+    completenessSum: 0,
   };
 
   // 事件回调
   private onStateVectorEmit?: (vector: UnifiedStateVector) => void;
   private onAnomalyDetected?: (machineId: string, anomaly: Record<string, unknown>) => void;
+  private onFusionComplete?: (machineId: string, result: EnhancedFusionResult) => void;
 
   constructor(config: Partial<PerceptionPipelineConfig> = {}) {
     this.config = { ...DEFAULT_CONFIG, ...config };
 
+    // 原有组件
     this.bufferManager = new MultiChannelRingBufferManager({
       bufferSize: this.config.bufferSizePerChannel,
     });
@@ -117,6 +171,39 @@ export class PerceptionPipeline {
     this.uncertaintyQuantifier = new UncertaintyQuantifier();
     this.stateVectorEncoder = new StateVectorEncoder();
     this.conditionManager = new ConditionProfileManager();
+
+    // Phase 1 新增组件
+    this.bpaBuilder = createBPABuilder(
+      this.config.bpaConfig,
+      this.config.bpaOptions,
+    );
+
+    this.synthesizer = new StateVectorSynthesizer(
+      this.config.dimensionDefs,
+      {
+        windowSeconds: this.config.clickhouseWindowSeconds ?? 300,
+        enableTracing: true,
+      },
+    );
+
+    this.evidenceLearner = new EvidenceLearner();
+
+    // 注册证据源到 EvidenceLearner
+    if (this.config.enableEvidenceLearning) {
+      for (const source of this.config.evidenceSources) {
+        this.evidenceLearner.registerSource(source.name, {
+          initialWeight: source.initialWeight,
+          bayesianAdaptive: source.bayesianAdaptive,
+        });
+      }
+    }
+
+    log.info({
+      hypotheses: this.config.fusionHypotheses,
+      sourcesCount: this.config.evidenceSources.length,
+      bpaConfigVersion: this.bpaBuilder.getConfigVersion(),
+      dimensionCount: this.synthesizer.getDimensionNames().length,
+    }, 'PerceptionPipeline initialized (Phase 1 enhanced)');
   }
 
   /**
@@ -125,7 +212,7 @@ export class PerceptionPipeline {
   start(): void {
     this.isRunning = true;
     this.startTime = Date.now();
-    console.log('[PerceptionPipeline] Started');
+    log.info('PerceptionPipeline started');
   }
 
   /**
@@ -133,7 +220,7 @@ export class PerceptionPipeline {
    */
   stop(): void {
     this.isRunning = false;
-    console.log('[PerceptionPipeline] Stopped');
+    log.info('PerceptionPipeline stopped');
   }
 
   /**
@@ -170,8 +257,82 @@ export class PerceptionPipeline {
     }
   }
 
+  // ==========================================================================
+  // Phase 1 核心方法 — ClickHouse → 21D → BPA → DS Fusion
+  // ==========================================================================
+
+  /**
+   * 从 ClickHouse 合成状态向量 + BPA 构建 + DS 融合（推荐新入口）
+   *
+   * 这是 Phase 1 的核心方法，替代原有的 processAndEmit()。
+   * 完整链路：ClickHouse → 21D Vector → SensorStats → BPA → DS Fusion → StateVector
+   */
+  async synthesizeAndFuse(
+    machineId: string,
+    cumulativeData?: Record<string, number>,
+  ): Promise<{
+    stateVector: SynthesizedStateVector;
+    sensorStats: SensorStats;
+    bpaResults: Map<string, BasicProbabilityAssignment>;
+    fusionResult: EnhancedFusionResult;
+  } | null> {
+    if (!this.isRunning) return null;
+
+    // Step 1: 从 ClickHouse 合成 21D 状态向量
+    const stateVector = await this.synthesizer.synthesize(machineId, cumulativeData);
+    this.latestSynthesizedVectors.set(machineId, stateVector);
+    this.stats.totalSyntheses++;
+    this.stats.completenessSum += stateVector.quality.completeness;
+
+    // Step 2: 转换为 SensorStats
+    const sensorStats = this.synthesizer.toSensorStats(stateVector);
+
+    // Step 3: BPA 构建（使用 BPABuilder，不再硬编码）
+    const bpaResults = this.bpaBuilder.buildAll(sensorStats, machineId);
+    this.stats.totalBpaBuilds++;
+
+    if (bpaResults.size === 0) {
+      log.warn({ machineId }, 'No BPA results, skipping fusion');
+      return null;
+    }
+
+    // Step 4: DS 融合（使用增强版接口）
+    const fusionResult = this.fusionEngine.fuseWithBPABuilder(bpaResults);
+    this.stats.totalFusionRuns++;
+    this.stats.fusionConflictSum += fusionResult.conflictFactor;
+
+    // Step 5: 证据权重自学习反馈（如果启用）
+    if (this.config.enableEvidenceLearning && fusionResult.cognitiveOutput) {
+      for (const source of fusionResult.sources) {
+        const success = fusionResult.confidence > 0.6;
+        this.evidenceLearner.observe(source, success);
+      }
+    }
+
+    // Step 6: 触发回调
+    this.onFusionComplete?.(machineId, fusionResult);
+
+    log.info({
+      machineId,
+      decision: fusionResult.decision,
+      confidence: +fusionResult.confidence.toFixed(3),
+      conflict: +fusionResult.conflictFactor.toFixed(3),
+      method: fusionResult.method,
+      completeness: +stateVector.quality.completeness.toFixed(2),
+      sources: fusionResult.sources,
+    }, 'Synthesize and fuse completed');
+
+    return { stateVector, sensorStats, bpaResults, fusionResult };
+  }
+
+  // ==========================================================================
+  // 原有接口（向后兼容，内部已改用 BPABuilder）
+  // ==========================================================================
+
   /**
    * 执行融合 + 编码（汇聚层 + 平台层）
+   *
+   * 保持原有方法签名，内部已改用 BPABuilder 替代硬编码 buildEvidences()。
    */
   async processAndEmit(
     machineId: string,
@@ -197,15 +358,42 @@ export class PerceptionPipeline {
 
     if (Object.keys(sensorFeatures).length === 0) return null;
 
+    // 构建 SensorStats（从特征向量 + 环境数据）
+    const sensorStats: SensorStats = {
+      vibrationRms: sensorFeatures['vibration']?.features.rms ?? sensorFeatures['ch_0']?.features.rms ?? 0,
+      temperatureDev: (environmentalData['temperature_bearing'] ?? environmentalData['temperature'] ?? 25) - 25,
+      currentPeak: sensorFeatures['motor_current']?.features.peak ?? sensorFeatures['ch_1']?.features.peak ?? 0,
+      stressDelta: operationalData['stress_delta'] ?? 0,
+      windSpeed60m: environmentalData['wind_speed'] ?? 0,
+    };
+
+    // BPA 构建（替代原硬编码 buildEvidences）
+    const bpaResults = this.bpaBuilder.buildAll(sensorStats, machineId);
+    this.stats.totalBpaBuilds++;
+
     // DS 融合
-    const evidences = this.buildEvidences(sensorFeatures, environmentalData);
     let fusionResult;
     try {
-      fusionResult = this.fusionEngine.fuse(evidences, this.config.conflictThreshold);
-      this.stats.totalFusionRuns++;
-      this.stats.fusionConflictSum += fusionResult.conflictFactor;
+      if (bpaResults.size > 0) {
+        // 转换为感知层 BPA 格式（向后兼容）
+        const evidences: BPA[] = [];
+        const learnerWeights = this.config.enableEvidenceLearning
+          ? this.evidenceLearner.getNormalizedWeights()
+          : null;
+
+        for (const [source, bpa] of bpaResults) {
+          const sourceConfig = this.config.evidenceSources.find(s => s.name === source);
+          const weight = learnerWeights?.get(source) ?? sourceConfig?.initialWeight ?? 0.2;
+          const perceptionBPA = toPerceptionBPA(bpa, source, weight, 0.9);
+          evidences.push(perceptionBPA);
+        }
+
+        fusionResult = this.fusionEngine.fuse(evidences, this.config.conflictThreshold);
+        this.stats.totalFusionRuns++;
+        this.stats.fusionConflictSum += fusionResult.conflictFactor;
+      }
     } catch (e) {
-      console.warn('[PerceptionPipeline] Fusion failed:', e);
+      log.warn({ error: (e as Error).message }, 'Fusion failed');
     }
 
     // 不确定性量化
@@ -257,76 +445,42 @@ export class PerceptionPipeline {
     return stateVector;
   }
 
+  // ==========================================================================
+  // 配置热更新
+  // ==========================================================================
+
   /**
-   * 构建 DS 证据
+   * 热更新 BPA 配置（从 DB 加载后调用）
    */
-  private buildEvidences(
-    sensorFeatures: Record<string, FeatureVector>,
-    environmentalData: Record<string, number>
-  ): BPA[] {
-    const evidences: BPA[] = [];
-
-    // 振动证据
-    const vibFeature = sensorFeatures['vibration'] || sensorFeatures['ch_0'];
-    if (vibFeature) {
-      const rms = vibFeature.features.rms;
-      evidences.push({
-        masses: new Map([
-          ['normal', rms < 2.8 ? 0.7 : 0.1],
-          ['degraded', rms >= 2.8 && rms < 4.5 ? 0.6 : 0.15],
-          ['fault', rms >= 4.5 ? 0.6 : 0.1],
-          ['normal,degraded,fault,critical', 0.05],
-        ]),
-        sourceName: 'vibration',
-        weight: 0.3,
-        reliability: 0.9,
-        timestamp: vibFeature.timestamp,
-      });
-    }
-
-    // 电气证据
-    const currentFeature = sensorFeatures['motor_current'] || sensorFeatures['ch_1'];
-    if (currentFeature) {
-      const mean = currentFeature.features.mean;
-      evidences.push({
-        masses: new Map([
-          ['normal', mean < 80 ? 0.65 : 0.1],
-          ['degraded', mean >= 80 && mean < 100 ? 0.55 : 0.15],
-          ['fault', mean >= 100 ? 0.55 : 0.1],
-          ['normal,degraded,fault,critical', 0.1],
-        ]),
-        sourceName: 'electrical',
-        weight: 0.25,
-        reliability: 0.85,
-        timestamp: currentFeature.timestamp,
-      });
-    }
-
-    // 环境证据
-    const windSpeed = environmentalData['wind_speed'];
-    if (windSpeed !== undefined) {
-      evidences.push({
-        masses: new Map([
-          ['normal', windSpeed < 7 ? 0.6 : 0.1],
-          ['degraded', windSpeed >= 7 && windSpeed < 13 ? 0.5 : 0.15],
-          ['critical', windSpeed >= 13 ? 0.6 : 0.05],
-          ['normal,degraded,fault,critical', 0.15],
-        ]),
-        sourceName: 'environmental',
-        weight: 0.2,
-        reliability: 0.8,
-        timestamp: Date.now(),
-      });
-    }
-
-    return evidences;
+  updateBpaConfig(config: BpaConfig, version?: string): void {
+    this.bpaBuilder.updateConfig(config, version);
+    log.info({ version }, 'BPA config hot-updated');
   }
+
+  /**
+   * 热更新维度定义（从 DB 加载后调用）
+   */
+  updateDimensionDefs(dimensions: DimensionDef[]): void {
+    this.synthesizer.updateDimensions(dimensions);
+    log.info({ count: dimensions.length }, 'Dimension definitions hot-updated');
+  }
+
+  // ==========================================================================
+  // 查询接口
+  // ==========================================================================
 
   /**
    * 获取设备最新状态向量
    */
   getLatestStateVector(machineId: string): UnifiedStateVector | undefined {
     return this.latestStateVectors.get(machineId);
+  }
+
+  /**
+   * 获取设备最新合成向量（Phase 1 新增）
+   */
+  getLatestSynthesizedVector(machineId: string): SynthesizedStateVector | undefined {
+    return this.latestSynthesizedVectors.get(machineId);
   }
 
   /**
@@ -352,6 +506,22 @@ export class PerceptionPipeline {
         : 0,
       uptimeMs: this.isRunning ? Date.now() - this.startTime : 0,
       channelStats,
+      bpaBuilderStats: {
+        totalBuilds: this.stats.totalBpaBuilds,
+        configVersion: this.bpaBuilder.getConfigVersion(),
+        logBufferSize: this.bpaBuilder.getConstructionLogs().length,
+      },
+      synthesizerStats: {
+        totalSyntheses: this.stats.totalSyntheses,
+        avgCompleteness: this.stats.totalSyntheses > 0
+          ? this.stats.completenessSum / this.stats.totalSyntheses
+          : 0,
+        logBufferSize: this.synthesizer.getRecentLogs().length,
+      },
+      evidenceLearnerStats: {
+        registeredSources: this.evidenceLearner.getAllProfiles().length,
+        degradedSources: this.evidenceLearner.getDegradedSources().length,
+      },
     };
   }
 
@@ -361,9 +531,11 @@ export class PerceptionPipeline {
   setCallbacks(callbacks: {
     onStateVectorEmit?: (vector: UnifiedStateVector) => void;
     onAnomalyDetected?: (machineId: string, anomaly: Record<string, unknown>) => void;
+    onFusionComplete?: (machineId: string, result: EnhancedFusionResult) => void;
   }): void {
     this.onStateVectorEmit = callbacks.onStateVectorEmit;
     this.onAnomalyDetected = callbacks.onAnomalyDetected;
+    this.onFusionComplete = callbacks.onFusionComplete;
   }
 
   /**
@@ -377,6 +549,21 @@ export class PerceptionPipeline {
       uncertaintyQuantifier: this.uncertaintyQuantifier,
       stateVectorEncoder: this.stateVectorEncoder,
       conditionManager: this.conditionManager,
+      // Phase 1 新增
+      bpaBuilder: this.bpaBuilder,
+      synthesizer: this.synthesizer,
+      evidenceLearner: this.evidenceLearner,
+    };
+  }
+
+  /**
+   * 导出追溯日志（用于持久化到 DB）
+   */
+  exportTracingLogs() {
+    return {
+      bpaLogs: this.bpaBuilder.exportAndClearLogs(),
+      synthesisLogs: this.synthesizer.exportAndClearLogs(),
+      evidenceLearnerState: this.evidenceLearner.exportState(),
     };
   }
 }

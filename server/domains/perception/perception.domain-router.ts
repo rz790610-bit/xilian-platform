@@ -1,22 +1,27 @@
 /**
  * ============================================================================
- * 感知领域路由聚合 — ①感知闭环
+ * 感知领域路由聚合 — ①感知闭环（Phase 1 增强版）
  * ============================================================================
  * 职责边界：数据采集 + 协议适配 + 工况管理 + 自适应采样 + 设备接入
+ *           + BPA 配置管理 + 维度定义管理 + 状态向量日志
  */
 
 import { router, publicProcedure, protectedProcedure } from '../../core/trpc';
 import { z } from 'zod';
 import { getDb } from '../../lib/db';
-import { eq, desc, count } from 'drizzle-orm';
+import { eq, and, desc, count } from 'drizzle-orm';
 import {
   conditionProfiles,
   samplingConfigs,
   equipmentProfiles,
+  bpaConfigs,
+  stateVectorDimensions,
+  stateVectorLogs,
 } from '../../../drizzle/evolution-schema';
+import { perceptionPersistenceService } from '../../platform/perception/services/perception-persistence.service';
 
 // ============================================================================
-// 工况管理路由（新增）
+// 工况管理路由（保持原有）
 // ============================================================================
 
 const conditionRouter = router({
@@ -123,7 +128,7 @@ const conditionRouter = router({
 });
 
 // ============================================================================
-// 自适应采样路由（增强）
+// 自适应采样路由（保持原有）
 // ============================================================================
 
 const samplingRouter = router({
@@ -157,7 +162,6 @@ const samplingRouter = router({
       const db = await getDb();
       if (!db) return { success: false };
       try {
-        // Upsert: try update first, insert if not exists
         const existing = await db.select().from(samplingConfigs)
           .where(and(
             eq(samplingConfigs.profileId, input.profileId),
@@ -200,7 +204,7 @@ const samplingRouter = router({
 });
 
 // ============================================================================
-// 统一状态向量路由（新增）
+// 统一状态向量路由（增强）
 // ============================================================================
 
 const stateVectorRouter = router({
@@ -220,6 +224,176 @@ const stateVectorRouter = router({
     .query(async ({ input }) => {
       return { vectors: [], total: 0 };
     }),
+
+  /** 查询状态向量日志（Phase 1 新增） */
+  getLogs: publicProcedure
+    .input(z.object({
+      machineId: z.string(),
+      limit: z.number().default(100),
+    }))
+    .query(async ({ input }) => {
+      return await perceptionPersistenceService.queryStateVectorLogs(
+        input.machineId,
+        input.limit,
+      );
+    }),
+});
+
+// ============================================================================
+// BPA 配置管理路由（Phase 1 新增）
+// ============================================================================
+
+const bpaConfigRouter = router({
+  /** 列出 BPA 配置 */
+  list: publicProcedure
+    .input(z.object({
+      equipmentType: z.string().optional(),
+    }).optional())
+    .query(async ({ input }) => {
+      return await perceptionPersistenceService.listBpaConfigs(input?.equipmentType);
+    }),
+
+  /** 加载指定设备类型的 BPA 配置 */
+  load: publicProcedure
+    .input(z.object({
+      equipmentType: z.string(),
+      conditionPhase: z.string().optional(),
+    }))
+    .query(async ({ input }) => {
+      return await perceptionPersistenceService.loadBpaConfig(
+        input.equipmentType,
+        input.conditionPhase,
+      );
+    }),
+
+  /** 保存 BPA 配置 */
+  save: publicProcedure
+    .input(z.object({
+      name: z.string(),
+      equipmentType: z.string(),
+      hypotheses: z.array(z.string()),
+      rules: z.array(z.object({
+        source: z.string(),
+        hypothesis: z.string(),
+        functionType: z.enum(['trapezoidal', 'triangular', 'gaussian']),
+        params: z.record(z.string(), z.number()),
+      })),
+      conditionPhase: z.string().optional(),
+      version: z.string().optional(),
+      description: z.string().optional(),
+      ignoranceBase: z.number().optional(),
+      minMassThreshold: z.number().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const { name, equipmentType, hypotheses, rules, ...options } = input;
+      const config = { hypotheses, rules: rules as any };
+      const id = await perceptionPersistenceService.saveBpaConfig(
+        name,
+        equipmentType,
+        config,
+        options,
+      );
+      return { id, success: id !== null };
+    }),
+
+  /** 切换 BPA 配置启用状态 */
+  toggleEnabled: publicProcedure
+    .input(z.object({
+      id: z.number(),
+      enabled: z.boolean(),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return { success: false };
+      try {
+        await db.update(bpaConfigs)
+          .set({ enabled: input.enabled, updatedAt: new Date() })
+          .where(eq(bpaConfigs.id, input.id));
+        return { success: true };
+      } catch (e) {
+        console.error('[bpaConfig.toggleEnabled]', e);
+        return { success: false };
+      }
+    }),
+
+  /** 初始化默认种子数据 */
+  seedDefaults: publicProcedure
+    .mutation(async () => {
+      await perceptionPersistenceService.seedDefaultConfigs();
+      return { success: true };
+    }),
+});
+
+// ============================================================================
+// 维度定义管理路由（Phase 1 新增）
+// ============================================================================
+
+const dimensionRouter = router({
+  /** 列出维度定义 */
+  list: publicProcedure
+    .input(z.object({
+      equipmentType: z.string().optional(),
+    }).optional())
+    .query(async ({ input }) => {
+      return await perceptionPersistenceService.listDimensionDefs(input?.equipmentType);
+    }),
+
+  /** 加载指定设备类型的维度定义 */
+  load: publicProcedure
+    .input(z.object({
+      equipmentType: z.string(),
+    }))
+    .query(async ({ input }) => {
+      return await perceptionPersistenceService.loadDimensionDefs(input.equipmentType);
+    }),
+
+  /** 批量保存维度定义 */
+  saveBatch: publicProcedure
+    .input(z.object({
+      equipmentType: z.string(),
+      version: z.string().default('1.0.0'),
+      dimensions: z.array(z.object({
+        index: z.number(),
+        key: z.string(),
+        label: z.string(),
+        unit: z.string(),
+        group: z.enum(['cycle_features', 'uncertainty_factors', 'cumulative_metrics']),
+        metricNames: z.array(z.string()),
+        aggregation: z.enum(['mean', 'max', 'min', 'rms', 'latest', 'sum', 'std']),
+        defaultValue: z.number(),
+        normalizeRange: z.tuple([z.number(), z.number()]),
+        source: z.enum(['clickhouse', 'mysql', 'computed', 'external']),
+        enabled: z.boolean().default(true),
+      })),
+    }))
+    .mutation(async ({ input }) => {
+      const success = await perceptionPersistenceService.saveDimensionDefs(
+        input.equipmentType,
+        input.dimensions as any,
+        input.version,
+      );
+      return { success };
+    }),
+
+  /** 切换维度启用状态 */
+  toggleEnabled: publicProcedure
+    .input(z.object({
+      id: z.number(),
+      enabled: z.boolean(),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return { success: false };
+      try {
+        await db.update(stateVectorDimensions)
+          .set({ enabled: input.enabled, updatedAt: new Date() })
+          .where(eq(stateVectorDimensions.id, input.id));
+        return { success: true };
+      } catch (e) {
+        console.error('[dimension.toggleEnabled]', e);
+        return { success: false };
+      }
+    }),
 });
 
 // ============================================================================
@@ -230,6 +404,9 @@ export const perceptionDomainRouter = router({
   condition: conditionRouter,
   sampling: samplingRouter,
   stateVector: stateVectorRouter,
+  // Phase 1 新增
+  bpaConfig: bpaConfigRouter,
+  dimension: dimensionRouter,
 
   // ========== 前端仪表盘 Facade 方法 ==========
 
@@ -239,14 +416,10 @@ export const perceptionDomainRouter = router({
       const db = await getDb();
       if (!db) return [];
       try {
-        // samplingConfigs 字段: id, profileId, cyclePhase, baseSamplingRate, highFreqSamplingRate, ...
-        // 用 profileId 分组聚合采集状态
         const configs = await db.select().from(samplingConfigs);
         const profiles = await db.select().from(conditionProfiles);
         const equipment = await db.select().from(equipmentProfiles);
 
-        // 按 profileId 分组
-        const profileMap = new Map(profiles.map(p => [p.id, p]));
         const groupByProfile = new Map<number, typeof configs>();
         for (const cfg of configs) {
           const arr = groupByProfile.get(cfg.profileId) ?? [];
@@ -264,7 +437,6 @@ export const perceptionDomainRouter = router({
           lastDataAt: string;
         }> = [];
 
-        // 为每台设备生成采集状态
         for (const eq of equipment) {
           const profile = profiles.find(p => p.equipmentType === eq.type);
           const cfgs = profile ? (groupByProfile.get(profile.id) ?? []) : [];
@@ -306,7 +478,6 @@ export const perceptionDomainRouter = router({
           return { overallConfidence: 0, conflictRate: 0, evidenceSources: 0, uncertaintyLevel: 0, lastFusionAt: '' };
         }
 
-        // 从安全/健康/效率评分中计算融合质量
         let totalConfidence = 0;
         let cnt = 0;
         for (const s of sessions) {
@@ -347,5 +518,37 @@ export const perceptionDomainRouter = router({
           features: p.sensorMapping?.map((s: any) => s.logicalName) ?? [],
         }));
       } catch { return []; }
+    }),
+
+  // ========== Phase 1 新增 Facade 方法 ==========
+
+  /** 获取感知层增强统计（Phase 1 仪表盘） */
+  getPerceptionEnhancementStats: publicProcedure
+    .query(async () => {
+      const db = await getDb();
+      if (!db) return {
+        bpaConfigCount: 0,
+        dimensionCount: 0,
+        logCount: 0,
+        latestLogAt: null,
+      };
+      try {
+        const bpaCount = await db.select({ cnt: count() }).from(bpaConfigs);
+        const dimCount = await db.select({ cnt: count() }).from(stateVectorDimensions);
+        const logCount = await db.select({ cnt: count() }).from(stateVectorLogs);
+        const latestLog = await db.select()
+          .from(stateVectorLogs)
+          .orderBy(desc(stateVectorLogs.synthesizedAt))
+          .limit(1);
+
+        return {
+          bpaConfigCount: bpaCount[0]?.cnt ?? 0,
+          dimensionCount: dimCount[0]?.cnt ?? 0,
+          logCount: logCount[0]?.cnt ?? 0,
+          latestLogAt: latestLog[0]?.synthesizedAt?.toISOString() ?? null,
+        };
+      } catch {
+        return { bpaConfigCount: 0, dimensionCount: 0, logCount: 0, latestLogAt: null };
+      }
     }),
 });

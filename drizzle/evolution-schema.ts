@@ -738,3 +738,165 @@ export const edgeCases = mysqlTable('edge_cases', {
 ]);
 export type EdgeCase = typeof edgeCases.$inferSelect;
 export type InsertEdgeCase = typeof edgeCases.$inferInsert;
+
+// ============================================================================
+// ⑥ 感知层增强表（3 张） — Phase 1 Perception Enhancement
+// ============================================================================
+
+/**
+ * BPA 配置表 — 存储 DS 证据融合的模糊隶属度规则
+ *
+ * 每条记录代表一套完整的 BPA 配置（假设空间 + 规则集），
+ * 按设备类型和工况区分。前端可编辑，支持版本管理。
+ *
+ * 使用场景：
+ *   BPABuilder 启动时从此表加载配置，
+ *   前端编辑后通过 API 热更新到运行中的 BPABuilder。
+ */
+export const bpaConfigs = mysqlTable('bpa_configs', {
+  id: bigint('id', { mode: 'number' }).autoincrement().primaryKey(),
+  /** 配置名称（如 "岸桥默认配置"） */
+  name: varchar('name', { length: 200 }).notNull(),
+  /** 设备类型（如 'quay_crane', 'rtg_crane'） */
+  equipmentType: varchar('equipment_type', { length: 100 }).notNull(),
+  /** 适用工况（null 表示通用） */
+  conditionPhase: varchar('condition_phase', { length: 100 }),
+  /** 假设空间（辨识框架 Θ 的元素） */
+  hypotheses: json('hypotheses').$type<string[]>().notNull(),
+  /**
+   * 模糊隶属度规则集
+   * 每条规则定义一个证据源对一个假设的模糊映射
+   */
+  rules: json('rules').$type<Array<{
+    source: string;
+    hypothesis: string;
+    functionType: 'trapezoidal' | 'triangular' | 'gaussian';
+    params: Record<string, number>;
+  }>>().notNull(),
+  /** 基础不确定性（ignorance base），默认 0.05 */
+  ignoranceBase: double('ignorance_base').notNull().default(0.05),
+  /** 最小信念质量阈值，默认 0.01 */
+  minMassThreshold: double('min_mass_threshold').notNull().default(0.01),
+  /** 版本号 */
+  version: varchar('version', { length: 20 }).notNull().default('1.0.0'),
+  /** 是否启用 */
+  enabled: boolean('enabled').notNull().default(true),
+  /** 描述 */
+  description: text('description'),
+  /** 创建者 */
+  createdBy: varchar('created_by', { length: 100 }),
+  createdAt: timestamp('created_at', { fsp: 3 }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { fsp: 3 }).defaultNow().notNull(),
+}, (table) => [
+  index('idx_bpa_equipment').on(table.equipmentType),
+  index('idx_bpa_condition').on(table.conditionPhase),
+  index('idx_bpa_enabled').on(table.enabled),
+  uniqueIndex('uq_bpa_name_version').on(table.name, table.version),
+]);
+export type BpaConfigRow = typeof bpaConfigs.$inferSelect;
+export type InsertBpaConfig = typeof bpaConfigs.$inferInsert;
+
+/**
+ * 状态向量维度定义表 — 定义 21 维状态向量的每个维度
+ *
+ * 每条记录定义一个维度的：
+ *   - ClickHouse 数据源映射（metric_name）
+ *   - 聚合方法（mean, max, rms, latest 等）
+ *   - 归一化范围
+ *   - 默认值
+ *
+ * 使用场景：
+ *   StateVectorSynthesizer 启动时从此表加载维度定义，
+ *   前端可编辑维度配置（增删改维度、调整聚合方法等）。
+ */
+export const stateVectorDimensions = mysqlTable('state_vector_dimensions', {
+  id: bigint('id', { mode: 'number' }).autoincrement().primaryKey(),
+  /** 设备类型 */
+  equipmentType: varchar('equipment_type', { length: 100 }).notNull(),
+  /** 维度序号（1-based） */
+  dimensionIndex: int('dimension_index').notNull(),
+  /** 维度标识（如 'vibrationRms'） */
+  dimensionKey: varchar('dimension_key', { length: 100 }).notNull(),
+  /** 显示名称 */
+  label: varchar('label', { length: 200 }).notNull(),
+  /** 单位 */
+  unit: varchar('unit', { length: 50 }).notNull().default(''),
+  /** 所属分组 */
+  dimensionGroup: mysqlEnum('dimension_group', ['cycle_features', 'uncertainty_factors', 'cumulative_metrics']).notNull(),
+  /** ClickHouse 中的 metric_name 列表（JSON 数组） */
+  metricNames: json('metric_names').$type<string[]>().notNull(),
+  /** 聚合方法 */
+  aggregation: mysqlEnum('aggregation', ['mean', 'max', 'min', 'rms', 'latest', 'sum', 'std']).notNull().default('mean'),
+  /** 默认值 */
+  defaultValue: double('default_value').notNull().default(0),
+  /** 归一化范围 [min, max] */
+  normalizeRange: json('normalize_range').$type<[number, number]>().notNull(),
+  /** 数据源类型 */
+  source: mysqlEnum('source', ['clickhouse', 'mysql', 'computed', 'external']).notNull().default('clickhouse'),
+  /** 是否启用 */
+  enabled: boolean('enabled').notNull().default(true),
+  /** 描述 */
+  description: text('description'),
+  /** 版本号 */
+  version: varchar('version', { length: 20 }).notNull().default('1.0.0'),
+  createdAt: timestamp('created_at', { fsp: 3 }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { fsp: 3 }).defaultNow().notNull(),
+}, (table) => [
+  index('idx_svd_equipment').on(table.equipmentType),
+  index('idx_svd_group').on(table.dimensionGroup),
+  index('idx_svd_enabled').on(table.enabled),
+  uniqueIndex('uq_svd_equipment_key_version').on(table.equipmentType, table.dimensionKey, table.version),
+]);
+export type StateVectorDimensionRow = typeof stateVectorDimensions.$inferSelect;
+export type InsertStateVectorDimension = typeof stateVectorDimensions.$inferInsert;
+
+/**
+ * 状态向量日志表 — 记录每次状态向量合成的完整过程
+ *
+ * 用于审计追溯和质量监控。
+ * 高频写入场景建议定期归档到 ClickHouse。
+ */
+export const stateVectorLogs = mysqlTable('state_vector_logs', {
+  id: bigint('id', { mode: 'number' }).autoincrement().primaryKey(),
+  /** 设备 ID */
+  machineId: varchar('machine_id', { length: 100 }).notNull(),
+  /** 合成时间戳 */
+  synthesizedAt: timestamp('synthesized_at', { fsp: 3 }).notNull(),
+  /** 维度值快照 */
+  dimensionValues: json('dimension_values').$type<Record<string, number>>().notNull(),
+  /** 归一化后的值 */
+  normalizedValues: json('normalized_values').$type<number[]>().notNull(),
+  /** 数据完整度 0-1 */
+  completeness: double('completeness').notNull(),
+  /** 数据新鲜度（秒） */
+  freshnessSeconds: double('freshness_seconds').notNull(),
+  /** 缺失维度列表 */
+  missingDimensions: json('missing_dimensions').$type<string[]>(),
+  /** 使用默认值的维度列表 */
+  defaultedDimensions: json('defaulted_dimensions').$type<string[]>(),
+  /** 数据点总数 */
+  totalDataPoints: int('total_data_points').notNull().default(0),
+  /** 合成耗时（毫秒） */
+  durationMs: int('duration_ms'),
+  /** BPA 构建日志（可选，关联的 BPA 构建结果） */
+  bpaLog: json('bpa_log').$type<Array<{
+    source: string;
+    inputValue: number;
+    outputMasses: Record<string, number>;
+    ignorance: number;
+  }>>(),
+  /** 融合结果摘要（可选） */
+  fusionSummary: json('fusion_summary').$type<{
+    decision: string;
+    confidence: number;
+    conflict: number;
+    strategy: string;
+  }>(),
+  createdAt: timestamp('created_at', { fsp: 3 }).defaultNow().notNull(),
+}, (table) => [
+  index('idx_svl_machine').on(table.machineId),
+  index('idx_svl_time').on(table.synthesizedAt),
+  index('idx_svl_completeness').on(table.completeness),
+]);
+export type StateVectorLogRow = typeof stateVectorLogs.$inferSelect;
+export type InsertStateVectorLog = typeof stateVectorLogs.$inferInsert;

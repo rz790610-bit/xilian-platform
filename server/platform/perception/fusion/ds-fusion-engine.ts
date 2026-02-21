@@ -1,30 +1,48 @@
 /**
  * ============================================================================
- * Dempster-Shafer 证据融合引擎 — 多源不确定性融合
+ * 感知层 DS 融合引擎 — 统一适配器
  * ============================================================================
  *
- * 核心算法：
- *   1. Dempster 合成规则：m₁₂(C) = Σ{A∩B=C} m₁(A)·m₂(B) / (1-K)
- *      其中 K = Σ{A∩B=∅} m₁(A)·m₂(B) 为冲突因子
- *   2. Bayesian 权重自调：维修历史调优不确定性权重
- *   3. 冲突处理：当 K > 0.7 时启用 Yager 修正规则
+ * 设计决策（C1 合并）：
+ *   - 认知层 DSFusionEngine（634 行）为权威实现，包含三种策略、可靠性管理、日志
+ *   - 本文件作为感知层适配器，桥接两种 BPA 格式：
+ *     · 感知层格式：Map<string, number> masses + weight/reliability
+ *     · 认知层格式：Record<string, number> beliefMass
+ *   - 保持感知层原有接口不变（BPA, FusionResult, fuse()），确保零回归
+ *   - 新增 fuseWithBPABuilder() 方法，接受 BPABuilder 输出的 BasicProbabilityAssignment
  *
- * 证据源（日照港场景）：
- *   - 振动数据（加速度计）
- *   - 电气数据（电流/电压/功率）
- *   - 环境数据（风速/温度/湿度/盐雾）
- *   - 维修历史（CMMS 记录）
- *   - 生产数据（周期时间/吊次）
+ * 数据流：
+ *   BPABuilder.buildAll() → BasicProbabilityAssignment[]
+ *     → toPerceptionBPA() → BPA[] → DSFusionEngine.fuse()
+ *     或
+ *     → toCognitionEvidence() → DSEvidenceInput[] → CognitiveDSEngine.fuseWithReliability()
  *
- * 融合输出：
- *   统一信度分配 BPA (Basic Probability Assignment)
+ * 向后兼容：
+ *   - 原 perception-pipeline.ts 中的 this.fusionEngine.fuse(evidences) 继续工作
+ *   - 原 BPA 接口（masses: Map<string, number>）继续工作
+ *   - 新代码推荐使用 fuseWithBPABuilder() 获得更丰富的输出
  */
 
+import { createModuleLogger } from '../../../core/logger';
+import {
+  DSFusionEngine as CognitiveDSFusionEngine,
+} from '../../cognition/engines/ds-fusion.engine';
+import type {
+  DSConflictStrategy,
+  DSEvidenceInput,
+  DSFusionOutput,
+  DSFusionLogEntry,
+} from '../../cognition/types';
+import type { BasicProbabilityAssignment } from './bpa.types';
+import { toCognitionEvidence } from './bpa.types';
+
+const log = createModuleLogger('perception-ds-fusion');
+
 // ============================================================================
-// 类型定义
+// 感知层 BPA 格式（保持向后兼容）
 // ============================================================================
 
-/** 信度分配（Basic Probability Assignment） */
+/** 信度分配（Basic Probability Assignment）— 感知层格式 */
 export interface BPA {
   /** 假设集合 → 信度值 */
   masses: Map<string, number>;
@@ -38,7 +56,7 @@ export interface BPA {
   timestamp: number;
 }
 
-/** 融合结果 */
+/** 融合结果 — 感知层格式 */
 export interface FusionResult {
   /** 融合后的信度分配 */
   fusedBPA: Map<string, number>;
@@ -82,26 +100,230 @@ export interface DiscernmentFrame {
 }
 
 // ============================================================================
-// DS 融合引擎
+// 增强融合结果（包含认知层引擎的完整输出）
+// ============================================================================
+
+export interface EnhancedFusionResult extends FusionResult {
+  /** 认知层引擎的完整输出 */
+  cognitiveOutput?: DSFusionOutput;
+  /** 最高信念的假设 */
+  decision: string;
+  /** 决策置信度 */
+  confidence: number;
+}
+
+// ============================================================================
+// 感知层 DS 融合引擎（统一适配器）
 // ============================================================================
 
 export class DSFusionEngine {
-  private frame: DiscernmentFrame;
+  private readonly cognitiveEngine: CognitiveDSFusionEngine;
+  private readonly frame: DiscernmentFrame;
   private sourceConfigs: Map<string, EvidenceSourceConfig> = new Map();
-  private historicalAccuracy: Map<string, number[]> = new Map();
 
   constructor(hypotheses: string[], sourceConfigs?: EvidenceSourceConfig[]) {
+    // 构建辨识框架
     this.frame = this.buildFrame(hypotheses);
+
+    // 初始化认知层引擎
+    this.cognitiveEngine = new CognitiveDSFusionEngine({
+      frameOfDiscernment: hypotheses,
+      defaultStrategy: 'dempster',
+      highConflictThreshold: 0.7,
+      extremeConflictThreshold: 0.95,
+      conflictPenaltyFactor: 0.3,
+      sources: (sourceConfigs || []).map(sc => ({
+        id: sc.name,
+        name: sc.name,
+        type: 'sensor' as const,
+        initialReliability: 1.0,
+        currentReliability: 1.0,
+        decayFactor: 0.95,
+        recoveryFactor: 0.1,
+        minReliability: 0.1,
+        enabled: true,
+        correctCount: 0,
+        errorCount: 0,
+        lastUpdatedAt: new Date(),
+      })),
+    });
+
     if (sourceConfigs) {
       for (const cfg of sourceConfigs) {
         this.sourceConfigs.set(cfg.name, cfg);
       }
     }
+
+    log.info({
+      hypotheses,
+      sourceCount: sourceConfigs?.length ?? 0,
+    }, 'Perception DS fusion engine initialized (unified adapter)');
+  }
+
+  // ==========================================================================
+  // 原有接口（向后兼容）
+  // ==========================================================================
+
+  /**
+   * 多源证据融合（原有接口，保持兼容）
+   *
+   * 内部委托给认知层引擎，然后转换回感知层格式
+   */
+  fuse(evidences: BPA[], conflictThreshold: number = 0.7): FusionResult {
+    const startTime = Date.now();
+
+    if (evidences.length === 0) {
+      throw new Error('At least one evidence is required');
+    }
+
+    // 转换为认知层格式
+    const cognitiveInputs: Array<Record<string, number>> = evidences.map(e => {
+      const beliefMass: Record<string, number> = {};
+      for (const [key, value] of e.masses) {
+        beliefMass[key] = value;
+      }
+      return beliefMass;
+    });
+
+    // 使用认知层引擎融合
+    const { beliefMass, conflict } = this.cognitiveEngine.fuseMultiple(cognitiveInputs);
+
+    // 转换回感知层格式
+    const fusedBPA = new Map<string, number>();
+    for (const [key, value] of Object.entries(beliefMass)) {
+      fusedBPA.set(key, value);
+    }
+
+    // 计算 Belief 和 Plausibility
+    const belief = this.computeBelief(fusedBPA);
+    const plausibility = this.computePlausibility(fusedBPA);
+    const uncertaintyInterval = this.computeUncertaintyInterval(belief, plausibility);
+
+    // 确定融合方法
+    let method: FusionResult['method'] = 'dempster';
+    if (conflict > conflictThreshold) {
+      method = 'murphy';
+    }
+
+    return {
+      fusedBPA,
+      conflictFactor: conflict,
+      belief,
+      plausibility,
+      uncertaintyInterval,
+      method,
+      sources: evidences.map(e => e.sourceName),
+      durationMs: Date.now() - startTime,
+    };
+  }
+
+  // ==========================================================================
+  // 新增接口 — 与 BPABuilder 集成
+  // ==========================================================================
+
+  /**
+   * 使用 BPABuilder 输出进行融合（推荐新代码使用）
+   *
+   * @param bpaMap BPABuilder.buildAll() 的输出
+   * @param sourceWeights 可选的证据源权重覆盖
+   * @returns 增强融合结果
+   */
+  fuseWithBPABuilder(
+    bpaMap: Map<string, BasicProbabilityAssignment>,
+    sourceWeights?: Record<string, number>,
+  ): EnhancedFusionResult {
+    const startTime = Date.now();
+
+    if (bpaMap.size === 0) {
+      return this.createEmptyResult(startTime);
+    }
+
+    // 转换为认知层 DSEvidenceInput 格式
+    const inputs: DSEvidenceInput[] = [];
+    for (const [source, bpa] of bpaMap) {
+      const evidence = toCognitionEvidence(bpa, source);
+      inputs.push(evidence);
+    }
+
+    // 使用认知层引擎的增强融合
+    const cognitiveOutput = this.cognitiveEngine.fuseWithReliability(inputs);
+
+    // 转换为感知层 FusionResult 格式
+    const fusedBPA = new Map<string, number>();
+    for (const [key, value] of Object.entries(cognitiveOutput.fusedMass)) {
+      fusedBPA.set(key, value);
+    }
+
+    const belief = this.computeBelief(fusedBPA);
+    const plausibility = this.computePlausibility(fusedBPA);
+    const uncertaintyInterval = this.computeUncertaintyInterval(belief, plausibility);
+
+    return {
+      fusedBPA,
+      conflictFactor: cognitiveOutput.totalConflict,
+      belief,
+      plausibility,
+      uncertaintyInterval,
+      method: cognitiveOutput.strategyUsed as FusionResult['method'],
+      sources: [...bpaMap.keys()],
+      durationMs: Date.now() - startTime,
+      cognitiveOutput,
+      decision: cognitiveOutput.decision,
+      confidence: cognitiveOutput.confidence,
+    };
+  }
+
+  // ==========================================================================
+  // 证据源管理（委托给认知层引擎）
+  // ==========================================================================
+
+  /**
+   * 更新证据源可靠性
+   */
+  updateSourceAccuracy(sourceName: string, accuracy: number): void {
+    const correct = accuracy >= 0.5;
+    this.cognitiveEngine.updateSourceReliability(sourceName, correct);
   }
 
   /**
-   * 构建辨识框架
+   * 注册证据源配置
    */
+  registerSource(config: EvidenceSourceConfig): void {
+    this.sourceConfigs.set(config.name, config);
+    this.cognitiveEngine.registerSource({
+      id: config.name,
+      name: config.name,
+      type: 'sensor',
+      initialReliability: 1.0,
+      currentReliability: 1.0,
+      decayFactor: 0.95,
+      recoveryFactor: 0.1,
+      minReliability: 0.1,
+      enabled: true,
+      correctCount: 0,
+      errorCount: 0,
+      lastUpdatedAt: new Date(),
+    });
+  }
+
+  /**
+   * 获取框架信息
+   */
+  getFrame(): DiscernmentFrame {
+    return this.frame;
+  }
+
+  /**
+   * 获取底层认知引擎（用于高级操作）
+   */
+  getCognitiveEngine(): CognitiveDSFusionEngine {
+    return this.cognitiveEngine;
+  }
+
+  // ==========================================================================
+  // 内部方法
+  // ==========================================================================
+
   private buildFrame(hypotheses: string[]): DiscernmentFrame {
     const powerSet: string[][] = [];
     const n = hypotheses.length;
@@ -115,156 +337,6 @@ export class DSFusionEngine {
     return { name: 'default', hypotheses, powerSet };
   }
 
-  /**
-   * 多源证据融合（核心方法）
-   *
-   * @param evidences 证据列表
-   * @param conflictThreshold 冲突阈值（超过则切换 Yager 规则）
-   */
-  fuse(evidences: BPA[], conflictThreshold: number = 0.7): FusionResult {
-    const startTime = Date.now();
-
-    if (evidences.length === 0) {
-      throw new Error('At least one evidence is required');
-    }
-
-    if (evidences.length === 1) {
-      return this.singleEvidenceResult(evidences[0], startTime);
-    }
-
-    // 应用 Bayesian 权重调整
-    const adjustedEvidences = evidences.map(e => this.applyBayesianWeight(e));
-
-    // Murphy 平均法预处理（减少高冲突影响）
-    const avgBPA = this.murphyAverage(adjustedEvidences);
-
-    // 计算初始冲突因子
-    const initialConflict = this.computeConflict(adjustedEvidences[0], adjustedEvidences[1]);
-
-    let fusedBPA: Map<string, number>;
-    let method: FusionResult['method'];
-
-    if (initialConflict > conflictThreshold) {
-      // 高冲突：使用 Murphy 平均 + 多次 Dempster 合成
-      fusedBPA = this.murphyFusion(adjustedEvidences);
-      method = 'murphy';
-    } else {
-      // 正常冲突：逐步 Dempster 合成
-      fusedBPA = adjustedEvidences[0].masses;
-      for (let i = 1; i < adjustedEvidences.length; i++) {
-        fusedBPA = this.dempsterCombine(fusedBPA, adjustedEvidences[i].masses);
-      }
-      method = 'dempster';
-    }
-
-    // 计算 Belief 和 Plausibility
-    const belief = this.computeBelief(fusedBPA);
-    const plausibility = this.computePlausibility(fusedBPA);
-    const uncertaintyInterval = this.computeUncertaintyInterval(belief, plausibility);
-
-    // 最终冲突因子
-    const conflictFactor = adjustedEvidences.length >= 2
-      ? this.computeConflict(
-          { masses: fusedBPA, sourceName: 'fused', weight: 1, reliability: 1, timestamp: Date.now() },
-          adjustedEvidences[adjustedEvidences.length - 1]
-        )
-      : 0;
-
-    return {
-      fusedBPA,
-      conflictFactor,
-      belief,
-      plausibility,
-      uncertaintyInterval,
-      method,
-      sources: evidences.map(e => e.sourceName),
-      durationMs: Date.now() - startTime,
-    };
-  }
-
-  /**
-   * Dempster 合成规则
-   */
-  private dempsterCombine(m1: Map<string, number>, m2: Map<string, number>): Map<string, number> {
-    const combined = new Map<string, number>();
-    let conflict = 0;
-
-    for (const [a, ma] of m1) {
-      for (const [b, mb] of m2) {
-        const intersection = this.intersect(a, b);
-        const product = ma * mb;
-
-        if (intersection === '') {
-          // 空集 → 冲突
-          conflict += product;
-        } else {
-          combined.set(intersection, (combined.get(intersection) || 0) + product);
-        }
-      }
-    }
-
-    // 归一化
-    const normFactor = 1 - conflict;
-    if (normFactor <= 0) {
-      throw new Error(`Total conflict detected (K=${conflict.toFixed(4)}), cannot combine`);
-    }
-
-    const normalized = new Map<string, number>();
-    for (const [key, value] of combined) {
-      normalized.set(key, value / normFactor);
-    }
-
-    return normalized;
-  }
-
-  /**
-   * Murphy 平均融合（高冲突场景）
-   */
-  private murphyFusion(evidences: BPA[]): Map<string, number> {
-    const avg = this.murphyAverage(evidences);
-    // 用平均 BPA 自身合成 n-1 次
-    let result = avg;
-    for (let i = 1; i < evidences.length; i++) {
-      result = this.dempsterCombine(result, avg);
-    }
-    return result;
-  }
-
-  /**
-   * Murphy 平均
-   */
-  private murphyAverage(evidences: BPA[]): Map<string, number> {
-    const avg = new Map<string, number>();
-    const totalWeight = evidences.reduce((sum, e) => sum + e.weight * e.reliability, 0);
-
-    for (const evidence of evidences) {
-      const w = (evidence.weight * evidence.reliability) / totalWeight;
-      for (const [key, value] of evidence.masses) {
-        avg.set(key, (avg.get(key) || 0) + value * w);
-      }
-    }
-
-    return avg;
-  }
-
-  /**
-   * 计算冲突因子
-   */
-  private computeConflict(e1: BPA, e2: BPA): number {
-    let conflict = 0;
-    for (const [a, ma] of e1.masses) {
-      for (const [b, mb] of e2.masses) {
-        if (this.intersect(a, b) === '') {
-          conflict += ma * mb;
-        }
-      }
-    }
-    return conflict;
-  }
-
-  /**
-   * 计算 Belief（信任度）
-   */
   private computeBelief(bpa: Map<string, number>): Map<string, number> {
     const belief = new Map<string, number>();
     for (const hypothesis of this.frame.hypotheses) {
@@ -279,9 +351,6 @@ export class DSFusionEngine {
     return belief;
   }
 
-  /**
-   * 计算 Plausibility（似真度）
-   */
   private computePlausibility(bpa: Map<string, number>): Map<string, number> {
     const plausibility = new Map<string, number>();
     for (const hypothesis of this.frame.hypotheses) {
@@ -296,12 +365,9 @@ export class DSFusionEngine {
     return plausibility;
   }
 
-  /**
-   * 计算不确定性区间 [Bel, Pl]
-   */
   private computeUncertaintyInterval(
     belief: Map<string, number>,
-    plausibility: Map<string, number>
+    plausibility: Map<string, number>,
   ): Map<string, { lower: number; upper: number }> {
     const intervals = new Map<string, { lower: number; upper: number }>();
     for (const h of this.frame.hypotheses) {
@@ -313,88 +379,34 @@ export class DSFusionEngine {
     return intervals;
   }
 
-  /**
-   * 应用 Bayesian 权重自调
-   */
-  private applyBayesianWeight(evidence: BPA): BPA {
-    const config = this.sourceConfigs.get(evidence.sourceName);
-    if (!config || !config.bayesianAdaptive) return evidence;
-
-    // 基于历史准确率调整权重
-    const history = this.historicalAccuracy.get(evidence.sourceName) || [];
-    if (history.length > 0) {
-      const recentAccuracy = history.slice(-10).reduce((s, v) => s + v, 0) / Math.min(history.length, 10);
-      evidence.weight = config.initialWeight * recentAccuracy;
-    }
-
-    return evidence;
-  }
-
-  /**
-   * 更新证据源历史准确率（用于 Bayesian 自调）
-   */
-  updateSourceAccuracy(sourceName: string, accuracy: number): void {
-    if (!this.historicalAccuracy.has(sourceName)) {
-      this.historicalAccuracy.set(sourceName, []);
-    }
-    const history = this.historicalAccuracy.get(sourceName)!;
-    history.push(accuracy);
-    // 保留最近 100 条
-    if (history.length > 100) history.shift();
-  }
-
-  // ============================================================================
-  // 集合操作辅助
-  // ============================================================================
-
-  /**
-   * 集合交集（用逗号分隔的字符串表示集合）
-   */
   private intersect(a: string, b: string): string {
+    if (a === 'theta') return b;
+    if (b === 'theta') return a;
     const setA = new Set(a.split(','));
     const setB = new Set(b.split(','));
     const result = [...setA].filter(x => setB.has(x));
     return result.join(',');
   }
 
-  /**
-   * 子集判断
-   */
   private isSubset(subset: string, superset: string): boolean {
+    if (subset === 'theta') return false;
     const subItems = new Set(subset.split(','));
     const superItems = new Set(superset.split(','));
     return [...subItems].every(item => superItems.has(item));
   }
 
-  /**
-   * 单证据结果
-   */
-  private singleEvidenceResult(evidence: BPA, startTime: number): FusionResult {
-    const belief = this.computeBelief(evidence.masses);
-    const plausibility = this.computePlausibility(evidence.masses);
+  private createEmptyResult(startTime: number): EnhancedFusionResult {
     return {
-      fusedBPA: evidence.masses,
+      fusedBPA: new Map([['theta', 1.0]]),
       conflictFactor: 0,
-      belief,
-      plausibility,
-      uncertaintyInterval: this.computeUncertaintyInterval(belief, plausibility),
+      belief: new Map(),
+      plausibility: new Map(),
+      uncertaintyInterval: new Map(),
       method: 'dempster',
-      sources: [evidence.sourceName],
+      sources: [],
       durationMs: Date.now() - startTime,
+      decision: 'unknown',
+      confidence: 0,
     };
-  }
-
-  /**
-   * 注册证据源配置
-   */
-  registerSource(config: EvidenceSourceConfig): void {
-    this.sourceConfigs.set(config.name, config);
-  }
-
-  /**
-   * 获取框架信息
-   */
-  getFrame(): DiscernmentFrame {
-    return this.frame;
   }
 }
