@@ -94,39 +94,39 @@ function CreateProfileDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle>创建工况配置</DialogTitle>
-          <DialogDescription>定义新的运行工况配置，用于不同运行场景下的采集参数自动调整</DialogDescription>
+      <DialogContent className="max-w-sm p-3 gap-1.5">
+        <DialogHeader className="gap-0.5 pb-0">
+          <DialogTitle className="text-sm">创建工况配置</DialogTitle>
+          <DialogDescription className="text-[10px]">定义新的运行工况配置，用于不同运行场景下的采集参数自动调整</DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label>工况名称 *</Label>
-            <Input value={name} onChange={e => setName(e.target.value)} placeholder="如：满载运行" />
+        <form onSubmit={handleSubmit} className="space-y-1.5">
+          <div className="space-y-0.5">
+            <Label className="text-[10px] text-muted-foreground">工况名称 *</Label>
+            <Input className="h-7 text-xs" value={name} onChange={e => setName(e.target.value)} placeholder="如：满载运行" />
           </div>
-          <div className="space-y-2">
-            <Label>描述</Label>
-            <Input value={description} onChange={e => setDescription(e.target.value)} placeholder="工况描述..." />
+          <div className="space-y-0.5">
+            <Label className="text-[10px] text-muted-foreground">描述</Label>
+            <Input className="h-7 text-xs" value={description} onChange={e => setDescription(e.target.value)} placeholder="工况描述..." />
           </div>
-          <div className="space-y-2">
-            <Label>特征标签</Label>
-            <div className="flex gap-2">
-              <Input value={featureInput} onChange={e => setFeatureInput(e.target.value)} placeholder="输入特征名称" onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addFeature(); } }} />
-              <Button type="button" variant="outline" onClick={addFeature}>添加</Button>
+          <div className="space-y-0.5">
+            <Label className="text-[10px] text-muted-foreground">特征标签</Label>
+            <div className="flex gap-1.5">
+              <Input className="h-7 text-xs" value={featureInput} onChange={e => setFeatureInput(e.target.value)} placeholder="输入特征名称" onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addFeature(); } }} />
+              <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={addFeature}>添加</Button>
             </div>
             {features.length > 0 && (
-              <div className="flex flex-wrap gap-1 mt-2">
+              <div className="flex flex-wrap gap-1 mt-0.5">
                 {features.map(f => (
-                  <Badge key={f} variant="secondary" className="cursor-pointer" onClick={() => removeFeature(f)}>
+                  <Badge key={f} variant="secondary" className="text-[10px] cursor-pointer" onClick={() => removeFeature(f)}>
                     {f} ×
                   </Badge>
                 ))}
               </div>
             )}
           </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>取消</Button>
-            <Button type="submit" disabled={isSubmitting}>{isSubmitting ? '创建中...' : '创建工况'}</Button>
+          <DialogFooter className="pt-1">
+            <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={() => onOpenChange(false)}>取消</Button>
+            <Button type="submit" size="sm" className="h-7 text-xs" disabled={isSubmitting}>{isSubmitting ? '创建中...' : '创建工况'}</Button>
           </DialogFooter>
         </form>
       </DialogContent>
@@ -159,35 +159,35 @@ function SamplingConfigDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>采样配置 — {equipmentId}</DialogTitle>
-          <DialogDescription>调整设备的采样频率和缓冲区参数</DialogDescription>
+      <DialogContent className="max-w-sm p-3 gap-1.5">
+        <DialogHeader className="gap-0.5 pb-0">
+          <DialogTitle className="text-sm">采样配置 — {equipmentId}</DialogTitle>
+          <DialogDescription className="text-[10px]">调整设备的采样频率和缓冲区参数</DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label>采样频率: {rate} Hz</Label>
+        <form onSubmit={handleSubmit} className="space-y-1.5">
+          <div className="space-y-0.5">
+            <Label className="text-[10px] text-muted-foreground">采样频率: {rate} Hz</Label>
             <Slider value={[rate]} onValueChange={v => setRate(v[0])} min={100} max={50000} step={100} />
-            <div className="flex justify-between text-xs text-muted-foreground">
+            <div className="flex justify-between text-[10px] text-muted-foreground">
               <span>100 Hz</span>
               <span>50,000 Hz</span>
             </div>
           </div>
-          <div className="space-y-2">
-            <Label>缓冲区大小: {bufferSize} MB</Label>
+          <div className="space-y-0.5">
+            <Label className="text-[10px] text-muted-foreground">缓冲区大小: {bufferSize} MB</Label>
             <Slider value={[bufferSize]} onValueChange={v => setBufferSize(v[0])} min={8} max={512} step={8} />
-            <div className="flex justify-between text-xs text-muted-foreground">
+            <div className="flex justify-between text-[10px] text-muted-foreground">
               <span>8 MB</span>
               <span>512 MB</span>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <input type="checkbox" id="compression" checked={compression} onChange={e => setCompression(e.target.checked)} className="rounded" />
-            <Label htmlFor="compression">启用数据压缩</Label>
+            <Label htmlFor="compression" className="text-xs">启用数据压缩</Label>
           </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>取消</Button>
-            <Button type="submit" disabled={isSubmitting}>{isSubmitting ? '保存中...' : '保存配置'}</Button>
+          <DialogFooter className="pt-1">
+            <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={() => onOpenChange(false)}>取消</Button>
+            <Button type="submit" size="sm" className="h-7 text-xs" disabled={isSubmitting}>{isSubmitting ? '保存中...' : '保存配置'}</Button>
           </DialogFooter>
         </form>
       </DialogContent>

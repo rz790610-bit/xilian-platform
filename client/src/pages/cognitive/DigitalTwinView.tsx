@@ -108,30 +108,30 @@ function CreateSimulationDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle>创建仿真场景 — {equipmentId}</DialogTitle>
-          <DialogDescription>设置仿真参数，系统将预测设备在该工况下的状态</DialogDescription>
+      <DialogContent className="max-w-sm p-3 gap-1.5">
+        <DialogHeader className="gap-0.5 pb-0">
+          <DialogTitle className="text-sm">创建仿真场景 — {equipmentId}</DialogTitle>
+          <DialogDescription className="text-[10px]">设置仿真参数，系统将预测设备在该工况下的状态</DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>场景名称 *</Label>
-              <Input value={name} onChange={e => setName(e.target.value)} placeholder="如：极端负载测试" />
+        <form onSubmit={handleSubmit} className="space-y-1.5">
+          <div className="grid grid-cols-2 gap-1.5">
+            <div className="space-y-0.5">
+              <Label className="text-[10px] text-muted-foreground">场景名称 *</Label>
+              <Input className="h-7 text-xs" value={name} onChange={e => setName(e.target.value)} placeholder="如：极端负载测试" />
             </div>
-            <div className="space-y-2">
-              <Label>描述</Label>
-              <Input value={description} onChange={e => setDescription(e.target.value)} placeholder="场景描述..." />
+            <div className="space-y-0.5">
+              <Label className="text-[10px] text-muted-foreground">描述</Label>
+              <Input className="h-7 text-xs" value={description} onChange={e => setDescription(e.target.value)} placeholder="场景描述..." />
             </div>
           </div>
 
-          <div className="border border-border rounded-lg p-4 space-y-4">
-            <h4 className="text-sm font-semibold text-foreground">仿真参数</h4>
+          <div className="border border-border rounded p-2 space-y-2">
+            <h4 className="text-[10px] font-semibold text-foreground">仿真参数</h4>
             {Object.entries(paramLabels).map(([key, cfg]) => (
-              <div key={key} className="space-y-1">
+              <div key={key} className="space-y-0.5">
                 <div className="flex items-center justify-between">
-                  <Label className="text-sm">{cfg.label}</Label>
-                  <span className="text-sm font-mono">{params[key as keyof typeof params]}{cfg.unit && ` ${cfg.unit}`}</span>
+                  <Label className="text-[10px] text-muted-foreground">{cfg.label}</Label>
+                  <span className="text-[10px] font-mono">{params[key as keyof typeof params]}{cfg.unit && ` ${cfg.unit}`}</span>
                 </div>
                 <Slider
                   value={[params[key as keyof typeof params]]}
@@ -144,9 +144,9 @@ function CreateSimulationDialog({
             ))}
           </div>
 
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>取消</Button>
-            <Button type="submit" disabled={isSubmitting}>{isSubmitting ? '创建中...' : '创建并运行'}</Button>
+          <DialogFooter className="pt-1">
+            <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={() => onOpenChange(false)}>取消</Button>
+            <Button type="submit" size="sm" className="h-7 text-xs" disabled={isSubmitting}>{isSubmitting ? '创建中...' : '创建并运行'}</Button>
           </DialogFooter>
         </form>
       </DialogContent>
@@ -180,24 +180,24 @@ function CreateReplayDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>创建回放 — {equipmentId}</DialogTitle>
-          <DialogDescription>选择时间范围回放设备历史数据</DialogDescription>
+      <DialogContent className="max-w-sm p-3 gap-1.5">
+        <DialogHeader className="gap-0.5 pb-0">
+          <DialogTitle className="text-sm">创建回放 — {equipmentId}</DialogTitle>
+          <DialogDescription className="text-[10px]">选择时间范围回放设备历史数据</DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label>开始时间</Label>
-            <Input type="datetime-local" value={startTime} onChange={e => setStartTime(e.target.value)} />
+        <form onSubmit={handleSubmit} className="space-y-1.5">
+          <div className="space-y-0.5">
+            <Label className="text-[10px] text-muted-foreground">开始时间</Label>
+            <Input className="h-7 text-xs" type="datetime-local" value={startTime} onChange={e => setStartTime(e.target.value)} />
           </div>
-          <div className="space-y-2">
-            <Label>结束时间</Label>
-            <Input type="datetime-local" value={endTime} onChange={e => setEndTime(e.target.value)} />
+          <div className="space-y-0.5">
+            <Label className="text-[10px] text-muted-foreground">结束时间</Label>
+            <Input className="h-7 text-xs" type="datetime-local" value={endTime} onChange={e => setEndTime(e.target.value)} />
           </div>
-          <div className="space-y-2">
-            <Label>回放速度: {speed}x</Label>
+          <div className="space-y-0.5">
+            <Label className="text-[10px] text-muted-foreground">回放速度: {speed}x</Label>
             <Select value={String(speed)} onValueChange={v => setSpeed(Number(v))}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="0.5">0.5x (慢速)</SelectItem>
                 <SelectItem value="1">1x (实时)</SelectItem>
@@ -207,9 +207,9 @@ function CreateReplayDialog({
               </SelectContent>
             </Select>
           </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>取消</Button>
-            <Button type="submit" disabled={isSubmitting}>{isSubmitting ? '创建中...' : '开始回放'}</Button>
+          <DialogFooter className="pt-1">
+            <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={() => onOpenChange(false)}>取消</Button>
+            <Button type="submit" size="sm" className="h-7 text-xs" disabled={isSubmitting}>{isSubmitting ? '创建中...' : '开始回放'}</Button>
           </DialogFooter>
         </form>
       </DialogContent>

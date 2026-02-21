@@ -103,21 +103,21 @@ function CreateCrystalDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle>创建知识结晶</DialogTitle>
-          <DialogDescription>从诊断经验中提炼可复用的知识结晶</DialogDescription>
+      <DialogContent className="max-w-sm p-3 gap-1.5">
+        <DialogHeader className="gap-0.5 pb-0">
+          <DialogTitle className="text-sm">创建知识结晶</DialogTitle>
+          <DialogDescription className="text-[10px]">从诊断经验中提炼可复用的知识结晶</DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>结晶名称 *</Label>
-              <Input value={name} onChange={e => setName(e.target.value)} placeholder="如：轴承温度异常模式" />
+        <form onSubmit={handleSubmit} className="space-y-1.5">
+          <div className="grid grid-cols-2 gap-1.5">
+            <div className="space-y-0.5">
+              <Label className="text-[10px] text-muted-foreground">结晶名称 *</Label>
+              <Input className="h-7 text-xs" value={name} onChange={e => setName(e.target.value)} placeholder="如：轴承温度异常模式" />
             </div>
-            <div className="space-y-2">
-              <Label>类型 *</Label>
+            <div className="space-y-0.5">
+              <Label className="text-[10px] text-muted-foreground">类型 *</Label>
               <Select value={type} onValueChange={v => setType(v as Crystal['type'])}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="pattern">模式</SelectItem>
                   <SelectItem value="rule">规则</SelectItem>
@@ -127,17 +127,17 @@ function CreateCrystalDialog({
               </Select>
             </div>
           </div>
-          <div className="space-y-2">
-            <Label>描述 *</Label>
-            <Textarea value={description} onChange={e => setDescription(e.target.value)} placeholder="详细描述该知识结晶的内容和适用场景..." rows={3} />
+          <div className="space-y-0.5">
+            <Label className="text-[10px] text-muted-foreground">描述 *</Label>
+            <Textarea className="text-xs min-h-[48px]" value={description} onChange={e => setDescription(e.target.value)} placeholder="详细描述该知识结晶的内容和适用场景..." rows={2} />
           </div>
-          <div className="space-y-2">
-            <Label>置信度: {Math.round(confidence * 100)}%</Label>
+          <div className="space-y-0.5">
+            <Label className="text-[10px] text-muted-foreground">置信度: {Math.round(confidence * 100)}%</Label>
             <Slider value={[confidence]} onValueChange={v => setConfidence(v[0])} min={0} max={1} step={0.01} />
           </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>取消</Button>
-            <Button type="submit" disabled={isSubmitting}>{isSubmitting ? '创建中...' : '创建结晶'}</Button>
+          <DialogFooter className="pt-1">
+            <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={() => onOpenChange(false)}>取消</Button>
+            <Button type="submit" size="sm" className="h-7 text-xs" disabled={isSubmitting}>{isSubmitting ? '创建中...' : '创建结晶'}</Button>
           </DialogFooter>
         </form>
       </DialogContent>
@@ -181,21 +181,21 @@ function CreateFeatureDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle>注册特征</DialogTitle>
-          <DialogDescription>定义新的特征工程计算规则</DialogDescription>
+      <DialogContent className="max-w-sm p-3 gap-1.5">
+        <DialogHeader className="gap-0.5 pb-0">
+          <DialogTitle className="text-sm">注册特征</DialogTitle>
+          <DialogDescription className="text-[10px]">定义新的特征工程计算规则</DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>特征名称 *</Label>
-              <Input value={name} onChange={e => setName(e.target.value)} placeholder="如：vibration_rms_1h" />
+        <form onSubmit={handleSubmit} className="space-y-1.5">
+          <div className="grid grid-cols-2 gap-1.5">
+            <div className="space-y-0.5">
+              <Label className="text-[10px] text-muted-foreground">特征名称 *</Label>
+              <Input className="h-7 text-xs" value={name} onChange={e => setName(e.target.value)} placeholder="如：vibration_rms_1h" />
             </div>
-            <div className="space-y-2">
-              <Label>领域</Label>
+            <div className="space-y-0.5">
+              <Label className="text-[10px] text-muted-foreground">领域</Label>
               <Select value={domain} onValueChange={setDomain}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="vibration">振动</SelectItem>
                   <SelectItem value="temperature">温度</SelectItem>
@@ -205,27 +205,27 @@ function CreateFeatureDialog({
               </Select>
             </div>
           </div>
-          <div className="space-y-2">
-            <Label>输入维度 *</Label>
-            <div className="flex gap-2">
-              <Input value={dimInput} onChange={e => setDimInput(e.target.value)} placeholder="如：raw_vibration_x" onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addDim(); } }} />
-              <Button type="button" variant="outline" onClick={addDim}>添加</Button>
+          <div className="space-y-0.5">
+            <Label className="text-[10px] text-muted-foreground">输入维度 *</Label>
+            <div className="flex gap-1.5">
+              <Input className="h-7 text-xs" value={dimInput} onChange={e => setDimInput(e.target.value)} placeholder="如：raw_vibration_x" onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addDim(); } }} />
+              <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={addDim}>添加</Button>
             </div>
             {dims.length > 0 && (
-              <div className="flex flex-wrap gap-1 mt-2">
+              <div className="flex flex-wrap gap-1 mt-0.5">
                 {dims.map(d => (
-                  <Badge key={d} variant="secondary" className="cursor-pointer" onClick={() => setDims(prev => prev.filter(x => x !== d))}>
+                  <Badge key={d} variant="secondary" className="text-[10px] cursor-pointer" onClick={() => setDims(prev => prev.filter(x => x !== d))}>
                     {d} ×
                   </Badge>
                 ))}
               </div>
             )}
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>输出类型</Label>
+          <div className="grid grid-cols-2 gap-1.5">
+            <div className="space-y-0.5">
+              <Label className="text-[10px] text-muted-foreground">输出类型</Label>
               <Select value={outputType} onValueChange={setOutputType}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="float">浮点数</SelectItem>
                   <SelectItem value="integer">整数</SelectItem>
@@ -235,14 +235,14 @@ function CreateFeatureDialog({
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label>计算表达式</Label>
-              <Input value={expression} onChange={e => setExpression(e.target.value)} placeholder="如：rms(input, window=3600)" />
+            <div className="space-y-0.5">
+              <Label className="text-[10px] text-muted-foreground">计算表达式</Label>
+              <Input className="h-7 text-xs" value={expression} onChange={e => setExpression(e.target.value)} placeholder="如：rms(input, window=3600)" />
             </div>
           </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>取消</Button>
-            <Button type="submit" disabled={isSubmitting}>{isSubmitting ? '注册中...' : '注册特征'}</Button>
+          <DialogFooter className="pt-1">
+            <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={() => onOpenChange(false)}>取消</Button>
+            <Button type="submit" size="sm" className="h-7 text-xs" disabled={isSubmitting}>{isSubmitting ? '注册中...' : '注册特征'}</Button>
           </DialogFooter>
         </form>
       </DialogContent>
@@ -271,51 +271,51 @@ function CrystalDetailDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>{crystal.name}</DialogTitle>
-          <DialogDescription>知识结晶详情</DialogDescription>
+      <DialogContent className="max-w-sm p-3 gap-1.5">
+        <DialogHeader className="gap-0.5 pb-0">
+          <DialogTitle className="text-sm">{crystal.name}</DialogTitle>
+          <DialogDescription className="text-[10px]">知识结晶详情</DialogDescription>
         </DialogHeader>
-        <div className="space-y-4">
-          <div className="flex gap-2">
-            <Badge variant="outline">{typeLabels[crystal.type]}</Badge>
-            <Badge variant={crystal.status === 'applied' ? 'default' : crystal.status === 'deprecated' ? 'destructive' : 'secondary'}>
+        <div className="space-y-2">
+          <div className="flex gap-1.5">
+            <Badge variant="outline" className="text-[10px]">{typeLabels[crystal.type]}</Badge>
+            <Badge className="text-[10px]" variant={crystal.status === 'applied' ? 'default' : crystal.status === 'deprecated' ? 'destructive' : 'secondary'}>
               {statusLabels[crystal.status]}
             </Badge>
           </div>
-          <p className="text-sm text-muted-foreground">{crystal.description}</p>
-          <div className="grid grid-cols-2 gap-3 text-sm">
+          <p className="text-xs text-muted-foreground">{crystal.description}</p>
+          <div className="grid grid-cols-2 gap-2 text-xs">
             <div>
-              <span className="text-muted-foreground">置信度</span>
-              <div className="flex items-center gap-2 mt-1">
-                <Progress value={crystal.confidence * 100} className="h-2 flex-1" />
-                <span className="font-mono">{Math.round(crystal.confidence * 100)}%</span>
+              <span className="text-[10px] text-muted-foreground">置信度</span>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <Progress value={crystal.confidence * 100} className="h-1.5 flex-1" />
+                <span className="font-mono text-[10px]">{Math.round(crystal.confidence * 100)}%</span>
               </div>
             </div>
             <div>
-              <span className="text-muted-foreground">数据源</span>
-              <div className="font-mono mt-1">{crystal.sourceCount}</div>
+              <span className="text-[10px] text-muted-foreground">数据源</span>
+              <div className="font-mono text-xs mt-0.5">{crystal.sourceCount}</div>
             </div>
             <div>
-              <span className="text-muted-foreground">应用次数</span>
-              <div className="font-mono mt-1">{crystal.appliedCount}</div>
+              <span className="text-[10px] text-muted-foreground">应用次数</span>
+              <div className="font-mono text-xs mt-0.5">{crystal.appliedCount}</div>
             </div>
             <div>
-              <span className="text-muted-foreground">创建时间</span>
-              <div className="text-xs mt-1">{new Date(crystal.createdAt).toLocaleString()}</div>
+              <span className="text-[10px] text-muted-foreground">创建时间</span>
+              <div className="text-[10px] mt-0.5">{new Date(crystal.createdAt).toLocaleString()}</div>
             </div>
           </div>
         </div>
-        <DialogFooter className="gap-2">
+        <DialogFooter className="pt-1 gap-1.5">
           {crystal.status === 'applied' && (
-            <Button variant="destructive" size="sm" onClick={() => onDeprecate(crystal.id)}>废弃</Button>
+            <Button variant="destructive" size="sm" className="h-7 text-xs" onClick={() => onDeprecate(crystal.id)}>废弃</Button>
           )}
           {(crystal.status === 'reviewed' || crystal.status === 'draft') && (
-            <Button size="sm" onClick={() => onApply(crystal.id)} disabled={isApplying}>
+            <Button size="sm" className="h-7 text-xs" onClick={() => onApply(crystal.id)} disabled={isApplying}>
               {isApplying ? '应用中...' : '应用结晶'}
             </Button>
           )}
-          <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>关闭</Button>
+          <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => onOpenChange(false)}>关闭</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

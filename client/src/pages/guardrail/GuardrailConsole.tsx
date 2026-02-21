@@ -131,29 +131,30 @@ function RuleFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>{editRule ? '编辑护栏规则' : '创建护栏规则'}</DialogTitle>
-          <DialogDescription>
+      <DialogContent className="max-w-md p-3 gap-1.5 max-h-[75vh] overflow-y-auto">
+        <DialogHeader className="gap-0.5 pb-0">
+          <DialogTitle className="text-sm">{editRule ? '编辑护栏规则' : '创建护栏规则'}</DialogTitle>
+          <DialogDescription className="text-[10px]">
             {editRule ? '修改现有护栏规则的配置参数' : '定义新的护栏规则来保护设备安全运行'}
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-1.5">
           {/* 基本信息 */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="rule-name">规则名称 *</Label>
+          <div className="grid grid-cols-2 gap-1.5">
+            <div className="space-y-0.5">
+              <Label htmlFor="rule-name" className="text-[10px] text-muted-foreground">规则名称 *</Label>
               <Input
                 id="rule-name"
+                className="h-7 text-xs"
                 value={form.name}
                 onChange={e => updateField('name', e.target.value)}
                 placeholder="如：振动超限告警"
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="rule-type">规则类别</Label>
+            <div className="space-y-0.5">
+              <Label htmlFor="rule-type" className="text-[10px] text-muted-foreground">规则类别</Label>
               <Select value={form.type} onValueChange={v => updateField('type', v as RuleFormData['type'])}>
-                <SelectTrigger id="rule-type"><SelectValue /></SelectTrigger>
+                <SelectTrigger id="rule-type" className="h-7 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="safety">安全护栏</SelectItem>
                   <SelectItem value="health">健康护栏</SelectItem>
@@ -163,10 +164,11 @@ function RuleFormDialog({
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="rule-desc">规则描述</Label>
+          <div className="space-y-0.5">
+            <Label htmlFor="rule-desc" className="text-[10px] text-muted-foreground">规则描述</Label>
             <Textarea
               id="rule-desc"
+              className="text-xs min-h-[36px]"
               value={form.description}
               onChange={e => updateField('description', e.target.value)}
               placeholder="描述规则的用途和触发条件..."
@@ -175,13 +177,13 @@ function RuleFormDialog({
           </div>
 
           {/* 触发条件 */}
-          <div className="border border-border rounded-lg p-4 space-y-3">
-            <h4 className="text-sm font-semibold text-foreground">触发条件</h4>
-            <div className="grid grid-cols-3 gap-3">
-              <div className="space-y-2">
-                <Label>监测字段</Label>
+          <div className="border border-border rounded p-2 space-y-1.5">
+            <h4 className="text-[10px] font-semibold text-foreground">触发条件</h4>
+            <div className="grid grid-cols-3 gap-1.5">
+              <div className="space-y-0.5">
+                <Label className="text-[10px] text-muted-foreground">监测字段</Label>
                 <Select value={form.conditionField} onValueChange={v => updateField('conditionField', v)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="vibration_rms">振动 RMS</SelectItem>
                     <SelectItem value="temperature">温度</SelectItem>
@@ -193,10 +195,10 @@ function RuleFormDialog({
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2">
-                <Label>比较运算</Label>
+              <div className="space-y-0.5">
+                <Label className="text-[10px] text-muted-foreground">比较运算</Label>
                 <Select value={form.conditionOperator} onValueChange={v => updateField('conditionOperator', v as RuleFormData['conditionOperator'])}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="gt">大于 (&gt;)</SelectItem>
                     <SelectItem value="lt">小于 (&lt;)</SelectItem>
@@ -208,11 +210,12 @@ function RuleFormDialog({
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2">
-                <Label>阈值</Label>
-                <div className="flex gap-2">
+              <div className="space-y-0.5">
+                <Label className="text-[10px] text-muted-foreground">阈值</Label>
+                <div className="flex gap-1.5">
                   <Input
                     type="number"
+                    className="h-7 text-xs"
                     value={form.conditionThreshold}
                     onChange={e => updateField('conditionThreshold', parseFloat(e.target.value) || 0)}
                     placeholder="阈值"
@@ -220,6 +223,7 @@ function RuleFormDialog({
                   {form.conditionOperator === 'between' && (
                     <Input
                       type="number"
+                      className="h-7 text-xs"
                       value={form.conditionThresholdHigh}
                       onChange={e => updateField('conditionThresholdHigh', parseFloat(e.target.value) || 0)}
                       placeholder="上限"
@@ -231,13 +235,13 @@ function RuleFormDialog({
           </div>
 
           {/* 响应动作 */}
-          <div className="border border-border rounded-lg p-4 space-y-3">
-            <h4 className="text-sm font-semibold text-foreground">响应动作</h4>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label>动作类型</Label>
+          <div className="border border-border rounded p-2 space-y-1.5">
+            <h4 className="text-[10px] font-semibold text-foreground">响应动作</h4>
+            <div className="grid grid-cols-2 gap-1.5">
+              <div className="space-y-0.5">
+                <Label className="text-[10px] text-muted-foreground">动作类型</Label>
                 <Select value={form.actionType} onValueChange={v => updateField('actionType', v)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="alert">发送告警</SelectItem>
                     <SelectItem value="throttle">限流降速</SelectItem>
@@ -248,10 +252,11 @@ function RuleFormDialog({
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2">
-                <Label>优先级 (数值越小越高)</Label>
+              <div className="space-y-0.5">
+                <Label className="text-[10px] text-muted-foreground">优先级 (数值越小越高)</Label>
                 <Input
                   type="number"
+                  className="h-7 text-xs"
                   value={form.priority}
                   onChange={e => updateField('priority', parseInt(e.target.value) || 100)}
                   min={1}
@@ -262,9 +267,10 @@ function RuleFormDialog({
           </div>
 
           {/* 物理依据 */}
-          <div className="space-y-2">
-            <Label>物理依据 (可选)</Label>
+          <div className="space-y-0.5">
+            <Label className="text-[10px] text-muted-foreground">物理依据 (可选)</Label>
             <Textarea
+              className="text-xs min-h-[36px]"
               value={form.physicalBasis}
               onChange={e => updateField('physicalBasis', e.target.value)}
               placeholder="如：ISO 10816-3 振动标准，Zone C 边界值 4.5mm/s RMS..."
@@ -272,9 +278,9 @@ function RuleFormDialog({
             />
           </div>
 
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>取消</Button>
-            <Button type="submit" disabled={isSubmitting}>
+          <DialogFooter className="pt-1">
+            <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={() => onOpenChange(false)}>取消</Button>
+            <Button type="submit" size="sm" className="h-7 text-xs" disabled={isSubmitting}>
               {isSubmitting ? '提交中...' : editRule ? '保存修改' : '创建规则'}
             </Button>
           </DialogFooter>
@@ -303,16 +309,16 @@ function DeleteConfirmDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>确认删除</DialogTitle>
-          <DialogDescription>
+      <DialogContent className="max-w-xs p-3 gap-1.5">
+        <DialogHeader className="gap-0.5 pb-0">
+          <DialogTitle className="text-sm">确认删除</DialogTitle>
+          <DialogDescription className="text-[10px]">
             确定要删除护栏规则 "<strong>{ruleName}</strong>" 吗？此操作不可撤销。
           </DialogDescription>
         </DialogHeader>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>取消</Button>
-          <Button variant="destructive" onClick={onConfirm} disabled={isDeleting}>
+        <DialogFooter className="pt-1">
+          <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => onOpenChange(false)}>取消</Button>
+          <Button variant="destructive" size="sm" className="h-7 text-xs" onClick={onConfirm} disabled={isDeleting}>
             {isDeleting ? '删除中...' : '确认删除'}
           </Button>
         </DialogFooter>

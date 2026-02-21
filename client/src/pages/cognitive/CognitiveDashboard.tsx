@@ -110,16 +110,16 @@ function TriggerSessionDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>触发认知会话</DialogTitle>
-          <DialogDescription>手动触发一次认知诊断会话，系统将执行四维诊断流程</DialogDescription>
+      <DialogContent className="max-w-sm p-3 gap-1.5">
+        <DialogHeader className="gap-0.5 pb-0">
+          <DialogTitle className="text-sm">触发认知会话</DialogTitle>
+          <DialogDescription className="text-[10px]">手动触发认知诊断会话</DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label>目标设备</Label>
+        <form onSubmit={handleSubmit} className="space-y-1.5">
+          <div className="space-y-0.5">
+            <Label className="text-[10px] text-muted-foreground">目标设备</Label>
             <Select value={machineId} onValueChange={setMachineId}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="EQ-001">EQ-001 (主泵)</SelectItem>
                 <SelectItem value="EQ-002">EQ-002 (压缩机)</SelectItem>
@@ -129,10 +129,10 @@ function TriggerSessionDialog({
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-2">
-            <Label>触发类型</Label>
+          <div className="space-y-0.5">
+            <Label className="text-[10px] text-muted-foreground">触发类型</Label>
             <Select value={triggerType} onValueChange={setTriggerType}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="manual">手动触发</SelectItem>
                 <SelectItem value="anomaly">异常检测</SelectItem>
@@ -142,10 +142,10 @@ function TriggerSessionDialog({
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-2">
-            <Label>优先级</Label>
+          <div className="space-y-0.5">
+            <Label className="text-[10px] text-muted-foreground">优先级</Label>
             <Select value={priority} onValueChange={setPriority}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="critical">紧急</SelectItem>
                 <SelectItem value="high">高</SelectItem>
@@ -153,9 +153,9 @@ function TriggerSessionDialog({
               </SelectContent>
             </Select>
           </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>取消</Button>
-            <Button type="submit" disabled={isSubmitting}>
+          <DialogFooter className="pt-1">
+            <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={() => onOpenChange(false)}>取消</Button>
+            <Button type="submit" size="sm" className="h-7 text-xs" disabled={isSubmitting}>
               {isSubmitting ? '触发中...' : '触发会话'}
             </Button>
           </DialogFooter>

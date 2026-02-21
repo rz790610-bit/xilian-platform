@@ -216,18 +216,18 @@ function RuleEditorDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle>{rule ? '编辑规则' : '添加规则'}</DialogTitle>
-          <DialogDescription>配置证据源到假设的模糊隶属度映射规则</DialogDescription>
+      <DialogContent className="max-w-sm p-3 gap-1.5">
+        <DialogHeader className="gap-0.5 pb-0">
+          <DialogTitle className="text-sm">{rule ? '编辑规则' : '添加规则'}</DialogTitle>
+          <DialogDescription className="text-[10px]">配置证据源到假设的模糊隶属度映射规则</DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label className="text-xs">证据源</Label>
+        <div className="space-y-2">
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-0.5">
+              <Label className="text-[10px] text-muted-foreground">证据源</Label>
               <Select value={source} onValueChange={setSource}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {DEFAULT_SOURCES.map(s => (
                     <SelectItem key={s} value={s}>{SOURCE_LABELS[s] ?? s}</SelectItem>
@@ -235,10 +235,10 @@ function RuleEditorDialog({
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">目标假设</Label>
+            <div className="space-y-0.5">
+              <Label className="text-[10px] text-muted-foreground">目标假设</Label>
               <Select value={hypothesis} onValueChange={setHypothesis}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {hypotheses.map(h => (
                     <SelectItem key={h} value={h}>{HYPOTHESIS_LABELS[h] ?? h}</SelectItem>
@@ -248,10 +248,10 @@ function RuleEditorDialog({
             </div>
           </div>
 
-          <div className="space-y-1.5">
-            <Label className="text-xs">函数类型</Label>
+          <div className="space-y-0.5">
+            <Label className="text-[10px] text-muted-foreground">函数类型</Label>
             <Select value={functionType} onValueChange={(v) => handleFunctionTypeChange(v as any)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="trapezoidal">梯形函数 (Trapezoidal)</SelectItem>
                 <SelectItem value="triangular">三角形函数 (Triangular)</SelectItem>
@@ -261,18 +261,18 @@ function RuleEditorDialog({
           </div>
 
           {/* 参数编辑 */}
-          <div className="space-y-2">
-            <Label className="text-xs">函数参数</Label>
-            <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-1">
+            <Label className="text-[10px] text-muted-foreground">函数参数</Label>
+            <div className="grid grid-cols-2 gap-1.5">
               {Object.entries(paramLabels[functionType] ?? {}).map(([key, label]) => (
-                <div key={key} className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">{label}</Label>
+                <div key={key} className="space-y-0.5">
+                  <Label className="text-[10px] text-muted-foreground">{label}</Label>
                   <Input
                     type="number"
                     step="0.01"
                     value={params[key] ?? ''}
                     onChange={(e) => updateParam(key, e.target.value)}
-                    className="h-8 text-xs"
+                    className="h-7 text-xs"
                   />
                 </div>
               ))}
@@ -280,22 +280,22 @@ function RuleEditorDialog({
           </div>
 
           {/* 曲线预览 */}
-          <div className="space-y-1.5">
-            <Label className="text-xs">曲线预览</Label>
-            <div className="p-3 rounded-lg border border-border/50 bg-muted/30 flex justify-center">
+          <div className="space-y-0.5">
+            <Label className="text-[10px] text-muted-foreground">曲线预览</Label>
+            <div className="p-2 rounded border border-border/50 bg-muted/30 flex justify-center">
               <FuzzyFunctionPreview
                 functionType={functionType}
                 params={params}
-                width={360}
-                height={80}
+                width={280}
+                height={50}
               />
             </div>
           </div>
         </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>取消</Button>
-          <Button onClick={() => {
+        <DialogFooter className="pt-1">
+          <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => onOpenChange(false)}>取消</Button>
+          <Button size="sm" className="h-7 text-xs" onClick={() => {
             onSave({ source, hypothesis, functionType, params });
             onOpenChange(false);
           }}>
@@ -384,110 +384,110 @@ function ConfigEditorDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>{editConfig ? '编辑 BPA 配置' : '创建 BPA 配置'}</DialogTitle>
-          <DialogDescription>配置模糊隶属度函数规则，用于 DS 证据构建</DialogDescription>
+      <DialogContent className="max-w-lg p-3 gap-1.5 max-h-[70vh] overflow-y-auto">
+        <DialogHeader className="gap-0.5 pb-0">
+          <DialogTitle className="text-sm">{editConfig ? '编辑 BPA 配置' : '创建 BPA 配置'}</DialogTitle>
+          <DialogDescription className="text-[10px]">配置模糊隶属度函数规则，用于 DS 证据构建</DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="space-y-2">
           {/* 基本信息 */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label className="text-xs">配置名称</Label>
+          <div className="grid grid-cols-2 gap-1.5">
+            <div className="space-y-0.5">
+              <Label className="text-[10px] text-muted-foreground">配置名称</Label>
               <Input
                 value={form.name}
                 onChange={(e) => setForm(prev => ({ ...prev, name: e.target.value }))}
                 placeholder="如：岸桥默认配置"
-                className="h-8 text-sm"
+                className="h-7 text-xs"
               />
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">设备类型</Label>
+            <div className="space-y-0.5">
+              <Label className="text-[10px] text-muted-foreground">设备类型</Label>
               <Input
                 value={form.equipmentType}
                 onChange={(e) => setForm(prev => ({ ...prev, equipmentType: e.target.value }))}
                 placeholder="如：quay_crane"
-                className="h-8 text-sm"
+                className="h-7 text-xs"
               />
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
-            <div className="space-y-1.5">
-              <Label className="text-xs">版本</Label>
+          <div className="grid grid-cols-3 gap-1.5">
+            <div className="space-y-0.5">
+              <Label className="text-[10px] text-muted-foreground">版本</Label>
               <Input
                 value={form.version}
                 onChange={(e) => setForm(prev => ({ ...prev, version: e.target.value }))}
-                className="h-8 text-sm"
+                className="h-7 text-xs"
               />
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">无知度基准</Label>
+            <div className="space-y-0.5">
+              <Label className="text-[10px] text-muted-foreground">无知度基准</Label>
               <Input
                 type="number"
                 step="0.01"
                 value={form.ignoranceBase}
                 onChange={(e) => setForm(prev => ({ ...prev, ignoranceBase: parseFloat(e.target.value) || 0.05 }))}
-                className="h-8 text-sm"
+                className="h-7 text-xs"
               />
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">最小质量阈值</Label>
+            <div className="space-y-0.5">
+              <Label className="text-[10px] text-muted-foreground">最小质量阈值</Label>
               <Input
                 type="number"
                 step="0.001"
                 value={form.minMassThreshold}
                 onChange={(e) => setForm(prev => ({ ...prev, minMassThreshold: parseFloat(e.target.value) || 0.01 }))}
-                className="h-8 text-sm"
+                className="h-7 text-xs"
               />
             </div>
           </div>
 
-          <div className="space-y-1.5">
-            <Label className="text-xs">描述</Label>
+          <div className="space-y-0.5">
+            <Label className="text-[10px] text-muted-foreground">描述</Label>
             <Input
               value={form.description}
               onChange={(e) => setForm(prev => ({ ...prev, description: e.target.value }))}
               placeholder="配置说明..."
-              className="h-8 text-sm"
+              className="h-7 text-xs"
             />
           </div>
 
           <Separator />
 
           {/* 规则列表 */}
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <Label className="text-xs font-medium">模糊隶属度规则 ({form.rules.length})</Label>
-              <Button variant="outline" size="sm" onClick={handleAddRule}>
+              <Label className="text-[10px] font-medium">模糊隶属度规则 ({form.rules.length})</Label>
+              <Button variant="outline" size="sm" className="h-6 text-[10px]" onClick={handleAddRule}>
                 + 添加规则
               </Button>
             </div>
 
             {form.rules.length === 0 ? (
-              <div className="text-center py-6 text-muted-foreground text-xs border border-dashed border-border rounded-lg">
-                暂无规则，点击"添加规则"开始配置
+              <div className="text-center py-3 text-muted-foreground text-[10px] border border-dashed border-border rounded">
+                暂无规则，点击“添加规则”开始配置
               </div>
             ) : (
-              <div className="border rounded-lg overflow-hidden">
+              <div className="border rounded overflow-hidden">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-20">证据源</TableHead>
-                      <TableHead className="w-16">假设</TableHead>
-                      <TableHead className="w-16">函数</TableHead>
-                      <TableHead>参数</TableHead>
-                      <TableHead className="w-52">曲线预览</TableHead>
-                      <TableHead className="w-20">操作</TableHead>
+                      <TableHead className="w-16 text-[10px] py-1">证据源</TableHead>
+                      <TableHead className="w-14 text-[10px] py-1">假设</TableHead>
+                      <TableHead className="w-14 text-[10px] py-1">函数</TableHead>
+                      <TableHead className="text-[10px] py-1">参数</TableHead>
+                      <TableHead className="w-32 text-[10px] py-1">曲线</TableHead>
+                      <TableHead className="w-14 text-[10px] py-1">操作</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {form.rules.map((rule, idx) => (
                       <TableRow key={idx}>
-                        <TableCell className="text-xs">{SOURCE_LABELS[rule.source] ?? rule.source}</TableCell>
-                        <TableCell>
-                          <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${
+                        <TableCell className="text-[10px] py-1">{SOURCE_LABELS[rule.source] ?? rule.source}</TableCell>
+                        <TableCell className="py-1">
+                          <span className={`inline-flex items-center px-1 py-0 rounded text-[10px] font-medium ${
                             rule.hypothesis === 'normal' ? 'bg-emerald-500/15 text-emerald-400' :
                             rule.hypothesis === 'degraded' ? 'bg-yellow-500/15 text-yellow-400' :
                             rule.hypothesis === 'fault' ? 'bg-orange-500/15 text-orange-400' :
@@ -496,8 +496,8 @@ function ConfigEditorDialog({
                             {HYPOTHESIS_LABELS[rule.hypothesis] ?? rule.hypothesis}
                           </span>
                         </TableCell>
-                        <TableCell>
-                          <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${
+                        <TableCell className="py-1">
+                          <span className={`inline-flex items-center px-1 py-0 rounded text-[10px] font-medium ${
                             rule.functionType === 'trapezoidal' ? 'bg-blue-500/15 text-blue-400' :
                             rule.functionType === 'triangular' ? 'bg-emerald-500/15 text-emerald-400' :
                             'bg-purple-500/15 text-purple-400'
@@ -505,23 +505,23 @@ function ConfigEditorDialog({
                             {FUNCTION_TYPE_LABELS[rule.functionType] ?? rule.functionType}
                           </span>
                         </TableCell>
-                        <TableCell className="text-xs font-mono text-muted-foreground">
+                        <TableCell className="text-[10px] font-mono text-muted-foreground py-1">
                           {Object.entries(rule.params).map(([k, v]) => `${k}=${v}`).join(', ')}
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="py-1">
                           <FuzzyFunctionPreview
                             functionType={rule.functionType}
                             params={rule.params}
-                            width={180}
-                            height={40}
+                            width={100}
+                            height={24}
                           />
                         </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1">
-                            <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => handleEditRule(idx)}>
+                        <TableCell className="py-1">
+                          <div className="flex items-center gap-0.5">
+                            <Button variant="ghost" size="sm" className="h-5 w-5 p-0 text-[10px]" onClick={() => handleEditRule(idx)}>
                               ✏️
                             </Button>
-                            <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-destructive" onClick={() => handleDeleteRule(idx)}>
+                            <Button variant="ghost" size="sm" className="h-5 w-5 p-0 text-[10px] text-destructive" onClick={() => handleDeleteRule(idx)}>
                               🗑️
                             </Button>
                           </div>
@@ -535,9 +535,10 @@ function ConfigEditorDialog({
           </div>
         </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>取消</Button>
+        <DialogFooter className="pt-1">
+          <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => onOpenChange(false)}>取消</Button>
           <Button
+            size="sm" className="h-7 text-xs"
             onClick={() => onSave(form)}
             disabled={isSaving || !form.name || form.rules.length === 0}
           >

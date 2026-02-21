@@ -138,45 +138,45 @@ function DimensionEditDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle>编辑维度 #{form.index}: {form.label}</DialogTitle>
-          <DialogDescription>修改状态向量维度的定义参数</DialogDescription>
+      <DialogContent className="max-w-sm p-3 gap-1.5">
+        <DialogHeader className="gap-0.5 pb-0">
+          <DialogTitle className="text-sm">编辑维度 #{form.index}: {form.label}</DialogTitle>
+          <DialogDescription className="text-[10px]">修改状态向量维度的定义参数</DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label className="text-xs">维度标识 (key)</Label>
+        <div className="space-y-1.5">
+          <div className="grid grid-cols-2 gap-1.5">
+            <div className="space-y-0.5">
+              <Label className="text-[10px] text-muted-foreground">维度标识 (key)</Label>
               <Input
                 value={form.key}
                 onChange={(e) => setForm(prev => ({ ...prev, key: e.target.value }))}
-                className="h-8 text-sm font-mono"
+                className="h-7 text-xs font-mono"
               />
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">显示标签</Label>
+            <div className="space-y-0.5">
+              <Label className="text-[10px] text-muted-foreground">显示标签</Label>
               <Input
                 value={form.label}
                 onChange={(e) => setForm(prev => ({ ...prev, label: e.target.value }))}
-                className="h-8 text-sm"
+                className="h-7 text-xs"
               />
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
-            <div className="space-y-1.5">
-              <Label className="text-xs">单位</Label>
+          <div className="grid grid-cols-3 gap-1.5">
+            <div className="space-y-0.5">
+              <Label className="text-[10px] text-muted-foreground">单位</Label>
               <Input
                 value={form.unit}
                 onChange={(e) => setForm(prev => ({ ...prev, unit: e.target.value }))}
-                className="h-8 text-sm"
+                className="h-7 text-xs"
               />
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">分组</Label>
+            <div className="space-y-0.5">
+              <Label className="text-[10px] text-muted-foreground">分组</Label>
               <Select value={form.group} onValueChange={(v) => setForm(prev => ({ ...prev, group: v as any }))}>
-                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="cycle_features">周期特征</SelectItem>
                   <SelectItem value="uncertainty_factors">不确定性因子</SelectItem>
@@ -184,10 +184,10 @@ function DimensionEditDialog({
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">聚合方式</Label>
+            <div className="space-y-0.5">
+              <Label className="text-[10px] text-muted-foreground">聚合方式</Label>
               <Select value={form.aggregation} onValueChange={(v) => setForm(prev => ({ ...prev, aggregation: v as any }))}>
-                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {Object.entries(AGGREGATION_LABELS).map(([k, v]) => (
                     <SelectItem key={k} value={k}>{v}</SelectItem>
@@ -197,43 +197,43 @@ function DimensionEditDialog({
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
-            <div className="space-y-1.5">
-              <Label className="text-xs">默认值</Label>
+          <div className="grid grid-cols-3 gap-1.5">
+            <div className="space-y-0.5">
+              <Label className="text-[10px] text-muted-foreground">默认值</Label>
               <Input
                 type="number"
                 step="any"
                 value={form.defaultValue}
                 onChange={(e) => setForm(prev => ({ ...prev, defaultValue: parseFloat(e.target.value) || 0 }))}
-                className="h-8 text-sm"
+                className="h-7 text-xs"
               />
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">归一化下界</Label>
+            <div className="space-y-0.5">
+              <Label className="text-[10px] text-muted-foreground">归一化下界</Label>
               <Input
                 type="number"
                 step="any"
                 value={form.normalizeRange[0]}
                 onChange={(e) => setForm(prev => ({ ...prev, normalizeRange: [parseFloat(e.target.value) || 0, prev.normalizeRange[1]] }))}
-                className="h-8 text-sm"
+                className="h-7 text-xs"
               />
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">归一化上界</Label>
+            <div className="space-y-0.5">
+              <Label className="text-[10px] text-muted-foreground">归一化上界</Label>
               <Input
                 type="number"
                 step="any"
                 value={form.normalizeRange[1]}
                 onChange={(e) => setForm(prev => ({ ...prev, normalizeRange: [prev.normalizeRange[0], parseFloat(e.target.value) || 1] }))}
-                className="h-8 text-sm"
+                className="h-7 text-xs"
               />
             </div>
           </div>
 
-          <div className="space-y-1.5">
-            <Label className="text-xs">数据源</Label>
+          <div className="space-y-0.5">
+            <Label className="text-[10px] text-muted-foreground">数据源</Label>
             <Select value={form.source} onValueChange={(v) => setForm(prev => ({ ...prev, source: v as any }))}>
-              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {Object.entries(SOURCE_LABELS).map(([k, v]) => (
                   <SelectItem key={k} value={k}>{v}</SelectItem>
@@ -243,21 +243,21 @@ function DimensionEditDialog({
           </div>
 
           {/* 测点名称 */}
-          <div className="space-y-1.5">
-            <Label className="text-xs">关联测点名称</Label>
-            <div className="flex gap-2">
+          <div className="space-y-0.5">
+            <Label className="text-[10px] text-muted-foreground">关联测点名称</Label>
+            <div className="flex gap-1.5">
               <Input
                 value={metricInput}
                 onChange={(e) => setMetricInput(e.target.value)}
                 placeholder="输入测点名称..."
-                className="h-8 text-sm"
+                className="h-7 text-xs"
                 onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addMetric())}
               />
-              <Button variant="outline" size="sm" onClick={addMetric}>添加</Button>
+              <Button variant="outline" size="sm" className="h-7 text-xs" onClick={addMetric}>添加</Button>
             </div>
-            <div className="flex flex-wrap gap-1 mt-1">
+            <div className="flex flex-wrap gap-1 mt-0.5">
               {form.metricNames.map(name => (
-                <Badge key={name} variant="secondary" className="text-xs cursor-pointer" onClick={() => removeMetric(name)}>
+                <Badge key={name} variant="secondary" className="text-[10px] cursor-pointer" onClick={() => removeMetric(name)}>
                   {name} ✕
                 </Badge>
               ))}
@@ -265,9 +265,9 @@ function DimensionEditDialog({
           </div>
         </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>取消</Button>
-          <Button onClick={() => { onSave(form); onOpenChange(false); }}>
+        <DialogFooter className="pt-1">
+          <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => onOpenChange(false)}>取消</Button>
+          <Button size="sm" className="h-7 text-xs" onClick={() => { onSave(form); onOpenChange(false); }}>
             保存
           </Button>
         </DialogFooter>
