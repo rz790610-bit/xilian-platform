@@ -25,7 +25,19 @@ import {
   toolDefinitions,
   edgeCases,
 } from '../../../drizzle/evolution-schema';
-import { dataConnectors, kgNodes, kgEdges, pipelines, pipelineRuns } from '../../../drizzle/schema';
+import {
+  dataConnectors, kgNodes, kgEdges, pipelines, pipelineRuns,
+  // 平台已有模块
+  assetNodes, assetMeasurementPoints, assetSensors,
+  models, modelFineTuneTasks,
+  kbCollections, kbDocuments,
+  pluginRegistry, pluginInstances,
+  edgeGateways,
+  algorithmDefinitions, algorithmCompositions, algorithmExecutions,
+  diagnosisRules, diagnosisTasks,
+  topoNodes, topoEdges,
+  eventLogs,
+} from '../../../drizzle/schema';
 
 // ============================================================================
 // 认知会话路由
@@ -445,9 +457,65 @@ export const cognitionDomainRouter = router({
       const [equipRow] = await db.select({ cnt: count() }).from(equipmentProfiles);
       const equipCount = equipRow.cnt;
 
+      // ---- 平台已有模块 ----
+      // 资产管理
+      const [assetNodeRow] = await db.select({ cnt: count() }).from(assetNodes);
+      const [assetMpRow] = await db.select({ cnt: count() }).from(assetMeasurementPoints);
+      const [assetSensorRow] = await db.select({ cnt: count() }).from(assetSensors);
+      const assetNodeCount = assetNodeRow.cnt;
+      const assetMpCount = assetMpRow.cnt;
+      const assetSensorCount = assetSensorRow.cnt;
+
+      // 模型管理
+      const [modelRow] = await db.select({ cnt: count() }).from(models);
+      const [ftRow] = await db.select({ cnt: count() }).from(modelFineTuneTasks);
+      const modelCount = modelRow.cnt;
+      const fineTuneCount = ftRow.cnt;
+
+      // 知识库
+      const [kbCollRow] = await db.select({ cnt: count() }).from(kbCollections);
+      const [kbDocRow] = await db.select({ cnt: count() }).from(kbDocuments);
+      const kbCollectionCount = kbCollRow.cnt;
+      const kbDocumentCount = kbDocRow.cnt;
+
+      // 插件系统
+      const [pluginRegRow] = await db.select({ cnt: count() }).from(pluginRegistry);
+      const [pluginInstRow] = await db.select({ cnt: count() }).from(pluginInstances);
+      const pluginRegCount = pluginRegRow.cnt;
+      const pluginInstCount = pluginInstRow.cnt;
+
+      // 边缘网关
+      const [edgeGwRow] = await db.select({ cnt: count() }).from(edgeGateways);
+      const edgeGwCount = edgeGwRow.cnt;
+
+      // 算法引擎
+      const [algoDefRow] = await db.select({ cnt: count() }).from(algorithmDefinitions);
+      const [algoCompRow] = await db.select({ cnt: count() }).from(algorithmCompositions);
+      const [algoExecRow] = await db.select({ cnt: count() }).from(algorithmExecutions);
+      const algoDefCount = algoDefRow.cnt;
+      const algoCompCount = algoCompRow.cnt;
+      const algoExecCount = algoExecRow.cnt;
+
+      // 诊断规则
+      const [diagRuleRow] = await db.select({ cnt: count() }).from(diagnosisRules);
+      const [diagTaskRow] = await db.select({ cnt: count() }).from(diagnosisTasks);
+      const diagRuleCount = diagRuleRow.cnt;
+      const diagTaskCount = diagTaskRow.cnt;
+
+      // 系统拓扑
+      const [topoNodeRow] = await db.select({ cnt: count() }).from(topoNodes);
+      const [topoEdgeRow] = await db.select({ cnt: count() }).from(topoEdges);
+      const topoNodeCount = topoNodeRow.cnt;
+      const topoEdgeCount = topoEdgeRow.cnt;
+
+      // 事件总线
+      const [eventRow] = await db.select({ cnt: count() }).from(eventLogs);
+      const eventCount = eventRow.cnt;
+
       return {
         timestamp: new Date().toISOString(),
-        layers: {
+        // ===== 认知中枢核心层 =====
+        cognitiveLayers: {
           L0_contracts: {
             label: '数据契约层',
             status: connectorError > 0 ? 'degraded' : connectorOnline > 0 ? 'online' : connectorTotal > 0 ? 'degraded' : 'offline',
@@ -495,7 +563,56 @@ export const cognitionDomainRouter = router({
             metrics: { equipmentProfiles: equipCount },
           },
         },
-        dataFlow: [
+        // ===== 平台已有模块 =====
+        platformModules: {
+          assetManagement: {
+            label: '资产管理',
+            status: assetNodeCount > 0 ? 'online' : 'idle',
+            metrics: { nodes: assetNodeCount, measurementPoints: assetMpCount, sensors: assetSensorCount },
+          },
+          modelManagement: {
+            label: '模型管理',
+            status: modelCount > 0 ? 'online' : 'idle',
+            metrics: { models: modelCount, fineTuneTasks: fineTuneCount },
+          },
+          knowledgeBase: {
+            label: '知识库',
+            status: kbCollectionCount > 0 ? 'online' : 'idle',
+            metrics: { collections: kbCollectionCount, documents: kbDocumentCount },
+          },
+          pluginSystem: {
+            label: '插件系统',
+            status: pluginRegCount > 0 ? 'online' : 'idle',
+            metrics: { registered: pluginRegCount, instances: pluginInstCount },
+          },
+          edgeGateway: {
+            label: '边缘网关',
+            status: edgeGwCount > 0 ? 'online' : 'idle',
+            metrics: { gateways: edgeGwCount },
+          },
+          algorithmEngine: {
+            label: '算法引擎',
+            status: algoDefCount > 0 ? 'online' : 'idle',
+            metrics: { definitions: algoDefCount, compositions: algoCompCount, executions: algoExecCount },
+          },
+          diagnosisEngine: {
+            label: '诊断引擎',
+            status: diagRuleCount > 0 ? 'online' : 'idle',
+            metrics: { rules: diagRuleCount, tasks: diagTaskCount },
+          },
+          systemTopology: {
+            label: '系统拓扑',
+            status: topoNodeCount > 0 ? 'online' : 'idle',
+            metrics: { nodes: topoNodeCount, edges: topoEdgeCount },
+          },
+          eventBus: {
+            label: '事件总线',
+            status: eventCount > 0 ? 'online' : 'idle',
+            metrics: { totalEvents: eventCount },
+          },
+        },
+        // ===== 认知中枢内部数据流 =====
+        cognitiveDataFlow: [
           { from: 'L0_contracts', to: 'L1_perception', label: '原始数据', active: connectorTotal > 0 },
           { from: 'L1_perception', to: 'L2_cognition', label: '状态向量', active: conditionProfileCount > 0 },
           { from: 'L2_cognition', to: 'L2_guardrail', label: '诊断结果', active: totalSessionCount > 0 },
@@ -507,6 +624,24 @@ export const cognitionDomainRouter = router({
           { from: 'L2_cognition', to: 'L7_digitalTwin', label: '状态同步', active: equipCount > 0 },
           { from: 'L5_tooling', to: 'L2_cognition', label: '工具调用', active: toolsCount > 0 },
           { from: 'L6_pipeline', to: 'L2_cognition', label: 'DAG编排', active: pipelinesCount > 0 },
+        ],
+        // ===== 认知中枢 ↔ 平台模块赋能连接 =====
+        empowermentLinks: [
+          { from: 'assetManagement', to: 'L0_contracts', label: '设备资产注册', active: assetNodeCount > 0, direction: 'platform→cognitive' },
+          { from: 'edgeGateway', to: 'L0_contracts', label: '边缘数据采集', active: edgeGwCount > 0, direction: 'platform→cognitive' },
+          { from: 'algorithmEngine', to: 'L2_cognition', label: '算法模型调用', active: algoDefCount > 0, direction: 'platform→cognitive' },
+          { from: 'diagnosisEngine', to: 'L2_guardrail', label: '诊断规则同步', active: diagRuleCount > 0, direction: 'platform→cognitive' },
+          { from: 'knowledgeBase', to: 'L3_knowledge', label: '知识文档注入', active: kbCollectionCount > 0, direction: 'platform→cognitive' },
+          { from: 'modelManagement', to: 'L4_evolution', label: '模型训练/部署', active: modelCount > 0, direction: 'platform→cognitive' },
+          { from: 'pluginSystem', to: 'L5_tooling', label: '插件工具注册', active: pluginRegCount > 0, direction: 'platform→cognitive' },
+          { from: 'systemTopology', to: 'L7_digitalTwin', label: '拓扑结构同步', active: topoNodeCount > 0, direction: 'platform→cognitive' },
+          { from: 'eventBus', to: 'L6_pipeline', label: '事件驱动编排', active: eventCount > 0, direction: 'platform→cognitive' },
+          // 认知中枢反向赋能平台
+          { from: 'L2_cognition', to: 'assetManagement', label: '健康评估反馈', active: totalSessionCount > 0, direction: 'cognitive→platform' },
+          { from: 'L3_knowledge', to: 'knowledgeBase', label: '知识结晶回写', active: crystalsCount > 0, direction: 'cognitive→platform' },
+          { from: 'L4_evolution', to: 'modelManagement', label: '模型迭代推送', active: cyclesCount > 0, direction: 'cognitive→platform' },
+          { from: 'L4_evolution', to: 'algorithmEngine', label: '算法优化建议', active: shadowEvalsCount > 0, direction: 'cognitive→platform' },
+          { from: 'L2_guardrail', to: 'eventBus', label: '告警事件发布', active: violationsTotal > 0, direction: 'cognitive→platform' },
         ],
       };
     }),
