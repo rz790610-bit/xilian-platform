@@ -6,6 +6,7 @@
  */
 
 import { router, publicProcedure, protectedProcedure } from '../../core/trpc';
+import { reasoningEngineRouter } from './reasoning.router';
 import { z } from 'zod';
 import { getDb } from '../../lib/db';
 import { eq, desc, sql, and, gte, count } from 'drizzle-orm';
@@ -263,6 +264,7 @@ export const cognitionDomainRouter = router({
   worldModel: worldModelRouter,
   physics: physicsRouter,
   diagnosis: diagnosisRouter,
+  reasoningEngine: reasoningEngineRouter,
 
   // ========== 前端仪表盘 Facade 方法 ==========
 

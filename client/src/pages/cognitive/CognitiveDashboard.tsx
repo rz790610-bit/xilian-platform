@@ -22,6 +22,11 @@ import { CognitiveTopology } from '@/components/cognitive/CognitiveTopology';
 import { PerceptionDashboardContent } from '@/pages/perception/PerceptionDashboard';
 import { BPAConfigContent } from '@/pages/perception/BPAConfigManager';
 import { DimensionManagerContent } from '@/pages/perception/DimensionManager';
+import { ReasoningEngineConfig } from '@/components/cognitive/ReasoningEngineConfig';
+import { CausalGraphView } from '@/components/cognitive/CausalGraphView';
+import { ExperiencePoolView } from '@/components/cognitive/ExperiencePoolView';
+import { ReasoningTraceView } from '@/components/cognitive/ReasoningTraceView';
+import { FeedbackMonitorView } from '@/components/cognitive/FeedbackMonitorView';
 
 // ============================================================================
 // 类型定义
@@ -255,6 +260,11 @@ export default function CognitiveDashboard() {
           <TabsTrigger value="perception-dashboard" className="text-xs">感知增强</TabsTrigger>
           <TabsTrigger value="bpa-config" className="text-xs">BPA 配置</TabsTrigger>
           <TabsTrigger value="dimension-manager" className="text-xs">维度管理</TabsTrigger>
+          <TabsTrigger value="engine-config" className="text-xs">🔧 引擎配置</TabsTrigger>
+          <TabsTrigger value="causal-graph" className="text-xs">🕸️ 因果图</TabsTrigger>
+          <TabsTrigger value="experience-pool" className="text-xs">🧠 经验池</TabsTrigger>
+          <TabsTrigger value="reasoning-trace" className="text-xs">📡 推理追踪</TabsTrigger>
+          <TabsTrigger value="feedback-monitor" className="text-xs">🔄 反馈监控</TabsTrigger>
         </TabsList>
 
         {/* ===== 实时拓扑 ===== */}
@@ -428,6 +438,31 @@ export default function CognitiveDashboard() {
         {/* ===== 维度定义管理 ===== */}
         <TabsContent value="dimension-manager" className="mt-2">
           <DimensionManagerContent />
+        </TabsContent>
+
+        {/* ===== Phase 2: 引擎配置 ===== */}
+        <TabsContent value="engine-config" className="mt-2">
+          <ReasoningEngineConfig />
+        </TabsContent>
+
+        {/* ===== Phase 2: 因果图 ===== */}
+        <TabsContent value="causal-graph" className="mt-2">
+          <CausalGraphView />
+        </TabsContent>
+
+        {/* ===== Phase 2: 经验池 ===== */}
+        <TabsContent value="experience-pool" className="mt-2">
+          <ExperiencePoolView />
+        </TabsContent>
+
+        {/* ===== Phase 2: 推理追踪 ===== */}
+        <TabsContent value="reasoning-trace" className="mt-2">
+          <ReasoningTraceView />
+        </TabsContent>
+
+        {/* ===== Phase 2: 反馈监控 ===== */}
+        <TabsContent value="feedback-monitor" className="mt-2">
+          <FeedbackMonitorView />
         </TabsContent>
 
         {/* ===== 护栏告警 ===== */}
