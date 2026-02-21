@@ -22,6 +22,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
 import { CognitiveTopology } from '@/components/cognitive/CognitiveTopology';
+import { PerceptionDashboardContent } from '@/pages/perception/PerceptionDashboard';
+import { BPAConfigContent } from '@/pages/perception/BPAConfigManager';
+import { DimensionManagerContent } from '@/pages/perception/DimensionManager';
 
 // ============================================================================
 // 类型定义
@@ -350,6 +353,9 @@ export default function CognitiveDashboard() {
             护栏告警
             {alerts.length > 0 && <span className="ml-1.5 text-xs bg-red-500 text-white rounded-full px-1.5">{alerts.length}</span>}
           </TabsTrigger>
+          <TabsTrigger value="perception-dashboard">感知增强</TabsTrigger>
+          <TabsTrigger value="bpa-config">BPA 配置</TabsTrigger>
+          <TabsTrigger value="dimension-manager">维度管理</TabsTrigger>
         </TabsList>
 
         {/* ===== 实时拓扑 Tab ===== */}
@@ -539,6 +545,21 @@ export default function CognitiveDashboard() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* ===== 感知增强仪表盘 Tab ===== */}
+        <TabsContent value="perception-dashboard" className="mt-4">
+          <PerceptionDashboardContent />
+        </TabsContent>
+
+        {/* ===== BPA 配置管理 Tab ===== */}
+        <TabsContent value="bpa-config" className="mt-4">
+          <BPAConfigContent />
+        </TabsContent>
+
+        {/* ===== 维度定义管理 Tab ===== */}
+        <TabsContent value="dimension-manager" className="mt-4">
+          <DimensionManagerContent />
         </TabsContent>
 
         {/* ===== 护栏告警 Tab ===== */}

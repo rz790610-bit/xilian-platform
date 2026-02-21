@@ -562,7 +562,7 @@ function ConfigEditorDialog({
 // 主组件
 // ============================================================================
 
-export default function BPAConfigManager() {
+export function BPAConfigContent() {
   const [configDialogOpen, setConfigDialogOpen] = useState(false);
   const [editingConfig, setEditingConfig] = useState<any | null>(null);
   const [filterEquipmentType, setFilterEquipmentType] = useState('');
@@ -622,7 +622,6 @@ export default function BPAConfigManager() {
   };
 
   return (
-    <MainLayout title="BPA 配置管理">
       <div className="space-y-4">
         {/* 工具栏 */}
         <div className="flex items-center gap-3">
@@ -752,6 +751,13 @@ export default function BPAConfigManager() {
           />
         )}
       </div>
+  );
+}
+
+export default function BPAConfigManager() {
+  return (
+    <MainLayout title="BPA 配置管理">
+      <BPAConfigContent />
     </MainLayout>
   );
 }

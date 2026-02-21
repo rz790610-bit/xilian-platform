@@ -125,7 +125,7 @@ function DimensionGroupBadge({ group }: { group: string }) {
 // 主组件
 // ============================================================================
 
-export default function PerceptionDashboard() {
+export function PerceptionDashboardContent() {
   const [activeTab, setActiveTab] = useState('overview');
 
   // API 调用
@@ -172,7 +172,6 @@ export default function PerceptionDashboard() {
   }, [dimensions]);
 
   return (
-    <MainLayout title="感知层增强仪表盘">
       <div className="space-y-4">
         {/* 顶部统计卡片 */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -580,6 +579,13 @@ export default function PerceptionDashboard() {
           </TabsContent>
         </Tabs>
       </div>
+  );
+}
+
+export default function PerceptionDashboard() {
+  return (
+    <MainLayout title="感知层增强仪表盘">
+      <PerceptionDashboardContent />
     </MainLayout>
   );
 }

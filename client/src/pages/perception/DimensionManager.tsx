@@ -366,7 +366,7 @@ function DimensionGroupCard({
 // 主组件
 // ============================================================================
 
-export default function DimensionManager() {
+export function DimensionManagerContent() {
   const [editDim, setEditDim] = useState<DimensionDef | null>(null);
   const [localDims, setLocalDims] = useState<DimensionDef[] | null>(null);
   const [equipmentType, setEquipmentType] = useState('quay_crane');
@@ -460,7 +460,6 @@ export default function DimensionManager() {
   };
 
   return (
-    <MainLayout title="状态向量维度管理">
       <div className="space-y-4">
         {/* 工具栏 */}
         <div className="flex items-center gap-3">
@@ -592,6 +591,13 @@ export default function DimensionManager() {
           />
         )}
       </div>
+  );
+}
+
+export default function DimensionManager() {
+  return (
+    <MainLayout title="状态向量维度管理">
+      <DimensionManagerContent />
     </MainLayout>
   );
 }
