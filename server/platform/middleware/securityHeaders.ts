@@ -35,7 +35,8 @@ function getConfig(): SecurityConfig {
     corsOrigins: process.env.CORS_ORIGINS
       ? process.env.CORS_ORIGINS.split(',').map(s => s.trim())
       : isDev ? ['*'] : [],
-    hsts: !isDev,
+    // HSTS 只在配置了 TLS 终端时启用，避免浏览器缓存 HSTS 策略导致 HTTP 访问失败
+    hsts: process.env.ENABLE_HSTS === 'true',
     csp: !isDev,
     relaxInDev: isDev,
   };
