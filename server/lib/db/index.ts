@@ -47,6 +47,7 @@ function createPool(): mysql.Pool {
     maxIdle: parseInt(process.env.DB_POOL_MIN_IDLE || '10', 10),
     enableKeepAlive: true,
     keepAliveInitialDelay: 30_000,
+    charset: 'utf8mb4',
   });
 }
 
