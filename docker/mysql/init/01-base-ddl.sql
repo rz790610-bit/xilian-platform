@@ -522,9 +522,9 @@ CREATE TABLE IF NOT EXISTS `base_code_rules` (
   `is_active` VARCHAR(255) NOT NULL DEFAULT 1,
   `version` INT NOT NULL DEFAULT 1,
   `created_by` VARCHAR(64),
-  `created_at` VARCHAR(255) NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_by` VARCHAR(64),
-  `updated_at` VARCHAR(255) NOT NULL,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `is_deleted` VARCHAR(255) NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -533,7 +533,7 @@ CREATE TABLE IF NOT EXISTS `base_node_templates` (
   `id` INT AUTO_INCREMENT,
   `code` VARCHAR(64) NOT NULL,
   `name` VARCHAR(100) NOT NULL,
-  `level` VARCHAR(255) NOT NULL,
+  `level` VARCHAR(255) NOT NULL DEFAULT '',
   `node_type` VARCHAR(20) NOT NULL,
   `derived_from` VARCHAR(64),
   `code_rule` VARCHAR(64),
@@ -547,9 +547,9 @@ CREATE TABLE IF NOT EXISTS `base_node_templates` (
   `description` TEXT,
   `version` INT NOT NULL DEFAULT 1,
   `created_by` VARCHAR(64),
-  `created_at` VARCHAR(255) NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_by` VARCHAR(64),
-  `updated_at` VARCHAR(255) NOT NULL,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `is_deleted` VARCHAR(255) NOT NULL DEFAULT 0,
   `is_current` VARCHAR(255) NOT NULL DEFAULT 1,
   `template_version` INT NOT NULL DEFAULT 1,
@@ -574,9 +574,9 @@ CREATE TABLE IF NOT EXISTS `base_mp_templates` (
   `is_active` VARCHAR(255) NOT NULL DEFAULT 1,
   `version` INT NOT NULL DEFAULT 1,
   `created_by` VARCHAR(64),
-  `created_at` VARCHAR(255) NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_by` VARCHAR(64),
-  `updated_at` VARCHAR(255) NOT NULL,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `is_deleted` VARCHAR(255) NOT NULL DEFAULT 0,
   `is_current` VARCHAR(255) NOT NULL DEFAULT 1,
   `template_version` INT NOT NULL DEFAULT 1,
@@ -590,7 +590,7 @@ CREATE TABLE IF NOT EXISTS `asset_nodes` (
   `node_id` VARCHAR(64) NOT NULL,
   `code` VARCHAR(100) NOT NULL,
   `name` VARCHAR(200) NOT NULL,
-  `level` VARCHAR(255) NOT NULL,
+  `level` VARCHAR(255) NOT NULL DEFAULT '',
   `node_type` VARCHAR(20) NOT NULL,
   `parent_node_id` VARCHAR(64),
   `root_node_id` VARCHAR(64) NOT NULL,
@@ -610,9 +610,9 @@ CREATE TABLE IF NOT EXISTS `asset_nodes` (
   `is_active` VARCHAR(255) NOT NULL DEFAULT 1,
   `version` INT NOT NULL DEFAULT 1,
   `created_by` VARCHAR(64),
-  `created_at` VARCHAR(255) NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_by` VARCHAR(64),
-  `updated_at` VARCHAR(255) NOT NULL,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `is_deleted` VARCHAR(255) NOT NULL DEFAULT 0,
   `deleted_at` VARCHAR(255),
   `deleted_by` VARCHAR(64),
@@ -638,9 +638,9 @@ CREATE TABLE IF NOT EXISTS `asset_measurement_points` (
   `is_active` VARCHAR(255) NOT NULL DEFAULT 1,
   `version` INT NOT NULL DEFAULT 1,
   `created_by` VARCHAR(64),
-  `created_at` VARCHAR(255) NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_by` VARCHAR(64),
-  `updated_at` VARCHAR(255) NOT NULL,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `is_deleted` VARCHAR(255) NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -670,9 +670,9 @@ CREATE TABLE IF NOT EXISTS `asset_sensors` (
   `is_active` VARCHAR(255) NOT NULL DEFAULT 1,
   `version` INT NOT NULL DEFAULT 1,
   `created_by` VARCHAR(64),
-  `created_at` VARCHAR(255) NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_by` VARCHAR(64),
-  `updated_at` VARCHAR(255) NOT NULL,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `is_deleted` VARCHAR(255) NOT NULL DEFAULT 0,
   `mount_direction` VARCHAR(16),
   `sensor_protocol` VARCHAR(32),
@@ -696,9 +696,9 @@ CREATE TABLE IF NOT EXISTS `base_label_dimensions` (
   `is_active` VARCHAR(255) NOT NULL DEFAULT 1,
   `version` INT NOT NULL DEFAULT 1,
   `created_by` VARCHAR(64),
-  `created_at` VARCHAR(255) NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_by` VARCHAR(64),
-  `updated_at` VARCHAR(255) NOT NULL,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `is_deleted` VARCHAR(255) NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -718,9 +718,9 @@ CREATE TABLE IF NOT EXISTS `base_label_options` (
   `is_active` VARCHAR(255) NOT NULL DEFAULT 1,
   `version` INT NOT NULL DEFAULT 1,
   `created_by` VARCHAR(64),
-  `created_at` VARCHAR(255) NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_by` VARCHAR(64),
-  `updated_at` VARCHAR(255) NOT NULL,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `is_deleted` VARCHAR(255) NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -743,9 +743,9 @@ CREATE TABLE IF NOT EXISTS `base_slice_rules` (
   `is_current` VARCHAR(255) NOT NULL DEFAULT 1,
   `version` INT NOT NULL DEFAULT 1,
   `created_by` VARCHAR(64),
-  `created_at` VARCHAR(255) NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_by` VARCHAR(64),
-  `updated_at` VARCHAR(255) NOT NULL,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `is_deleted` VARCHAR(255) NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -760,7 +760,7 @@ CREATE TABLE IF NOT EXISTS `data_slices` (
   `quality_code` VARCHAR(64),
   `fault_type_code` VARCHAR(64),
   `load_rate` DOUBLE,
-  `start_time` VARCHAR(255) NOT NULL,
+  `start_time` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `end_time` VARCHAR(255),
   `duration_ms` INT,
   `status` VARCHAR(20) NOT NULL DEFAULT "recording",
@@ -781,9 +781,9 @@ CREATE TABLE IF NOT EXISTS `data_slices` (
   `notes` TEXT,
   `version` INT NOT NULL DEFAULT 1,
   `created_by` VARCHAR(64),
-  `created_at` VARCHAR(255) NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_by` VARCHAR(64),
-  `updated_at` VARCHAR(255) NOT NULL,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `verified_by` VARCHAR(64),
   `verified_at` VARCHAR(255),
   `is_deleted` VARCHAR(255) NOT NULL DEFAULT 0,
@@ -799,7 +799,7 @@ CREATE TABLE IF NOT EXISTS `data_slice_label_history` (
   `old_source` VARCHAR(20),
   `new_source` VARCHAR(20),
   `changed_by` VARCHAR(64) NOT NULL,
-  `changed_at` VARCHAR(255) NOT NULL,
+  `changed_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `reason` TEXT,
   `fault_class` VARCHAR(64),
   `confidence` VARCHAR(10),
@@ -828,9 +828,9 @@ CREATE TABLE IF NOT EXISTS `base_clean_rules` (
   `description` TEXT,
   `version` INT NOT NULL DEFAULT 1,
   `created_by` VARCHAR(64),
-  `created_at` VARCHAR(255) NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_by` VARCHAR(64),
-  `updated_at` VARCHAR(255) NOT NULL,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `is_deleted` VARCHAR(255) NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -842,8 +842,8 @@ CREATE TABLE IF NOT EXISTS `data_clean_tasks` (
   `name` VARCHAR(100),
   `device_code` VARCHAR(100),
   `sensor_ids` JSON,
-  `time_start` VARCHAR(255) NOT NULL,
-  `time_end` VARCHAR(255) NOT NULL,
+  `time_start` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `time_end` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `rule_ids` JSON,
   `rule_snapshot` JSON,
   `status` VARCHAR(20) NOT NULL DEFAULT "pending",
@@ -854,9 +854,9 @@ CREATE TABLE IF NOT EXISTS `data_clean_tasks` (
   `error_message` TEXT,
   `version` INT NOT NULL DEFAULT 1,
   `created_by` VARCHAR(64),
-  `created_at` VARCHAR(255) NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_by` VARCHAR(64),
-  `updated_at` VARCHAR(255) NOT NULL,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -866,7 +866,7 @@ CREATE TABLE IF NOT EXISTS `data_clean_logs` (
   `slice_id` VARCHAR(64),
   `device_code` VARCHAR(100) NOT NULL,
   `sensor_id` VARCHAR(64) NOT NULL,
-  `data_time` VARCHAR(255) NOT NULL,
+  `data_time` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `rule_id` VARCHAR(64) NOT NULL,
   `rule_version` INT NOT NULL,
   `issue_type` VARCHAR(50) NOT NULL,
@@ -875,14 +875,14 @@ CREATE TABLE IF NOT EXISTS `data_clean_logs` (
   `action_taken` VARCHAR(50) NOT NULL,
   `is_fixed` VARCHAR(255) NOT NULL DEFAULT 0,
   `context` JSON,
-  `created_at` VARCHAR(255) NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `data_quality_reports` (
   `id` BIGINT AUTO_INCREMENT,
   `report_type` VARCHAR(20) NOT NULL,
-  `report_date` VARCHAR(255) NOT NULL,
+  `report_date` DATE NOT NULL DEFAULT (CURRENT_DATE),
   `device_code` VARCHAR(100),
   `sensor_id` VARCHAR(64),
   `total_records` BIGINT NOT NULL DEFAULT 0,
@@ -893,7 +893,7 @@ CREATE TABLE IF NOT EXISTS `data_quality_reports` (
   `metrics` JSON NOT NULL,
   `prev_quality_score` DOUBLE,
   `score_change` DOUBLE,
-  `created_at` VARCHAR(255) NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -901,7 +901,7 @@ CREATE TABLE IF NOT EXISTS `sensor_calibrations` (
   `id` INT AUTO_INCREMENT,
   `device_code` VARCHAR(100) NOT NULL,
   `sensor_id` VARCHAR(64) NOT NULL,
-  `calibration_date` VARCHAR(255) NOT NULL,
+  `calibration_date` DATE NOT NULL DEFAULT (CURRENT_DATE),
   `calibration_type` VARCHAR(20) NOT NULL,
   `offset_before` DOUBLE,
   `offset_after` DOUBLE,
@@ -915,9 +915,9 @@ CREATE TABLE IF NOT EXISTS `sensor_calibrations` (
   `notes` TEXT,
   `version` INT NOT NULL DEFAULT 1,
   `created_by` VARCHAR(64),
-  `created_at` VARCHAR(255) NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_by` VARCHAR(64),
-  `updated_at` VARCHAR(255) NOT NULL,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -931,9 +931,9 @@ CREATE TABLE IF NOT EXISTS `base_dict_categories` (
   `sort_order` INT NOT NULL DEFAULT 0,
   `version` INT NOT NULL DEFAULT 1,
   `created_by` VARCHAR(64),
-  `created_at` VARCHAR(255) NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_by` VARCHAR(64),
-  `updated_at` VARCHAR(255) NOT NULL,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `is_deleted` VARCHAR(255) NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -952,9 +952,9 @@ CREATE TABLE IF NOT EXISTS `base_dict_items` (
   `sort_order` INT NOT NULL DEFAULT 0,
   `version` INT NOT NULL DEFAULT 1,
   `created_by` VARCHAR(64),
-  `created_at` VARCHAR(255) NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_by` VARCHAR(64),
-  `updated_at` VARCHAR(255) NOT NULL,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `is_deleted` VARCHAR(255) NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -1156,7 +1156,7 @@ CREATE TABLE IF NOT EXISTS `audit_logs_sensitive` (
   `sensitive_type` VARCHAR(64) NOT NULL,
   `sensitive_data` JSON,
   `risk_level` VARCHAR(128) NOT NULL,
-  `requires_approval` VARCHAR(255) NOT NULL,
+  `requires_approval` TINYINT NOT NULL DEFAULT 0,
   `approved_by` VARCHAR(64),
   `approved_at` TIMESTAMP,
   `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -1195,7 +1195,7 @@ CREATE TABLE IF NOT EXISTS `message_routing_config` (
   `filter_expr` TEXT,
   `transform_script` TEXT,
   `priority` INT NOT NULL,
-  `is_enabled` VARCHAR(255) NOT NULL,
+  `is_enabled` TINYINT NOT NULL DEFAULT 1,
   `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
@@ -1215,7 +1215,7 @@ CREATE TABLE IF NOT EXISTS `data_assets` (
   `is_active` VARCHAR(255) NOT NULL DEFAULT 1,
   `version` INT NOT NULL DEFAULT 1,
   `created_by` VARCHAR(64),
-  `created_at` VARCHAR(255) NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `idx_da_asset_code` VARCHAR(255),
   `idx_da_type` VARCHAR(255),
   PRIMARY KEY (`id`)
@@ -1233,7 +1233,7 @@ CREATE TABLE IF NOT EXISTS `data_lifecycle_policies` (
   `cron_expression` VARCHAR(50),
   `is_active` VARCHAR(255) NOT NULL DEFAULT 1,
   `version` INT NOT NULL DEFAULT 1,
-  `created_at` VARCHAR(255) NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `idx_dlp_policy_code` VARCHAR(255),
   `idx_dlp_target` VARCHAR(255),
   PRIMARY KEY (`id`)
@@ -1243,7 +1243,7 @@ CREATE TABLE IF NOT EXISTS `data_collection_metrics` (
   `id` INT AUTO_INCREMENT,
   `task_id` VARCHAR(64) NOT NULL,
   `device_code` VARCHAR(64) NOT NULL,
-  `metric_date` VARCHAR(255) NOT NULL,
+  `metric_date` DATE NOT NULL DEFAULT (CURRENT_DATE),
   `total_points` BIGINT NOT NULL DEFAULT 0,
   `success_points` BIGINT NOT NULL DEFAULT 0,
   `error_points` BIGINT NOT NULL DEFAULT 0,
@@ -1251,7 +1251,7 @@ CREATE TABLE IF NOT EXISTS `data_collection_metrics` (
   `max_latency_ms` DOUBLE,
   `data_volume_bytes` BIGINT NOT NULL DEFAULT 0,
   `sample_rate_hz` INT,
-  `created_at` VARCHAR(255) NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `idx_dcm_task` VARCHAR(255),
   `idx_dcm_date` VARCHAR(255),
   PRIMARY KEY (`id`)
@@ -1271,7 +1271,7 @@ CREATE TABLE IF NOT EXISTS `edge_gateways` (
   `config` JSON,
   `buffer_size_sec` INT NOT NULL DEFAULT 60,
   `is_active` VARCHAR(255) NOT NULL DEFAULT 1,
-  `created_at` VARCHAR(255) NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `idx_eg_gw_id` VARCHAR(255),
   `idx_eg_status` VARCHAR(255),
   PRIMARY KEY (`id`)
@@ -1282,14 +1282,14 @@ CREATE TABLE IF NOT EXISTS `realtime_telemetry` (
   `gateway_id` VARCHAR(64) NOT NULL,
   `device_code` VARCHAR(64) NOT NULL,
   `mp_code` VARCHAR(64) NOT NULL,
-  `timestamp` VARCHAR(255) NOT NULL,
+  `timestamp` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `value` DOUBLE,
   `unit` VARCHAR(20),
   `quality` INT NOT NULL DEFAULT 192,
   `features` JSON,
   `is_anomaly` VARCHAR(255) NOT NULL DEFAULT 0,
   `synced_to_ch` VARCHAR(255) NOT NULL DEFAULT 0,
-  `created_at` VARCHAR(255) NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `idx_rt_gw_dev` VARCHAR(255),
   `idx_rt_ts` VARCHAR(255),
   `idx_rt_sync` VARCHAR(255),
@@ -1427,7 +1427,7 @@ CREATE TABLE IF NOT EXISTS `alert_event_log` (
   `message` TEXT NOT NULL,
   `metric_value` DOUBLE,
   `threshold_value` DOUBLE,
-  `acknowledged` VARCHAR(255) NOT NULL,
+  `acknowledged` TINYINT NOT NULL DEFAULT 0,
   `acknowledged_by` VARCHAR(64),
   `resolved_at` TIMESTAMP,
   `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -1437,7 +1437,7 @@ CREATE TABLE IF NOT EXISTS `alert_event_log` (
 CREATE TABLE IF NOT EXISTS `device_daily_summary` (
   `id` BIGINT AUTO_INCREMENT,
   `device_code` VARCHAR(64) NOT NULL,
-  `summary_date` VARCHAR(255) NOT NULL,
+  `summary_date` DATE NOT NULL DEFAULT (CURRENT_DATE),
   `online_hours` DOUBLE,
   `alert_count` INT NOT NULL,
   `data_points` BIGINT NOT NULL,
@@ -1456,7 +1456,7 @@ CREATE TABLE IF NOT EXISTS `device_firmware_versions` (
   `file_url` VARCHAR(500) NOT NULL,
   `file_hash` VARCHAR(128) NOT NULL,
   `file_size` BIGINT NOT NULL,
-  `is_mandatory` VARCHAR(255) NOT NULL,
+  `is_mandatory` TINYINT NOT NULL DEFAULT 0,
   `status` VARCHAR(64) NOT NULL DEFAULT 'active',
   `released_at` TIMESTAMP,
   `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -1615,7 +1615,7 @@ CREATE TABLE IF NOT EXISTS `kb_qa_pairs` (
   `source_document_id` BIGINT,
   `confidence` DOUBLE,
   `tags` JSON,
-  `is_verified` VARCHAR(255) NOT NULL,
+  `is_verified` TINYINT NOT NULL DEFAULT 0,
   `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
@@ -1912,7 +1912,7 @@ CREATE TABLE IF NOT EXISTS `event_store` (
   `metadata` JSON,
   `causation_id` VARCHAR(64),
   `correlation_id` VARCHAR(64),
-  `occurred_at` VARCHAR(255) NOT NULL,
+  `occurred_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `recorded_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `actor_id` VARCHAR(64),
   `actor_type` VARCHAR(20),
@@ -1925,7 +1925,7 @@ CREATE TABLE IF NOT EXISTS `event_snapshots` (
   `aggregate_id` VARCHAR(100) NOT NULL,
   `aggregate_version` BIGINT NOT NULL,
   `state` JSON NOT NULL,
-  `created_at` VARCHAR(255) NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -1943,8 +1943,8 @@ CREATE TABLE IF NOT EXISTS `pipelines` (
   `success_runs` INT DEFAULT 0,
   `failed_runs` INT DEFAULT 0,
   `last_run_at` TIMESTAMP,
-  `created_at` VARCHAR(255) NOT NULL,
-  `updated_at` VARCHAR(255) NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -1962,7 +1962,7 @@ CREATE TABLE IF NOT EXISTS `pipeline_runs` (
   `error_count` INT DEFAULT 0,
   `node_results` JSON,
   `lineage_data` JSON,
-  `created_at` VARCHAR(255) NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -1979,7 +1979,7 @@ CREATE TABLE IF NOT EXISTS `pipeline_node_metrics` (
   `records_out` INT DEFAULT 0,
   `duration_ms` INT,
   `error_message` TEXT,
-  `created_at` VARCHAR(255) NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

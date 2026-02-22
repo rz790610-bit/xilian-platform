@@ -106,7 +106,7 @@ CREATE TABLE IF NOT EXISTS `twin_events` (
   `payload` JSON NOT NULL,
   `source_node` VARCHAR(128) NOT NULL,
   `version` INT NOT NULL DEFAULT 1,
-  `event_timestamp` TIMESTAMP(3) NOT NULL,
+  `event_timestamp` TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   `created_at` TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   PRIMARY KEY (`id`),
   UNIQUE INDEX `uk_te_event_id` (`event_id`),
@@ -315,7 +315,7 @@ CREATE TABLE IF NOT EXISTS `state_vector_dimensions` (
 CREATE TABLE IF NOT EXISTS `state_vector_logs` (
   `id` BIGINT AUTO_INCREMENT,
   `machine_id` VARCHAR(64) NOT NULL COMMENT '设备 ID',
-  `synthesized_at` TIMESTAMP(3) NOT NULL COMMENT '合成时间',
+  `synthesized_at` TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '合成时间',
   `dimension_count` INT NOT NULL COMMENT '维度数量',
   `completeness` DOUBLE NOT NULL COMMENT '完整度 0~1',
   `state_vector` JSON NOT NULL COMMENT '状态向量快照',

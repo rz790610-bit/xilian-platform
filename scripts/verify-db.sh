@@ -49,7 +49,7 @@ echo "▸ MySQL ($MYSQL_DB)"
 
 check "总表数" 160 "$(mysql_query 'SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE()')"
 
-check "基础表(抽样16)" 16 "$(mysql_query 'SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME IN ("users","devices","device_types","organizations","roles","permissions","sensor_readings","alerts","alert_rules","maintenance_plans","maintenance_records","diagnosis_results","diagnosis_rules","diagnosis_tasks","algorithm_definitions","device_sampling_config")')"
+check "基础表(抽样16)" 16 "$(mysql_query 'SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME IN ("users","asset_nodes","asset_sensors","equipment_profiles","device_alerts","alert_rules","device_maintenance_records","device_maintenance_logs","diagnosis_results","diagnosis_rules","diagnosis_tasks","algorithm_definitions","device_sampling_config","models","topo_nodes","topo_edges")')"
 
 check "V5 认知层表(抽样8)" 8 "$(mysql_query 'SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME IN ("condition_profiles","cognition_sessions","world_model_snapshots","guardrail_rules","evolution_cycles","tool_definitions","equipment_profiles","sampling_configs")')"
 
