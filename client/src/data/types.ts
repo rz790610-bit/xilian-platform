@@ -3,19 +3,20 @@
  * 所有组件共享同一套类型系统，消除重复定义
  */
 
-/** 业务域 ID — V4.0: 11 个域 / 64 张表 */
+/** 业务域 ID */
 export type DomainId =
-  | "base-config"       // 基础配置域（9张表）
-  | "asset-management"  // 资产管理域（4张表）
-  | "device-ops"        // 设备运维域（8张表）
-  | "diagnosis"         // 诊断分析域（4张表）
-  | "data-governance"   // 数据治理域（11张表）
-  | "edge-collection"   // 边缘采集域（2张表）
-  | "message-task"      // 消息与任务域（5张表）
-  | "ai-knowledge"      // AI与知识域（11张表）
-  | "system-topology"   // 系统拓扑域（5张表）
-  | "plugin-engine"     // 插件引擎域（3张表）
-  | "audit-log";        // 审计日志域（2张表）
+  | "base-config"       // 基础配置域
+  | "asset-management"  // 资产管理域
+  | "device-ops"        // 设备运维域
+  | "diagnosis"         // 诊断分析域
+  | "data-governance"   // 数据治理域
+  | "edge-collection"   // 边缘采集域
+  | "realtime-telemetry"// 实时遥测域
+  | "message-task"      // 消息与任务域
+  | "ai-knowledge"      // AI知识域
+  | "system-topology"   // 系统拓扑域
+  | "plugin-engine"      // 插件引擎域
+  | "audit-log";         // 审计日志域
 
 /** 域元数据 */
 export interface DomainMeta {

@@ -1,6 +1,6 @@
 /**
- * XiLian Platform V4.0 — Schema Registry 注册中心
- * 统一管理全部 64 张表元数据，11 个业务域
+ * XiLian Platform — Schema Registry 注册中心
+ * 统一管理全部表元数据，所有组件通过此模块获取数据
  */
 import type { TableRegistryEntry, DomainId } from "./types";
 import {
@@ -10,6 +10,7 @@ import {
   DIAGNOSIS_TABLES,
   DATA_GOVERNANCE_TABLES,
   EDGE_COLLECTION_TABLES,
+  REALTIME_TELEMETRY_TABLES,
   MESSAGE_TASK_TABLES,
   AI_KNOWLEDGE_TABLES,
   SYSTEM_TOPOLOGY_TABLES,
@@ -17,7 +18,7 @@ import {
   AUDIT_LOG_TABLES,
 } from "./fields";
 
-/** 全部表注册表（按域排列）— V4.0: 64 张表 */
+/** 全部表注册表（按域排列） */
 export const ALL_TABLES: TableRegistryEntry[] = [
   ...BASE_CONFIG_TABLES,
   ...ASSET_MANAGEMENT_TABLES,
@@ -25,6 +26,7 @@ export const ALL_TABLES: TableRegistryEntry[] = [
   ...DIAGNOSIS_TABLES,
   ...DATA_GOVERNANCE_TABLES,
   ...EDGE_COLLECTION_TABLES,
+  ...REALTIME_TELEMETRY_TABLES,
   ...MESSAGE_TASK_TABLES,
   ...AI_KNOWLEDGE_TABLES,
   ...SYSTEM_TOPOLOGY_TABLES,
@@ -86,5 +88,5 @@ export function getDomainStats(): { domainId: DomainId; count: number; totalFiel
   }));
 }
 
-/** 总表数 — V4.0: 64 */
+/** 总表数 */
 export const TOTAL_TABLE_COUNT = ALL_TABLES.length;

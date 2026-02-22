@@ -1,11 +1,188 @@
-/**
- * V4.0 message-task 域表定义
- * 表数量: 5
- */
 import type { TableRegistryEntry } from "../types";
 
 export const MESSAGE_TASK_TABLES: TableRegistryEntry[] = [
-{
+  {
+    "tableName": "async_task_log",
+    "tableComment": "异步任务日志",
+    "displayName": "异步任务日志",
+    "description": "异步任务日志（V4.0新增）",
+    "domain": "message-task",
+    "icon": "Zap",
+    "engine": "InnoDB",
+    "charset": "utf8mb4",
+    "collate": "utf8mb4_unicode_ci",
+    "fields": [
+      {
+        "name": "id",
+        "type": "BIGINT",
+        "length": "",
+        "nullable": false,
+        "primaryKey": true,
+        "autoIncrement": true,
+        "unique": false,
+        "defaultVal": "",
+        "comment": "主键"
+      },
+      {
+        "name": "task_id",
+        "type": "VARCHAR",
+        "length": "64",
+        "nullable": false,
+        "primaryKey": false,
+        "autoIncrement": false,
+        "unique": true,
+        "defaultVal": "",
+        "comment": "任务ID"
+      },
+      {
+        "name": "task_type",
+        "type": "VARCHAR",
+        "length": "32",
+        "nullable": false,
+        "primaryKey": false,
+        "autoIncrement": false,
+        "unique": false,
+        "defaultVal": "",
+        "comment": "任务类型"
+      },
+      {
+        "name": "payload",
+        "type": "JSON",
+        "length": "",
+        "nullable": true,
+        "primaryKey": false,
+        "autoIncrement": false,
+        "unique": false,
+        "defaultVal": "",
+        "comment": "任务载荷"
+      },
+      {
+        "name": "status",
+        "type": "VARCHAR",
+        "length": "16",
+        "nullable": false,
+        "primaryKey": false,
+        "autoIncrement": false,
+        "unique": false,
+        "defaultVal": "pending",
+        "comment": "状态(pending/running/success/failed)"
+      },
+      {
+        "name": "retry_count",
+        "type": "INT",
+        "length": "",
+        "nullable": false,
+        "primaryKey": false,
+        "autoIncrement": false,
+        "unique": false,
+        "defaultVal": "0",
+        "comment": "重试次数"
+      },
+      {
+        "name": "max_retries",
+        "type": "INT",
+        "length": "",
+        "nullable": false,
+        "primaryKey": false,
+        "autoIncrement": false,
+        "unique": false,
+        "defaultVal": "3",
+        "comment": "最大重试次数"
+      },
+      {
+        "name": "error_message",
+        "type": "TEXT",
+        "length": "",
+        "nullable": true,
+        "primaryKey": false,
+        "autoIncrement": false,
+        "unique": false,
+        "defaultVal": "",
+        "comment": "错误信息"
+      },
+      {
+        "name": "started_at",
+        "type": "DATETIME",
+        "length": "",
+        "nullable": true,
+        "primaryKey": false,
+        "autoIncrement": false,
+        "unique": false,
+        "defaultVal": "",
+        "comment": "开始时间"
+      },
+      {
+        "name": "completed_at",
+        "type": "DATETIME",
+        "length": "",
+        "nullable": true,
+        "primaryKey": false,
+        "autoIncrement": false,
+        "unique": false,
+        "defaultVal": "",
+        "comment": "完成时间"
+      },
+      {
+        "name": "created_at",
+        "type": "DATETIME",
+        "length": "3",
+        "nullable": false,
+        "primaryKey": false,
+        "autoIncrement": false,
+        "unique": false,
+        "defaultVal": "CURRENT_TIMESTAMP(3)",
+        "comment": "创建时间"
+      }
+    ],
+    "columns": [
+      {
+        "name": "id",
+        "type": "BIGINT",
+        "pk": true
+      },
+      {
+        "name": "task_id",
+        "type": "VARCHAR"
+      },
+      {
+        "name": "task_type",
+        "type": "VARCHAR"
+      },
+      {
+        "name": "payload",
+        "type": "JSON"
+      },
+      {
+        "name": "status",
+        "type": "VARCHAR"
+      },
+      {
+        "name": "retry_count",
+        "type": "INT"
+      },
+      {
+        "name": "max_retries",
+        "type": "INT"
+      },
+      {
+        "name": "error_message",
+        "type": "TEXT"
+      },
+      {
+        "name": "started_at",
+        "type": "DATETIME"
+      },
+      {
+        "name": "completed_at",
+        "type": "DATETIME"
+      },
+      {
+        "name": "created_at",
+        "type": "DATETIME"
+      }
+    ]
+  },
+  {
     "tableName": "event_logs",
     "tableComment": "",
     "displayName": "事件日志",
@@ -196,7 +373,7 @@ export const MESSAGE_TASK_TABLES: TableRegistryEntry[] = [
       }
     ]
   },
-{
+  {
     "tableName": "idempotent_records",
     "tableComment": "",
     "displayName": "幂等记录",
@@ -343,173 +520,7 @@ export const MESSAGE_TASK_TABLES: TableRegistryEntry[] = [
       }
     ]
   },
-{
-    "tableName": "message_routing_config",
-    "tableComment": "消息路由配置",
-    "displayName": "消息路由配置",
-    "description": "消息路由配置（V4.0新增）",
-    "domain": "message-task",
-    "icon": "Zap",
-    "engine": "InnoDB",
-    "charset": "utf8mb4",
-    "collate": "utf8mb4_unicode_ci",
-    "fields": [
-      {
-        "name": "id",
-        "type": "BIGINT",
-        "length": "",
-        "nullable": false,
-        "primaryKey": true,
-        "autoIncrement": true,
-        "unique": false,
-        "defaultVal": "",
-        "comment": "主键"
-      },
-      {
-        "name": "route_name",
-        "type": "VARCHAR",
-        "length": "128",
-        "nullable": false,
-        "primaryKey": false,
-        "autoIncrement": false,
-        "unique": false,
-        "defaultVal": "",
-        "comment": "路由名称"
-      },
-      {
-        "name": "source_topic",
-        "type": "VARCHAR",
-        "length": "128",
-        "nullable": false,
-        "primaryKey": false,
-        "autoIncrement": false,
-        "unique": false,
-        "defaultVal": "",
-        "comment": "源主题"
-      },
-      {
-        "name": "target_topic",
-        "type": "VARCHAR",
-        "length": "128",
-        "nullable": false,
-        "primaryKey": false,
-        "autoIncrement": false,
-        "unique": false,
-        "defaultVal": "",
-        "comment": "目标主题"
-      },
-      {
-        "name": "filter_expr",
-        "type": "TEXT",
-        "length": "",
-        "nullable": true,
-        "primaryKey": false,
-        "autoIncrement": false,
-        "unique": false,
-        "defaultVal": "",
-        "comment": "过滤表达式"
-      },
-      {
-        "name": "transform_script",
-        "type": "TEXT",
-        "length": "",
-        "nullable": true,
-        "primaryKey": false,
-        "autoIncrement": false,
-        "unique": false,
-        "defaultVal": "",
-        "comment": "转换脚本"
-      },
-      {
-        "name": "priority",
-        "type": "INT",
-        "length": "",
-        "nullable": false,
-        "primaryKey": false,
-        "autoIncrement": false,
-        "unique": false,
-        "defaultVal": "0",
-        "comment": "优先级"
-      },
-      {
-        "name": "is_enabled",
-        "type": "TINYINT",
-        "length": "",
-        "nullable": false,
-        "primaryKey": false,
-        "autoIncrement": false,
-        "unique": false,
-        "defaultVal": "1",
-        "comment": "是否启用"
-      },
-      {
-        "name": "created_at",
-        "type": "DATETIME",
-        "length": "3",
-        "nullable": false,
-        "primaryKey": false,
-        "autoIncrement": false,
-        "unique": false,
-        "defaultVal": "CURRENT_TIMESTAMP(3)",
-        "comment": "创建时间"
-      },
-      {
-        "name": "updated_at",
-        "type": "DATETIME",
-        "length": "3",
-        "nullable": true,
-        "primaryKey": false,
-        "autoIncrement": false,
-        "unique": false,
-        "defaultVal": "",
-        "comment": "更新时间"
-      }
-    ],
-    "columns": [
-      {
-        "name": "id",
-        "type": "BIGINT",
-        "pk": true
-      },
-      {
-        "name": "route_name",
-        "type": "VARCHAR"
-      },
-      {
-        "name": "source_topic",
-        "type": "VARCHAR"
-      },
-      {
-        "name": "target_topic",
-        "type": "VARCHAR"
-      },
-      {
-        "name": "filter_expr",
-        "type": "TEXT"
-      },
-      {
-        "name": "transform_script",
-        "type": "TEXT"
-      },
-      {
-        "name": "priority",
-        "type": "INT"
-      },
-      {
-        "name": "is_enabled",
-        "type": "TINYINT"
-      },
-      {
-        "name": "created_at",
-        "type": "DATETIME"
-      },
-      {
-        "name": "updated_at",
-        "type": "DATETIME"
-      }
-    ]
-  },
-{
+  {
     "tableName": "message_queue_log",
     "tableComment": "消息队列日志",
     "displayName": "消息队列日志",
@@ -690,11 +701,11 @@ export const MESSAGE_TASK_TABLES: TableRegistryEntry[] = [
       }
     ]
   },
-{
-    "tableName": "async_task_log",
-    "tableComment": "异步任务日志",
-    "displayName": "异步任务日志",
-    "description": "异步任务日志（V4.0新增）",
+  {
+    "tableName": "message_routing_config",
+    "tableComment": "消息路由配置",
+    "displayName": "消息路由配置",
+    "description": "消息路由配置（V4.0新增）",
     "domain": "message-task",
     "icon": "Zap",
     "engine": "InnoDB",
@@ -713,73 +724,40 @@ export const MESSAGE_TASK_TABLES: TableRegistryEntry[] = [
         "comment": "主键"
       },
       {
-        "name": "task_id",
+        "name": "route_name",
         "type": "VARCHAR",
-        "length": "64",
-        "nullable": false,
-        "primaryKey": false,
-        "autoIncrement": false,
-        "unique": true,
-        "defaultVal": "",
-        "comment": "任务ID"
-      },
-      {
-        "name": "task_type",
-        "type": "VARCHAR",
-        "length": "32",
+        "length": "128",
         "nullable": false,
         "primaryKey": false,
         "autoIncrement": false,
         "unique": false,
         "defaultVal": "",
-        "comment": "任务类型"
+        "comment": "路由名称"
       },
       {
-        "name": "payload",
-        "type": "JSON",
-        "length": "",
-        "nullable": true,
+        "name": "source_topic",
+        "type": "VARCHAR",
+        "length": "128",
+        "nullable": false,
         "primaryKey": false,
         "autoIncrement": false,
         "unique": false,
         "defaultVal": "",
-        "comment": "任务载荷"
+        "comment": "源主题"
       },
       {
-        "name": "status",
+        "name": "target_topic",
         "type": "VARCHAR",
-        "length": "16",
+        "length": "128",
         "nullable": false,
         "primaryKey": false,
         "autoIncrement": false,
         "unique": false,
-        "defaultVal": "pending",
-        "comment": "状态(pending/running/success/failed)"
+        "defaultVal": "",
+        "comment": "目标主题"
       },
       {
-        "name": "retry_count",
-        "type": "INT",
-        "length": "",
-        "nullable": false,
-        "primaryKey": false,
-        "autoIncrement": false,
-        "unique": false,
-        "defaultVal": "0",
-        "comment": "重试次数"
-      },
-      {
-        "name": "max_retries",
-        "type": "INT",
-        "length": "",
-        "nullable": false,
-        "primaryKey": false,
-        "autoIncrement": false,
-        "unique": false,
-        "defaultVal": "3",
-        "comment": "最大重试次数"
-      },
-      {
-        "name": "error_message",
+        "name": "filter_expr",
         "type": "TEXT",
         "length": "",
         "nullable": true,
@@ -787,29 +765,40 @@ export const MESSAGE_TASK_TABLES: TableRegistryEntry[] = [
         "autoIncrement": false,
         "unique": false,
         "defaultVal": "",
-        "comment": "错误信息"
+        "comment": "过滤表达式"
       },
       {
-        "name": "started_at",
-        "type": "DATETIME",
+        "name": "transform_script",
+        "type": "TEXT",
         "length": "",
         "nullable": true,
         "primaryKey": false,
         "autoIncrement": false,
         "unique": false,
         "defaultVal": "",
-        "comment": "开始时间"
+        "comment": "转换脚本"
       },
       {
-        "name": "completed_at",
-        "type": "DATETIME",
+        "name": "priority",
+        "type": "INT",
         "length": "",
-        "nullable": true,
+        "nullable": false,
         "primaryKey": false,
         "autoIncrement": false,
         "unique": false,
-        "defaultVal": "",
-        "comment": "完成时间"
+        "defaultVal": "0",
+        "comment": "优先级"
+      },
+      {
+        "name": "is_enabled",
+        "type": "TINYINT",
+        "length": "",
+        "nullable": false,
+        "primaryKey": false,
+        "autoIncrement": false,
+        "unique": false,
+        "defaultVal": "1",
+        "comment": "是否启用"
       },
       {
         "name": "created_at",
@@ -821,6 +810,17 @@ export const MESSAGE_TASK_TABLES: TableRegistryEntry[] = [
         "unique": false,
         "defaultVal": "CURRENT_TIMESTAMP(3)",
         "comment": "创建时间"
+      },
+      {
+        "name": "updated_at",
+        "type": "DATETIME",
+        "length": "3",
+        "nullable": true,
+        "primaryKey": false,
+        "autoIncrement": false,
+        "unique": false,
+        "defaultVal": "",
+        "comment": "更新时间"
       }
     ],
     "columns": [
@@ -830,43 +830,39 @@ export const MESSAGE_TASK_TABLES: TableRegistryEntry[] = [
         "pk": true
       },
       {
-        "name": "task_id",
+        "name": "route_name",
         "type": "VARCHAR"
       },
       {
-        "name": "task_type",
+        "name": "source_topic",
         "type": "VARCHAR"
       },
       {
-        "name": "payload",
-        "type": "JSON"
-      },
-      {
-        "name": "status",
+        "name": "target_topic",
         "type": "VARCHAR"
       },
       {
-        "name": "retry_count",
-        "type": "INT"
-      },
-      {
-        "name": "max_retries",
-        "type": "INT"
-      },
-      {
-        "name": "error_message",
+        "name": "filter_expr",
         "type": "TEXT"
       },
       {
-        "name": "started_at",
-        "type": "DATETIME"
+        "name": "transform_script",
+        "type": "TEXT"
       },
       {
-        "name": "completed_at",
-        "type": "DATETIME"
+        "name": "priority",
+        "type": "INT"
+      },
+      {
+        "name": "is_enabled",
+        "type": "TINYINT"
       },
       {
         "name": "created_at",
+        "type": "DATETIME"
+      },
+      {
+        "name": "updated_at",
         "type": "DATETIME"
       }
     ]

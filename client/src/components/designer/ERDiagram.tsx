@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
-  ZoomIn, ZoomOut, Maximize2, Download, Filter, Eye, EyeOff, Move,
+  ZoomIn, ZoomOut, Maximize2, Download, Filter, Eye, EyeOff,
   Key, Hash, Type, Calendar, FileJson, X, Network, ArrowRight,
   Database, Search
 } from "lucide-react";
@@ -50,33 +50,10 @@ export default function ERDiagram() {
   const [selectedTable, setSelectedTable] = useState<string | null>(null);
   const [filterDomain, setFilterDomain] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedTableIds, setSelectedTableIds] = useState<Set<string>>(new Set());
   const canvasRef = useRef<HTMLDivElement>(null);
 
-  // ER-1 修复：位置持久化到 localStorage
-  const LS_KEY = 'xilian:erDiagramPositions';
+  // Positions state — initialized from ER_POSITIONS, then draggable
   const [positions, setPositions] = useState<Record<string, TableNodeState>>(() => {
-    // 先尝试从 localStorage 加载
-    try {
-      const saved = localStorage.getItem(LS_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved) as Record<string, TableNodeState>;
-        // 验证数据完整性：确保所有表都有位置
-        const pos: Record<string, TableNodeState> = {};
-        let allFound = true;
-        schema.allTables.forEach(t => {
-          if (parsed[t.tableName] && typeof parsed[t.tableName].x === 'number') {
-            pos[t.tableName] = parsed[t.tableName];
-          } else {
-            allFound = false;
-            const p = schema.getERPosition(t.tableName);
-            pos[t.tableName] = { id: t.tableName, x: p.x, y: p.y };
-          }
-        });
-        return pos;
-      }
-    } catch { /* ignore parse errors */ }
-    // 回退到默认位置
     const pos: Record<string, TableNodeState> = {};
     schema.allTables.forEach(t => {
       const p = schema.getERPosition(t.tableName);
@@ -84,21 +61,6 @@ export default function ERDiagram() {
     });
     return pos;
   });
-
-  // 位置变更时自动保存到 localStorage（防抖）
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      try {
-        localStorage.setItem(LS_KEY, JSON.stringify(positions));
-      } catch (e) {
-        // P2-ER2: QuotaExceededError 时提示用户
-        if (e instanceof DOMException && e.name === 'QuotaExceededError') {
-          console.warn('[ERDiagram] localStorage 容量已满，ER 位置无法保存');
-        }
-      }
-    }, 500);
-    return () => clearTimeout(timer);
-  }, [positions]);
 
   // Filtered tables
   const filteredTables = useMemo(() => {
@@ -125,32 +87,17 @@ export default function ERDiagram() {
     );
   }, [schema.relations, filteredTableNames]);
 
-  // Drag handlers—支持多选拖拽
+  // Drag handlers
   const handleMouseDown = useCallback((e: React.MouseEvent, tableId: string) => {
     e.stopPropagation();
-    // Ctrl/Meta + 点击：切换多选
-    if (e.ctrlKey || e.metaKey) {
-      setSelectedTableIds(prev => {
-        const next = new Set(prev);
-        if (next.has(tableId)) next.delete(tableId); else next.add(tableId);
-        return next;
-      });
-      return;
-    }
-    // 如果拖动的节点不在多选集中，清空多选
-    if (!selectedTableIds.has(tableId)) {
-      setSelectedTableIds(new Set());
-    }
     setDragging(tableId);
     setDragStart({ x: e.clientX, y: e.clientY });
-  }, [selectedTableIds]);
+  }, []);
 
   const handleCanvasMouseDown = useCallback((e: React.MouseEvent) => {
     if (e.target === canvasRef.current || (e.target as HTMLElement).tagName === "svg") {
       setIsPanning(true);
       setPanStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
-      // 点击空白区域清空多选
-      if (!e.ctrlKey && !e.metaKey) setSelectedTableIds(new Set());
     }
   }, [pan]);
 
@@ -158,29 +105,16 @@ export default function ERDiagram() {
     if (dragging) {
       const dx = (e.clientX - dragStart.x) / zoom;
       const dy = (e.clientY - dragStart.y) / zoom;
-      // 多选整体拖动
-      if (selectedTableIds.size > 0 && selectedTableIds.has(dragging)) {
-        setPositions(prev => {
-          const next = { ...prev };
-          Array.from(selectedTableIds).forEach(tid => {
-            if (next[tid]) {
-              next[tid] = { ...next[tid], x: next[tid].x + dx, y: next[tid].y + dy };
-            }
-          });
-          return next;
-        });
-      } else {
-        setPositions(prev => ({
-          ...prev,
-          [dragging]: { ...prev[dragging], x: (prev[dragging]?.x || 0) + dx, y: (prev[dragging]?.y || 0) + dy },
-        }));
-      }
+      setPositions(prev => ({
+        ...prev,
+        [dragging]: { ...prev[dragging], x: (prev[dragging]?.x || 0) + dx, y: (prev[dragging]?.y || 0) + dy },
+      }));
       setDragStart({ x: e.clientX, y: e.clientY });
     }
     if (isPanning) {
       setPan({ x: e.clientX - panStart.x, y: e.clientY - panStart.y });
     }
-  }, [dragging, dragStart, zoom, isPanning, panStart, selectedTableIds]);
+  }, [dragging, dragStart, zoom, isPanning, panStart]);
 
   const handleMouseUp = useCallback(() => {
     setDragging(null);
@@ -189,8 +123,10 @@ export default function ERDiagram() {
 
   useEffect(() => {
     const handleWheel = (e: WheelEvent) => {
-      e.preventDefault();
-      setZoom(z => Math.max(0.15, Math.min(2.5, z - e.deltaY * 0.002)));
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        setZoom(z => Math.max(0.2, Math.min(2, z - e.deltaY * 0.001)));
+      }
     };
     const el = canvasRef.current;
     if (el) el.addEventListener("wheel", handleWheel, { passive: false });
@@ -200,32 +136,6 @@ export default function ERDiagram() {
   const handleTableClick = useCallback((tableId: string) => {
     setSelectedTable(prev => prev === tableId ? null : tableId);
   }, []);
-
-  // 初始化时自动居中
-  useEffect(() => {
-    if (!canvasRef.current || !schema.allTables.length) return;
-    const timer = setTimeout(() => {
-      const rect = canvasRef.current?.getBoundingClientRect();
-      if (!rect || rect.width === 0 || rect.height === 0) return;
-      const cw = rect.width, ch = rect.height;
-      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-      for (const t of schema.allTables) {
-        const p = positions[t.tableName];
-        if (!p) continue;
-        const visibleCols = Math.min(t.columns.length, MAX_VISIBLE_COLS);
-        const h = HEADER_HEIGHT + visibleCols * ROW_HEIGHT + 8;
-        minX = Math.min(minX, p.x); minY = Math.min(minY, p.y);
-        maxX = Math.max(maxX, p.x + TABLE_WIDTH); maxY = Math.max(maxY, p.y + h);
-      }
-      if (!isFinite(minX)) return;
-      const PAD = 60;
-      const bw = maxX - minX + PAD * 2, bh = maxY - minY + PAD * 2;
-      const newZoom = Math.max(0.15, Math.min(1.2, Math.min(cw / bw, ch / bh)));
-      setPan({ x: cw / 2 - (minX + maxX) / 2 * newZoom, y: ch / 2 - (minY + maxY) / 2 * newZoom });
-      setZoom(newZoom);
-    }, 100);
-    return () => clearTimeout(timer);
-  }, [schema.allTables.length]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   // Connection points for relation lines
   const getConnectionPoints = useCallback((from: string, fromCol: string, to: string, toCol: string) => {
@@ -275,7 +185,7 @@ export default function ERDiagram() {
   const selectedDomain = selectedEntry ? schema.getDomain(selectedEntry.domain) : null;
 
   return (
-    <div className="h-full flex flex-col" style={{ minHeight: '600px' }}>
+    <div className="h-full flex flex-col">
       {/* Toolbar */}
       <div className="panel-header px-4 py-1.5 flex items-center gap-2 shrink-0">
         <Button variant="outline" size="sm" className="h-7 w-7 p-0" onClick={() => setZoom(z => Math.min(2, z + 0.15))}>
@@ -285,42 +195,10 @@ export default function ERDiagram() {
         <Button variant="outline" size="sm" className="h-7 w-7 p-0" onClick={() => setZoom(z => Math.max(0.2, z - 0.15))}>
           <ZoomOut className="w-3.5 h-3.5" />
         </Button>
-        <Button variant="outline" size="sm" className="h-7 w-7 p-0" onClick={() => {
-          if (!canvasRef.current || !filteredTables.length) { setZoom(0.55); setPan({ x: 20, y: 20 }); return; }
-          const rect = canvasRef.current.getBoundingClientRect();
-          const cw = rect.width, ch = rect.height;
-          if (cw === 0 || ch === 0) return;
-          let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-          for (const t of filteredTables) {
-            const p = positions[t.tableName];
-            if (!p) continue;
-            const visibleCols = Math.min(t.columns.length, MAX_VISIBLE_COLS);
-            const h = HEADER_HEIGHT + visibleCols * ROW_HEIGHT + 8;
-            minX = Math.min(minX, p.x); minY = Math.min(minY, p.y);
-            maxX = Math.max(maxX, p.x + TABLE_WIDTH); maxY = Math.max(maxY, p.y + h);
-          }
-          const PAD = 60;
-          const bw = maxX - minX + PAD * 2, bh = maxY - minY + PAD * 2;
-          const newZoom = Math.max(0.15, Math.min(1.2, Math.min(cw / bw, ch / bh)));
-          setPan({ x: cw / 2 - (minX + maxX) / 2 * newZoom, y: ch / 2 - (minY + maxY) / 2 * newZoom });
-          setZoom(newZoom);
-        }} title="适应画布居中">
+        <Button variant="outline" size="sm" className="h-7 w-7 p-0" onClick={() => { setZoom(0.55); setPan({ x: 20, y: 20 }); }}>
           <Maximize2 className="w-3.5 h-3.5" />
         </Button>
         <div className="w-px h-4 bg-border mx-1" />
-        <Button
-          variant={selectedTableIds.size > 0 ? "default" : "outline"}
-          size="sm"
-          className="h-7 text-xs gap-1.5"
-          onClick={() => {
-            if (selectedTableIds.size === filteredTables.length) setSelectedTableIds(new Set());
-            else setSelectedTableIds(new Set(filteredTables.map(t => t.tableName)));
-          }}
-          title="全选/取消全选 (Ctrl+点击多选，整体拖动)"
-        >
-          <Move className="w-3 h-3" />
-          {selectedTableIds.size > 0 ? `已选 ${selectedTableIds.size}` : '全选'}
-        </Button>
         <Button
           variant={showRelations ? "default" : "outline"}
           size="sm"
@@ -363,40 +241,7 @@ export default function ERDiagram() {
         </div>
         <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-mono">{filteredTables.length} 表</Badge>
         <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-mono">{filteredRelations.length} 关系</Badge>
-        <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5" onClick={() => {
-          // ER-2 修复：实现 JSON 导出
-          const exportData = {
-            exportedAt: new Date().toISOString(),
-            tables: filteredTables.map(t => ({
-              tableName: t.tableName,
-              tableComment: t.tableComment,
-              domain: t.domain,
-              position: positions[t.tableName] ? { x: positions[t.tableName].x, y: positions[t.tableName].y } : null,
-              columns: t.columns.map(c => ({
-                name: c.name,
-                type: c.type,
-                isPrimary: c.pk ?? false,
-                isForeignKey: c.fk ?? false,
-                fkRef: c.fkRef,
-              })),
-            })),
-            relations: filteredRelations.map(r => ({
-              from: r.from,
-              fromCol: r.fromCol,
-              to: r.to,
-              toCol: r.toCol,
-              type: r.type,
-            })),
-          };
-          const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = `er-diagram-${filterDomain === 'all' ? 'all' : filterDomain}-${new Date().toISOString().slice(0, 10)}.json`;
-          a.click();
-          URL.revokeObjectURL(url);
-          toast.success(`已导出 ${filteredTables.length} 张表、${filteredRelations.length} 个关系`);
-        }}>
+        <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5" onClick={() => toast("功能即将上线")}>
           <Download className="w-3 h-3" /> 导出
         </Button>
       </div>
@@ -416,8 +261,8 @@ export default function ERDiagram() {
               transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
               transformOrigin: "0 0",
               position: "absolute",
-              width: "8000px",
-              height: "6000px",
+              width: "3200px",
+              height: "2400px",
             }}
           >
             {/* SVG Relations Layer */}
@@ -468,13 +313,13 @@ export default function ERDiagram() {
               return (
                 <div
                   key={entry.tableName}
-                  className={`absolute bg-card border rounded-lg overflow-hidden select-none transition-shadow ${selectedTable === entry.tableName ? "ring-2 ring-primary" : ""} ${selectedTableIds.has(entry.tableName) && selectedTable !== entry.tableName ? "ring-2 ring-blue-500 ring-dashed" : ""}`}
+                  className={`absolute bg-card border rounded-lg overflow-hidden select-none transition-shadow ${selectedTable === entry.tableName ? "ring-2 ring-primary" : ""}`}
                   style={{
                     left: pos.x,
                     top: pos.y,
                     width: TABLE_WIDTH,
                     boxShadow: `0 0 0 1px ${color}30, 0 4px 12px rgba(0,0,0,0.3)`,
-                    borderColor: selectedTable === entry.tableName ? "var(--primary)" : selectedTableIds.has(entry.tableName) ? "#3b82f6" : `${color}30`,
+                    borderColor: selectedTable === entry.tableName ? "var(--primary)" : `${color}30`,
                   }}
                   onMouseDown={e => handleMouseDown(e, entry.tableName)}
                   onClick={() => handleTableClick(entry.tableName)}

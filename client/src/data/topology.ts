@@ -137,20 +137,20 @@ export const TOPO_MAP: Record<string, TopoMapping> = {
       { from: "audit_logs", to: "security-dashboard", label: "审计查询" },
     ],
   },
-  system_capacity_metrics: {
-    description: "系统容量指标表，存储各服务节点的资源使用情况，通过 Redis 缓存加速访问",
+  system_configs: {
+    description: "系统配置表，存储全局配置项，通过 Redis 缓存加速访问",
     nodes: [
-      { id: "admin", label: "监控服务", type: "service", status: "online", icon: "Server" },
+      { id: "admin", label: "管理后台", type: "service", status: "online", icon: "Server" },
       { id: "mysql", label: "MySQL 主库", type: "database", status: "online", icon: "Database" },
-      { id: "system_capacity_metrics", label: "system_capacity_metrics", type: "table", status: "online", icon: "Layers" },
+      { id: "system_configs", label: "system_configs", type: "table", status: "online", icon: "Layers" },
       { id: "redis", label: "Redis 缓存", type: "cache", status: "online", icon: "Database" },
       { id: "all-services", label: "全平台服务", type: "service", status: "online", icon: "Activity" },
     ],
     edges: [
-      { from: "admin", to: "mysql", label: "指标写入" },
-      { from: "mysql", to: "system_capacity_metrics", label: "InnoDB" },
-      { from: "system_capacity_metrics", to: "redis", label: "指标缓存" },
-      { from: "redis", to: "all-services", label: "容量查询" },
+      { from: "admin", to: "mysql", label: "CRUD" },
+      { from: "mysql", to: "system_configs", label: "InnoDB" },
+      { from: "system_configs", to: "redis", label: "配置缓存" },
+      { from: "redis", to: "all-services", label: "配置读取" },
     ],
   },
 };
