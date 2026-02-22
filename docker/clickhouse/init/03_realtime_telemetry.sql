@@ -45,7 +45,7 @@ PARTITION BY toYYYYMM(timestamp)
 ORDER BY (device_code, mp_code, timestamp)
 -- 注意：不使用 SAMPLE BY，因为 intHash32(device_code) 不在 ORDER BY 中
 -- 如需采样查询，使用 WHERE cityHash64(device_code) % N = 0 代替
-TTL timestamp + INTERVAL 2 YEAR
+TTL toDateTime(timestamp) + INTERVAL 2 YEAR
 SETTINGS
     index_granularity = 8192,
     min_bytes_for_wide_part = 10485760,     -- 10MB 以上使用 Wide 格式
@@ -207,7 +207,7 @@ CREATE TABLE IF NOT EXISTS portai_timeseries.anomaly_detections_v4 (
 ENGINE = MergeTree()
 PARTITION BY toYYYYMM(timestamp)
 ORDER BY (device_code, mp_code, timestamp)
-TTL timestamp + INTERVAL 2 YEAR
+TTL toDateTime(timestamp) + INTERVAL 2 YEAR
 SETTINGS index_granularity = 8192;
 
 

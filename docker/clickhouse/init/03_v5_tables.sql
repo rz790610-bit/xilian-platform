@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS portai_timeseries.realtime_telemetry (
 ) ENGINE = MergeTree()
 PARTITION BY toYYYYMMDD(timestamp)
 ORDER BY (device_code, mp_code, metric_name, timestamp)
-TTL timestamp + INTERVAL 180 DAY
+TTL toDateTime(timestamp) + INTERVAL 180 DAY
 SETTINGS index_granularity = 8192;
 
 -- 认知会话结果表
@@ -59,7 +59,7 @@ CREATE TABLE IF NOT EXISTS portai_timeseries.cognition_session_results (
 ) ENGINE = MergeTree()
 PARTITION BY toYYYYMM(started_at)
 ORDER BY (device_code, started_at)
-TTL started_at + INTERVAL 2 YEAR
+TTL toDateTime(started_at) + INTERVAL 2 YEAR
 SETTINGS index_granularity = 8192;
 
 -- 护栏违规事件表
@@ -84,7 +84,7 @@ CREATE TABLE IF NOT EXISTS portai_timeseries.guardrail_violation_events (
 ) ENGINE = MergeTree()
 PARTITION BY toYYYYMM(timestamp)
 ORDER BY (device_code, rule_id, timestamp)
-TTL timestamp + INTERVAL 1 YEAR
+TTL toDateTime(timestamp) + INTERVAL 1 YEAR
 SETTINGS index_granularity = 8192;
 
 -- 进化周期指标表
@@ -114,7 +114,7 @@ CREATE TABLE IF NOT EXISTS portai_timeseries.evolution_cycle_metrics (
 ) ENGINE = MergeTree()
 PARTITION BY toYYYYMM(started_at)
 ORDER BY (cycle_type, started_at)
-TTL started_at + INTERVAL 2 YEAR
+TTL toDateTime(started_at) + INTERVAL 2 YEAR
 SETTINGS index_granularity = 8192;
 
 -- 工况实例表（感知层工况识别输出）
@@ -135,7 +135,7 @@ CREATE TABLE IF NOT EXISTS portai_timeseries.condition_instances (
 ) ENGINE = MergeTree()
 PARTITION BY toYYYYMM(started_at)
 ORDER BY (device_code, condition_type, started_at)
-TTL started_at + INTERVAL 1 YEAR
+TTL toDateTime(started_at) + INTERVAL 1 YEAR
 SETTINGS index_granularity = 8192;
 
 

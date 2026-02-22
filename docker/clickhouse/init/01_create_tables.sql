@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS portai_timeseries.sensor_readings (
 ) ENGINE = MergeTree()
 PARTITION BY toYYYYMM(timestamp)
 ORDER BY (device_id, sensor_id, metric_name, timestamp)
-TTL timestamp + INTERVAL 90 DAY
+TTL toDateTime(timestamp) + INTERVAL 90 DAY
 SETTINGS index_granularity = 8192;
 
 -- 设备遥测数据表
@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS portai_timeseries.telemetry_data (
 ) ENGINE = MergeTree()
 PARTITION BY toYYYYMMDD(timestamp)
 ORDER BY (device_id, timestamp, sensor_id)
-TTL timestamp + INTERVAL 365 DAY
+TTL toDateTime(timestamp) + INTERVAL 365 DAY
 SETTINGS index_granularity = 8192;
 
 -- 分钟级聚合物化视图
@@ -113,7 +113,7 @@ CREATE TABLE IF NOT EXISTS portai_timeseries.anomaly_detections (
 ) ENGINE = MergeTree()
 PARTITION BY toYYYYMM(timestamp)
 ORDER BY (device_id, sensor_id, timestamp)
-TTL timestamp + INTERVAL 180 DAY
+TTL toDateTime(timestamp) + INTERVAL 180 DAY
 SETTINGS index_granularity = 8192;
 
 -- 系统事件日志表
@@ -131,7 +131,7 @@ CREATE TABLE IF NOT EXISTS portai_timeseries.event_logs (
 ) ENGINE = MergeTree()
 PARTITION BY toYYYYMM(timestamp)
 ORDER BY (topic, event_type, timestamp)
-TTL timestamp + INTERVAL 90 DAY
+TTL toDateTime(timestamp) + INTERVAL 90 DAY
 SETTINGS index_granularity = 8192;
 
 -- 设备状态历史表
@@ -145,7 +145,7 @@ CREATE TABLE IF NOT EXISTS portai_timeseries.device_status_history (
 ) ENGINE = MergeTree()
 PARTITION BY toYYYYMM(timestamp)
 ORDER BY (device_id, timestamp)
-TTL timestamp + INTERVAL 365 DAY
+TTL toDateTime(timestamp) + INTERVAL 365 DAY
 SETTINGS index_granularity = 8192;
 
 -- 创建用于快速查询的索引

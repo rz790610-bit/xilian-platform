@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS portai_timeseries.vibration_features (
 PARTITION BY toYYYYMM(timestamp)
 ORDER BY (device_code, mp_code, timestamp)
 SAMPLE BY intHash32(mp_code)
-TTL timestamp + INTERVAL 2 YEAR
+TTL toDateTime(timestamp) + INTERVAL 2 YEAR
 SETTINGS index_granularity = 8192;
 
 -- 设备状态日志
@@ -43,7 +43,7 @@ CREATE TABLE IF NOT EXISTS portai_timeseries.device_status_log (
 ) ENGINE = MergeTree()
 PARTITION BY toYYYYMM(timestamp)
 ORDER BY (device_code, timestamp)
-TTL timestamp + INTERVAL 1 YEAR
+TTL toDateTime(timestamp) + INTERVAL 1 YEAR
 SETTINGS index_granularity = 8192;
 
 -- 告警事件日志
@@ -60,7 +60,7 @@ CREATE TABLE IF NOT EXISTS portai_timeseries.alert_event_log (
 ) ENGINE = MergeTree()
 PARTITION BY toYYYYMM(timestamp)
 ORDER BY (device_code, timestamp)
-TTL timestamp + INTERVAL 2 YEAR
+TTL toDateTime(timestamp) + INTERVAL 2 YEAR
 SETTINGS index_granularity = 8192;
 
 -- 数据质量指标
@@ -78,7 +78,7 @@ CREATE TABLE IF NOT EXISTS portai_timeseries.data_quality_metrics (
 ) ENGINE = MergeTree()
 PARTITION BY toYYYYMM(timestamp)
 ORDER BY (device_code, timestamp)
-TTL timestamp + INTERVAL 1 YEAR
+TTL toDateTime(timestamp) + INTERVAL 1 YEAR
 SETTINGS index_granularity = 8192;
 
 -- 查询性能日志
@@ -96,7 +96,7 @@ CREATE TABLE IF NOT EXISTS portai_timeseries.query_performance_log (
 ) ENGINE = MergeTree()
 PARTITION BY toYYYYMM(timestamp)
 ORDER BY (query_type, timestamp)
-TTL timestamp + INTERVAL 90 DAY
+TTL toDateTime(timestamp) + INTERVAL 90 DAY
 SETTINGS index_granularity = 8192;
 
 -- ===== Step 2: Kafka Engine 表 =====
