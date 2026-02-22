@@ -110,8 +110,11 @@ export async function startDataArtery(): Promise<void> {
     const { startFeatureExtraction } = await import('./feature-extraction');
     await startFeatureExtraction();
     log.info('[DataArtery] ✓ Layer 2: 特征提取服务已启动');
-  } catch (error) {
-    log.error('[DataArtery] ✗ Layer 2: 特征提取服务启动失败:', error);
+  } catch (error: any) {
+    const errMsg = error?.message || error?.toString?.() || JSON.stringify(error) || 'unknown error';
+    const errStack = error?.stack || '';
+    log.error(`[DataArtery] ✗ Layer 2: 特征提取服务启动失败: ${errMsg}`);
+    if (errStack) log.error(`[DataArtery] Layer 2 堆栈: ${errStack}`);
     log.warn('[DataArtery] 数据动脉降级运行：原始数据将直接写入 ClickHouse（无特征提取）');
   }
 
