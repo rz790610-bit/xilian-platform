@@ -849,13 +849,8 @@ class AlgorithmService {
         }
       }
 
-      // 如果引擎中没有找到，尝试旧的动态加载方式
-      const moduleName = implRef.replace('builtin:', '');
-      const builtinModule = await import(`./algorithm/builtin/${moduleName}`);
-      if (typeof builtinModule.execute !== 'function') {
-        throw new Error(`Builtin algorithm ${moduleName} does not export an execute function`);
-      }
-      return await builtinModule.execute(inputData, config);
+      // 引擎中未找到匹配的算法
+      throw new Error(`Algorithm not found in engine registry: ${implRef}`);
     } catch (error: any) {
       throw new Error(`Builtin algorithm execution failed: ${implRef} — ${error.message}`);
     }
