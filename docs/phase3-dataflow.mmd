@@ -1,0 +1,49 @@
+graph LR
+    subgraph INPUT["数据输入"]
+        S1["传感器采集"]
+        S2["边缘网关"]
+    end
+    subgraph SYNC["状态同步"]
+        RT[("realtime_telemetry")]
+        SSE["StateSyncEngine"]
+        SV["StateVector 合成"]
+    end
+    subgraph WM["世界模型推演"]
+        WMR["WorldModelRegistry"]
+        PHY["物理引擎\n7条方程"]
+        STAT["统计模型\nAR+Kalman"]
+        UQ["不确定性量化\nMonte Carlo"]
+    end
+    subgraph SIM["仿真推演"]
+        SC["场景配置"]
+        SE["SimulationEngine"]
+        CF["反事实推理"]
+        MC["蒙特卡洛仿真"]
+    end
+    subgraph PRED["预测输出"]
+        RUL["RUL 剩余寿命"]
+        TRAJ["状态轨迹"]
+        RISK["风险评估"]
+        SNAP["快照持久化"]
+    end
+    subgraph REPLAY["历史回放"]
+        TR["时间范围查询"]
+        CH["多通道降采样"]
+        EV["事件叠加"]
+    end
+    S1 --> S2 --> RT
+    RT --> SSE --> SV
+    SV --> WMR
+    WMR --> PHY
+    WMR --> STAT
+    PHY --> UQ
+    STAT --> UQ
+    UQ --> RUL
+    UQ --> TRAJ
+    UQ --> RISK
+    UQ --> SNAP
+    SC --> SE
+    SE --> WMR
+    SE --> CF
+    SE --> MC
+    RT --> TR --> CH --> EV

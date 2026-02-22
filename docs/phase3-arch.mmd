@@ -1,0 +1,54 @@
+graph TB
+    subgraph "Phase 3 世界模型增强 / 数字孪生系统工程重建"
+        subgraph "L7 数字孪生层"
+            WMR[WorldModelRegistry<br/>多设备实例管理]
+            SSE[StateSyncEngine<br/>状态同步引擎]
+            UQ[UncertaintyQuantifier<br/>不确定性量化]
+            RUL[RULPredictor<br/>剩余寿命预测]
+            SE[SimulationEngine<br/>仿真推演引擎]
+            RE[ReplayEngine<br/>历史回放引擎]
+        end
+        subgraph "tRPC API 层"
+            DTR[digital-twin.router.ts<br/>12个端点]
+        end
+        subgraph "数据层"
+            WMS[(world_model_snapshots)]
+            WMP[(world_model_predictions)]
+            SS[(simulation_scenarios)]
+            SR[(simulation_results)]
+            TSL[(twin_sync_logs)]
+        end
+        subgraph "已有数据链路"
+            AN[(asset_nodes)]
+            AS[(asset_sensors)]
+            RT[(realtime_telemetry)]
+            DA[(device_alerts)]
+            CS[(cognition_sessions)]
+            EP[(equipment_profiles)]
+            CI[(condition_instances)]
+        end
+        subgraph "前端"
+            DTV[DigitalTwinView.tsx<br/>4面板重建]
+        end
+    end
+    WMR --> SSE
+    SSE --> WMS
+    UQ --> WMR
+    RUL --> WMR
+    SE --> WMR
+    SE --> SS
+    SE --> SR
+    SE --> WMP
+    RE --> RT
+    RE --> DA
+    RE --> CS
+    DTR --> WMR
+    DTR --> SE
+    DTR --> RE
+    DTR --> SSE
+    SSE --> AN
+    SSE --> AS
+    SSE --> RT
+    SSE --> EP
+    SSE --> CI
+    DTV --> DTR

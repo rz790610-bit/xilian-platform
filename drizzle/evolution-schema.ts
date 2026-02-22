@@ -1197,3 +1197,209 @@ export const engineConfigRegistry = mysqlTable('engine_config_registry', {
 ]);
 export type EngineConfigRegistryRow = typeof engineConfigRegistry.$inferSelect;
 export type InsertEngineConfigRegistry = typeof engineConfigRegistry.$inferInsert;
+
+// ============================================================================
+// Phase 3 v1.3 — 世界模型增强 / 数字孪生系统工程重建（5 张新表）
+// ============================================================================
+
+/**
+ * 仿真场景表 — 存储 What-if 仿真场景定义
+ *
+ * 每个场景包含：
+ *   - 目标设备 ID
+ *   - 参数覆盖（JSON，覆盖设备默认物理参数）
+ *   - 仿真配置（步数、蒙特卡洛运行次数、方法）
+ *   - 场景状态（draft / running / completed / failed）
+ *   - 乐观锁版本号
+ */
+export const simulationScenarios = mysqlTable('simulation_scenarios', {
+  id: int('id').primaryKey().autoincrement(),
+  /** 设备 ID（EQ-xxx 格式） */
+  machineId: varchar('machine_id', { length: 64 }).notNull(),
+  /** 场景名称 */
+  name: varchar('name', { length: 256 }).notNull(),
+  /** 场景描述 */
+  description: text('description'),
+  /** 参数覆盖（JSON: Record<string, number>） */
+  parameterOverrides: json('parameter_overrides').$type<Record<string, number>>(),
+  /** 仿真步数 */
+  horizonSteps: int('horizon_steps').notNull().default(30),
+  /** 蒙特卡洛运行次数 */
+  monteCarloRuns: int('monte_carlo_runs').notNull().default(50),
+  /** 仿真方法 */
+  method: varchar('method', { length: 32 }).notNull().default('sobol_qmc'),
+  /** 场景状态 */
+  status: mysqlEnum('status', ['draft', 'running', 'completed', 'failed']).notNull().default('draft'),
+  /** 乐观锁版本号 */
+  version: int('version').notNull().default(1),
+  /** 创建者 */
+  createdBy: varchar('created_by', { length: 128 }),
+  /** 创建时间 */
+  createdAt: timestamp('created_at', { fsp: 3 }).defaultNow().notNull(),
+  /** 更新时间 */
+  updatedAt: timestamp('updated_at', { fsp: 3 }).defaultNow().notNull(),
+}, (table) => [
+  index('idx_ss_machine_id').on(table.machineId),
+  index('idx_ss_status').on(table.status),
+  index('idx_ss_created_at').on(table.createdAt),
+]);
+export type SimulationScenarioRow = typeof simulationScenarios.$inferSelect;
+export type InsertSimulationScenario = typeof simulationScenarios.$inferInsert;
+
+/**
+ * 仿真结果表 — 存储仿真执行结果
+ *
+ * 每条结果包含：
+ *   - 关联的场景 ID
+ *   - 均值/P5/P50/P95 轨迹（JSON 数组）
+ *   - 风险评估（低/中/高/严重）
+ *   - 执行耗时
+ *   - 各维度标准差
+ */
+export const simulationResults = mysqlTable('simulation_results', {
+  id: int('id').primaryKey().autoincrement(),
+  /** 关联的仿真场景 ID */
+  scenarioId: int('scenario_id').notNull(),
+  /** 设备 ID */
+  machineId: varchar('machine_id', { length: 64 }).notNull(),
+  /** 均值轨迹（JSON: StateVector[]） */
+  meanTrajectory: json('mean_trajectory').$type<Array<{ timestamp: number; values: Record<string, number> }>>(),
+  /** P5 下界轨迹 */
+  p5Trajectory: json('p5_trajectory').$type<Array<{ timestamp: number; values: Record<string, number> }>>(),
+  /** P50 中位数轨迹 */
+  p50Trajectory: json('p50_trajectory').$type<Array<{ timestamp: number; values: Record<string, number> }>>(),
+  /** P95 上界轨迹 */
+  p95Trajectory: json('p95_trajectory').$type<Array<{ timestamp: number; values: Record<string, number> }>>(),
+  /** 各维度标准差（JSON: Record<string, number[]>） */
+  stdDevByDimension: json('std_dev_by_dimension').$type<Record<string, number[]>>(),
+  /** 风险等级 */
+  riskLevel: mysqlEnum('risk_level', ['low', 'medium', 'high', 'critical']).notNull().default('low'),
+  /** 蒙特卡洛运行次数 */
+  monteCarloRuns: int('monte_carlo_runs').notNull(),
+  /** 序列类型 */
+  sequenceType: varchar('sequence_type', { length: 32 }).notNull().default('sobol'),
+  /** 执行耗时 (ms) */
+  durationMs: int('duration_ms').notNull(),
+  /** AI 增强解释（Grok 生成） */
+  aiExplanation: text('ai_explanation'),
+  /** AI 维护建议（Grok 生成） */
+  aiMaintenanceAdvice: text('ai_maintenance_advice'),
+  /** 创建时间 */
+  createdAt: timestamp('created_at', { fsp: 3 }).defaultNow().notNull(),
+}, (table) => [
+  index('idx_sr_scenario_id').on(table.scenarioId),
+  index('idx_sr_machine_id').on(table.machineId),
+  index('idx_sr_risk_level').on(table.riskLevel),
+  index('idx_sr_created_at').on(table.createdAt),
+]);
+export type SimulationResultRow = typeof simulationResults.$inferSelect;
+export type InsertSimulationResult = typeof simulationResults.$inferInsert;
+
+/**
+ * 孪生同步日志表 — 记录 StateSyncEngine 的同步事件
+ *
+ * 用于：
+ *   - 同步延迟监控
+ *   - CDC/轮询模式切换审计
+ *   - 降级事件追踪
+ */
+export const twinSyncLogs = mysqlTable('twin_sync_logs', {
+  id: bigint('id', { mode: 'number' }).primaryKey().autoincrement(),
+  /** 设备 ID */
+  machineId: varchar('machine_id', { length: 64 }).notNull(),
+  /** 同步模式 */
+  syncMode: mysqlEnum('sync_mode', ['cdc', 'polling']).notNull(),
+  /** 事件类型 */
+  eventType: varchar('event_type', { length: 64 }).notNull(),
+  /** 同步延迟 (ms) */
+  latencyMs: int('latency_ms'),
+  /** 状态向量快照（JSON） */
+  stateSnapshot: json('state_snapshot').$type<Record<string, number>>(),
+  /** 健康指数 */
+  healthIndex: double('health_index'),
+  /** 额外元数据 */
+  metadata: json('metadata').$type<Record<string, unknown>>(),
+  /** 创建时间 */
+  createdAt: timestamp('created_at', { fsp: 3 }).defaultNow().notNull(),
+}, (table) => [
+  index('idx_tsl_machine_id').on(table.machineId),
+  index('idx_tsl_sync_mode').on(table.syncMode),
+  index('idx_tsl_event_type').on(table.eventType),
+  index('idx_tsl_created_at').on(table.createdAt),
+]);
+export type TwinSyncLogRow = typeof twinSyncLogs.$inferSelect;
+export type InsertTwinSyncLog = typeof twinSyncLogs.$inferInsert;
+
+/**
+ * 孪生事件表 — TwinEventBus 事件持久化
+ *
+ * 用于：
+ *   - 事件审计追踪
+ *   - 事件回放
+ *   - 跨节点事件同步的持久化备份
+ */
+export const twinEvents = mysqlTable('twin_events', {
+  id: bigint('id', { mode: 'number' }).primaryKey().autoincrement(),
+  /** 事件唯一 ID（UUID） */
+  eventId: varchar('event_id', { length: 36 }).notNull(),
+  /** 设备 ID */
+  machineId: varchar('machine_id', { length: 64 }).notNull(),
+  /** 事件类型 */
+  eventType: varchar('event_type', { length: 64 }).notNull(),
+  /** 事件载荷（JSON） */
+  payload: json('payload').$type<Record<string, unknown>>().notNull(),
+  /** 发布节点 ID */
+  sourceNode: varchar('source_node', { length: 128 }).notNull(),
+  /** 事件版本 */
+  version: int('version').notNull().default(1),
+  /** 事件时间戳 */
+  eventTimestamp: timestamp('event_timestamp', { fsp: 3 }).notNull(),
+  /** 入库时间 */
+  createdAt: timestamp('created_at', { fsp: 3 }).defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex('uk_te_event_id').on(table.eventId),
+  index('idx_te_machine_id').on(table.machineId),
+  index('idx_te_event_type').on(table.eventType),
+  index('idx_te_event_timestamp').on(table.eventTimestamp),
+  index('idx_te_created_at').on(table.createdAt),
+]);
+export type TwinEventRow = typeof twinEvents.$inferSelect;
+export type InsertTwinEvent = typeof twinEvents.$inferInsert;
+
+/**
+ * Outbox 表 — Outbox Pattern 事务性事件发布
+ *
+ * ADR-007: 保证业务数据写入与事件发布的最终一致性
+ *
+ * 流程：
+ *   1. 业务事务内 INSERT (status='pending')
+ *   2. OutboxRelay Worker 轮询 pending 记录
+ *   3. 通过 TwinEventBus 发布后 UPDATE status='sent'
+ *   4. 超过 maxRetries → status='dead_letter'
+ */
+export const twinOutbox = mysqlTable('twin_outbox', {
+  id: bigint('id', { mode: 'number' }).primaryKey().autoincrement(),
+  /** 聚合根类型（如 'simulation', 'prediction', 'sync'） */
+  aggregateType: varchar('aggregate_type', { length: 64 }).notNull(),
+  /** 聚合根 ID */
+  aggregateId: varchar('aggregate_id', { length: 128 }).notNull(),
+  /** 事件类型 */
+  eventType: varchar('event_type', { length: 64 }).notNull(),
+  /** 事件载荷（JSON） */
+  payload: json('payload').$type<Record<string, unknown>>().notNull(),
+  /** 发送状态 */
+  status: mysqlEnum('status', ['pending', 'sent', 'dead_letter']).notNull().default('pending'),
+  /** 重试次数 */
+  retryCount: int('retry_count').notNull().default(0),
+  /** 创建时间 */
+  createdAt: timestamp('created_at', { fsp: 3 }).defaultNow().notNull(),
+  /** 发送时间 */
+  sentAt: timestamp('sent_at', { fsp: 3 }),
+}, (table) => [
+  index('idx_to_status').on(table.status),
+  index('idx_to_aggregate').on(table.aggregateType, table.aggregateId),
+  index('idx_to_event_type').on(table.eventType),
+  index('idx_to_created_at').on(table.createdAt),
+]);
+export type TwinOutboxRow = typeof twinOutbox.$inferSelect;
+export type InsertTwinOutbox = typeof twinOutbox.$inferInsert;

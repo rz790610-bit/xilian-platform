@@ -1,0 +1,27 @@
+sequenceDiagram
+    participant SRC as 源节点
+    participant REDIS as Redis
+    participant EB as TwinEventBus
+    participant TGT as 目标节点
+    participant DB as MySQL
+
+    Note over SRC: 触发迁移(扩缩容/负载均衡)
+    SRC->>REDIS: SET twin:migrate:{machineId} = 'migrating'
+    SRC->>SRC: 暂停该设备的同步写入
+    SRC->>SRC: 序列化状态向量+健康指数+RUL
+    SRC->>REDIS: HSET twin:state:{machineId} {stateVector, healthIndex, rul}
+    SRC->>DB: UPSERT world_model_snapshots (持久化)
+    SRC->>EB: emit('instance.migrating', {machineId, targetNode})
+    SRC->>SRC: 销毁本地 WorldModel 实例
+
+    EB-->>TGT: 收到迁移事件
+    TGT->>REDIS: HGETALL twin:state:{machineId}
+    TGT->>DB: SELECT equipment_profiles WHERE machineId
+    TGT->>TGT: 重建 WorldModel 实例(从快照恢复)
+    TGT->>TGT: 恢复状态向量+健康指数
+    TGT->>REDIS: HSET twin:registry:{machineId} = targetNodeId
+    TGT->>REDIS: DEL twin:migrate:{machineId}
+    TGT->>EB: emit('instance.migrated', {machineId, targetNode})
+    TGT->>TGT: 恢复同步写入
+
+    Note over TGT: 迁移完成,延迟 < 2s

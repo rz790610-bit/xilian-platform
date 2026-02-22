@@ -1,0 +1,24 @@
+sequenceDiagram
+    participant W as BullMQ Worker
+    participant DB as MySQL
+    participant OB as outbox表
+    participant RW as Relay Worker
+    participant WS as tRPC Subscription
+    participant FE as 前端
+
+    Note over W: 仿真任务执行完成
+    W->>DB: BEGIN TRANSACTION
+    W->>DB: INSERT simulation_results
+    W->>DB: UPDATE simulation_scenarios SET status='completed'
+    W->>OB: INSERT outbox {event:'sim_completed', payload}
+    W->>DB: COMMIT
+
+    Note over RW: 轮询 outbox 表(100ms间隔)
+    RW->>OB: SELECT * FROM outbox WHERE processed=false
+    OB-->>RW: 未处理事件列表
+    RW->>WS: 发布 simulation.progress 事件
+    WS-->>FE: push {taskId, status:'completed', result}
+    RW->>OB: UPDATE outbox SET processed=true
+
+    Note over RW: 清理已处理事件(每小时)
+    RW->>OB: DELETE FROM outbox WHERE processed=true AND created_at < NOW()-1h

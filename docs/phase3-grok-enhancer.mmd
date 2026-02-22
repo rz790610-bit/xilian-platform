@@ -1,0 +1,41 @@
+graph TB
+    subgraph CALLERS["调用方"]
+        SE["SimulationEngine\n物理解释润色"]
+        RE["ReplayEngine\n异常摘要"]
+        RL["RULPredictor\n维护建议"]
+        SC["ScenarioCreator\n场景智能生成"]
+    end
+
+    subgraph GE["GrokEnhancer 治理门面"]
+        CB["CircuitBreaker\n熔断器\n(5次失败→30s熔断)"]
+        TB["TokenBucket\n限流器\n(10 req/min)"]
+        PV["PromptVersionManager\n版本管理\n(A/B测试)"]
+        CM["CostMeter\n成本计量\n(tokens×price)"]
+        FB["FallbackManager\n降级管理\n(纯物理文本)"]
+    end
+
+    subgraph GROK["Grok LLM"]
+        API["Grok API\n(平台已有)"]
+    end
+
+    subgraph OBS["可观测性"]
+        OTEL["OTel Metrics\ngrok_call_duration\ngrok_token_usage\ngrok_circuit_state"]
+        AUDIT["审计日志\nprompt_version\ntokens_used\ncost"]
+    end
+
+    SE --> CB
+    RE --> CB
+    RL --> CB
+    SC --> CB
+    CB --> TB
+    TB --> PV
+    PV --> API
+    API --> CM
+    CM --> OTEL
+    CM --> AUDIT
+
+    CB -.->|熔断时| FB
+    FB -.->|纯物理文本| SE
+    FB -.->|纯物理文本| RE
+    FB -.->|纯物理文本| RL
+    FB -.->|默认参数| SC
