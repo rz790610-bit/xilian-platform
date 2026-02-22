@@ -112,7 +112,6 @@ CREATE TABLE IF NOT EXISTS portai_timeseries.vibration_features (
 ) ENGINE = MergeTree()
 PARTITION BY toYYYYMM(timestamp)
 ORDER BY (device_code, mp_code, timestamp)
-SAMPLE BY cityHash64(mp_code)
 TTL toDateTime(timestamp) + INTERVAL 2 YEAR
 SETTINGS index_granularity = 8192;
 
