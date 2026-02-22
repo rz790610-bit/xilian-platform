@@ -38,8 +38,15 @@ function createPool(): mysql.Pool {
   const dbUrl = process.env.DATABASE_URL;
   if (!dbUrl) throw new Error('[Database] DATABASE_URL is not set');
 
+  // 解析 DATABASE_URL 而不使用 uri 参数，避免 mysql2 的 uri 解析覆盖 charset 配置导致中文乱码
+  const url = new URL(dbUrl);
+
   return mysql.createPool({
-    uri: dbUrl,
+    host: url.hostname,
+    port: parseInt(url.port || '3306', 10),
+    user: decodeURIComponent(url.username),
+    password: decodeURIComponent(url.password),
+    database: url.pathname.replace(/^\//, ''),
     connectionLimit: parseInt(process.env.DB_POOL_MAX || '50', 10),
     waitForConnections: true,
     queueLimit: parseInt(process.env.DB_POOL_QUEUE_LIMIT || '200', 10),
