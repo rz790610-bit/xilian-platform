@@ -1,0 +1,59 @@
+graph TB
+    subgraph EXT["外部系统"]
+        SENSOR["传感器/边缘网关\n(数据采集)"]
+        USER["运维人员\n(浏览器)"]
+        GROK["Grok LLM\n(AI推理服务)"]
+    end
+
+    subgraph P3["Phase 3 数字孪生系统"]
+        subgraph CORE["核心引擎层"]
+            WMR["WorldModelRegistry\n多设备实例管理\nRedis+Local双写"]
+            SSE["StateSyncEngine\n混合同步引擎\nCDC+轮询兜底"]
+            UQ["UncertaintyQuantifier\nQMC不确定性量化\nSobol序列N=50"]
+            RUL["RULPredictor\n剩余寿命预测\n物理+统计混合"]
+            PV["PhysicsValidator\n自洽性校验\n每100次同步"]
+        end
+        subgraph SIM["仿真推演层"]
+            SE["SimulationEngine\n异步任务执行\nBullMQ队列"]
+            WIF["WhatIfAnalyzer\n参数网格分析"]
+            MC["MonteCarloSim\n重要性采样\nN=50可配"]
+            CMP["ComparisonEngine\n多方案对比"]
+        end
+        subgraph RPL["历史回放层"]
+            RE["ReplayEngine\n多通道降采样"]
+            ASD["AnomalyDetector\nDBSCAN聚类"]
+        end
+        subgraph API["tRPC API + WebSocket"]
+            DTR["digital-twin.router\n12端点+2订阅"]
+        end
+        subgraph AI["AI原生增强"]
+            SG["场景智能生成\nGrok参数填充"]
+            PE["物理解释润色\nGrok中文报告"]
+            MA["维护建议生成\nGrok话术"]
+            AS["异常摘要\nGrok自动总结"]
+        end
+        subgraph OBS["可观测性"]
+            OT["OpenTelemetry\n指标+追踪"]
+            AL["审计日志\naudit_logs复用"]
+        end
+    end
+
+    subgraph DB["数据层"]
+        MYSQL[("MySQL\n3新表+4已有表")]
+        REDIS[("Redis\nRegistry缓存\n事件总线")]
+        BULL[("BullMQ\n异步任务队列")]
+    end
+
+    SENSOR -->|遥测数据| SSE
+    USER -->|操作| DTR
+    DTR --> CORE
+    DTR --> SIM
+    DTR --> RPL
+    SSE --> MYSQL
+    SSE --> REDIS
+    SE --> BULL
+    AI --> GROK
+    OBS --> OT
+    CORE --> MYSQL
+    SIM --> MYSQL
+    RPL --> MYSQL

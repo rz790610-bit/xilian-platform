@@ -1,0 +1,40 @@
+sequenceDiagram
+    participant FE as 前端
+    participant API as tRPC Router
+    participant Q as BullMQ队列
+    participant W as Worker进程
+    participant WMR as WorldModelRegistry
+    participant DB as MySQL
+    participant WS as WebSocket
+    participant GROK as Grok LLM
+
+    FE->>API: simulation.execute({scenarioId})
+    API->>DB: 读取 simulation_scenarios
+    API->>DB: UPDATE status='queued'
+    API->>Q: 入队 {scenarioId, equipmentId}
+    API-->>FE: {taskId, status:'queued'}
+    FE->>WS: 订阅 simulation.progress(taskId)
+
+    W->>Q: 消费任务
+    W->>DB: 读取场景配置+基线快照
+    W->>WMR: getOrCreate(equipmentId)
+    W->>DB: UPDATE status='running'
+    W->>WS: push {taskId, progress:10%}
+
+    loop 物理仿真 N 步
+        W->>W: WorldModel.predict(step)
+        W->>WS: push {taskId, progress: step/total}
+    end
+
+    opt 蒙特卡洛采样
+        W->>W: QMC Sobol采样 ×50
+        W->>WS: push {taskId, progress:80%}
+    end
+
+    W->>W: 生成风险评估
+    W->>GROK: 物理解释润色(可选)
+    GROK-->>W: 中文物理报告
+    W->>DB: INSERT simulation_results
+    W->>DB: UPDATE status='completed'
+    W->>WS: push {taskId, status:'completed', result}
+    WS-->>FE: 实时结果推送

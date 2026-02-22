@@ -1,0 +1,27 @@
+sequenceDiagram
+    participant Sensor as 传感器/边缘网关
+    participant RT as realtime_telemetry
+    participant SSE as StateSyncEngine
+    participant WMR as WorldModelRegistry
+    participant WM as WorldModel实例
+    participant SNAP as world_model_snapshots
+    participant LOG as twin_sync_logs
+    participant EB as TwinEventBus
+    participant FE as 前端(WebSocket)
+
+    Note over SSE: 混合同步模式启动
+    SSE->>RT: 订阅 Debezium CDC 事件流
+    SSE->>SSE: 兜底: 启动 5s 轮询定时器
+
+    Sensor->>RT: INSERT 遥测数据
+    RT-->>SSE: CDC 事件: telemetry_inserted
+    SSE->>SSE: 按 deviceCode 聚合 StateVector
+    SSE->>WMR: getOrCreate(machineId)
+    WMR->>WM: Lazy Init (从 equipment_profiles)
+    WMR-->>SSE: WorldModel 实例
+    SSE->>WM: recordState(stateVector)
+    WM->>WM: 物理方程推演 + 健康指数更新
+    SSE->>SNAP: UPSERT 快照
+    SSE->>LOG: INSERT 同步日志
+    SSE->>EB: emit('twin.stateUpdated', {machineId, stateVector})
+    EB-->>FE: WebSocket push
