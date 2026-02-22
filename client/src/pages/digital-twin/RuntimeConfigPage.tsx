@@ -87,23 +87,23 @@ const LAYER_COLORS: Record<string, string> = {
 };
 
 const MODULE_LABELS: Record<string, string> = {
-  deviceSamplingConfig: '设备采样配置',
+  deviceSampling: '设备采样配置',
   stateSyncEngine: '状态同步引擎',
   worldModel: '世界模型',
-  physicsVerifier: '物理验证器',
+  physicsValidator: '物理验证器',
   vectorStore: '向量存储',
   hybridOrchestrator: '混合编排器',
   grokEnhancer: 'Grok 增强器',
   experiencePool: '经验池',
   causalGraph: '因果图',
-  knowledgeFeedbackLoop: '知识反馈环',
+  feedbackLoop: '知识反馈环',
   uncertaintyQuantifier: '不确定性量化器',
   rulPredictor: 'RUL 预测器',
   simulationEngine: '仿真引擎',
   replayEngine: '回放引擎',
   outboxRelay: 'Outbox 中继',
   twinEventBus: '事件总线',
-  bullmqWorker: 'BullMQ Worker',
+  bullmq: 'BullMQ Worker',
 };
 
 const IMPACT_COLORS: Record<string, string> = {
@@ -322,18 +322,22 @@ export default function RuntimeConfigPage() {
             {layers.map((layer) => (
               <div key={layer.layerId}>
                 {/* 层级节点 */}
-                <button
-                  onClick={() => { setSelectedLayer(layer.layerId); setSelectedModule(null); }}
-                  className={`w-full flex items-center gap-1.5 px-2 py-1.5 rounded text-left transition-colors ${
+                <div
+                  className={`w-full flex items-center gap-1.5 px-2 py-1.5 rounded text-left transition-colors cursor-pointer ${
                     selectedLayer === layer.layerId && !selectedModule
                       ? 'bg-primary/10 text-primary'
                       : 'hover:bg-muted/50 text-foreground'
                   }`}
                 >
-                  <span className="text-sm">{LAYER_ICONS[layer.layerId] ?? '📦'}</span>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-[10px] font-medium truncate">{layer.layerName}</div>
-                    <div className="text-[9px] text-muted-foreground">{layer.layerId}</div>
+                  <div
+                    className="flex items-center gap-1.5 flex-1 min-w-0"
+                    onClick={() => { setSelectedLayer(layer.layerId); setSelectedModule(null); }}
+                  >
+                    <span className="text-sm">{LAYER_ICONS[layer.layerId] ?? '📦'}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[10px] font-medium truncate">{layer.layerName}</div>
+                      <div className="text-[9px] text-muted-foreground">{layer.layerId}</div>
+                    </div>
                   </div>
                   {/* 层级熔断开关 */}
                   <Switch
@@ -343,7 +347,7 @@ export default function RuntimeConfigPage() {
                     }}
                     className="scale-[0.6]"
                   />
-                </button>
+                </div>
                 {/* 模块子节点 */}
                 {selectedLayer === layer.layerId && layer.modules.map((mod) => (
                   <button
@@ -405,119 +409,119 @@ export default function RuntimeConfigPage() {
             </PageCard>
 
             {/* 专属配置面板（P0/P0+ 模块） */}
-            {selectedModule === 'StateSyncEngine' && (
+            {selectedModule === 'stateSyncEngine' && (
               <StateSyncPanel
                 configs={configs}
                 onUpdate={(id, value, reason) => updateConfigMutation.mutate({ id, configValue: value, reason })}
                 onReset={(id) => resetConfigMutation.mutate({ id })}
               />
             )}
-            {selectedModule === 'WorldModelCore' && (
+            {selectedModule === 'worldModel' && (
               <WorldModelPanel
                 configs={configs}
                 onUpdate={(id, value, reason) => updateConfigMutation.mutate({ id, configValue: value, reason })}
                 onReset={(id) => resetConfigMutation.mutate({ id })}
               />
             )}
-            {selectedModule === 'HybridOrchestrator' && (
+            {selectedModule === 'hybridOrchestrator' && (
               <OrchestratorPanel
                 configs={configs}
                 onUpdate={(id, value, reason) => updateConfigMutation.mutate({ id, configValue: value, reason })}
                 onReset={(id) => resetConfigMutation.mutate({ id })}
               />
             )}
-            {selectedModule === 'GrokEnhancer' && (
+            {selectedModule === 'grokEnhancer' && (
               <GrokEnhancerPanel
                 configs={configs}
                 onUpdate={(id, value, reason) => updateConfigMutation.mutate({ id, configValue: value, reason })}
                 onReset={(id) => resetConfigMutation.mutate({ id })}
               />
             )}
-            {selectedModule === 'SimulationEngine' && (
+            {selectedModule === 'simulationEngine' && (
               <SimulationPanel
                 configs={configs}
                 onUpdate={(id, value, reason) => updateConfigMutation.mutate({ id, configValue: value, reason })}
                 onReset={(id) => resetConfigMutation.mutate({ id })}
               />
             )}
-            {selectedModule === 'ExperiencePool' && (
+            {selectedModule === 'experiencePool' && (
               <ExperiencePoolPanel
                 configs={configs}
                 onUpdate={(id, value, reason) => updateConfigMutation.mutate({ id, configValue: value, reason })}
                 onReset={(id) => resetConfigMutation.mutate({ id })}
               />
             )}
-            {selectedModule === 'CausalGraph' && (
+            {selectedModule === 'causalGraph' && (
               <CausalGraphPanel
                 configs={configs}
                 onUpdate={(id, value, reason) => updateConfigMutation.mutate({ id, configValue: value, reason })}
                 onReset={(id) => resetConfigMutation.mutate({ id })}
               />
             )}
-            {selectedModule === 'KnowledgeFeedbackLoop' && (
+            {selectedModule === 'feedbackLoop' && (
               <FeedbackLoopPanel
                 configs={configs}
                 onUpdate={(id, value, reason) => updateConfigMutation.mutate({ id, configValue: value, reason })}
                 onReset={(id) => resetConfigMutation.mutate({ id })}
               />
             )}
-            {selectedModule === 'PhysicsVerifier' && (
+            {selectedModule === 'physicsValidator' && (
               <PhysicsVerifierPanel
                 configs={configs}
                 onUpdate={(id, value, reason) => updateConfigMutation.mutate({ id, configValue: value, reason })}
                 onReset={(id) => resetConfigMutation.mutate({ id })}
               />
             )}
-            {selectedModule === 'RULPredictor' && (
+            {selectedModule === 'rulPredictor' && (
               <RULPredictorPanel
                 configs={configs}
                 onUpdate={(id, value, reason) => updateConfigMutation.mutate({ id, configValue: value, reason })}
                 onReset={(id) => resetConfigMutation.mutate({ id })}
               />
             )}
-            {selectedModule === 'ReplayEngine' && (
+            {selectedModule === 'replayEngine' && (
               <ReplayEnginePanel
                 configs={configs}
                 onUpdate={(id, value, reason) => updateConfigMutation.mutate({ id, configValue: value, reason })}
                 onReset={(id) => resetConfigMutation.mutate({ id })}
               />
             )}
-            {selectedModule === 'TwinEventBus' && (
+            {selectedModule === 'twinEventBus' && (
               <EventBusPanel
                 configs={configs}
                 onUpdate={(id, value, reason) => updateConfigMutation.mutate({ id, configValue: value, reason })}
                 onReset={(id) => resetConfigMutation.mutate({ id })}
               />
             )}
-            {selectedModule === 'OutboxRelay' && (
+            {selectedModule === 'outboxRelay' && (
               <OutboxRelayPanel
                 configs={configs}
                 onUpdate={(id, value, reason) => updateConfigMutation.mutate({ id, configValue: value, reason })}
                 onReset={(id) => resetConfigMutation.mutate({ id })}
               />
             )}
-            {selectedModule === 'BullMQ' && (
+            {selectedModule === 'bullmq' && (
               <BullMQPanel
                 configs={configs}
                 onUpdate={(id, value, reason) => updateConfigMutation.mutate({ id, configValue: value, reason })}
                 onReset={(id) => resetConfigMutation.mutate({ id })}
               />
             )}
-            {selectedModule === 'UncertaintyQuantifier' && (
+            {selectedModule === 'uncertaintyQuantifier' && (
               <UncertaintyPanel
                 configs={configs}
                 onUpdate={(id, value, reason) => updateConfigMutation.mutate({ id, configValue: value, reason })}
                 onReset={(id) => resetConfigMutation.mutate({ id })}
               />
             )}
-            {selectedModule === 'VectorStore' && (
+            {selectedModule === 'vectorStore' && (
               <VectorStorePanel
                 configs={configs}
                 onUpdate={(id, value, reason) => updateConfigMutation.mutate({ id, configValue: value, reason })}
                 onReset={(id) => resetConfigMutation.mutate({ id })}
               />
             )}
-            {selectedModule === 'DataCollection' && (
+            {selectedModule === 'deviceSampling' && (
               <DataCollectionPanel
                 configs={configs}
                 onUpdate={(id, value, reason) => updateConfigMutation.mutate({ id, configValue: value, reason })}

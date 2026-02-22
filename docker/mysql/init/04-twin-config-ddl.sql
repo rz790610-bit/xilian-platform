@@ -116,6 +116,14 @@ SET @sql = IF(@col_exists = 0,
   'SELECT 1');
 PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
+-- 补充唯一索引 uk_module_key（seed data 的 ON DUPLICATE KEY 依赖此索引）
+SET @idx_exists = (SELECT COUNT(*) FROM information_schema.STATISTICS 
+  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'engine_config_registry' AND INDEX_NAME = 'uk_module_key');
+SET @sql = IF(@idx_exists = 0, 
+  'CREATE UNIQUE INDEX `uk_module_key` ON `engine_config_registry` (`module`, `config_key`)',
+  'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
 -- 补充索引（幂等：先检查是否存在再创建）
 SET @idx_exists = (SELECT COUNT(*) FROM information_schema.STATISTICS 
   WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'engine_config_registry' AND INDEX_NAME = 'idx_ecr_module');
@@ -152,7 +160,7 @@ CREATE TABLE IF NOT EXISTS `twin_layer_switches` (
   `created_at` TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   `updated_at` TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
   PRIMARY KEY (`id`),
-  UNIQUE INDEX `uk_tls_layer_id` (`layer_id`)
+  UNIQUE INDEX `uk_tls_layer` (`layer_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   COMMENT='数字孪生层级熔断开关';
 
@@ -178,7 +186,7 @@ CREATE TABLE IF NOT EXISTS `twin_config_audit_log` (
   INDEX `idx_tcal_user` (`user_id`),
   INDEX `idx_tcal_module` (`module`),
   INDEX `idx_tcal_action` (`action`),
-  INDEX `idx_tcal_created` (`created_at`),
+  INDEX `idx_tcal_time` (`created_at`),
   INDEX `idx_tcal_key` (`config_key`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   COMMENT='数字孪生配置审计日志';
@@ -208,26 +216,23 @@ CREATE TABLE IF NOT EXISTS `twin_config_snapshot` (
   COMMENT='数字孪生配置快照（漂移检测 + 版本回滚）';
 
 -- ============================================================================
--- T5. 仿真运行记录表（一键仿真 30s 沙箱）
+-- T5. 仿真运行记录表（与 Drizzle schema twinConfigSimulationRuns 完全对齐）
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS `twin_config_simulation_runs` (
   `id` BIGINT AUTO_INCREMENT,
+  `user_id` VARCHAR(64) NOT NULL COMMENT '创建人 ID',
   `module` VARCHAR(64) NOT NULL COMMENT '被仿真的模块',
   `temp_config` JSON NOT NULL COMMENT '临时配置（不影响真实孪生体）',
   `baseline_config` JSON NOT NULL COMMENT '基线配置（当前生产配置）',
-  `status` ENUM('pending','running','completed','failed','timeout') NOT NULL DEFAULT 'pending',
-  `duration_seconds` INT NOT NULL DEFAULT 30 COMMENT '仿真时长（秒）',
-  `result_metrics` JSON COMMENT '仿真结果指标（预测精度、Grok 调用次数、延迟等）',
-  `baseline_metrics` JSON COMMENT '基线指标（用于对比）',
-  `improvement_summary` JSON COMMENT '改善摘要（自动计算 delta）',
-  `error_message` TEXT COMMENT '失败原因',
-  `created_by` VARCHAR(64) NOT NULL,
+  `result` JSON COMMENT '仿真结果',
+  `status` ENUM('running','completed','failed') NOT NULL DEFAULT 'running',
+  `duration_ms` INT COMMENT '仿真耗时（毫秒）',
   `created_at` TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   `completed_at` TIMESTAMP(3) NULL,
   PRIMARY KEY (`id`),
+  INDEX `idx_tcsr_user` (`user_id`),
   INDEX `idx_tcsr_module` (`module`),
-  INDEX `idx_tcsr_status` (`status`),
-  INDEX `idx_tcsr_created` (`created_at`)
+  INDEX `idx_tcsr_status` (`status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   COMMENT='数字孪生配置仿真运行记录';
 

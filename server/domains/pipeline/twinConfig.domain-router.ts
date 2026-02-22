@@ -45,13 +45,13 @@ const log = createModuleLogger('twinConfig');
 // 层级 → 模块映射（与 v3.0 文档一致）
 // ============================================================================
 const LAYER_MODULE_MAP: Record<string, string[]> = {
-  L1: ['deviceSamplingConfig'],
+  L1: ['deviceSampling'],
   L2: ['stateSyncEngine'],
-  L3: ['worldModel', 'physicsVerifier', 'vectorStore'],
-  L4: ['hybridOrchestrator', 'grokEnhancer', 'experiencePool', 'causalGraph', 'knowledgeFeedbackLoop', 'uncertaintyQuantifier', 'rulPredictor'],
+  L3: ['worldModel', 'physicsValidator', 'vectorStore'],
+  L4: ['hybridOrchestrator', 'grokEnhancer', 'experiencePool', 'causalGraph', 'feedbackLoop', 'uncertaintyQuantifier', 'rulPredictor'],
   L5: ['simulationEngine', 'replayEngine'],
   L6: ['outboxRelay', 'twinEventBus'],
-  L7: ['bullmqWorker'],
+  L7: ['bullmq'],
 };
 
 const MODULE_LAYER_MAP: Record<string, string> = {};
@@ -73,7 +73,7 @@ function computeChecksum(data: unknown): string {
 function computeImpactScore(module: string, configKey: string, oldValue: unknown, newValue: unknown): number {
   const criticalModules: Record<string, number> = {
     worldModel: 30, hybridOrchestrator: 25, grokEnhancer: 25,
-    stateSyncEngine: 20, simulationEngine: 15, physicsVerifier: 15,
+    stateSyncEngine: 20, simulationEngine: 15, physicsValidator: 15,
   };
   let score = criticalModules[module] ?? 10;
   // 关键配置项加分

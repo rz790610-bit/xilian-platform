@@ -1185,6 +1185,12 @@ export const engineConfigRegistry = mysqlTable('engine_config_registry', {
   enabled: tinyint('enabled').notNull().default(1),
   /** 是否为系统内置（内置项不可删除，仅可修改值） */
   isBuiltin: tinyint('is_builtin').notNull().default(0),
+  /** 变更影响评估分数 0-100 */
+  impactScore: int('impact_score').default(0),
+  /** 变更影响描述 */
+  impactDescription: text('impact_description'),
+  /** 语义化版本号 */
+  configVersion: varchar('config_version', { length: 32 }).notNull().default('1.0.0'),
   /** 创建时间 */
   createdAt: timestamp('created_at', { fsp: 3 }).defaultNow().notNull(),
   /** 更新时间 */
