@@ -70,7 +70,8 @@ export function createSecurityHeaders(): RequestHandler {
         baseUri: ["'self'"],
         formAction: ["'self'"],
         // 禁用 upgrade-insecure-requests，避免非 TLS 环境下浏览器强制升级 HTTP→HTTPS 导致资源加载失败
-        upgradeInsecureRequests: [],
+        // helmet 中必须设为 null 才能彻底移除该指令（空数组 [] 仍会输出）
+        upgradeInsecureRequests: null,
       },
     } : false,
 
