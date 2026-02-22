@@ -51,9 +51,13 @@ const DEFAULT_CLUSTER_CONFIG: ClickHouseClusterConfig = {
 };
 
 // 单节点开发配置
+// 注意：CLICKHOUSE_HOST 可能包含 http:// 前缀，需要提取纯主机名
+function extractHostname(raw: string): string {
+  try { return new URL(raw).hostname; } catch { return raw; }
+}
 const SINGLE_NODE_CONFIG: ClickHouseClusterConfig = {
   nodes: [
-    { host: process.env.CLICKHOUSE_HOST || 'localhost', port: 8123, weight: 1 },
+    { host: extractHostname(process.env.CLICKHOUSE_HOST || 'localhost'), port: Number(process.env.CLICKHOUSE_PORT) || 8123, weight: 1 },
   ],
   username: process.env.CLICKHOUSE_USER || 'portai',
   password: process.env.CLICKHOUSE_PASSWORD || 'clickhouse123',

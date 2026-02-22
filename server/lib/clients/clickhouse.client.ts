@@ -10,9 +10,23 @@ const log = createModuleLogger('clickhouse');
 
 // ClickHouse 配置
 
+/**
+ * 智能解析 CLICKHOUSE_HOST：
+ * - 如果已包含 http:// 前缀，直接使用（如 http://localhost:8123）
+ * - 如果是纯主机名（如 clickhouse 或 localhost），自动拼接 http:// 和端口
+ */
+function resolveClickHouseUrl(): string {
+  const raw = process.env.CLICKHOUSE_HOST || 'localhost';
+  if (raw.startsWith('http://') || raw.startsWith('https://')) {
+    return raw;
+  }
+  const port = process.env.CLICKHOUSE_PORT || '8123';
+  return `http://${raw}:${port}`;
+}
+
 const CLICKHOUSE_CONFIG = {
-  host: process.env.CLICKHOUSE_HOST || 'http://localhost:8123',
-  username: process.env.CLICKHOUSE_USER || 'default',
+  host: resolveClickHouseUrl(),
+  username: process.env.CLICKHOUSE_USER || 'portai',
   // P0-CRED-2: 移除硬编码密码，生产环境必须配置 CLICKHOUSE_PASSWORD
   password: process.env.CLICKHOUSE_PASSWORD || (() => { console.warn('[SECURITY] CLICKHOUSE_PASSWORD not set — MUST configure in production'); return ''; })(),
   database: process.env.CLICKHOUSE_DATABASE || 'portai_timeseries',

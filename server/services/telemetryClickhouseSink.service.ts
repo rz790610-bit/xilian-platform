@@ -185,11 +185,17 @@ export class TelemetryClickHouseSink {
     }
 
     // 订阅 Kafka 主题
-    await kafkaClient.subscribe(
-      this.config.consumerGroup,
-      this.config.topics,
-      this.handleMessage.bind(this)
-    );
+    try {
+      await kafkaClient.subscribe(
+        this.config.consumerGroup,
+        this.config.topics,
+        this.handleMessage.bind(this)
+      );
+      log.info(`[TelemetrySink] Kafka 订阅成功，主题: ${this.config.topics.join(', ')}`);
+    } catch (kafkaError) {
+      log.warn(`[TelemetrySink] Kafka 订阅失败，服务以降级模式运行（仅 ClickHouse 写入就绪，等待 Kafka 恢复后可重启）: ${(kafkaError as Error).message}`);
+      // 不抛出异常，允许服务以降级模式启动
+    }
 
     // 启动定时刷写
     this.flushTimer = setInterval(
@@ -205,7 +211,7 @@ export class TelemetryClickHouseSink {
       );
     }
 
-    log.info(`[TelemetrySink] 已启动，订阅主题: ${this.config.topics.join(', ')}`);
+    log.info(`[TelemetrySink] 已启动（ClickHouse 写入就绪）`);
   }
 
   /**

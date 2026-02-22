@@ -166,11 +166,17 @@ export class FeatureExtractionService {
     this.metrics.startedAt = Date.now();
 
     // 订阅 Kafka 主题
-    await kafkaClient.subscribe(
-      this.config.consumerGroup,
-      this.config.inputTopics,
-      this.handleMessage.bind(this)
-    );
+    try {
+      await kafkaClient.subscribe(
+        this.config.consumerGroup,
+        this.config.inputTopics,
+        this.handleMessage.bind(this)
+      );
+      log.info(`[FeatureExtraction] Kafka 订阅成功，主题: ${this.config.inputTopics.join(', ')}`);
+    } catch (kafkaError) {
+      log.warn(`[FeatureExtraction] Kafka 订阅失败，服务以降级模式运行（等待 Kafka 恢复后可重启）: ${(kafkaError as Error).message}`);
+      // 不抛出异常，允许服务以降级模式启动
+    }
 
     // 启动批量发布定时器
     this.publishTimer = setInterval(
@@ -178,7 +184,7 @@ export class FeatureExtractionService {
       this.config.publishFlushIntervalMs
     );
 
-    log.info(`[FeatureExtraction] 已启动，订阅: ${this.config.inputTopics.join(', ')}`);
+    log.info(`[FeatureExtraction] 已启动（提取器就绪）`);
   }
 
   async stop(): Promise<void> {

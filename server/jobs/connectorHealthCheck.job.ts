@@ -34,7 +34,10 @@ const NORMAL_CHECK_TIMEOUT_MS = 15_000;
 const DEGRADED_CHECK_TIMEOUT_MS = 8_000;
 
 /** 首次启动延迟（等待系统完全启动） */
-const INITIAL_DELAY_MS = 30_000;
+const INITIAL_DELAY_MS = process.env.NODE_ENV === 'production' ? 30_000 : 60_000;
+
+/** 开发模式下是否跳过 demo 连接器的健康检查 */
+const SKIP_DEMO_IN_DEV = process.env.NODE_ENV !== 'production';
 
 // ============ 状态管理 ============
 
@@ -147,6 +150,11 @@ export async function runConnectorHealthCheck(): Promise<{
     const toCheck: typeof connectors = [];
     for (const conn of connectors) {
       if (conn.status === 'draft') {
+        skipped++;
+        continue;
+      }
+      // 开发模式下跳过 demo 连接器（conn_demo_ 前缀），避免大量无意义的超时日志
+      if (SKIP_DEMO_IN_DEV && conn.connectorId?.startsWith('conn_demo_')) {
         skipped++;
         continue;
       }
