@@ -1,12 +1,12 @@
 -- ============================================================
 -- V4.0 ClickHouse 完整表清单
--- 参考：xilian_v4_production.md §23-24
+-- 参考：portai_v4_production.md §23-24
 -- ============================================================
 
 -- ===== Step 1: 基础 MergeTree 表 =====
 
 -- 振动特征存储（核心时序表）
-CREATE TABLE IF NOT EXISTS xilian.vibration_features (
+CREATE TABLE IF NOT EXISTS portai_timeseries.vibration_features (
     timestamp DateTime64(3) CODEC(Delta, ZSTD(5)),
     device_code String CODEC(LZ4),
     mp_code String CODEC(LZ4),
@@ -32,7 +32,7 @@ TTL timestamp + INTERVAL 2 YEAR
 SETTINGS index_granularity = 8192;
 
 -- 设备状态日志
-CREATE TABLE IF NOT EXISTS xilian.device_status_log (
+CREATE TABLE IF NOT EXISTS portai_timeseries.device_status_log (
     timestamp DateTime64(3) CODEC(Delta, ZSTD(5)),
     device_code String CODEC(LZ4),
     status String CODEC(LZ4),
@@ -47,7 +47,7 @@ TTL timestamp + INTERVAL 1 YEAR
 SETTINGS index_granularity = 8192;
 
 -- 告警事件日志
-CREATE TABLE IF NOT EXISTS xilian.alert_event_log (
+CREATE TABLE IF NOT EXISTS portai_timeseries.alert_event_log (
     timestamp DateTime64(3) CODEC(Delta, ZSTD(5)),
     device_code String CODEC(LZ4),
     alert_type String CODEC(LZ4),
@@ -64,7 +64,7 @@ TTL timestamp + INTERVAL 2 YEAR
 SETTINGS index_granularity = 8192;
 
 -- 数据质量指标
-CREATE TABLE IF NOT EXISTS xilian.data_quality_metrics (
+CREATE TABLE IF NOT EXISTS portai_timeseries.data_quality_metrics (
     timestamp DateTime64(3) CODEC(Delta, ZSTD(5)),
     device_code String CODEC(LZ4),
     mp_code String CODEC(LZ4),
@@ -82,7 +82,7 @@ TTL timestamp + INTERVAL 1 YEAR
 SETTINGS index_granularity = 8192;
 
 -- 查询性能日志
-CREATE TABLE IF NOT EXISTS xilian.query_performance_log (
+CREATE TABLE IF NOT EXISTS portai_timeseries.query_performance_log (
     timestamp DateTime64(3) CODEC(Delta, ZSTD(5)),
     query_type String CODEC(LZ4),
     target_engine String CODEC(LZ4),
@@ -103,7 +103,7 @@ SETTINGS index_granularity = 8192;
 
 -- 注意：Kafka Engine 表仅在 Kafka 可用时创建
 -- 生产环境需要修改 kafka_broker_list 为实际地址
-CREATE TABLE IF NOT EXISTS xilian.vibration_features_kafka_queue (
+CREATE TABLE IF NOT EXISTS portai_timeseries.vibration_features_kafka_queue (
     timestamp DateTime64(3),
     device_code String,
     mp_code String,
@@ -133,12 +133,12 @@ SETTINGS
 -- ===== Step 3: 物化视图 =====
 
 -- Kafka → MergeTree 自动写入
-CREATE MATERIALIZED VIEW IF NOT EXISTS xilian.vibration_features_mv
-TO xilian.vibration_features AS
-SELECT * FROM xilian.vibration_features_kafka_queue;
+CREATE MATERIALIZED VIEW IF NOT EXISTS portai_timeseries.vibration_features_mv
+TO portai_timeseries.vibration_features AS
+SELECT * FROM portai_timeseries.vibration_features_kafka_queue;
 
 -- 1分钟聚合视图
-CREATE MATERIALIZED VIEW IF NOT EXISTS xilian.vibration_features_1min_agg
+CREATE MATERIALIZED VIEW IF NOT EXISTS portai_timeseries.vibration_features_1min_agg
 ENGINE = AggregatingMergeTree()
 PARTITION BY toYYYYMM(minute)
 ORDER BY (device_code, mp_code, minute)
@@ -152,11 +152,11 @@ AS SELECT
     avgState(kurtosis) AS avg_kurtosis,
     avgState(temperature) AS avg_temperature,
     countState() AS sample_count
-FROM xilian.vibration_features
+FROM portai_timeseries.vibration_features
 GROUP BY minute, device_code, mp_code;
 
 -- 1小时聚合视图
-CREATE MATERIALIZED VIEW IF NOT EXISTS xilian.vibration_features_1hour_agg
+CREATE MATERIALIZED VIEW IF NOT EXISTS portai_timeseries.vibration_features_1hour_agg
 ENGINE = AggregatingMergeTree()
 PARTITION BY toYYYYMM(hour)
 ORDER BY (device_code, mp_code, hour)
@@ -170,11 +170,11 @@ AS SELECT
     avgState(kurtosis) AS avg_kurtosis,
     avgState(temperature) AS avg_temperature,
     countState() AS sample_count
-FROM xilian.vibration_features
+FROM portai_timeseries.vibration_features
 GROUP BY hour, device_code, mp_code;
 
 -- 设备日统计视图
-CREATE MATERIALIZED VIEW IF NOT EXISTS xilian.device_daily_summary
+CREATE MATERIALIZED VIEW IF NOT EXISTS portai_timeseries.device_daily_summary
 ENGINE = AggregatingMergeTree()
 PARTITION BY toYYYYMM(day)
 ORDER BY (device_code, day)
@@ -186,11 +186,11 @@ AS SELECT
     avgState(temperature) AS avg_temperature,
     countState() AS total_samples,
     uniqState(mp_code) AS active_mps
-FROM xilian.vibration_features
+FROM portai_timeseries.vibration_features
 GROUP BY day, device_code;
 
 -- 告警小时统计视图
-CREATE MATERIALIZED VIEW IF NOT EXISTS xilian.alert_hourly_stats
+CREATE MATERIALIZED VIEW IF NOT EXISTS portai_timeseries.alert_hourly_stats
 ENGINE = AggregatingMergeTree()
 PARTITION BY toYYYYMM(hour)
 ORDER BY (device_code, hour)
@@ -201,11 +201,11 @@ AS SELECT
     severity,
     countState() AS alert_count,
     avgState(value) AS avg_value
-FROM xilian.alert_event_log
+FROM portai_timeseries.alert_event_log
 GROUP BY hour, device_code, alert_type, severity;
 
 -- ===== 索引 =====
-ALTER TABLE xilian.vibration_features ADD INDEX IF NOT EXISTS idx_gateway (gateway_id) TYPE bloom_filter GRANULARITY 4;
-ALTER TABLE xilian.vibration_features ADD INDEX IF NOT EXISTS idx_batch (batch_id) TYPE bloom_filter GRANULARITY 4;
-ALTER TABLE xilian.alert_event_log ADD INDEX IF NOT EXISTS idx_alert_severity (severity) TYPE set(0) GRANULARITY 4;
-ALTER TABLE xilian.alert_event_log ADD INDEX IF NOT EXISTS idx_alert_type (alert_type) TYPE bloom_filter GRANULARITY 4;
+ALTER TABLE portai_timeseries.vibration_features ADD INDEX IF NOT EXISTS idx_gateway (gateway_id) TYPE bloom_filter GRANULARITY 4;
+ALTER TABLE portai_timeseries.vibration_features ADD INDEX IF NOT EXISTS idx_batch (batch_id) TYPE bloom_filter GRANULARITY 4;
+ALTER TABLE portai_timeseries.alert_event_log ADD INDEX IF NOT EXISTS idx_alert_severity (severity) TYPE set(0) GRANULARITY 4;
+ALTER TABLE portai_timeseries.alert_event_log ADD INDEX IF NOT EXISTS idx_alert_type (alert_type) TYPE bloom_filter GRANULARITY 4;

@@ -15,7 +15,7 @@ const CLICKHOUSE_CONFIG = {
   username: process.env.CLICKHOUSE_USER || 'default',
   // P0-CRED-2: 移除硬编码密码，生产环境必须配置 CLICKHOUSE_PASSWORD
   password: process.env.CLICKHOUSE_PASSWORD || (() => { console.warn('[SECURITY] CLICKHOUSE_PASSWORD not set — MUST configure in production'); return ''; })(),
-  database: process.env.CLICKHOUSE_DATABASE || 'xilian',
+  database: process.env.CLICKHOUSE_DATABASE || 'portai_timeseries',
 };
 
 // 单例客户端
@@ -557,7 +557,7 @@ export async function getDatabaseStats(): Promise<{
         sum(total_rows) as total_rows,
         formatReadableSize(sum(total_bytes)) as disk_usage
       FROM system.tables
-      WHERE database = 'xilian'
+      WHERE database = 'portai_timeseries'
     `;
     
     const tableResult = await ch.query({ query: tableQuery, format: 'JSONEachRow' });

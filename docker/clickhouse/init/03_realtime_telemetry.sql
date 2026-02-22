@@ -14,7 +14,7 @@
 -- 替代 MySQL realtime_telemetry 表，承接所有传感器实时数据
 -- 预期写入量：10,000+ 点/秒（批量写入）
 
-CREATE TABLE IF NOT EXISTS xilian.realtime_telemetry (
+CREATE TABLE IF NOT EXISTS portai_timeseries.realtime_telemetry (
     -- === 设备标识 ===
     device_code   String       CODEC(LZ4),           -- 设备编码（FK → asset_nodes.code）
     mp_code       String       CODEC(LZ4),           -- 测点编码（FK → asset_measurement_points.mp_code）
@@ -58,7 +58,7 @@ SETTINGS
 -- TelemetryClickHouseSink 服务订阅 telemetry.feature（特征数据），不订阅 telemetry.raw
 -- 注意：Kafka Engine 表仅在 Kafka 可用时生效
 
-CREATE TABLE IF NOT EXISTS xilian.realtime_telemetry_kafka_queue (
+CREATE TABLE IF NOT EXISTS portai_timeseries.realtime_telemetry_kafka_queue (
     device_code   String,
     mp_code       String,
     gateway_id    String,
@@ -84,8 +84,8 @@ SETTINGS
 
 -- ===== 3. 物化视图：Kafka → MergeTree 自动写入 =====
 
-CREATE MATERIALIZED VIEW IF NOT EXISTS xilian.realtime_telemetry_mv
-TO xilian.realtime_telemetry AS
+CREATE MATERIALIZED VIEW IF NOT EXISTS portai_timeseries.realtime_telemetry_mv
+TO portai_timeseries.realtime_telemetry AS
 SELECT
     device_code,
     mp_code,
@@ -100,13 +100,13 @@ SELECT
     features,
     batch_id,
     source
-FROM xilian.realtime_telemetry_kafka_queue;
+FROM portai_timeseries.realtime_telemetry_kafka_queue;
 
 
 -- ===== 4. 分钟级聚合物化视图 =====
 -- 自动聚合为1分钟粒度，用于趋势图和仪表盘
 
-CREATE MATERIALIZED VIEW IF NOT EXISTS xilian.telemetry_1min_agg
+CREATE MATERIALIZED VIEW IF NOT EXISTS portai_timeseries.telemetry_1min_agg
 ENGINE = AggregatingMergeTree()
 PARTITION BY toYYYYMM(minute)
 ORDER BY (device_code, mp_code, minute)
@@ -119,13 +119,13 @@ AS SELECT
     maxState(value)    AS max_value,
     stddevPopState(value) AS std_value,
     countState()       AS sample_count
-FROM xilian.realtime_telemetry
+FROM portai_timeseries.realtime_telemetry
 GROUP BY minute, device_code, mp_code;
 
 
 -- ===== 5. 小时级聚合物化视图 =====
 
-CREATE MATERIALIZED VIEW IF NOT EXISTS xilian.telemetry_1hour_agg
+CREATE MATERIALIZED VIEW IF NOT EXISTS portai_timeseries.telemetry_1hour_agg
 ENGINE = AggregatingMergeTree()
 PARTITION BY toYYYYMM(hour)
 ORDER BY (device_code, mp_code, hour)
@@ -138,13 +138,13 @@ AS SELECT
     maxState(value)    AS max_value,
     stddevPopState(value) AS std_value,
     countState()       AS sample_count
-FROM xilian.realtime_telemetry
+FROM portai_timeseries.realtime_telemetry
 GROUP BY hour, device_code, mp_code;
 
 
 -- ===== 6. 天级聚合物化视图 =====
 
-CREATE MATERIALIZED VIEW IF NOT EXISTS xilian.telemetry_1day_agg
+CREATE MATERIALIZED VIEW IF NOT EXISTS portai_timeseries.telemetry_1day_agg
 ENGINE = AggregatingMergeTree()
 PARTITION BY toYYYYMM(day)
 ORDER BY (device_code, mp_code, day)
@@ -157,14 +157,14 @@ AS SELECT
     maxState(value)    AS max_value,
     stddevPopState(value) AS std_value,
     countState()       AS sample_count
-FROM xilian.realtime_telemetry
+FROM portai_timeseries.realtime_telemetry
 GROUP BY day, device_code, mp_code;
 
 
 -- ===== 7. 设备日统计物化视图 =====
 -- 每设备每天的汇总统计，用于设备健康仪表盘
 
-CREATE MATERIALIZED VIEW IF NOT EXISTS xilian.telemetry_device_daily
+CREATE MATERIALIZED VIEW IF NOT EXISTS portai_timeseries.telemetry_device_daily
 ENGINE = AggregatingMergeTree()
 PARTITION BY toYYYYMM(day)
 ORDER BY (device_code, day)
@@ -177,14 +177,14 @@ AS SELECT
     maxState(value)             AS max_value,
     sumState(is_anomaly)        AS anomaly_count,
     avgState(quality)           AS avg_quality
-FROM xilian.realtime_telemetry
+FROM portai_timeseries.realtime_telemetry
 GROUP BY day, device_code;
 
 
 -- ===== 8. 异常检测结果表（V4 统一版） =====
 -- 替代旧版 anomaly_detections，使用 device_code 体系
 
-CREATE TABLE IF NOT EXISTS xilian.anomaly_detections_v4 (
+CREATE TABLE IF NOT EXISTS portai_timeseries.anomaly_detections_v4 (
     detection_id    String       CODEC(LZ4),
     device_code     String       CODEC(LZ4),
     mp_code         String       CODEC(LZ4),
@@ -214,28 +214,28 @@ SETTINGS index_granularity = 8192;
 -- ===== 9. 索引优化 =====
 
 -- 实时遥测表索引
-ALTER TABLE xilian.realtime_telemetry
+ALTER TABLE portai_timeseries.realtime_telemetry
     ADD INDEX IF NOT EXISTS idx_gateway (gateway_id) TYPE bloom_filter GRANULARITY 4;
-ALTER TABLE xilian.realtime_telemetry
+ALTER TABLE portai_timeseries.realtime_telemetry
     ADD INDEX IF NOT EXISTS idx_quality (quality) TYPE set(0) GRANULARITY 4;
-ALTER TABLE xilian.realtime_telemetry
+ALTER TABLE portai_timeseries.realtime_telemetry
     ADD INDEX IF NOT EXISTS idx_anomaly (is_anomaly) TYPE set(0) GRANULARITY 2;
-ALTER TABLE xilian.realtime_telemetry
+ALTER TABLE portai_timeseries.realtime_telemetry
     ADD INDEX IF NOT EXISTS idx_batch (batch_id) TYPE bloom_filter GRANULARITY 4;
 
 -- 异常检测表索引
-ALTER TABLE xilian.anomaly_detections_v4
+ALTER TABLE portai_timeseries.anomaly_detections_v4
     ADD INDEX IF NOT EXISTS idx_severity (severity) TYPE set(0) GRANULARITY 4;
-ALTER TABLE xilian.anomaly_detections_v4
+ALTER TABLE portai_timeseries.anomaly_detections_v4
     ADD INDEX IF NOT EXISTS idx_status (status) TYPE set(0) GRANULARITY 4;
-ALTER TABLE xilian.anomaly_detections_v4
+ALTER TABLE portai_timeseries.anomaly_detections_v4
     ADD INDEX IF NOT EXISTS idx_algorithm (algorithm_type) TYPE set(0) GRANULARITY 4;
 
 
 -- ===== 10. V1 旧表兼容视图 =====
 -- 为旧代码提供 device_id 兼容视图（只读），逐步迁移后删除
 
-CREATE VIEW IF NOT EXISTS xilian.sensor_readings_compat AS
+CREATE VIEW IF NOT EXISTS portai_timeseries.sensor_readings_compat AS
 SELECT
     device_code AS device_id,
     mp_code     AS sensor_id,
@@ -250,9 +250,9 @@ SELECT
     timestamp,
     received_at,
     features    AS metadata
-FROM xilian.realtime_telemetry;
+FROM portai_timeseries.realtime_telemetry;
 
-CREATE VIEW IF NOT EXISTS xilian.telemetry_data_compat AS
+CREATE VIEW IF NOT EXISTS portai_timeseries.telemetry_data_compat AS
 SELECT
     device_code AS device_id,
     mp_code     AS sensor_id,
@@ -267,4 +267,4 @@ SELECT
     timestamp,
     batch_id,
     source
-FROM xilian.realtime_telemetry;
+FROM portai_timeseries.realtime_telemetry;

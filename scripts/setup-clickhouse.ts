@@ -11,7 +11,7 @@
  * 环境变量:
  *   CLICKHOUSE_HOST     (默认: localhost)
  *   CLICKHOUSE_PORT     (默认: 8123)
- *   CLICKHOUSE_DATABASE (默认: xilian)
+ *   CLICKHOUSE_DATABASE (默认: portai_timeseries)
  *   CLICKHOUSE_USER     (默认: default)
  *   CLICKHOUSE_PASSWORD (默认: 空)
  */
@@ -27,7 +27,7 @@ import * as http from 'http';
 const config = {
   host: process.env.CLICKHOUSE_HOST || 'localhost',
   port: parseInt(process.env.CLICKHOUSE_PORT || '8123', 10),
-  database: process.env.CLICKHOUSE_DATABASE || 'xilian',
+  database: process.env.CLICKHOUSE_DATABASE || 'portai_timeseries',
   user: process.env.CLICKHOUSE_USER || 'default',
   password: process.env.CLICKHOUSE_PASSWORD || '',
 };

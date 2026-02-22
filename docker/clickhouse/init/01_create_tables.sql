@@ -2,10 +2,10 @@
 -- 西联智能平台 - 时序数据存储
 
 -- 创建数据库
-CREATE DATABASE IF NOT EXISTS xilian;
+CREATE DATABASE IF NOT EXISTS portai_timeseries;
 
 -- 传感器原始读数表（高频写入）
-CREATE TABLE IF NOT EXISTS xilian.sensor_readings (
+CREATE TABLE IF NOT EXISTS portai_timeseries.sensor_readings (
     device_id String,
     sensor_id String,
     metric_name String,
@@ -22,7 +22,7 @@ TTL timestamp + INTERVAL 90 DAY
 SETTINGS index_granularity = 8192;
 
 -- 设备遥测数据表
-CREATE TABLE IF NOT EXISTS xilian.telemetry_data (
+CREATE TABLE IF NOT EXISTS portai_timeseries.telemetry_data (
     device_id String,
     sensor_id String,
     metric_name String,
@@ -39,7 +39,7 @@ TTL timestamp + INTERVAL 365 DAY
 SETTINGS index_granularity = 8192;
 
 -- 分钟级聚合物化视图
-CREATE MATERIALIZED VIEW IF NOT EXISTS xilian.sensor_readings_1m
+CREATE MATERIALIZED VIEW IF NOT EXISTS portai_timeseries.sensor_readings_1m
 ENGINE = SummingMergeTree()
 PARTITION BY toYYYYMM(window_start)
 ORDER BY (device_id, sensor_id, metric_name, window_start)
@@ -54,11 +54,11 @@ AS SELECT
     max(value) AS max_value,
     avg(value) AS avg_value,
     stddevPop(value) AS std_dev
-FROM xilian.sensor_readings
+FROM portai_timeseries.sensor_readings
 GROUP BY device_id, sensor_id, metric_name, window_start;
 
 -- 小时级聚合物化视图
-CREATE MATERIALIZED VIEW IF NOT EXISTS xilian.sensor_readings_1h
+CREATE MATERIALIZED VIEW IF NOT EXISTS portai_timeseries.sensor_readings_1h
 ENGINE = SummingMergeTree()
 PARTITION BY toYYYYMM(window_start)
 ORDER BY (device_id, sensor_id, metric_name, window_start)
@@ -73,11 +73,11 @@ AS SELECT
     max(value) AS max_value,
     avg(value) AS avg_value,
     stddevPop(value) AS std_dev
-FROM xilian.sensor_readings
+FROM portai_timeseries.sensor_readings
 GROUP BY device_id, sensor_id, metric_name, window_start;
 
 -- 天级聚合物化视图
-CREATE MATERIALIZED VIEW IF NOT EXISTS xilian.sensor_readings_1d
+CREATE MATERIALIZED VIEW IF NOT EXISTS portai_timeseries.sensor_readings_1d
 ENGINE = SummingMergeTree()
 PARTITION BY toYYYYMM(window_start)
 ORDER BY (device_id, sensor_id, metric_name, window_start)
@@ -92,11 +92,11 @@ AS SELECT
     max(value) AS max_value,
     avg(value) AS avg_value,
     stddevPop(value) AS std_dev
-FROM xilian.sensor_readings
+FROM portai_timeseries.sensor_readings
 GROUP BY device_id, sensor_id, metric_name, window_start;
 
 -- 异常检测结果表
-CREATE TABLE IF NOT EXISTS xilian.anomaly_detections (
+CREATE TABLE IF NOT EXISTS portai_timeseries.anomaly_detections (
     detection_id String,
     device_id String,
     sensor_id String,
@@ -117,7 +117,7 @@ TTL timestamp + INTERVAL 180 DAY
 SETTINGS index_granularity = 8192;
 
 -- 系统事件日志表
-CREATE TABLE IF NOT EXISTS xilian.event_logs (
+CREATE TABLE IF NOT EXISTS portai_timeseries.event_logs (
     event_id String,
     topic String,
     event_type String,
@@ -135,7 +135,7 @@ TTL timestamp + INTERVAL 90 DAY
 SETTINGS index_granularity = 8192;
 
 -- 设备状态历史表
-CREATE TABLE IF NOT EXISTS xilian.device_status_history (
+CREATE TABLE IF NOT EXISTS portai_timeseries.device_status_history (
     device_id String,
     status Enum8('online' = 1, 'offline' = 2, 'maintenance' = 3, 'error' = 4, 'unknown' = 5) DEFAULT 'unknown',
     previous_status Enum8('online' = 1, 'offline' = 2, 'maintenance' = 3, 'error' = 4, 'unknown' = 5) DEFAULT 'unknown',
@@ -149,6 +149,6 @@ TTL timestamp + INTERVAL 365 DAY
 SETTINGS index_granularity = 8192;
 
 -- 创建用于快速查询的索引
-ALTER TABLE xilian.sensor_readings ADD INDEX idx_device_sensor (device_id, sensor_id) TYPE bloom_filter GRANULARITY 4;
-ALTER TABLE xilian.telemetry_data ADD INDEX idx_device (device_id) TYPE bloom_filter GRANULARITY 4;
-ALTER TABLE xilian.anomaly_detections ADD INDEX idx_severity (severity) TYPE set(0) GRANULARITY 4;
+ALTER TABLE portai_timeseries.sensor_readings ADD INDEX idx_device_sensor (device_id, sensor_id) TYPE bloom_filter GRANULARITY 4;
+ALTER TABLE portai_timeseries.telemetry_data ADD INDEX idx_device (device_id) TYPE bloom_filter GRANULARITY 4;
+ALTER TABLE portai_timeseries.anomaly_detections ADD INDEX idx_severity (severity) TYPE set(0) GRANULARITY 4;

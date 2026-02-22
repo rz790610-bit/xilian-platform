@@ -1,16 +1,16 @@
 -- ============================================================================
--- xilian-platform v5.0 — ClickHouse DDL
+-- portai-platform v5.0 — ClickHouse DDL
 -- ============================================================================
 -- 新增基础表 + 5 个物化视图（预聚合宽表）
 -- 执行方式：
---   clickhouse-client --host <HOST> --port 9000 --database xilian < 03_v5_tables.sql
+--   clickhouse-client --host <HOST> --port 9000 --database portai_timeseries < 03_v5_tables.sql
 --   或在 Docker 初始化时自动执行
 -- ============================================================================
 
 -- ===== Step 1: v5.0 基础表 =====
 
 -- 实时遥测宽表（感知层输出，21维状态向量的源数据）
-CREATE TABLE IF NOT EXISTS xilian.realtime_telemetry (
+CREATE TABLE IF NOT EXISTS portai_timeseries.realtime_telemetry (
     timestamp DateTime64(3) CODEC(Delta, ZSTD(5)),
     device_code String CODEC(LZ4),
     mp_code String CODEC(LZ4),
@@ -32,7 +32,7 @@ TTL timestamp + INTERVAL 180 DAY
 SETTINGS index_granularity = 8192;
 
 -- 认知会话结果表
-CREATE TABLE IF NOT EXISTS xilian.cognition_session_results (
+CREATE TABLE IF NOT EXISTS portai_timeseries.cognition_session_results (
     session_id String CODEC(LZ4),
     device_code String CODEC(LZ4),
     trigger_type String CODEC(LZ4),
@@ -63,7 +63,7 @@ TTL started_at + INTERVAL 2 YEAR
 SETTINGS index_granularity = 8192;
 
 -- 护栏违规事件表
-CREATE TABLE IF NOT EXISTS xilian.guardrail_violation_events (
+CREATE TABLE IF NOT EXISTS portai_timeseries.guardrail_violation_events (
     violation_id String CODEC(LZ4),
     rule_id String CODEC(LZ4),
     rule_name String CODEC(LZ4),
@@ -88,7 +88,7 @@ TTL timestamp + INTERVAL 1 YEAR
 SETTINGS index_granularity = 8192;
 
 -- 进化周期指标表
-CREATE TABLE IF NOT EXISTS xilian.evolution_cycle_metrics (
+CREATE TABLE IF NOT EXISTS portai_timeseries.evolution_cycle_metrics (
     cycle_id String CODEC(LZ4),
     cycle_type String CODEC(LZ4),
     started_at DateTime64(3) CODEC(Delta, ZSTD(5)),
@@ -118,7 +118,7 @@ TTL started_at + INTERVAL 2 YEAR
 SETTINGS index_granularity = 8192;
 
 -- 工况实例表（感知层工况识别输出）
-CREATE TABLE IF NOT EXISTS xilian.condition_instances (
+CREATE TABLE IF NOT EXISTS portai_timeseries.condition_instances (
     instance_id String CODEC(LZ4),
     device_code String CODEC(LZ4),
     condition_type String CODEC(LZ4),
@@ -146,7 +146,7 @@ SETTINGS index_granularity = 8192;
 -- 用途：设备健康一览（按设备+小时聚合）
 -- 源表：realtime_telemetry + cognition_session_results
 -- ---------------------------------------------------------------
-CREATE MATERIALIZED VIEW IF NOT EXISTS xilian.mv_device_health_wide
+CREATE MATERIALIZED VIEW IF NOT EXISTS portai_timeseries.mv_device_health_wide
 ENGINE = AggregatingMergeTree()
 PARTITION BY toYYYYMM(hour)
 ORDER BY (device_code, hour)
@@ -161,7 +161,7 @@ AS SELECT
     countState() AS sample_count,
     avgState(quality_score) AS avg_quality,
     avgState(fusion_confidence) AS avg_fusion_confidence
-FROM xilian.realtime_telemetry
+FROM portai_timeseries.realtime_telemetry
 GROUP BY hour, device_code;
 
 -- ---------------------------------------------------------------
@@ -169,7 +169,7 @@ GROUP BY hour, device_code;
 -- 用途：周期阶段分析（按设备+工况类型+阶段聚合）
 -- 源表：condition_instances
 -- ---------------------------------------------------------------
-CREATE MATERIALIZED VIEW IF NOT EXISTS xilian.mv_cycle_phase_stats
+CREATE MATERIALIZED VIEW IF NOT EXISTS portai_timeseries.mv_cycle_phase_stats
 ENGINE = AggregatingMergeTree()
 PARTITION BY toYYYYMM(day)
 ORDER BY (device_code, condition_type, phase, day)
@@ -185,7 +185,7 @@ AS SELECT
     avgState(energy_consumed) AS avg_energy,
     avgState(uncertainty_score) AS avg_uncertainty,
     countState() AS cycle_count
-FROM xilian.condition_instances
+FROM portai_timeseries.condition_instances
 GROUP BY day, device_code, condition_type, phase;
 
 -- ---------------------------------------------------------------
@@ -193,7 +193,7 @@ GROUP BY day, device_code, condition_type, phase;
 -- 用途：融合诊断分析（按设备+天聚合认知会话结果）
 -- 源表：cognition_session_results
 -- ---------------------------------------------------------------
-CREATE MATERIALIZED VIEW IF NOT EXISTS xilian.mv_fusion_diagnosis_wide
+CREATE MATERIALIZED VIEW IF NOT EXISTS portai_timeseries.mv_fusion_diagnosis_wide
 ENGINE = AggregatingMergeTree()
 PARTITION BY toYYYYMM(day)
 ORDER BY (device_code, day)
@@ -213,7 +213,7 @@ AS SELECT
     -- 会话统计
     countState() AS session_count,
     avgState(duration_ms) AS avg_duration_ms
-FROM xilian.cognition_session_results
+FROM portai_timeseries.cognition_session_results
 GROUP BY day, device_code;
 
 -- ---------------------------------------------------------------
@@ -221,7 +221,7 @@ GROUP BY day, device_code;
 -- 用途：护栏效果评估（按规则+天聚合）
 -- 源表：guardrail_violation_events
 -- ---------------------------------------------------------------
-CREATE MATERIALIZED VIEW IF NOT EXISTS xilian.mv_guardrail_effectiveness
+CREATE MATERIALIZED VIEW IF NOT EXISTS portai_timeseries.mv_guardrail_effectiveness
 ENGINE = AggregatingMergeTree()
 PARTITION BY toYYYYMM(day)
 ORDER BY (rule_id, day)
@@ -240,7 +240,7 @@ AS SELECT
     avgState(pre_intervention_score) AS avg_pre_score,
     avgState(post_intervention_score) AS avg_post_score,
     avgState(intervention_duration_ms) AS avg_intervention_duration
-FROM xilian.guardrail_violation_events
+FROM portai_timeseries.guardrail_violation_events
 GROUP BY day, rule_id, rule_name, rule_category;
 
 -- ---------------------------------------------------------------
@@ -248,7 +248,7 @@ GROUP BY day, rule_id, rule_name, rule_category;
 -- 用途：进化趋势追踪（按周聚合进化周期指标）
 -- 源表：evolution_cycle_metrics
 -- ---------------------------------------------------------------
-CREATE MATERIALIZED VIEW IF NOT EXISTS xilian.mv_evolution_trend
+CREATE MATERIALIZED VIEW IF NOT EXISTS portai_timeseries.mv_evolution_trend
 ENGINE = AggregatingMergeTree()
 PARTITION BY toYYYYMM(week)
 ORDER BY (cycle_type, week)
@@ -271,24 +271,24 @@ AS SELECT
     avgState(meta_learning_loss) AS avg_meta_loss,
     -- 周期数
     countState() AS cycle_count
-FROM xilian.evolution_cycle_metrics
+FROM portai_timeseries.evolution_cycle_metrics
 GROUP BY week, cycle_type;
 
 
 -- ===== Step 3: 索引 =====
 
-ALTER TABLE xilian.realtime_telemetry ADD INDEX IF NOT EXISTS idx_rt_condition (condition_id) TYPE bloom_filter GRANULARITY 4;
-ALTER TABLE xilian.realtime_telemetry ADD INDEX IF NOT EXISTS idx_rt_gateway (gateway_id) TYPE bloom_filter GRANULARITY 4;
-ALTER TABLE xilian.realtime_telemetry ADD INDEX IF NOT EXISTS idx_rt_batch (batch_id) TYPE bloom_filter GRANULARITY 4;
-ALTER TABLE xilian.realtime_telemetry ADD INDEX IF NOT EXISTS idx_rt_protocol (source_protocol) TYPE set(0) GRANULARITY 4;
+ALTER TABLE portai_timeseries.realtime_telemetry ADD INDEX IF NOT EXISTS idx_rt_condition (condition_id) TYPE bloom_filter GRANULARITY 4;
+ALTER TABLE portai_timeseries.realtime_telemetry ADD INDEX IF NOT EXISTS idx_rt_gateway (gateway_id) TYPE bloom_filter GRANULARITY 4;
+ALTER TABLE portai_timeseries.realtime_telemetry ADD INDEX IF NOT EXISTS idx_rt_batch (batch_id) TYPE bloom_filter GRANULARITY 4;
+ALTER TABLE portai_timeseries.realtime_telemetry ADD INDEX IF NOT EXISTS idx_rt_protocol (source_protocol) TYPE set(0) GRANULARITY 4;
 
-ALTER TABLE xilian.cognition_session_results ADD INDEX IF NOT EXISTS idx_cs_trigger (trigger_type) TYPE set(0) GRANULARITY 4;
-ALTER TABLE xilian.cognition_session_results ADD INDEX IF NOT EXISTS idx_cs_status (status) TYPE set(0) GRANULARITY 4;
+ALTER TABLE portai_timeseries.cognition_session_results ADD INDEX IF NOT EXISTS idx_cs_trigger (trigger_type) TYPE set(0) GRANULARITY 4;
+ALTER TABLE portai_timeseries.cognition_session_results ADD INDEX IF NOT EXISTS idx_cs_status (status) TYPE set(0) GRANULARITY 4;
 
-ALTER TABLE xilian.guardrail_violation_events ADD INDEX IF NOT EXISTS idx_gv_severity (severity) TYPE set(0) GRANULARITY 4;
-ALTER TABLE xilian.guardrail_violation_events ADD INDEX IF NOT EXISTS idx_gv_category (rule_category) TYPE set(0) GRANULARITY 4;
+ALTER TABLE portai_timeseries.guardrail_violation_events ADD INDEX IF NOT EXISTS idx_gv_severity (severity) TYPE set(0) GRANULARITY 4;
+ALTER TABLE portai_timeseries.guardrail_violation_events ADD INDEX IF NOT EXISTS idx_gv_category (rule_category) TYPE set(0) GRANULARITY 4;
 
-ALTER TABLE xilian.evolution_cycle_metrics ADD INDEX IF NOT EXISTS idx_ec_type (cycle_type) TYPE set(0) GRANULARITY 4;
+ALTER TABLE portai_timeseries.evolution_cycle_metrics ADD INDEX IF NOT EXISTS idx_ec_type (cycle_type) TYPE set(0) GRANULARITY 4;
 
-ALTER TABLE xilian.condition_instances ADD INDEX IF NOT EXISTS idx_ci_type (condition_type) TYPE set(0) GRANULARITY 4;
-ALTER TABLE xilian.condition_instances ADD INDEX IF NOT EXISTS idx_ci_phase (phase) TYPE set(0) GRANULARITY 4;
+ALTER TABLE portai_timeseries.condition_instances ADD INDEX IF NOT EXISTS idx_ci_type (condition_type) TYPE set(0) GRANULARITY 4;
+ALTER TABLE portai_timeseries.condition_instances ADD INDEX IF NOT EXISTS idx_ci_phase (phase) TYPE set(0) GRANULARITY 4;

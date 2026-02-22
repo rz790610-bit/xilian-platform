@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================================================
-# xilian-platform v5.0 — ClickHouse DDL 执行脚本
+# portai-platform v5.0 — ClickHouse DDL 执行脚本
 # ============================================================================
 # 用法：
 #   ./scripts/clickhouse-v5-migrate.sh [--host HOST] [--port PORT] [--user USER] [--password PASS] [--database DB]
@@ -29,7 +29,7 @@ CH_HOST="${CLICKHOUSE_HOST:-localhost}"
 CH_PORT="${CLICKHOUSE_PORT:-9000}"
 CH_USER="${CLICKHOUSE_USER:-default}"
 CH_PASSWORD="${CLICKHOUSE_PASSWORD:-}"
-CH_DATABASE="${CLICKHOUSE_DATABASE:-xilian}"
+CH_DATABASE="${CLICKHOUSE_DATABASE:-portai_timeseries}"
 
 # 解析命令行参数
 while [[ $# -gt 0 ]]; do
@@ -60,7 +60,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 DDL_FILE="${SCRIPT_DIR}/../docker/clickhouse/init/03_v5_tables.sql"
 
 echo -e "${BLUE}============================================================================${NC}"
-echo -e "${BLUE} xilian-platform v5.0 — ClickHouse DDL 迁移${NC}"
+echo -e "${BLUE} portai-platform v5.0 — ClickHouse DDL 迁移${NC}"
 echo -e "${BLUE}============================================================================${NC}"
 echo -e "  主机: ${CH_HOST}:${CH_PORT}"
 echo -e "  数据库: ${CH_DATABASE}"

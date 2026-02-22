@@ -174,7 +174,7 @@ GROK_API_KEY=
 
 # CLICKHOUSE_HOST=localhost
 # CLICKHOUSE_PORT=8123
-# CLICKHOUSE_DATABASE=xilian
+# CLICKHOUSE_DATABASE=portai_timeseries
 # CLICKHOUSE_USER=default
 # CLICKHOUSE_PASSWORD=
 
@@ -186,7 +186,7 @@ GROK_API_KEY=
 # MINIO_PORT=9000
 # MINIO_ACCESS_KEY=minioadmin
 # MINIO_SECRET_KEY=minioadmin
-# MINIO_BUCKET_RAW=xilian-raw
-# MINIO_BUCKET_MODELS=xilian-models
+# MINIO_BUCKET_RAW=portai-raw
+# MINIO_BUCKET_MODELS=portai-models
 `.trim();
 }
