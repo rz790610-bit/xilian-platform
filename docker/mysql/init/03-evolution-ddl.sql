@@ -197,7 +197,7 @@ CREATE TABLE IF NOT EXISTS `causal_edges` (
 CREATE TABLE IF NOT EXISTS `engine_config_registry` (
   `id` INT AUTO_INCREMENT,
   `config_key` VARCHAR(128) NOT NULL COMMENT '配置键',
-  `config_value` JSON NOT NULL COMMENT '配置值 JSON',
+  `config_value` TEXT NOT NULL COMMENT '配置值（JSON 字符串）',
   `scope` VARCHAR(64) NOT NULL DEFAULT 'global' COMMENT 'global|machine_type|machine_id',
   `scope_id` VARCHAR(128) COMMENT '作用域 ID（当 scope 非 global 时）',
   `description` TEXT COMMENT '配置说明',

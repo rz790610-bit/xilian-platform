@@ -1443,3 +1443,102 @@ export const twinOutbox = mysqlTable('twin_outbox', {
 ]);
 export type TwinOutboxRow = typeof twinOutbox.$inferSelect;
 export type InsertTwinOutbox = typeof twinOutbox.$inferInsert;
+
+
+// ============================================================================
+// Phase 3 v3.0 — 数字孪生赋能工具配置平台（4 张新表）
+// ============================================================================
+
+/**
+ * 层级熔断开关 — 7 层架构的全局启停控制
+ */
+export const twinLayerSwitches = mysqlTable('twin_layer_switches', {
+  id: int('id').autoincrement().primaryKey(),
+  layerId: varchar('layer_id', { length: 16 }).notNull(),
+  layerName: varchar('layer_name', { length: 64 }).notNull(),
+  enabled: tinyint('enabled').notNull().default(1),
+  priority: int('priority').notNull().default(0),
+  description: text('description'),
+  updatedBy: varchar('updated_by', { length: 64 }),
+  createdAt: timestamp('created_at', { fsp: 3 }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { fsp: 3 }).defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex('uk_tls_layer').on(table.layerId),
+]);
+export type TwinLayerSwitchRow = typeof twinLayerSwitches.$inferSelect;
+export type InsertTwinLayerSwitch = typeof twinLayerSwitches.$inferInsert;
+
+/**
+ * 配置审计日志 — 记录所有配置变更
+ */
+export const twinConfigAuditLog = mysqlTable('twin_config_audit_log', {
+  id: bigint('id', { mode: 'number' }).autoincrement().primaryKey(),
+  userId: varchar('user_id', { length: 64 }).notNull(),
+  userName: varchar('user_name', { length: 128 }),
+  module: varchar('module', { length: 64 }).notNull(),
+  configKey: varchar('config_key', { length: 128 }).notNull(),
+  action: mysqlEnum('action', ['create', 'update', 'delete', 'rollback', 'batch_update', 'simulate']).notNull(),
+  oldValue: json('old_value'),
+  newValue: json('new_value'),
+  oldVersion: varchar('old_version', { length: 32 }),
+  newVersion: varchar('new_version', { length: 32 }),
+  impactScore: int('impact_score').default(0),
+  reason: text('reason'),
+  ipAddress: varchar('ip_address', { length: 45 }),
+  createdAt: timestamp('created_at', { fsp: 3 }).defaultNow().notNull(),
+}, (table) => [
+  index('idx_tcal_user').on(table.userId),
+  index('idx_tcal_module').on(table.module),
+  index('idx_tcal_key').on(table.configKey),
+  index('idx_tcal_action').on(table.action),
+  index('idx_tcal_time').on(table.createdAt),
+]);
+export type TwinConfigAuditLogRow = typeof twinConfigAuditLog.$inferSelect;
+export type InsertTwinConfigAuditLog = typeof twinConfigAuditLog.$inferInsert;
+
+/**
+ * 配置快照 — 定期/手动快照，支持一键回滚
+ */
+export const twinConfigSnapshot = mysqlTable('twin_config_snapshot', {
+  id: bigint('id', { mode: 'number' }).autoincrement().primaryKey(),
+  snapshotType: mysqlEnum('snapshot_type', ['auto', 'manual', 'pre_rollback']).notNull().default('auto'),
+  snapshotName: varchar('snapshot_name', { length: 256 }),
+  layerId: varchar('layer_id', { length: 16 }),
+  module: varchar('module', { length: 64 }),
+  configData: json('config_data').notNull(),
+  layerSwitches: json('layer_switches'),
+  checksum: varchar('checksum', { length: 64 }),
+  createdBy: varchar('created_by', { length: 64 }).notNull().default('system'),
+  createdAt: timestamp('created_at', { fsp: 3 }).defaultNow().notNull(),
+  expiresAt: timestamp('expires_at', { fsp: 3 }),
+}, (table) => [
+  index('idx_tcs_type').on(table.snapshotType),
+  index('idx_tcs_layer').on(table.layerId),
+  index('idx_tcs_module').on(table.module),
+  index('idx_tcs_time').on(table.createdAt),
+  index('idx_tcs_expires').on(table.expiresAt),
+]);
+export type TwinConfigSnapshotRow = typeof twinConfigSnapshot.$inferSelect;
+export type InsertTwinConfigSnapshot = typeof twinConfigSnapshot.$inferInsert;
+
+/**
+ * 配置仿真运行记录 — 记录 simulateConfig 的执行结果
+ */
+export const twinConfigSimulationRuns = mysqlTable('twin_config_simulation_runs', {
+  id: bigint('id', { mode: 'number' }).autoincrement().primaryKey(),
+  userId: varchar('user_id', { length: 64 }).notNull(),
+  module: varchar('module', { length: 64 }).notNull(),
+  tempConfig: json('temp_config').notNull(),
+  baselineConfig: json('baseline_config').notNull(),
+  result: json('result'),
+  status: mysqlEnum('status', ['running', 'completed', 'failed']).notNull().default('running'),
+  durationMs: int('duration_ms'),
+  createdAt: timestamp('created_at', { fsp: 3 }).defaultNow().notNull(),
+  completedAt: timestamp('completed_at', { fsp: 3 }),
+}, (table) => [
+  index('idx_tcsr_user').on(table.userId),
+  index('idx_tcsr_module').on(table.module),
+  index('idx_tcsr_status').on(table.status),
+]);
+export type TwinConfigSimulationRunRow = typeof twinConfigSimulationRuns.$inferSelect;
+export type InsertTwinConfigSimulationRun = typeof twinConfigSimulationRuns.$inferInsert;

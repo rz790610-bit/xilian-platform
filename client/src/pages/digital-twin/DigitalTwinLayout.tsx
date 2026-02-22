@@ -23,12 +23,14 @@ import EquipmentStatusPage from './EquipmentStatusPage';
 import SimulationPage from './SimulationPage';
 import ReplayPage from './ReplayPage';
 import WorldModelPage from './WorldModelPage';
+import RuntimeConfigPage from './RuntimeConfigPage';
 
 const tabs = [
   { key: 'status', label: '设备状态', path: '/digital-twin' },
   { key: 'simulation', label: '仿真推演', path: '/digital-twin/simulation' },
   { key: 'replay', label: '历史回放', path: '/digital-twin/replay' },
   { key: 'worldmodel', label: '世界模型', path: '/digital-twin/worldmodel' },
+  { key: 'config', label: '⚙️ 运行配置', path: '/digital-twin/config' },
 ] as const;
 
 export default function DigitalTwinLayout() {
@@ -116,6 +118,9 @@ export default function DigitalTwinLayout() {
             </Route>
             <Route path="/digital-twin/worldmodel">
               <WorldModelPage equipmentId={selectedTwin} />
+            </Route>
+            <Route path="/digital-twin/config">
+              <RuntimeConfigPage />
             </Route>
           </Switch>
         ) : (

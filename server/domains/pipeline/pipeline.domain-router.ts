@@ -72,6 +72,7 @@ import { worldModelMetrics } from '../../platform/cognition/worldmodel/otel-metr
 import { auditLogger } from '../../platform/cognition/worldmodel/audit-logger';
 import { DBSCANEngine } from '../../platform/cognition/worldmodel/dbscan-engine';
 import { worldModelToolManager } from '../../platform/cognition/worldmodel/grok-tools';
+import { twinConfigRouter } from './twinConfig.domain-router';
 import type { StateVector } from '../../platform/cognition/worldmodel/world-model';
 // 复用现有路由
 import { pipelineRouter } from '../../api/pipeline.router';
@@ -1307,6 +1308,8 @@ export const pipelineDomainRouter = router({
       }
     }),
 
+  /** 数字孪生运行配置 */
+  twinConfig: twinConfigRouter,
   /** 仿真子路由 */
   simulation: simulationRouter,
   /** 回放子路由 */
