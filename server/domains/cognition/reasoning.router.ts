@@ -4,6 +4,7 @@
  * ============================================================================
  *
  * 提供 Phase 2 推理引擎的前端可视化 API：
+ *   - 动态配置注册表 CRUD（可增加、可修改、可删除配置项）
  *   - 引擎配置读写（Orchestrator / CausalGraph / ExperiencePool / PhysicsVerifier / FeedbackLoop）
  *   - 因果图数据获取和路径追溯
  *   - 经验池统计和搜索
@@ -14,6 +15,9 @@
 
 import { router, publicProcedure } from '../../core/trpc';
 import { z } from 'zod';
+import { getDb } from '../../lib/db';
+import { eq, and, asc, desc } from 'drizzle-orm';
+import { engineConfigRegistry } from '../../../drizzle/evolution-schema';
 import type {
   OrchestratorConfig,
   CausalGraphConfig,
@@ -31,74 +35,83 @@ import type {
 } from '../../platform/cognition/reasoning/reasoning.types';
 
 // ============================================================================
-// 运行时状态存储（内存态，服务重启后重置为默认值）
+// 内置配置项种子数据（首次初始化时写入数据库）
 // ============================================================================
 
-/** 默认 Orchestrator 配置 */
-const defaultOrchestratorConfig: OrchestratorConfig = {
-  routing: {
-    fastPathConfidence: 0.85,
-    deepPathTrigger: 0.4,
-    fallbackTimeoutMs: 30000,
-  },
-  costGate: {
-    dailyGrokBudget: 200,
-    dailyGrokUsed: 0,
-    experienceHitSuppression: 0.3,
-    shortCircuitSuppression: 0.2,
-  },
-  shortCircuitConfidence: 0.95,
-  parallelFanout: {
-    maxConcurrency: 8,
-    taskTimeoutMs: 5000,
-    globalTimeoutMs: 15000,
-  },
-  latencyBudgetMs: 5000,
-};
+interface SeedConfigItem {
+  module: string;
+  configGroup: string;
+  configKey: string;
+  configValue: string;
+  valueType: 'number' | 'string' | 'boolean' | 'json';
+  defaultValue: string;
+  label: string;
+  description: string;
+  unit?: string;
+  constraints?: { min?: number; max?: number; step?: number; options?: string[] };
+  sortOrder: number;
+}
 
-/** 默认 CausalGraph 配置 */
-const defaultCausalGraphConfig: CausalGraphConfig = {
-  maxNodes: 500,
-  edgeDecayRatePerDay: 0.05,
-  minEdgeWeight: 0.3,
-  maxWhyDepth: 5,
-  enableGrokCompletion: true,
-  concurrency: { maxConcurrency: 4, taskTimeoutMs: 3000, globalTimeoutMs: 10000 },
-};
+const BUILTIN_SEED_CONFIGS: SeedConfigItem[] = [
+  // ── Orchestrator · routing ──
+  { module: 'orchestrator', configGroup: 'routing', configKey: 'fastPathConfidence', configValue: '0.85', valueType: 'number', defaultValue: '0.85', label: '快速路径置信度阈值', description: '经验命中置信度 >= 此值时走快速路径，跳过深度推理', unit: '', constraints: { min: 0.5, max: 1.0, step: 0.01 }, sortOrder: 10 },
+  { module: 'orchestrator', configGroup: 'routing', configKey: 'deepPathTrigger', configValue: '0.4', valueType: 'number', defaultValue: '0.4', label: '深度路径触发阈值', description: '置信度 < 此值时触发深度推理路径（因果图 + 物理验证 + Grok）', unit: '', constraints: { min: 0.1, max: 0.8, step: 0.01 }, sortOrder: 20 },
+  { module: 'orchestrator', configGroup: 'routing', configKey: 'fallbackTimeoutMs', configValue: '30000', valueType: 'number', defaultValue: '30000', label: '兜底超时', description: '推理超时后降级为经验匹配结果', unit: 'ms', constraints: { min: 5000, max: 120000, step: 1000 }, sortOrder: 30 },
+  // ── Orchestrator · costGate ──
+  { module: 'orchestrator', configGroup: 'costGate', configKey: 'dailyGrokBudget', configValue: '200', valueType: 'number', defaultValue: '200', label: '每日 Grok 调用预算', description: '每日允许的 Grok API 调用次数上限', unit: '次', constraints: { min: 0, max: 10000, step: 10 }, sortOrder: 40 },
+  { module: 'orchestrator', configGroup: 'costGate', configKey: 'experienceHitSuppression', configValue: '0.3', valueType: 'number', defaultValue: '0.3', label: '经验命中抑制系数', description: '经验命中后对 Grok 调用概率的抑制比例', unit: '', constraints: { min: 0, max: 1, step: 0.05 }, sortOrder: 50 },
+  { module: 'orchestrator', configGroup: 'costGate', configKey: 'shortCircuitSuppression', configValue: '0.2', valueType: 'number', defaultValue: '0.2', label: '短路抑制系数', description: '短路判断后对后续模块调用的抑制比例', unit: '', constraints: { min: 0, max: 1, step: 0.05 }, sortOrder: 60 },
+  // ── Orchestrator · parallelFanout ──
+  { module: 'orchestrator', configGroup: 'parallelFanout', configKey: 'maxConcurrency', configValue: '8', valueType: 'number', defaultValue: '8', label: '最大并行度', description: '并行扇出阶段的最大并发任务数', unit: '', constraints: { min: 1, max: 32, step: 1 }, sortOrder: 70 },
+  { module: 'orchestrator', configGroup: 'parallelFanout', configKey: 'taskTimeoutMs', configValue: '5000', valueType: 'number', defaultValue: '5000', label: '单任务超时', description: '并行扇出中单个任务的超时时间', unit: 'ms', constraints: { min: 1000, max: 30000, step: 500 }, sortOrder: 80 },
+  { module: 'orchestrator', configGroup: 'parallelFanout', configKey: 'globalTimeoutMs', configValue: '15000', valueType: 'number', defaultValue: '15000', label: '全局超时', description: '并行扇出阶段的全局超时时间', unit: 'ms', constraints: { min: 5000, max: 60000, step: 1000 }, sortOrder: 90 },
+  // ── Orchestrator · general ──
+  { module: 'orchestrator', configGroup: 'general', configKey: 'shortCircuitConfidence', configValue: '0.95', valueType: 'number', defaultValue: '0.95', label: '短路置信度', description: '置信度 >= 此值时直接输出结果，跳过剩余阶段', unit: '', constraints: { min: 0.8, max: 1.0, step: 0.01 }, sortOrder: 100 },
+  { module: 'orchestrator', configGroup: 'general', configKey: 'latencyBudgetMs', configValue: '5000', valueType: 'number', defaultValue: '5000', label: '延迟预算', description: '单次推理的总延迟预算', unit: 'ms', constraints: { min: 1000, max: 30000, step: 500 }, sortOrder: 110 },
 
-/** 默认 ExperiencePool 配置 */
-const defaultExperiencePoolConfig: ExperiencePoolConfig = {
-  capacity: { episodic: 1000, semantic: 500, procedural: 200 },
-  decay: { timeHalfLifeDays: 30, deviceSimilarityWeight: 0.4, conditionSimilarityWeight: 0.3 },
-  adaptiveDimensionThresholds: { singleDimension: 50, twoDimension: 200 },
-  retrievalTopK: 5,
-  minSimilarity: 0.6,
-};
+  // ── CausalGraph ──
+  { module: 'causalGraph', configGroup: 'graph', configKey: 'maxNodes', configValue: '500', valueType: 'number', defaultValue: '500', label: '最大节点数', description: '因果图允许的最大节点数量', unit: '个', constraints: { min: 50, max: 5000, step: 50 }, sortOrder: 10 },
+  { module: 'causalGraph', configGroup: 'graph', configKey: 'edgeDecayRatePerDay', configValue: '0.05', valueType: 'number', defaultValue: '0.05', label: '边权衰减率/天', description: '因果边权重每天的自然衰减率', unit: '/天', constraints: { min: 0, max: 0.5, step: 0.01 }, sortOrder: 20 },
+  { module: 'causalGraph', configGroup: 'graph', configKey: 'minEdgeWeight', configValue: '0.3', valueType: 'number', defaultValue: '0.3', label: '最小边权', description: '低于此权重的边将被自动修剪', unit: '', constraints: { min: 0.05, max: 0.8, step: 0.05 }, sortOrder: 30 },
+  { module: 'causalGraph', configGroup: 'graph', configKey: 'maxWhyDepth', configValue: '5', valueType: 'number', defaultValue: '5', label: '最大 5-Why 深度', description: '因果追溯的最大递归深度', unit: '层', constraints: { min: 2, max: 10, step: 1 }, sortOrder: 40 },
+  { module: 'causalGraph', configGroup: 'graph', configKey: 'enableGrokCompletion', configValue: 'true', valueType: 'boolean', defaultValue: 'true', label: '启用 Grok 补全', description: '是否允许 Grok 自动补全缺失的因果关系', sortOrder: 50 },
 
-/** 默认 PhysicsVerifier 配置 */
-const defaultPhysicsVerifierConfig: PhysicsVerifierConfig = {
-  mappingConfidenceThreshold: 0.3,
-  sourceWeights: { rule: 0.30, embedding: 0.40, grok: 0.30 },
-  residualThreshold: 0.15,
-  monteCarloSamples: 1000,
-  concurrency: { maxConcurrency: 4, taskTimeoutMs: 5000, globalTimeoutMs: 15000 },
-  enableGrokMapping: true,
-};
+  // ── ExperiencePool · capacity ──
+  { module: 'experiencePool', configGroup: 'capacity', configKey: 'episodicCapacity', configValue: '1000', valueType: 'number', defaultValue: '1000', label: '情景记忆容量', description: '情景记忆层的最大记录数', unit: '条', constraints: { min: 100, max: 10000, step: 100 }, sortOrder: 10 },
+  { module: 'experiencePool', configGroup: 'capacity', configKey: 'semanticCapacity', configValue: '500', valueType: 'number', defaultValue: '500', label: '语义记忆容量', description: '语义记忆层的最大记录数', unit: '条', constraints: { min: 50, max: 5000, step: 50 }, sortOrder: 20 },
+  { module: 'experiencePool', configGroup: 'capacity', configKey: 'proceduralCapacity', configValue: '200', valueType: 'number', defaultValue: '200', label: '程序记忆容量', description: '程序记忆层的最大记录数', unit: '条', constraints: { min: 20, max: 2000, step: 20 }, sortOrder: 30 },
+  // ── ExperiencePool · decay ──
+  { module: 'experiencePool', configGroup: 'decay', configKey: 'timeHalfLifeDays', configValue: '30', valueType: 'number', defaultValue: '30', label: '时间半衰期', description: '经验记录的时间维度半衰期', unit: '天', constraints: { min: 7, max: 365, step: 1 }, sortOrder: 40 },
+  { module: 'experiencePool', configGroup: 'decay', configKey: 'deviceSimilarityWeight', configValue: '0.4', valueType: 'number', defaultValue: '0.4', label: '设备相似度权重', description: '经验检索时设备相似度的权重', unit: '', constraints: { min: 0, max: 1, step: 0.05 }, sortOrder: 50 },
+  { module: 'experiencePool', configGroup: 'decay', configKey: 'conditionSimilarityWeight', configValue: '0.3', valueType: 'number', defaultValue: '0.3', label: '工况相似度权重', description: '经验检索时工况相似度的权重', unit: '', constraints: { min: 0, max: 1, step: 0.05 }, sortOrder: 60 },
+  // ── ExperiencePool · retrieval ──
+  { module: 'experiencePool', configGroup: 'retrieval', configKey: 'retrievalTopK', configValue: '5', valueType: 'number', defaultValue: '5', label: '检索 Top-K', description: '经验检索返回的最大结果数', unit: '条', constraints: { min: 1, max: 20, step: 1 }, sortOrder: 70 },
+  { module: 'experiencePool', configGroup: 'retrieval', configKey: 'minSimilarity', configValue: '0.6', valueType: 'number', defaultValue: '0.6', label: '最小相似度', description: '经验检索的最小相似度阈值', unit: '', constraints: { min: 0.1, max: 0.95, step: 0.05 }, sortOrder: 80 },
 
-/** 默认 FeedbackLoop 配置 */
-const defaultFeedbackLoopConfig: FeedbackLoopConfig = {
-  minSamplesForUpdate: 3,
-  learningRate: { initial: 0.1, min: 0.01, max: 0.5, decayFactor: 0.995 },
-  revisionLogRetentionDays: 90,
-  enableAutoFeedback: true,
-};
+  // ── PhysicsVerifier ──
+  { module: 'physicsVerifier', configGroup: 'verification', configKey: 'mappingConfidenceThreshold', configValue: '0.3', valueType: 'number', defaultValue: '0.3', label: '映射置信度阈值', description: '物理公式映射的最低置信度', unit: '', constraints: { min: 0.1, max: 0.8, step: 0.05 }, sortOrder: 10 },
+  { module: 'physicsVerifier', configGroup: 'verification', configKey: 'residualThreshold', configValue: '0.15', valueType: 'number', defaultValue: '0.15', label: '残差阈值', description: '物理验证的残差容忍阈值', unit: '', constraints: { min: 0.01, max: 0.5, step: 0.01 }, sortOrder: 20 },
+  { module: 'physicsVerifier', configGroup: 'verification', configKey: 'monteCarloSamples', configValue: '1000', valueType: 'number', defaultValue: '1000', label: 'Monte Carlo 采样数', description: '不确定性量化的蒙特卡洛采样次数', unit: '次', constraints: { min: 100, max: 10000, step: 100 }, sortOrder: 30 },
+  { module: 'physicsVerifier', configGroup: 'verification', configKey: 'enableGrokMapping', configValue: 'true', valueType: 'boolean', defaultValue: 'true', label: '启用 Grok 映射', description: '是否允许 Grok 辅助物理公式映射', sortOrder: 40 },
+  // ── PhysicsVerifier · sourceWeights ──
+  { module: 'physicsVerifier', configGroup: 'sourceWeights', configKey: 'ruleWeight', configValue: '0.30', valueType: 'number', defaultValue: '0.30', label: '规则源权重', description: '规则匹配源在三源融合中的权重', unit: '', constraints: { min: 0, max: 1, step: 0.05 }, sortOrder: 50 },
+  { module: 'physicsVerifier', configGroup: 'sourceWeights', configKey: 'embeddingWeight', configValue: '0.40', valueType: 'number', defaultValue: '0.40', label: '嵌入源权重', description: '向量嵌入源在三源融合中的权重', unit: '', constraints: { min: 0, max: 1, step: 0.05 }, sortOrder: 60 },
+  { module: 'physicsVerifier', configGroup: 'sourceWeights', configKey: 'grokWeight', configValue: '0.30', valueType: 'number', defaultValue: '0.30', label: 'Grok 源权重', description: 'Grok 推理源在三源融合中的权重', unit: '', constraints: { min: 0, max: 1, step: 0.05 }, sortOrder: 70 },
 
-// 运行时可变配置（内存态）
-let orchestratorConfig = { ...defaultOrchestratorConfig };
-let causalGraphConfig = { ...defaultCausalGraphConfig };
-let experiencePoolConfig = { ...defaultExperiencePoolConfig };
-let physicsVerifierConfig = { ...defaultPhysicsVerifierConfig };
-let feedbackLoopConfig = { ...defaultFeedbackLoopConfig };
+  // ── FeedbackLoop ──
+  { module: 'feedbackLoop', configGroup: 'general', configKey: 'minSamplesForUpdate', configValue: '3', valueType: 'number', defaultValue: '3', label: '最小更新样本数', description: '触发知识更新所需的最小反馈样本数', unit: '个', constraints: { min: 1, max: 20, step: 1 }, sortOrder: 10 },
+  { module: 'feedbackLoop', configGroup: 'general', configKey: 'enableAutoFeedback', configValue: 'true', valueType: 'boolean', defaultValue: 'true', label: '启用自动反馈', description: '是否自动将推理结果反馈到知识库', sortOrder: 20 },
+  { module: 'feedbackLoop', configGroup: 'general', configKey: 'revisionLogRetentionDays', configValue: '90', valueType: 'number', defaultValue: '90', label: '修订日志保留天数', description: '修订日志的保留时间', unit: '天', constraints: { min: 7, max: 365, step: 1 }, sortOrder: 30 },
+  // ── FeedbackLoop · learningRate ──
+  { module: 'feedbackLoop', configGroup: 'learningRate', configKey: 'initialLearningRate', configValue: '0.1', valueType: 'number', defaultValue: '0.1', label: '初始学习率', description: '知识更新的初始学习率', unit: '', constraints: { min: 0.001, max: 1.0, step: 0.01 }, sortOrder: 40 },
+  { module: 'feedbackLoop', configGroup: 'learningRate', configKey: 'minLearningRate', configValue: '0.01', valueType: 'number', defaultValue: '0.01', label: '最小学习率', description: '学习率衰减的下限', unit: '', constraints: { min: 0.001, max: 0.5, step: 0.001 }, sortOrder: 50 },
+  { module: 'feedbackLoop', configGroup: 'learningRate', configKey: 'maxLearningRate', configValue: '0.5', valueType: 'number', defaultValue: '0.5', label: '最大学习率', description: '学习率的上限', unit: '', constraints: { min: 0.1, max: 2.0, step: 0.05 }, sortOrder: 60 },
+  { module: 'feedbackLoop', configGroup: 'learningRate', configKey: 'decayFactor', configValue: '0.995', valueType: 'number', defaultValue: '0.995', label: '衰减因子', description: '每轮反馈后学习率的衰减系数', unit: '', constraints: { min: 0.9, max: 1.0, step: 0.001 }, sortOrder: 70 },
+];
+
+// ============================================================================
+// 运行时状态存储（内存态，服务重启后重置为默认值）
+// ============================================================================
 
 // 运行时模拟数据（因果图种子数据）
 const seedCausalNodes: CausalNode[] = [
@@ -214,56 +227,302 @@ let shadowModeStats = {
 
 export const reasoningEngineRouter = router({
 
-  // ========== 引擎配置 ==========
+  // ========== 动态配置注册表 CRUD ==========
 
-  /** 获取全部引擎配置 */
-  getEngineConfig: publicProcedure.query(() => ({
-    orchestrator: orchestratorConfig,
-    causalGraph: causalGraphConfig,
-    experiencePool: experiencePoolConfig,
-    physicsVerifier: physicsVerifierConfig,
-    feedbackLoop: feedbackLoopConfig,
-  })),
-
-  /** 更新引擎配置（部分更新） */
-  updateEngineConfig: publicProcedure
+  /** 获取全部配置项（按 module + group 分组） */
+  listConfigItems: publicProcedure
     .input(z.object({
-      module: z.enum(['orchestrator', 'causalGraph', 'experiencePool', 'physicsVerifier', 'feedbackLoop']),
-      config: z.record(z.string(), z.unknown()),
-    }))
-    .mutation(({ input }) => {
-      const { module, config } = input;
-      switch (module) {
-        case 'orchestrator':
-          orchestratorConfig = deepMerge(orchestratorConfig, config) as OrchestratorConfig;
-          break;
-        case 'causalGraph':
-          causalGraphConfig = deepMerge(causalGraphConfig, config) as CausalGraphConfig;
-          break;
-        case 'experiencePool':
-          experiencePoolConfig = deepMerge(experiencePoolConfig, config) as ExperiencePoolConfig;
-          break;
-        case 'physicsVerifier':
-          physicsVerifierConfig = deepMerge(physicsVerifierConfig, config) as PhysicsVerifierConfig;
-          break;
-        case 'feedbackLoop':
-          feedbackLoopConfig = deepMerge(feedbackLoopConfig, config) as FeedbackLoopConfig;
-          break;
+      module: z.string().optional(),
+      enabled: z.boolean().optional(),
+    }).optional())
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) {
+        // 数据库不可用时返回内置种子数据
+        let items = BUILTIN_SEED_CONFIGS.map((s, i) => ({
+          id: i + 1,
+          ...s,
+          enabled: true,
+          isBuiltin: true,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        }));
+        if (input?.module) items = items.filter(i => i.module === input.module);
+        return { items, source: 'memory' as const };
       }
-      return { success: true, module, updatedAt: new Date().toISOString() };
+
+      try {
+        // 检查表中是否有数据，没有则初始化种子数据
+        const existing = await db.select().from(engineConfigRegistry).limit(1);
+        if (existing.length === 0) {
+          // 批量插入种子数据
+          for (const seed of BUILTIN_SEED_CONFIGS) {
+            await db.insert(engineConfigRegistry).values({
+              module: seed.module,
+              configGroup: seed.configGroup,
+              configKey: seed.configKey,
+              configValue: seed.configValue,
+              valueType: seed.valueType,
+              defaultValue: seed.defaultValue,
+              label: seed.label,
+              description: seed.description,
+              unit: seed.unit || null,
+              constraints: seed.constraints || null,
+              sortOrder: seed.sortOrder,
+              enabled: 1,
+              isBuiltin: 1,
+            });
+          }
+        }
+
+        const conditions = [];
+        if (input?.module) conditions.push(eq(engineConfigRegistry.module, input.module));
+        if (input?.enabled !== undefined) conditions.push(eq(engineConfigRegistry.enabled, input.enabled ? 1 : 0));
+
+        const rows = conditions.length > 0
+          ? await db.select().from(engineConfigRegistry).where(and(...conditions)).orderBy(asc(engineConfigRegistry.module), asc(engineConfigRegistry.sortOrder))
+          : await db.select().from(engineConfigRegistry).orderBy(asc(engineConfigRegistry.module), asc(engineConfigRegistry.sortOrder));
+
+        return {
+          items: rows.map(r => ({
+            ...r,
+            enabled: r.enabled === 1,
+            isBuiltin: r.isBuiltin === 1,
+            createdAt: r.createdAt?.toISOString() ?? '',
+            updatedAt: r.updatedAt?.toISOString() ?? '',
+          })),
+          source: 'database' as const,
+        };
+      } catch (err) {
+        // 表不存在等情况，回退到内存种子数据
+        let items = BUILTIN_SEED_CONFIGS.map((s, i) => ({
+          id: i + 1,
+          ...s,
+          enabled: true,
+          isBuiltin: true,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        }));
+        if (input?.module) items = items.filter(i => i.module === input.module);
+        return { items, source: 'memory' as const };
+      }
     }),
 
-  /** 重置引擎配置为默认值 */
-  resetEngineConfig: publicProcedure
-    .input(z.object({ module: z.enum(['orchestrator', 'causalGraph', 'experiencePool', 'physicsVerifier', 'feedbackLoop', 'all']) }))
-    .mutation(({ input }) => {
-      if (input.module === 'all' || input.module === 'orchestrator') orchestratorConfig = { ...defaultOrchestratorConfig };
-      if (input.module === 'all' || input.module === 'causalGraph') causalGraphConfig = { ...defaultCausalGraphConfig };
-      if (input.module === 'all' || input.module === 'experiencePool') experiencePoolConfig = { ...defaultExperiencePoolConfig };
-      if (input.module === 'all' || input.module === 'physicsVerifier') physicsVerifierConfig = { ...defaultPhysicsVerifierConfig };
-      if (input.module === 'all' || input.module === 'feedbackLoop') feedbackLoopConfig = { ...defaultFeedbackLoopConfig };
-      return { success: true, module: input.module, resetAt: new Date().toISOString() };
+  /** 新增配置项 */
+  addConfigItem: publicProcedure
+    .input(z.object({
+      module: z.string(),
+      configGroup: z.string().default('general'),
+      configKey: z.string(),
+      configValue: z.string(),
+      valueType: z.enum(['number', 'string', 'boolean', 'json']).default('string'),
+      defaultValue: z.string().optional(),
+      label: z.string(),
+      description: z.string().optional(),
+      unit: z.string().optional(),
+      constraints: z.object({
+        min: z.number().optional(),
+        max: z.number().optional(),
+        step: z.number().optional(),
+        options: z.array(z.string()).optional(),
+      }).optional(),
+      sortOrder: z.number().default(100),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return { success: false, error: '数据库不可用' };
+      try {
+        await db.insert(engineConfigRegistry).values({
+          module: input.module,
+          configGroup: input.configGroup,
+          configKey: input.configKey,
+          configValue: input.configValue,
+          valueType: input.valueType,
+          defaultValue: input.defaultValue || input.configValue,
+          label: input.label,
+          description: input.description || '',
+          unit: input.unit || null,
+          constraints: input.constraints || null,
+          sortOrder: input.sortOrder,
+          enabled: 1,
+          isBuiltin: 0,
+        });
+        return { success: true };
+      } catch (err: any) {
+        return { success: false, error: err?.message || '新增失败' };
+      }
     }),
+
+  /** 更新配置项的值 */
+  updateConfigItem: publicProcedure
+    .input(z.object({
+      id: z.number(),
+      configValue: z.string().optional(),
+      label: z.string().optional(),
+      description: z.string().optional(),
+      unit: z.string().optional(),
+      constraints: z.object({
+        min: z.number().optional(),
+        max: z.number().optional(),
+        step: z.number().optional(),
+        options: z.array(z.string()).optional(),
+      }).optional(),
+      enabled: z.boolean().optional(),
+      sortOrder: z.number().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return { success: false, error: '数据库不可用' };
+      try {
+        const updates: Record<string, any> = {};
+        if (input.configValue !== undefined) updates.configValue = input.configValue;
+        if (input.label !== undefined) updates.label = input.label;
+        if (input.description !== undefined) updates.description = input.description;
+        if (input.unit !== undefined) updates.unit = input.unit;
+        if (input.constraints !== undefined) updates.constraints = input.constraints;
+        if (input.enabled !== undefined) updates.enabled = input.enabled ? 1 : 0;
+        if (input.sortOrder !== undefined) updates.sortOrder = input.sortOrder;
+        updates.updatedAt = new Date();
+
+        await db.update(engineConfigRegistry).set(updates).where(eq(engineConfigRegistry.id, input.id));
+        return { success: true };
+      } catch (err: any) {
+        return { success: false, error: err?.message || '更新失败' };
+      }
+    }),
+
+  /** 删除配置项（仅限非内置项） */
+  deleteConfigItem: publicProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return { success: false, error: '数据库不可用' };
+      try {
+        // 检查是否为内置项
+        const rows = await db.select().from(engineConfigRegistry).where(eq(engineConfigRegistry.id, input.id)).limit(1);
+        if (rows.length === 0) return { success: false, error: '配置项不存在' };
+        if (rows[0].isBuiltin === 1) return { success: false, error: '内置配置项不可删除，仅可修改值' };
+
+        await db.delete(engineConfigRegistry).where(eq(engineConfigRegistry.id, input.id));
+        return { success: true };
+      } catch (err: any) {
+        return { success: false, error: err?.message || '删除失败' };
+      }
+    }),
+
+  /** 重置配置项为默认值 */
+  resetConfigItem: publicProcedure
+    .input(z.object({
+      id: z.number().optional(),
+      module: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return { success: false, error: '数据库不可用' };
+      try {
+        if (input.id) {
+          // 重置单个配置项
+          const rows = await db.select().from(engineConfigRegistry).where(eq(engineConfigRegistry.id, input.id)).limit(1);
+          if (rows.length > 0 && rows[0].defaultValue) {
+            await db.update(engineConfigRegistry).set({ configValue: rows[0].defaultValue, updatedAt: new Date() }).where(eq(engineConfigRegistry.id, input.id));
+          }
+        } else if (input.module) {
+          // 重置整个模块
+          const rows = await db.select().from(engineConfigRegistry).where(eq(engineConfigRegistry.module, input.module));
+          for (const row of rows) {
+            if (row.defaultValue) {
+              await db.update(engineConfigRegistry).set({ configValue: row.defaultValue, updatedAt: new Date() }).where(eq(engineConfigRegistry.id, row.id));
+            }
+          }
+        }
+        return { success: true };
+      } catch (err: any) {
+        return { success: false, error: err?.message || '重置失败' };
+      }
+    }),
+
+  /** 批量导入配置项 */
+  importConfigItems: publicProcedure
+    .input(z.object({
+      items: z.array(z.object({
+        module: z.string(),
+        configGroup: z.string().default('general'),
+        configKey: z.string(),
+        configValue: z.string(),
+        valueType: z.enum(['number', 'string', 'boolean', 'json']).default('string'),
+        defaultValue: z.string().optional(),
+        label: z.string(),
+        description: z.string().optional(),
+        unit: z.string().optional(),
+        constraints: z.object({
+          min: z.number().optional(),
+          max: z.number().optional(),
+          step: z.number().optional(),
+          options: z.array(z.string()).optional(),
+        }).optional(),
+        sortOrder: z.number().default(100),
+      })),
+      overwrite: z.boolean().default(false),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return { success: false, error: '数据库不可用', imported: 0 };
+      let imported = 0;
+      try {
+        for (const item of input.items) {
+          try {
+            await db.insert(engineConfigRegistry).values({
+              module: item.module,
+              configGroup: item.configGroup,
+              configKey: item.configKey,
+              configValue: item.configValue,
+              valueType: item.valueType,
+              defaultValue: item.defaultValue || item.configValue,
+              label: item.label,
+              description: item.description || '',
+              unit: item.unit || null,
+              constraints: item.constraints || null,
+              sortOrder: item.sortOrder,
+              enabled: 1,
+              isBuiltin: 0,
+            });
+            imported++;
+          } catch {
+            // 唯一键冲突时，如果 overwrite 则更新
+            if (input.overwrite) {
+              const existing = await db.select().from(engineConfigRegistry)
+                .where(and(eq(engineConfigRegistry.module, item.module), eq(engineConfigRegistry.configKey, item.configKey)))
+                .limit(1);
+              if (existing.length > 0) {
+                await db.update(engineConfigRegistry).set({
+                  configValue: item.configValue,
+                  label: item.label,
+                  description: item.description || '',
+                  unit: item.unit || null,
+                  constraints: item.constraints || null,
+                  sortOrder: item.sortOrder,
+                  updatedAt: new Date(),
+                }).where(eq(engineConfigRegistry.id, existing[0].id));
+                imported++;
+              }
+            }
+          }
+        }
+        return { success: true, imported };
+      } catch (err: any) {
+        return { success: false, error: err?.message || '导入失败', imported };
+      }
+    }),
+
+  /** 获取可用的模块列表 */
+  getModuleList: publicProcedure.query(() => [
+    { id: 'orchestrator', label: '混合编排器', icon: '🎯', description: '推理路由、成本门控、并行扇出' },
+    { id: 'causalGraph', label: '因果图', icon: '🕸️', description: '因果关系图结构、Grok 补全' },
+    { id: 'experiencePool', label: '经验池', icon: '🧠', description: '三层记忆容量、衰减策略、检索参数' },
+    { id: 'physicsVerifier', label: '物理验证器', icon: '⚛️', description: '验证参数、三源融合权重' },
+    { id: 'feedbackLoop', label: '反馈环', icon: '🔄', description: '学习率、自动反馈、修订日志' },
+    { id: 'custom', label: '自定义', icon: '⚙️', description: '用户自定义配置项' },
+  ]),
 
   // ========== 因果图 ==========
 
@@ -286,7 +545,6 @@ export const reasoningEngineRouter = router({
       maxDepth: z.number().default(5),
     }))
     .query(({ input }) => {
-      // BFS 追溯：从 symptom 反向寻找 root_cause
       const paths: CausalTrace[] = [];
       const visited = new Set<string>();
 
@@ -305,7 +563,6 @@ export const reasoningEngineRouter = router({
           });
         }
 
-        // 反向查找（谁指向当前节点）
         for (const edge of seedCausalEdges) {
           if (edge.target === nodeId && !visited.has(edge.source)) {
             dfs(edge.source, [...path, edge.source], weight * edge.weight, [...mechanisms, edge.mechanism], depth + 1);
@@ -356,7 +613,6 @@ export const reasoningEngineRouter = router({
   searchExperience: publicProcedure
     .input(z.object({ query: z.string(), topK: z.number().default(5) }))
     .query(({ input }) => {
-      // 简单关键词匹配（实际应使用向量检索）
       const keywords = input.query.toLowerCase().split(/\s+/);
       const scored = seedExperiences.map(exp => {
         const text = `${exp.description} ${exp.domain} ${exp.deviceCode}`.toLowerCase();
@@ -436,19 +692,3 @@ export const reasoningEngineRouter = router({
     return { success: true, mode: 'shadow' };
   }),
 });
-
-// ============================================================================
-// 辅助函数
-// ============================================================================
-
-function deepMerge(target: any, source: any): any {
-  const result = { ...target };
-  for (const key of Object.keys(source)) {
-    if (source[key] && typeof source[key] === 'object' && !Array.isArray(source[key]) && target[key] && typeof target[key] === 'object') {
-      result[key] = deepMerge(target[key], source[key]);
-    } else {
-      result[key] = source[key];
-    }
-  }
-  return result;
-}

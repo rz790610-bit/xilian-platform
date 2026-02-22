@@ -1142,3 +1142,58 @@ export const shadowReasoningComparisons = mysqlTable('shadow_reasoning_compariso
 ]);
 export type ShadowReasoningComparisonRow = typeof shadowReasoningComparisons.$inferSelect;
 export type InsertShadowReasoningComparison = typeof shadowReasoningComparisons.$inferInsert;
+
+
+// ============================================================================
+// Phase 2 — 动态配置注册表
+// ============================================================================
+
+/**
+ * 引擎配置注册表 — 支持用户自由增删改配置项
+ * 每行代表一个配置项，按 module + group 分组管理
+ */
+export const engineConfigRegistry = mysqlTable('engine_config_registry', {
+  id: int('id').autoincrement().primaryKey(),
+  /** 所属模块: orchestrator / causalGraph / experiencePool / physicsVerifier / feedbackLoop / custom */
+  module: varchar('module', { length: 64 }).notNull(),
+  /** 分组（模块内二级分类，如 routing / costGate / capacity / decay 等） */
+  configGroup: varchar('config_group', { length: 64 }).notNull().default('general'),
+  /** 配置键（唯一标识，如 fastPathConfidence, maxNodes 等） */
+  configKey: varchar('config_key', { length: 128 }).notNull(),
+  /** 配置值（JSON 字符串，支持 number/string/boolean/object） */
+  configValue: text('config_value').notNull(),
+  /** 值类型: number / string / boolean / json */
+  valueType: mysqlEnum('value_type', ['number', 'string', 'boolean', 'json']).notNull().default('string'),
+  /** 默认值（JSON 字符串） */
+  defaultValue: text('default_value'),
+  /** 配置项中文标签 */
+  label: varchar('label', { length: 128 }).notNull(),
+  /** 配置项描述 */
+  description: text('description'),
+  /** 单位（如 ms, %, 天, 次 等） */
+  unit: varchar('unit', { length: 32 }),
+  /** 取值范围（JSON: { min?: number, max?: number, step?: number, options?: string[] }） */
+  constraints: json('constraints').$type<{
+    min?: number;
+    max?: number;
+    step?: number;
+    options?: string[];
+  }>(),
+  /** 排序权重（越小越靠前） */
+  sortOrder: int('sort_order').notNull().default(100),
+  /** 是否启用 */
+  enabled: tinyint('enabled').notNull().default(1),
+  /** 是否为系统内置（内置项不可删除，仅可修改值） */
+  isBuiltin: tinyint('is_builtin').notNull().default(0),
+  /** 创建时间 */
+  createdAt: timestamp('created_at', { fsp: 3 }).defaultNow().notNull(),
+  /** 更新时间 */
+  updatedAt: timestamp('updated_at', { fsp: 3 }).defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex('uk_module_key').on(table.module, table.configKey),
+  index('idx_ecr_module').on(table.module),
+  index('idx_ecr_group').on(table.module, table.configGroup),
+  index('idx_ecr_enabled').on(table.enabled),
+]);
+export type EngineConfigRegistryRow = typeof engineConfigRegistry.$inferSelect;
+export type InsertEngineConfigRegistry = typeof engineConfigRegistry.$inferInsert;

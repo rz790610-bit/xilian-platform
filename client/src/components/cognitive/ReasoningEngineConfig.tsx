@@ -1,286 +1,544 @@
 /**
- * ============================================================================
- * Phase 2 — 推理引擎配置管理面板
- * ============================================================================
+ * Phase 2 — 推理引擎动态配置管理器
+ * 支持自由配置、可增加、可修改、可删除配置项
  */
-
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { trpc } from '@/lib/trpc';
-import { PageCard } from '@/components/common/PageCard';
-import { StatCard } from '@/components/common/StatCard';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger,
+} from '@/components/ui/dialog';
 import { Switch } from '@/components/ui/switch';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { toast } from 'sonner';
 
-// ============================================================================
-// 配置编辑器子组件
-// ============================================================================
-
-function ConfigField({ label, value, onChange, type = 'number', unit, description }: {
-  label: string; value: number | string | boolean; onChange: (v: any) => void;
-  type?: 'number' | 'text' | 'boolean'; unit?: string; description?: string;
-}) {
-  if (type === 'boolean') {
-    return (
-      <div className="flex items-center justify-between py-1">
-        <div>
-          <span className="text-xs font-medium">{label}</span>
-          {description && <p className="text-[10px] text-muted-foreground">{description}</p>}
-        </div>
-        <Switch checked={value as boolean} onCheckedChange={onChange} />
-      </div>
-    );
-  }
-  return (
-    <div className="space-y-0.5">
-      <div className="flex items-center justify-between">
-        <Label className="text-[10px] text-muted-foreground">{label}</Label>
-        {unit && <span className="text-[10px] text-muted-foreground">{unit}</span>}
-      </div>
-      <Input
-        type={type}
-        value={String(value)}
-        onChange={(e) => onChange(type === 'number' ? Number(e.target.value) : e.target.value)}
-        className="h-7 text-xs"
-      />
-      {description && <p className="text-[10px] text-muted-foreground">{description}</p>}
-    </div>
-  );
+interface ConfigItem {
+  id: number;
+  module: string;
+  configGroup: string;
+  configKey: string;
+  configValue: string;
+  valueType: 'number' | 'string' | 'boolean' | 'json';
+  defaultValue: string | null;
+  label: string;
+  description: string | null;
+  unit: string | null;
+  constraints: { min?: number; max?: number; step?: number; options?: string[] } | null;
+  sortOrder: number;
+  enabled: boolean;
+  isBuiltin: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 
-// ============================================================================
-// 主组件
-// ============================================================================
+const MODULE_META: Record<string, { label: string; icon: string; color: string }> = {
+  orchestrator: { label: '混合编排器', icon: '🎯', color: 'bg-blue-500/10 text-blue-400 border-blue-500/30' },
+  causalGraph: { label: '因果图', icon: '🕸️', color: 'bg-purple-500/10 text-purple-400 border-purple-500/30' },
+  experiencePool: { label: '经验池', icon: '🧠', color: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' },
+  physicsVerifier: { label: '物理验证器', icon: '⚛️', color: 'bg-amber-500/10 text-amber-400 border-amber-500/30' },
+  feedbackLoop: { label: '反馈环', icon: '🔄', color: 'bg-rose-500/10 text-rose-400 border-rose-500/30' },
+  custom: { label: '自定义', icon: '⚙️', color: 'bg-gray-500/10 text-gray-400 border-gray-500/30' },
+};
 
-export function ReasoningEngineConfig() {
-  const [configTab, setConfigTab] = useState('orchestrator');
-
-  const configQuery = trpc.evoCognition.reasoningEngine.getEngineConfig.useQuery(undefined, { retry: 2 });
-  const updateMutation = trpc.evoCognition.reasoningEngine.updateEngineConfig.useMutation({
-    onSuccess: (data) => { configQuery.refetch(); toast.success(`${data.module} 配置已更新`); },
-    onError: (e) => toast.error(`更新失败: ${e.message}`),
+export default function ReasoningEngineConfig() {
+  const [selectedModule, setSelectedModule] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editValue, setEditValue] = useState('');
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [newItem, setNewItem] = useState({
+    module: 'custom',
+    configGroup: 'general',
+    configKey: '',
+    configValue: '',
+    valueType: 'string' as 'number' | 'string' | 'boolean' | 'json',
+    label: '',
+    description: '',
+    unit: '',
+    constraintMin: '',
+    constraintMax: '',
+    constraintStep: '',
   });
-  const resetMutation = trpc.evoCognition.reasoningEngine.resetEngineConfig.useMutation({
-    onSuccess: (data) => { configQuery.refetch(); toast.success(`${data.module} 已重置为默认值`); },
-    onError: (e) => toast.error(`重置失败: ${e.message}`),
+
+  const configQuery = trpc.evoCognition.reasoningEngine.listConfigItems.useQuery(
+    selectedModule ? { module: selectedModule } : undefined,
+    { refetchOnWindowFocus: false }
+  );
+
+  const updateMutation = trpc.evoCognition.reasoningEngine.updateConfigItem.useMutation({
+    onSuccess: (data) => {
+      if (data.success) { configQuery.refetch(); setEditingId(null); toast.success('配置已更新'); }
+      else toast.error(data.error || '更新失败');
+    },
   });
 
+  const addMutation = trpc.evoCognition.reasoningEngine.addConfigItem.useMutation({
+    onSuccess: (data) => {
+      if (data.success) { configQuery.refetch(); setShowAddDialog(false); resetNewItem(); toast.success('配置项已新增'); }
+      else toast.error(data.error || '新增失败');
+    },
+  });
+
+  const deleteMutation = trpc.evoCognition.reasoningEngine.deleteConfigItem.useMutation({
+    onSuccess: (data) => {
+      if (data.success) { configQuery.refetch(); toast.success('配置项已删除'); }
+      else toast.error(data.error || '删除失败');
+    },
+  });
+
+  const resetMutation = trpc.evoCognition.reasoningEngine.resetConfigItem.useMutation({
+    onSuccess: (data) => {
+      if (data.success) { configQuery.refetch(); toast.success('已重置为默认值'); }
+      else toast.error(data.error || '重置失败');
+    },
+  });
+
+  // Shadow Mode
   const shadowQuery = trpc.evoCognition.reasoningEngine.getShadowModeStats.useQuery(undefined, { retry: 2, refetchInterval: 10000 });
-  const promoteMutation = trpc.evoCognition.reasoningEngine.forcePromote.useMutation({
-    onSuccess: () => { shadowQuery.refetch(); toast.success('已晋升 Challenger 为主引擎'); },
-  });
-  const rollbackMutation = trpc.evoCognition.reasoningEngine.forceRollback.useMutation({
-    onSuccess: () => { shadowQuery.refetch(); toast.success('已回退到 Champion 引擎'); },
-  });
-  const shadowModeMutation = trpc.evoCognition.reasoningEngine.enterShadowMode.useMutation({
-    onSuccess: () => { shadowQuery.refetch(); toast.success('已进入 Shadow 模式'); },
-  });
+  const promoteMutation = trpc.evoCognition.reasoningEngine.forcePromote.useMutation({ onSuccess: () => { shadowQuery.refetch(); toast.success('已晋升 Challenger'); } });
+  const rollbackMutation = trpc.evoCognition.reasoningEngine.forceRollback.useMutation({ onSuccess: () => { shadowQuery.refetch(); toast.success('已回退 Champion'); } });
+  const shadowModeMutation = trpc.evoCognition.reasoningEngine.enterShadowMode.useMutation({ onSuccess: () => { shadowQuery.refetch(); toast.success('已进入 Shadow'); } });
 
-  const config = configQuery.data;
+  const items: ConfigItem[] = (configQuery.data?.items ?? []) as ConfigItem[];
+  const source = configQuery.data?.source ?? 'memory';
   const shadow = shadowQuery.data;
 
-  if (configQuery.isLoading) {
+  // 按 module → configGroup 分组
+  const grouped = useMemo(() => {
+    const map = new Map<string, Map<string, ConfigItem[]>>();
+    for (const item of items) {
+      if (!map.has(item.module)) map.set(item.module, new Map());
+      const groupMap = map.get(item.module)!;
+      if (!groupMap.has(item.configGroup)) groupMap.set(item.configGroup, []);
+      groupMap.get(item.configGroup)!.push(item);
+    }
+    return map;
+  }, [items]);
+
+  function resetNewItem() {
+    setNewItem({ module: 'custom', configGroup: 'general', configKey: '', configValue: '', valueType: 'string', label: '', description: '', unit: '', constraintMin: '', constraintMax: '', constraintStep: '' });
+  }
+
+  function handleSaveEdit(item: ConfigItem) {
+    // 校验数字类型的范围
+    if (item.valueType === 'number' && item.constraints) {
+      const num = parseFloat(editValue);
+      if (isNaN(num)) { toast.error('请输入有效数字'); return; }
+      if (item.constraints.min !== undefined && num < item.constraints.min) { toast.error(`值不能小于 ${item.constraints.min}`); return; }
+      if (item.constraints.max !== undefined && num > item.constraints.max) { toast.error(`值不能大于 ${item.constraints.max}`); return; }
+    }
+    updateMutation.mutate({ id: item.id, configValue: editValue });
+  }
+
+  function handleAdd() {
+    const constraints = newItem.valueType === 'number' ? {
+      min: newItem.constraintMin ? parseFloat(newItem.constraintMin) : undefined,
+      max: newItem.constraintMax ? parseFloat(newItem.constraintMax) : undefined,
+      step: newItem.constraintStep ? parseFloat(newItem.constraintStep) : undefined,
+    } : undefined;
+
+    addMutation.mutate({
+      module: newItem.module,
+      configGroup: newItem.configGroup,
+      configKey: newItem.configKey,
+      configValue: newItem.configValue,
+      valueType: newItem.valueType,
+      label: newItem.label,
+      description: newItem.description || undefined,
+      unit: newItem.unit || undefined,
+      constraints,
+    });
+  }
+
+  function renderValueEditor(item: ConfigItem) {
+    if (editingId === item.id) {
+      return (
+        <div className="flex items-center gap-2">
+          {item.valueType === 'boolean' ? (
+            <Switch
+              checked={editValue === 'true'}
+              onCheckedChange={(v) => setEditValue(v ? 'true' : 'false')}
+            />
+          ) : (
+            <Input
+              value={editValue}
+              onChange={(e) => setEditValue(e.target.value)}
+              type={item.valueType === 'number' ? 'number' : 'text'}
+              min={item.constraints?.min}
+              max={item.constraints?.max}
+              step={item.constraints?.step}
+              className="h-7 w-32 text-xs bg-background"
+            />
+          )}
+          <Button size="sm" variant="ghost" className="h-6 px-2 text-xs text-green-400" onClick={() => handleSaveEdit(item)}>
+            保存
+          </Button>
+          <Button size="sm" variant="ghost" className="h-6 px-2 text-xs text-muted-foreground" onClick={() => setEditingId(null)}>
+            取消
+          </Button>
+        </div>
+      );
+    }
+
+    const isModified = item.defaultValue !== null && item.configValue !== item.defaultValue;
+
     return (
-      <div className="flex items-center justify-center py-8 gap-2">
-        <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-        <span className="text-xs text-muted-foreground">加载配置中...</span>
+      <div className="flex items-center gap-2">
+        {item.valueType === 'boolean' ? (
+          <Badge variant={item.configValue === 'true' ? 'default' : 'secondary'} className="text-xs">
+            {item.configValue === 'true' ? '启用' : '禁用'}
+          </Badge>
+        ) : (
+          <span className={`font-mono text-sm ${isModified ? 'text-amber-400' : 'text-foreground'}`}>
+            {item.configValue}
+            {item.unit && <span className="text-muted-foreground ml-1 text-xs">{item.unit}</span>}
+          </span>
+        )}
+        {isModified && (
+          <span className="text-[10px] text-muted-foreground line-through">{item.defaultValue}</span>
+        )}
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity"
+          onClick={() => { setEditingId(item.id); setEditValue(item.configValue); }}
+        >
+          编辑
+        </Button>
       </div>
     );
   }
 
-  if (!config) {
-    return <div className="text-center py-8 text-xs text-muted-foreground">无法加载配置</div>;
-  }
-
-  const handleUpdate = (module: string, configPatch: Record<string, unknown>) => {
-    updateMutation.mutate({ module: module as any, config: configPatch });
-  };
-
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       {/* Shadow Mode 控制面板 */}
       {shadow && (
-        <PageCard title="Champion-Challenger Shadow Mode" icon="🔄">
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-3">
-            <StatCard
-              value={shadow.mode === 'champion' ? 'Champion' : shadow.mode === 'challenger' ? 'Challenger' : 'Shadow'}
-              label="当前模式"
-              icon={shadow.mode === 'shadow' ? '🔄' : shadow.mode === 'challenger' ? '🏆' : '🛡️'}
-            />
-            <StatCard value={shadow.totalSessions} label="总会话数" icon="📊" />
-            <StatCard value={`${shadow.hitRateDelta.toFixed(1)}pp`} label="命中率差值" icon="📈" />
-            <StatCard value={shadow.pValue.toFixed(3)} label="p 值" icon="🧪" />
-            <StatCard value={`${shadow.avgLatencyRatio.toFixed(2)}x`} label="延迟比" icon="⏱️" />
-          </div>
-          <div className="grid grid-cols-2 gap-2 mb-2">
-            <div className="text-xs">
-              <span className="text-muted-foreground">Challenger 命中率: </span>
-              <span className="font-mono font-medium">{(shadow.challengerHitRate * 100).toFixed(1)}%</span>
+        <Card className="border-border/50">
+          <CardHeader className="py-2 px-4">
+            <CardTitle className="text-sm flex items-center gap-2">
+              🔄 Champion-Challenger Shadow Mode
+              <Badge variant={shadow.mode === 'shadow' ? 'default' : shadow.mode === 'challenger' ? 'destructive' : 'secondary'} className="text-[10px]">
+                {shadow.mode === 'champion' ? '🛡️ Champion' : shadow.mode === 'challenger' ? '🏆 Challenger' : '🔄 Shadow'}
+              </Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="px-4 pb-3">
+            <div className="grid grid-cols-5 gap-3 mb-3">
+              <div className="text-center">
+                <div className="text-lg font-mono font-bold">{shadow.totalSessions}</div>
+                <div className="text-[10px] text-muted-foreground">总会话</div>
+              </div>
+              <div className="text-center">
+                <div className="text-lg font-mono font-bold text-emerald-400">{(shadow.challengerHitRate * 100).toFixed(1)}%</div>
+                <div className="text-[10px] text-muted-foreground">Challenger 命中</div>
+              </div>
+              <div className="text-center">
+                <div className="text-lg font-mono font-bold text-blue-400">{(shadow.championHitRate * 100).toFixed(1)}%</div>
+                <div className="text-[10px] text-muted-foreground">Champion 命中</div>
+              </div>
+              <div className="text-center">
+                <div className={`text-lg font-mono font-bold ${shadow.hitRateDelta > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                  {shadow.hitRateDelta > 0 ? '+' : ''}{shadow.hitRateDelta.toFixed(1)}pp
+                </div>
+                <div className="text-[10px] text-muted-foreground">命中率差</div>
+              </div>
+              <div className="text-center">
+                <div className={`text-lg font-mono font-bold ${shadow.pValue < 0.05 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                  {shadow.pValue.toFixed(3)}
+                </div>
+                <div className="text-[10px] text-muted-foreground">p 值</div>
+              </div>
             </div>
-            <div className="text-xs">
-              <span className="text-muted-foreground">Champion 命中率: </span>
-              <span className="font-mono font-medium">{(shadow.championHitRate * 100).toFixed(1)}%</span>
-            </div>
-            <div className="text-xs">
-              <span className="text-muted-foreground">降级次数: </span>
-              <span className="font-mono font-medium">{shadow.fallbackCount}</span>
-            </div>
-            <div className="text-xs">
-              <span className="text-muted-foreground">晋升就绪: </span>
+            <div className="flex items-center gap-2 pt-2 border-t border-border/50">
+              <Button size="sm" className="h-7 text-xs" onClick={() => promoteMutation.mutate()} disabled={shadow.mode === 'challenger'}>
+                晋升 Challenger
+              </Button>
+              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => rollbackMutation.mutate()} disabled={shadow.mode === 'champion'}>
+                回退 Champion
+              </Button>
+              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => shadowModeMutation.mutate()} disabled={shadow.mode === 'shadow'}>
+                进入 Shadow
+              </Button>
+              <div className="flex-1" />
               <Badge variant={shadow.promotionReady ? 'default' : 'secondary'} className="text-[10px]">
-                {shadow.promotionReady ? '✓ 满足条件' : '✗ 未满足'}
+                {shadow.promotionReady ? '✓ 晋升条件满足' : '✗ 晋升条件未满足'}
               </Badge>
             </div>
-          </div>
-          <div className="flex items-center gap-2 pt-2 border-t border-border">
-            <Button size="sm" className="h-7 text-xs" onClick={() => promoteMutation.mutate()} disabled={shadow.mode === 'challenger'}>
-              晋升 Challenger
-            </Button>
-            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => rollbackMutation.mutate()} disabled={shadow.mode === 'champion'}>
-              回退 Champion
-            </Button>
-            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => shadowModeMutation.mutate()} disabled={shadow.mode === 'shadow'}>
-              进入 Shadow
-            </Button>
-          </div>
-        </PageCard>
+          </CardContent>
+        </Card>
       )}
 
-      {/* 模块配置 Tabs */}
-      <Tabs value={configTab} onValueChange={setConfigTab}>
-        <div className="flex items-center justify-between mb-2">
-          <TabsList>
-            <TabsTrigger value="orchestrator" className="text-xs">编排器</TabsTrigger>
-            <TabsTrigger value="causalGraph" className="text-xs">因果图</TabsTrigger>
-            <TabsTrigger value="experiencePool" className="text-xs">经验池</TabsTrigger>
-            <TabsTrigger value="physicsVerifier" className="text-xs">物理验证</TabsTrigger>
-            <TabsTrigger value="feedbackLoop" className="text-xs">反馈环</TabsTrigger>
-          </TabsList>
-          <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => resetMutation.mutate({ module: configTab as any })}>
-            重置默认
-          </Button>
+      {/* 顶部工具栏 */}
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="flex items-center gap-2">
+          <h3 className="text-sm font-semibold text-foreground">配置注册表</h3>
+          <Badge variant="outline" className="text-[10px]">
+            {source === 'database' ? '📦 数据库' : '💾 内存'}
+          </Badge>
+          <Badge variant="outline" className="text-[10px]">
+            {items.length} 项
+          </Badge>
         </div>
-
-        {/* ===== 编排器配置 ===== */}
-        <TabsContent value="orchestrator">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <PageCard title="路由阈值" icon="🔀">
-              <div className="space-y-2">
-                <ConfigField label="快速路径置信度阈值" value={config.orchestrator.routing.fastPathConfidence} onChange={(v) => handleUpdate('orchestrator', { routing: { ...config.orchestrator.routing, fastPathConfidence: v } })} description="经验命中置信度 ≥ 此值时走快速路径" />
-                <ConfigField label="深度路径触发阈值" value={config.orchestrator.routing.deepPathTrigger} onChange={(v) => handleUpdate('orchestrator', { routing: { ...config.orchestrator.routing, deepPathTrigger: v } })} description="标准路径置信度 < 此值时触发深度推理" />
-                <ConfigField label="降级超时" value={config.orchestrator.routing.fallbackTimeoutMs} onChange={(v) => handleUpdate('orchestrator', { routing: { ...config.orchestrator.routing, fallbackTimeoutMs: v } })} unit="ms" />
-              </div>
-            </PageCard>
-            <PageCard title="CostGate 配置" icon="💰">
-              <div className="space-y-2">
-                <ConfigField label="每日 Grok 调用预算" value={config.orchestrator.costGate.dailyGrokBudget} onChange={(v) => handleUpdate('orchestrator', { costGate: { ...config.orchestrator.costGate, dailyGrokBudget: v } })} />
-                <div className="text-xs"><span className="text-muted-foreground">今日已用: </span><span className="font-mono">{config.orchestrator.costGate.dailyGrokUsed}</span></div>
-                <ConfigField label="经验命中抑制因子" value={config.orchestrator.costGate.experienceHitSuppression} onChange={(v) => handleUpdate('orchestrator', { costGate: { ...config.orchestrator.costGate, experienceHitSuppression: v } })} description="[0, 1]" />
-                <ConfigField label="短路抑制因子" value={config.orchestrator.costGate.shortCircuitSuppression} onChange={(v) => handleUpdate('orchestrator', { costGate: { ...config.orchestrator.costGate, shortCircuitSuppression: v } })} description="[0, 1]" />
-              </div>
-            </PageCard>
-            <PageCard title="全局参数" icon="⚙️">
-              <div className="space-y-2">
-                <ConfigField label="短路置信度阈值" value={config.orchestrator.shortCircuitConfidence} onChange={(v) => handleUpdate('orchestrator', { shortCircuitConfidence: v })} description="超过此值直接返回" />
-                <ConfigField label="延迟预算 P95" value={config.orchestrator.latencyBudgetMs} onChange={(v) => handleUpdate('orchestrator', { latencyBudgetMs: v })} unit="ms" />
-              </div>
-            </PageCard>
-            <PageCard title="并行扇出" icon="🔱">
-              <div className="space-y-2">
-                <ConfigField label="最大并发数" value={config.orchestrator.parallelFanout.maxConcurrency} onChange={(v) => handleUpdate('orchestrator', { parallelFanout: { ...config.orchestrator.parallelFanout, maxConcurrency: v } })} />
-                <ConfigField label="单任务超时" value={config.orchestrator.parallelFanout.taskTimeoutMs} onChange={(v) => handleUpdate('orchestrator', { parallelFanout: { ...config.orchestrator.parallelFanout, taskTimeoutMs: v } })} unit="ms" />
-                <ConfigField label="全局超时" value={config.orchestrator.parallelFanout.globalTimeoutMs} onChange={(v) => handleUpdate('orchestrator', { parallelFanout: { ...config.orchestrator.parallelFanout, globalTimeoutMs: v } })} unit="ms" />
-              </div>
-            </PageCard>
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* 模块筛选 */}
+          <div className="flex items-center gap-1 flex-wrap">
+            <Button
+              size="sm"
+              variant={selectedModule === null ? 'default' : 'ghost'}
+              className="h-6 px-2 text-[10px]"
+              onClick={() => setSelectedModule(null)}
+            >
+              全部
+            </Button>
+            {Object.entries(MODULE_META).map(([key, meta]) => (
+              <Button
+                key={key}
+                size="sm"
+                variant={selectedModule === key ? 'default' : 'ghost'}
+                className="h-6 px-2 text-[10px]"
+                onClick={() => setSelectedModule(key)}
+              >
+                {meta.icon} {meta.label}
+              </Button>
+            ))}
           </div>
-        </TabsContent>
 
-        {/* ===== 因果图配置 ===== */}
-        <TabsContent value="causalGraph">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <PageCard title="图结构参数" icon="🕸️">
-              <div className="space-y-2">
-                <ConfigField label="最大节点数" value={config.causalGraph.maxNodes} onChange={(v) => handleUpdate('causalGraph', { maxNodes: v })} description="膨胀控制" />
-                <ConfigField label="边权衰减率/天" value={config.causalGraph.edgeDecayRatePerDay} onChange={(v) => handleUpdate('causalGraph', { edgeDecayRatePerDay: v })} />
-                <ConfigField label="最小边权重" value={config.causalGraph.minEdgeWeight} onChange={(v) => handleUpdate('causalGraph', { minEdgeWeight: v })} description="低于此值自动剪枝" />
+          {/* 新增配置项 */}
+          <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+            <DialogTrigger asChild>
+              <Button size="sm" className="h-7 text-xs">+ 新增配置项</Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-lg">
+              <DialogHeader>
+                <DialogTitle>新增配置项</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">所属模块</label>
+                    <select
+                      className="w-full h-8 rounded-md border border-input bg-background px-2 text-xs"
+                      value={newItem.module}
+                      onChange={(e) => setNewItem({ ...newItem, module: e.target.value })}
+                    >
+                      {Object.entries(MODULE_META).map(([k, v]) => (
+                        <option key={k} value={k}>{v.icon} {v.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">分组</label>
+                    <Input className="h-8 text-xs" value={newItem.configGroup} onChange={(e) => setNewItem({ ...newItem, configGroup: e.target.value })} placeholder="general" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">配置键 (key)</label>
+                    <Input className="h-8 text-xs" value={newItem.configKey} onChange={(e) => setNewItem({ ...newItem, configKey: e.target.value })} placeholder="myConfigKey" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">值类型</label>
+                    <select
+                      className="w-full h-8 rounded-md border border-input bg-background px-2 text-xs"
+                      value={newItem.valueType}
+                      onChange={(e) => setNewItem({ ...newItem, valueType: e.target.value as any })}
+                    >
+                      <option value="number">数字</option>
+                      <option value="string">字符串</option>
+                      <option value="boolean">布尔</option>
+                      <option value="json">JSON</option>
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">中文标签</label>
+                  <Input className="h-8 text-xs" value={newItem.label} onChange={(e) => setNewItem({ ...newItem, label: e.target.value })} placeholder="配置项名称" />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">配置值</label>
+                  <Input className="h-8 text-xs" value={newItem.configValue} onChange={(e) => setNewItem({ ...newItem, configValue: e.target.value })} placeholder="值" />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">描述</label>
+                  <Input className="h-8 text-xs" value={newItem.description} onChange={(e) => setNewItem({ ...newItem, description: e.target.value })} placeholder="可选" />
+                </div>
+                <div className="grid grid-cols-4 gap-2">
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">单位</label>
+                    <Input className="h-8 text-xs" value={newItem.unit} onChange={(e) => setNewItem({ ...newItem, unit: e.target.value })} placeholder="ms" />
+                  </div>
+                  {newItem.valueType === 'number' && (
+                    <>
+                      <div>
+                        <label className="text-xs text-muted-foreground mb-1 block">最小值</label>
+                        <Input className="h-8 text-xs" type="number" value={newItem.constraintMin} onChange={(e) => setNewItem({ ...newItem, constraintMin: e.target.value })} />
+                      </div>
+                      <div>
+                        <label className="text-xs text-muted-foreground mb-1 block">最大值</label>
+                        <Input className="h-8 text-xs" type="number" value={newItem.constraintMax} onChange={(e) => setNewItem({ ...newItem, constraintMax: e.target.value })} />
+                      </div>
+                      <div>
+                        <label className="text-xs text-muted-foreground mb-1 block">步长</label>
+                        <Input className="h-8 text-xs" type="number" value={newItem.constraintStep} onChange={(e) => setNewItem({ ...newItem, constraintStep: e.target.value })} />
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
-            </PageCard>
-            <PageCard title="Grok 补全" icon="🤖">
-              <div className="space-y-2">
-                <ConfigField label="启用 Grok 动态补全" value={config.causalGraph.enableGrokCompletion} onChange={(v) => handleUpdate('causalGraph', { enableGrokCompletion: v })} type="boolean" />
-                <ConfigField label="5-Why 最大深度" value={config.causalGraph.maxWhyDepth} onChange={(v) => handleUpdate('causalGraph', { maxWhyDepth: v })} />
-              </div>
-            </PageCard>
-          </div>
-        </TabsContent>
+              <DialogFooter>
+                <Button variant="ghost" onClick={() => setShowAddDialog(false)}>取消</Button>
+                <Button onClick={handleAdd} disabled={!newItem.configKey || !newItem.label || !newItem.configValue}>
+                  新增
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
 
-        {/* ===== 经验池配置 ===== */}
-        <TabsContent value="experiencePool">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <PageCard title="三层内存容量" icon="🧠">
-              <div className="space-y-2">
-                <ConfigField label="情景记忆 (Episodic)" value={config.experiencePool.capacity.episodic} onChange={(v) => handleUpdate('experiencePool', { capacity: { ...config.experiencePool.capacity, episodic: v } })} />
-                <ConfigField label="语义记忆 (Semantic)" value={config.experiencePool.capacity.semantic} onChange={(v) => handleUpdate('experiencePool', { capacity: { ...config.experiencePool.capacity, semantic: v } })} />
-                <ConfigField label="程序记忆 (Procedural)" value={config.experiencePool.capacity.procedural} onChange={(v) => handleUpdate('experiencePool', { capacity: { ...config.experiencePool.capacity, procedural: v } })} />
-              </div>
-            </PageCard>
-            <PageCard title="三维衰减参数" icon="📉">
-              <div className="space-y-2">
-                <ConfigField label="时间衰减半衰期" value={config.experiencePool.decay.timeHalfLifeDays} onChange={(v) => handleUpdate('experiencePool', { decay: { ...config.experiencePool.decay, timeHalfLifeDays: v } })} unit="天" />
-                <ConfigField label="设备相似度权重" value={config.experiencePool.decay.deviceSimilarityWeight} onChange={(v) => handleUpdate('experiencePool', { decay: { ...config.experiencePool.decay, deviceSimilarityWeight: v } })} description="[0, 1]" />
-                <ConfigField label="工况相似度权重" value={config.experiencePool.decay.conditionSimilarityWeight} onChange={(v) => handleUpdate('experiencePool', { decay: { ...config.experiencePool.decay, conditionSimilarityWeight: v } })} description="[0, 1]" />
-              </div>
-            </PageCard>
-          </div>
-        </TabsContent>
+          {/* 重置模块 */}
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs"
+                  onClick={() => {
+                    if (selectedModule) {
+                      resetMutation.mutate({ module: selectedModule });
+                    }
+                  }}
+                  disabled={!selectedModule}
+                >
+                  重置模块
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p className="text-xs">将当前模块所有配置项重置为默认值</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
+      </div>
 
-        {/* ===== 物理验证器配置 ===== */}
-        <TabsContent value="physicsVerifier">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <PageCard title="验证参数" icon="🔬">
-              <div className="space-y-2">
-                <ConfigField label="映射置信度阈值" value={config.physicsVerifier.mappingConfidenceThreshold} onChange={(v) => handleUpdate('physicsVerifier', { mappingConfidenceThreshold: v })} description="低于此值的映射被丢弃" />
-                <ConfigField label="残差阈值" value={config.physicsVerifier.residualThreshold} onChange={(v) => handleUpdate('physicsVerifier', { residualThreshold: v })} description="残差 > 此值视为物理不可行" />
-                <ConfigField label="Monte-Carlo 采样次数" value={config.physicsVerifier.monteCarloSamples} onChange={(v) => handleUpdate('physicsVerifier', { monteCarloSamples: v })} />
-                <ConfigField label="启用 Grok 映射" value={config.physicsVerifier.enableGrokMapping} onChange={(v) => handleUpdate('physicsVerifier', { enableGrokMapping: v })} type="boolean" />
-              </div>
-            </PageCard>
-            <PageCard title="三源映射权重" icon="⚖️">
-              <div className="space-y-2">
-                <ConfigField label="规则映射权重" value={config.physicsVerifier.sourceWeights.rule} onChange={(v) => handleUpdate('physicsVerifier', { sourceWeights: { ...config.physicsVerifier.sourceWeights, rule: v } })} />
-                <ConfigField label="Embedding 映射权重" value={config.physicsVerifier.sourceWeights.embedding} onChange={(v) => handleUpdate('physicsVerifier', { sourceWeights: { ...config.physicsVerifier.sourceWeights, embedding: v } })} />
-                <ConfigField label="Grok 映射权重" value={config.physicsVerifier.sourceWeights.grok} onChange={(v) => handleUpdate('physicsVerifier', { sourceWeights: { ...config.physicsVerifier.sourceWeights, grok: v } })} />
-                <div className="text-[10px] text-muted-foreground pt-1">三源权重之和应为 1.0，当前: {(config.physicsVerifier.sourceWeights.rule + config.physicsVerifier.sourceWeights.embedding + config.physicsVerifier.sourceWeights.grok).toFixed(2)}</div>
-              </div>
-            </PageCard>
-          </div>
-        </TabsContent>
+      {/* 配置项列表 */}
+      {configQuery.isLoading ? (
+        <div className="flex items-center justify-center py-8 gap-2">
+          <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+          <span className="text-xs text-muted-foreground">加载配置中...</span>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {Array.from(grouped.entries()).map(([module, groupMap]) => {
+            const meta = MODULE_META[module] || MODULE_META.custom;
+            return (
+              <Card key={module} className="border-border/50">
+                <CardHeader className="py-2 px-4">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <span>{meta.icon}</span>
+                    <span>{meta.label}</span>
+                    <Badge variant="outline" className={`text-[10px] ${meta.color}`}>
+                      {Array.from(groupMap.values()).reduce((s, g) => s + g.length, 0)} 项
+                    </Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="px-4 pb-3 space-y-3">
+                  {Array.from(groupMap.entries()).map(([group, groupItems]) => (
+                    <div key={group}>
+                      <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1.5 border-b border-border/30 pb-1">
+                        {group}
+                      </div>
+                      <div className="space-y-0.5">
+                        {groupItems.map((item) => (
+                          <div
+                            key={item.id}
+                            className="group flex items-center justify-between py-1.5 px-2 rounded hover:bg-muted/30 transition-colors"
+                          >
+                            <div className="flex items-center gap-3 flex-1 min-w-0">
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-xs font-medium text-foreground truncate">{item.label}</span>
+                                        <span className="text-[10px] text-muted-foreground font-mono">{item.configKey}</span>
+                                        {item.isBuiltin && (
+                                          <Badge variant="outline" className="text-[9px] h-4 px-1">内置</Badge>
+                                        )}
+                                        {!item.enabled && (
+                                          <Badge variant="secondary" className="text-[9px] h-4 px-1">已禁用</Badge>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top" className="max-w-xs">
+                                    <p className="text-xs">{item.description || '无描述'}</p>
+                                    {item.constraints && (
+                                      <p className="text-[10px] text-muted-foreground mt-1">
+                                        范围: [{item.constraints.min ?? '-∞'}, {item.constraints.max ?? '+∞'}]
+                                        {item.constraints.step && ` 步长: ${item.constraints.step}`}
+                                      </p>
+                                    )}
+                                    {item.defaultValue && (
+                                      <p className="text-[10px] text-muted-foreground">默认值: {item.defaultValue}</p>
+                                    )}
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            </div>
 
-        {/* ===== 反馈环配置 ===== */}
-        <TabsContent value="feedbackLoop">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <PageCard title="反馈参数" icon="🔄">
-              <div className="space-y-2">
-                <ConfigField label="最小样本数保护" value={config.feedbackLoop.minSamplesForUpdate} onChange={(v) => handleUpdate('feedbackLoop', { minSamplesForUpdate: v })} description="低于此数不更新权重" />
-                <ConfigField label="修订日志保留天数" value={config.feedbackLoop.revisionLogRetentionDays} onChange={(v) => handleUpdate('feedbackLoop', { revisionLogRetentionDays: v })} unit="天" />
-                <ConfigField label="启用自动反馈" value={config.feedbackLoop.enableAutoFeedback} onChange={(v) => handleUpdate('feedbackLoop', { enableAutoFeedback: v })} type="boolean" />
-              </div>
-            </PageCard>
-            <PageCard title="学习率（自适应）" icon="📐">
-              <div className="space-y-2">
-                <ConfigField label="初始学习率" value={config.feedbackLoop.learningRate.initial} onChange={(v) => handleUpdate('feedbackLoop', { learningRate: { ...config.feedbackLoop.learningRate, initial: v } })} />
-                <ConfigField label="最小学习率" value={config.feedbackLoop.learningRate.min} onChange={(v) => handleUpdate('feedbackLoop', { learningRate: { ...config.feedbackLoop.learningRate, min: v } })} />
-                <ConfigField label="最大学习率" value={config.feedbackLoop.learningRate.max} onChange={(v) => handleUpdate('feedbackLoop', { learningRate: { ...config.feedbackLoop.learningRate, max: v } })} />
-                <ConfigField label="衰减因子" value={config.feedbackLoop.learningRate.decayFactor} onChange={(v) => handleUpdate('feedbackLoop', { learningRate: { ...config.feedbackLoop.learningRate, decayFactor: v } })} />
-              </div>
-            </PageCard>
-          </div>
-        </TabsContent>
-      </Tabs>
+                            <div className="flex items-center gap-2 shrink-0">
+                              {renderValueEditor(item)}
+
+                              {/* 重置单项 */}
+                              {item.defaultValue && item.configValue !== item.defaultValue && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-6 px-2 text-[10px] text-amber-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                                  onClick={() => resetMutation.mutate({ id: item.id })}
+                                >
+                                  重置
+                                </Button>
+                              )}
+
+                              {/* 删除（仅非内置） */}
+                              {!item.isBuiltin && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-6 px-2 text-[10px] text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                                  onClick={() => {
+                                    if (confirm(`确定删除配置项 "${item.label}" (${item.configKey})?`)) {
+                                      deleteMutation.mutate({ id: item.id });
+                                    }
+                                  }}
+                                >
+                                  删除
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            );
+          })}
+
+          {grouped.size === 0 && (
+            <div className="text-center py-8 text-muted-foreground text-sm">
+              暂无配置项{selectedModule && `（模块: ${MODULE_META[selectedModule]?.label || selectedModule}）`}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
+
+// 兼容旧的命名导出
+export { ReasoningEngineConfig };
