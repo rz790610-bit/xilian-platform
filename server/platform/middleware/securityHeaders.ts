@@ -69,6 +69,8 @@ export function createSecurityHeaders(): RequestHandler {
         objectSrc: ["'none'"],
         baseUri: ["'self'"],
         formAction: ["'self'"],
+        // 禁用 upgrade-insecure-requests，避免非 TLS 环境下浏览器强制升级 HTTP→HTTPS 导致资源加载失败
+        upgradeInsecureRequests: [],
       },
     } : false,
 
