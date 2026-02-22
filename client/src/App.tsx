@@ -98,6 +98,7 @@ import BPAConfigManager from "./pages/perception/BPAConfigManager";
 import DimensionManager from "./pages/perception/DimensionManager";
 import GuardrailConsole from "./pages/guardrail/GuardrailConsole";
 import DigitalTwinView from "./pages/cognitive/DigitalTwinView";
+import DigitalTwinLayout from "./pages/digital-twin/DigitalTwinLayout";
 import KnowledgeExplorer from "./pages/cognitive/KnowledgeExplorer";
 import CognitionEnginePage from "./pages/cognitive/CognitionEnginePage";
 
@@ -343,6 +344,14 @@ function Router() {
         <Redirect to="/settings/config/infrastructure" />
       </Route>
       
+      {/* ━━━ 数字孪生（独立模块） ━━━ */}
+      <Route path="/digital-twin" component={DigitalTwinLayout} />
+      <Route path="/digital-twin/simulation" component={DigitalTwinLayout} />
+      <Route path="/digital-twin/replay" component={DigitalTwinLayout} />
+      <Route path="/digital-twin/worldmodel" component={DigitalTwinLayout} />
+      {/* 旧路由重定向 */}
+      <Route path="/v5/digital-twin"><Redirect to="/digital-twin" /></Route>
+
       {/* ━━━ v5.0 进化平台仪表盘 ━━━ */}
       <Route path="/v5/cognitive" component={CognitiveDashboard} />
       <Route path="/v5/perception" component={PerceptionMonitor} />
@@ -350,7 +359,6 @@ function Router() {
       <Route path="/v5/perception/bpa-config" component={BPAConfigManager} />
       <Route path="/v5/perception/dimensions" component={DimensionManager} />
       <Route path="/v5/guardrail" component={GuardrailConsole} />
-      <Route path="/v5/digital-twin" component={DigitalTwinView} />
       <Route path="/v5/knowledge" component={KnowledgeExplorer} />
 
       {/* ━━━ 认知引擎子页面 ━━━ */}

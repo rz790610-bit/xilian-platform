@@ -128,15 +128,25 @@ export const navigationConfig: NavItem[] = [
 
   // ━━━ 深度进化（v5.0） ━━━
   {
+    id: 'digital-twin',
+    label: '数字孪生',
+    icon: '🔮',
+    section: '深度进化',
+    children: [
+      { id: 'twin-status', label: '设备状态', icon: '📊', path: '/digital-twin' },
+      { id: 'twin-simulation', label: '仿真推演', icon: '🎲', path: '/digital-twin/simulation' },
+      { id: 'twin-replay', label: '历史回放', icon: '⏪', path: '/digital-twin/replay' },
+      { id: 'twin-worldmodel', label: '世界模型', icon: '🌐', path: '/digital-twin/worldmodel' },
+    ]
+  },
+  {
     id: 'v5-cognitive',
     label: '认知中枢',
     icon: '🧠',
-    section: '深度进化',
     children: [
       { id: 'v5-cognitive-dashboard', label: '认知仪表盘', icon: '📊', path: '/v5/cognitive' },
       { id: 'v5-perception-monitor', label: '感知层监控', icon: '📡', path: '/v5/perception' },
       { id: 'v5-guardrail-console', label: '护栏控制台', icon: '🛡️', path: '/v5/guardrail' },
-      { id: 'v5-digital-twin', label: '数字孪生', icon: '🔮', path: '/v5/digital-twin' },
       { id: 'v5-knowledge-explorer', label: '知识探索器', icon: '🕸️', path: '/v5/knowledge' },
       { id: 'v5-cognition-engine', label: '认知引擎', icon: '⚡', path: '/v5/engine' },
     ]
