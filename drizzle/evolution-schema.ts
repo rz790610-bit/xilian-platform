@@ -1220,16 +1220,26 @@ export const simulationScenarios = mysqlTable('simulation_scenarios', {
   name: varchar('name', { length: 256 }).notNull(),
   /** 场景描述 */
   description: text('description'),
+  /** 场景类型: overload|thermal|degradation|resonance|typhoon|multi_factor|custom */
+  scenarioType: varchar('scenario_type', { length: 30 }).notNull().default('custom'),
+  /** 基准工况 ID */
+  baselineConditionId: varchar('baseline_condition_id', { length: 100 }),
   /** 参数覆盖（JSON: Record<string, number>） */
   parameterOverrides: json('parameter_overrides').$type<Record<string, number>>(),
   /** 仿真步数 */
   horizonSteps: int('horizon_steps').notNull().default(30),
+  /** 步长(秒) */
+  stepIntervalSec: int('step_interval_sec').notNull().default(60),
+  /** 是否启用蒙特卡洛 */
+  enableMonteCarlo: boolean('enable_monte_carlo').notNull().default(false),
   /** 蒙特卡洛运行次数 */
   monteCarloRuns: int('monte_carlo_runs').notNull().default(50),
   /** 仿真方法 */
   method: varchar('method', { length: 32 }).notNull().default('sobol_qmc'),
   /** 场景状态 */
-  status: mysqlEnum('status', ['draft', 'running', 'completed', 'failed']).notNull().default('draft'),
+  status: mysqlEnum('status', ['draft', 'queued', 'running', 'completed', 'failed']).notNull().default('draft'),
+  /** BullMQ 任务 ID */
+  taskId: varchar('task_id', { length: 64 }),
   /** 乐观锁版本号 */
   version: int('version').notNull().default(1),
   /** 创建者 */
@@ -1241,6 +1251,7 @@ export const simulationScenarios = mysqlTable('simulation_scenarios', {
 }, (table) => [
   index('idx_ss_machine_id').on(table.machineId),
   index('idx_ss_status').on(table.status),
+  index('idx_ss_scenario_type').on(table.scenarioType),
   index('idx_ss_created_at').on(table.createdAt),
 ]);
 export type SimulationScenarioRow = typeof simulationScenarios.$inferSelect;
@@ -1262,6 +1273,12 @@ export const simulationResults = mysqlTable('simulation_results', {
   scenarioId: int('scenario_id').notNull(),
   /** 设备 ID */
   machineId: varchar('machine_id', { length: 64 }).notNull(),
+  /** 时序轨迹 Array<{step, timestamp, stateVector, anomalies}> */
+  timeline: json('timeline').$type<Array<{ step: number; timestamp: number; stateVector: Record<string, number>; anomalies?: string[] }>>(),
+  /** 风险评估 JSON */
+  riskAssessment: json('risk_assessment').$type<{ overallRisk: string; factors: Array<{ name: string; score: number; trend: string }> }>(),
+  /** 蒙特卡洛结果（如启用） */
+  monteCarloResult: json('monte_carlo_result').$type<{ p5: number[]; p50: number[]; p95: number[]; mean: number[]; stdDev: number[] }>(),
   /** 均值轨迹（JSON: StateVector[]） */
   meanTrajectory: json('mean_trajectory').$type<Array<{ timestamp: number; values: Record<string, number> }>>(),
   /** P5 下界轨迹 */
@@ -1282,8 +1299,16 @@ export const simulationResults = mysqlTable('simulation_results', {
   durationMs: int('duration_ms').notNull(),
   /** AI 增强解释（Grok 生成） */
   aiExplanation: text('ai_explanation'),
+  /** Grok 润色的中文报告 */
+  grokReport: text('grok_report'),
   /** AI 维护建议（Grok 生成） */
   aiMaintenanceAdvice: text('ai_maintenance_advice'),
+  /** 建议动作 string[] */
+  warnings: json('warnings').$type<string[]>(),
+  /** 乐观锁版本号 */
+  version: int('version').notNull().default(1),
+  /** 完成时间 */
+  completedAt: timestamp('completed_at', { fsp: 3 }),
   /** 创建时间 */
   createdAt: timestamp('created_at', { fsp: 3 }).defaultNow().notNull(),
 }, (table) => [
@@ -1309,16 +1334,26 @@ export const twinSyncLogs = mysqlTable('twin_sync_logs', {
   machineId: varchar('machine_id', { length: 64 }).notNull(),
   /** 同步模式 */
   syncMode: mysqlEnum('sync_mode', ['cdc', 'polling']).notNull(),
+  /** 同步类型: telemetry_ingest|snapshot_persist|config_update */
+  syncType: varchar('sync_type', { length: 30 }),
   /** 事件类型 */
   eventType: varchar('event_type', { length: 64 }).notNull(),
   /** 同步延迟 (ms) */
   latencyMs: int('latency_ms'),
+  /** 同步的传感器数量 */
+  sensorCount: int('sensor_count'),
+  /** 同步耗时 (ms) */
+  durationMs: int('duration_ms'),
   /** 状态向量快照（JSON） */
   stateSnapshot: json('state_snapshot').$type<Record<string, number>>(),
   /** 健康指数 */
   healthIndex: double('health_index'),
   /** 额外元数据 */
   metadata: json('metadata').$type<Record<string, unknown>>(),
+  /** 错误信息 */
+  errorMessage: text('error_message'),
+  /** 乐观锁版本号 */
+  version: int('version').notNull().default(1),
   /** 创建时间 */
   createdAt: timestamp('created_at', { fsp: 3 }).defaultNow().notNull(),
 }, (table) => [
@@ -1391,6 +1426,10 @@ export const twinOutbox = mysqlTable('twin_outbox', {
   status: mysqlEnum('status', ['pending', 'sent', 'dead_letter']).notNull().default('pending'),
   /** 重试次数 */
   retryCount: int('retry_count').notNull().default(0),
+  /** 是否已处理 */
+  processed: boolean('processed').notNull().default(false),
+  /** 处理时间 */
+  processedAt: timestamp('processed_at', { fsp: 3 }),
   /** 创建时间 */
   createdAt: timestamp('created_at', { fsp: 3 }).defaultNow().notNull(),
   /** 发送时间 */
@@ -1400,6 +1439,7 @@ export const twinOutbox = mysqlTable('twin_outbox', {
   index('idx_to_aggregate').on(table.aggregateType, table.aggregateId),
   index('idx_to_event_type').on(table.eventType),
   index('idx_to_created_at').on(table.createdAt),
+  index('idx_outbox_unprocessed').on(table.processed, table.createdAt),
 ]);
 export type TwinOutboxRow = typeof twinOutbox.$inferSelect;
 export type InsertTwinOutbox = typeof twinOutbox.$inferInsert;

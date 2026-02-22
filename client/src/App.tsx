@@ -97,7 +97,7 @@ import PerceptionDashboard from "./pages/perception/PerceptionDashboard";
 import BPAConfigManager from "./pages/perception/BPAConfigManager";
 import DimensionManager from "./pages/perception/DimensionManager";
 import GuardrailConsole from "./pages/guardrail/GuardrailConsole";
-import DigitalTwinView from "./pages/cognitive/DigitalTwinView";
+// DigitalTwinView 已被 DigitalTwinLayout 替代 (Phase 3)
 import DigitalTwinLayout from "./pages/digital-twin/DigitalTwinLayout";
 import KnowledgeExplorer from "./pages/cognitive/KnowledgeExplorer";
 import CognitionEnginePage from "./pages/cognitive/CognitionEnginePage";

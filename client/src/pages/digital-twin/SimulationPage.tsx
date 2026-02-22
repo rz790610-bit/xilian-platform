@@ -1,7 +1,12 @@
 /**
  * 数字孪生 — 仿真推演页面
+ *
+ * Phase 3 增强：
+ *   ✅ P5-P95 带状置信区间图（仿真结果可视化）
+ *   ✅ 蒙特卡洛标准差热力条
+ *   ✅ 审计日志集成（后端）
  */
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { PageCard } from '@/components/common/PageCard';
 import { trpc } from '@/lib/trpc';
 import { Button } from '@/components/ui/button';
@@ -15,17 +20,108 @@ import { toast } from 'sonner';
 import { stateLabels, riskLevelMap } from './constants';
 import {
   Chart as ChartJS,
-  CategoryScale, LinearScale, BarElement,
-  Title, Tooltip, Legend,
+  CategoryScale, LinearScale, BarElement, PointElement, LineElement,
+  Filler, Title, Tooltip, Legend,
 } from 'chart.js';
-import { Bar } from 'react-chartjs-2';
+import { Bar, Line } from 'react-chartjs-2';
 
-ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
+ChartJS.register(CategoryScale, LinearScale, BarElement, PointElement, LineElement, Filler, Title, Tooltip, Legend);
+
+// ============================================================================
+// P5-P95 仿真结果置信区间图
+// ============================================================================
+
+function SimulationConfidenceBand({ result }: { result: any }) {
+  const meanTraj = result?.meanTrajectory as Array<{ timestamp?: string; values: Record<string, number> }> | undefined;
+  const p5Traj = result?.p5Trajectory as Array<{ values: Record<string, number> }> | undefined;
+  const p95Traj = result?.p95Trajectory as Array<{ values: Record<string, number> }> | undefined;
+
+  const dimensions = useMemo(() => {
+    if (!meanTraj || meanTraj.length === 0) return [];
+    return Object.keys(meanTraj[0].values);
+  }, [meanTraj]);
+
+  const [selectedDim, setSelectedDim] = useState('');
+
+  useEffect(() => {
+    if (dimensions.length > 0 && !selectedDim) setSelectedDim(dimensions[0]);
+  }, [dimensions, selectedDim]);
+
+  if (!meanTraj || !p5Traj || !p95Traj || dimensions.length === 0) return null;
+
+  const labels = meanTraj.map((_, i) => `T+${i}`);
+
+  return (
+    <div className="mt-2">
+      <div className="flex items-center gap-2 mb-1">
+        <span className="text-[10px] font-medium">置信区间</span>
+        <select
+          className="text-[10px] bg-background border border-border rounded px-1 h-5"
+          value={selectedDim}
+          onChange={e => setSelectedDim(e.target.value)}
+        >
+          {dimensions.map(d => (
+            <option key={d} value={d}>{stateLabels[d] ?? d}</option>
+          ))}
+        </select>
+      </div>
+      <div style={{ height: '180px' }}>
+        <Line
+          data={{
+            labels,
+            datasets: [
+              {
+                label: 'P95',
+                data: p95Traj.map(t => t.values[selectedDim] ?? 0),
+                borderColor: 'rgba(239, 68, 68, 0.3)',
+                backgroundColor: 'rgba(239, 68, 68, 0.06)',
+                fill: '+1',
+                tension: 0.3, pointRadius: 0, borderWidth: 1, borderDash: [3, 2],
+              },
+              {
+                label: 'P5',
+                data: p5Traj.map(t => t.values[selectedDim] ?? 0),
+                borderColor: 'rgba(59, 130, 246, 0.3)',
+                backgroundColor: 'transparent',
+                fill: false,
+                tension: 0.3, pointRadius: 0, borderWidth: 1, borderDash: [3, 2],
+              },
+              {
+                label: '均值',
+                data: meanTraj.map(t => t.values[selectedDim] ?? 0),
+                borderColor: 'rgba(34, 197, 94, 0.8)',
+                backgroundColor: 'transparent',
+                fill: false,
+                tension: 0.3, pointRadius: 0, borderWidth: 2,
+              },
+            ],
+          }}
+          options={{
+            responsive: true, maintainAspectRatio: false,
+            plugins: {
+              legend: { position: 'top', labels: { font: { size: 8 }, usePointStyle: true } },
+              tooltip: { mode: 'index', intersect: false },
+            },
+            scales: {
+              x: { ticks: { maxTicksLimit: 8, font: { size: 8 } }, grid: { display: false } },
+              y: { ticks: { font: { size: 8 } }, grid: { color: 'rgba(128,128,128,0.1)' } },
+            },
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// 主页面
+// ============================================================================
 
 export default function SimulationPage({ equipmentId }: { equipmentId: string }) {
   const [createOpen, setCreateOpen] = useState(false);
   const [compareIds, setCompareIds] = useState<number[]>([]);
   const [showCompare, setShowCompare] = useState(false);
+  const [detailId, setDetailId] = useState<number | null>(null);
 
   const scenariosQuery = trpc.evoPipeline.simulation.list.useQuery(
     { machineId: equipmentId }, { refetchInterval: 5000, retry: 2 },
@@ -38,17 +134,17 @@ export default function SimulationPage({ equipmentId }: { equipmentId: string })
 
   const createMutation = trpc.evoPipeline.simulation.create.useMutation({
     onSuccess: () => { scenariosQuery.refetch(); toast.success('仿真场景创建成功'); setCreateOpen(false); },
-    onError: (e) => toast.error(`创建失败: ${e.message}`),
+    onError: (e: any) => toast.error(`创建失败: ${e.message}`),
   });
 
   const executeMutation = trpc.evoPipeline.simulation.execute.useMutation({
     onSuccess: (data: any) => { scenariosQuery.refetch(); toast.success(`仿真任务已入队: ${data.taskId}`); },
-    onError: (e) => toast.error(`执行失败: ${e.message}`),
+    onError: (e: any) => toast.error(`执行失败: ${e.message}`),
   });
 
   const deleteMutation = trpc.evoPipeline.simulation.delete.useMutation({
     onSuccess: () => { scenariosQuery.refetch(); toast.success('场景已删除'); },
-    onError: (e) => toast.error(`删除失败: ${e.message}`),
+    onError: (e: any) => toast.error(`删除失败: ${e.message}`),
   });
 
   const scenarios: any[] = scenariosQuery.data ?? [];
@@ -60,6 +156,9 @@ export default function SimulationPage({ equipmentId }: { equipmentId: string })
       return [...prev, id];
     });
   }, []);
+
+  // 获取选中场景的详细结果
+  const detailScenario = detailId ? scenarios.find((s: any) => s.id === detailId) : null;
 
   return (
     <div className="space-y-2">
@@ -93,17 +192,22 @@ export default function SimulationPage({ equipmentId }: { equipmentId: string })
                   <TableHead className="text-[10px] py-1">设备</TableHead>
                   <TableHead className="text-[10px] py-1">状态</TableHead>
                   <TableHead className="text-[10px] py-1">风险</TableHead>
+                  <TableHead className="text-[10px] py-1">MC 采样</TableHead>
                   <TableHead className="text-[10px] py-1">创建时间</TableHead>
                   <TableHead className="text-right text-[10px] py-1">操作</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {scenarios.map((s: any) => (
-                  <TableRow key={s.id}>
+                  <TableRow key={s.id} className={detailId === s.id ? 'bg-muted/50' : ''}>
                     <TableCell className="py-0.5">
                       <input type="checkbox" checked={compareIds.includes(s.id)} onChange={() => toggleCompare(s.id)} className="w-3 h-3" disabled={s.status !== 'completed'} />
                     </TableCell>
-                    <TableCell className="text-[10px] py-0.5 font-medium">{s.name}</TableCell>
+                    <TableCell className="text-[10px] py-0.5 font-medium">
+                      <button className="hover:underline text-left" onClick={() => setDetailId(detailId === s.id ? null : s.id)}>
+                        {s.name}
+                      </button>
+                    </TableCell>
                     <TableCell className="text-[10px] py-0.5 font-mono">{s.machineId}</TableCell>
                     <TableCell className="py-0.5">
                       <Badge
@@ -120,6 +224,7 @@ export default function SimulationPage({ equipmentId }: { equipmentId: string })
                         </Badge>
                       ) : <span className="text-[10px] text-muted-foreground">--</span>}
                     </TableCell>
+                    <TableCell className="text-[10px] py-0.5 font-mono">{s.monteCarloRuns ?? '--'}</TableCell>
                     <TableCell className="text-[10px] py-0.5 text-muted-foreground">
                       {new Date(s.createdAt).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
                     </TableCell>
@@ -146,6 +251,64 @@ export default function SimulationPage({ equipmentId }: { equipmentId: string })
                 ))}
               </TableBody>
             </Table>
+          </div>
+        </PageCard>
+      )}
+
+      {/* 场景详情 — P5-P95 置信区间 */}
+      {detailScenario?.latestResult && (
+        <PageCard title={`场景详情: ${detailScenario.name}`} compact
+          action={<Button variant="ghost" size="sm" className="h-5 text-[10px]" onClick={() => setDetailId(null)}>关闭</Button>}
+        >
+          <div className="space-y-1.5">
+            <div className="grid grid-cols-3 gap-2 text-[10px]">
+              <div>
+                <span className="text-muted-foreground">风险等级: </span>
+                <Badge variant={riskLevelMap[detailScenario.latestResult.riskLevel]?.color ?? 'default'} className="text-[8px]">
+                  {riskLevelMap[detailScenario.latestResult.riskLevel]?.label ?? detailScenario.latestResult.riskLevel}
+                </Badge>
+              </div>
+              <div>
+                <span className="text-muted-foreground">蒙特卡洛: </span>
+                <span className="font-mono">{detailScenario.latestResult.monteCarloRuns ?? detailScenario.monteCarloRuns} runs</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">方法: </span>
+                <span className="font-mono">{detailScenario.latestResult.method ?? detailScenario.method}</span>
+              </div>
+            </div>
+
+            {/* P5-P95 带状图 */}
+            <SimulationConfidenceBand result={detailScenario.latestResult} />
+
+            {/* 标准差热力条 */}
+            {detailScenario.latestResult.stdDevByDimension && (
+              <div className="mt-2">
+                <span className="text-[10px] font-medium">各维度不确定性（末步标准差）</span>
+                <div className="space-y-0.5 mt-1">
+                  {Object.entries(detailScenario.latestResult.stdDevByDimension as Record<string, number[]>).map(([dim, values]) => {
+                    const lastStd = Array.isArray(values) ? values[values.length - 1] : 0;
+                    const maxStd = Array.isArray(values) ? Math.max(...values) : 1;
+                    const pct = maxStd > 0 ? Math.min(100, (lastStd / maxStd) * 100) : 0;
+                    return (
+                      <div key={dim} className="flex items-center gap-1">
+                        <span className="text-[9px] text-muted-foreground w-16 truncate">{stateLabels[dim] ?? dim}</span>
+                        <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
+                          <div
+                            className="h-full rounded-full transition-all"
+                            style={{
+                              width: `${pct}%`,
+                              backgroundColor: pct > 70 ? 'hsl(0, 80%, 55%)' : pct > 40 ? 'hsl(45, 90%, 50%)' : 'hsl(120, 60%, 45%)',
+                            }}
+                          />
+                        </div>
+                        <span className="text-[8px] font-mono w-12 text-right">{lastStd.toFixed(4)}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         </PageCard>
       )}
@@ -188,7 +351,7 @@ function CompareResultPanel({ data, onClose }: { data: any; onClose: () => void 
       title={`场景对比 (${scenarios.length} 个)`}
       action={<Button variant="ghost" size="sm" className="h-5 text-[10px]" onClick={onClose}>关闭</Button>}
     >
-      <div className="flex gap-2 mb-2">
+      <div className="flex gap-2 mb-2 flex-wrap">
         {scenarios.map((s: any, i: number) => (
           <div key={s.scenarioId} className="flex items-center gap-1.5">
             <div className="w-2 h-2 rounded-full" style={{ backgroundColor: colors[i % colors.length] }} />
@@ -246,12 +409,19 @@ function CreateSimulationDialog({ open, onOpenChange, equipmentId, onSubmit, isS
       if (data.success && data.params) toast.success(data.fallbackUsed ? '参数生成成功（使用降级策略）' : '参数生成成功');
       else toast.warning(data.message ?? '参数生成失败');
     },
-    onError: (e) => toast.error(`AI 生成失败: ${e.message}`),
+    onError: (e: any) => toast.error(`AI 生成失败: ${e.message}`),
   });
 
   const handleSubmit = useCallback(() => {
     if (!name.trim()) { toast.error('请输入场景名称'); return; }
-    onSubmit({ machineId: equipmentId, name: name.trim(), description: description || undefined, horizonSteps, monteCarloRuns, method });
+    onSubmit({
+      machineId: equipmentId,
+      name: name.trim(),
+      description: description.trim() || undefined,
+      horizonSteps,
+      monteCarloRuns,
+      method,
+    });
     setName(''); setDescription('');
   }, [name, description, horizonSteps, monteCarloRuns, method, equipmentId, onSubmit]);
 

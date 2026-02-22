@@ -1,9 +1,21 @@
 /**
  * 数字孪生 — 设备状态页面
+ *
+ * Phase 3 增强：
+ *   ✅ tRPC 轮询替代 Subscription（httpBatchLink 不支持 WS）
+ *   ✅ OTel 同步指标展示
+ *   ✅ 实时刷新指示器
+ *   ✅ 同步日志面板
+ *
+ * 注意：当前 tRPC 客户端仅配置了 httpBatchLink，不支持 WebSocket。
+ * 使用 refetchInterval 实现近实时更新（5 秒轮询）。
+ * 未来升级到 splitLink + wsLink 后可启用真正的 tRPC Subscription。
  */
+import { useState, useEffect, useRef } from 'react';
 import { PageCard } from '@/components/common/PageCard';
 import { trpc } from '@/lib/trpc';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
@@ -18,13 +30,56 @@ import { Line } from 'react-chartjs-2';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Filler, Title, Tooltip, Legend);
 
+// ============================================================================
+// 实时刷新指示器
+// ============================================================================
+
+function LiveIndicator({ isRefetching, lastUpdate }: { isRefetching: boolean; lastUpdate: Date | null }) {
+  return (
+    <div className="flex items-center gap-1.5">
+      <div className={`w-1.5 h-1.5 rounded-full ${isRefetching ? 'bg-yellow-500 animate-pulse' : 'bg-green-500'}`} />
+      <span className="text-[9px] text-muted-foreground">
+        {isRefetching ? '刷新中...' : lastUpdate ? `${Math.round((Date.now() - lastUpdate.getTime()) / 1000)}s 前` : '等待数据'}
+      </span>
+      <Badge variant="outline" className="text-[7px] px-1">5s 轮询</Badge>
+    </div>
+  );
+}
+
+// ============================================================================
+// 主页面
+// ============================================================================
+
 export default function EquipmentStatusPage({ equipmentId }: { equipmentId: string }) {
+  const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
+  const [showSyncLogs, setShowSyncLogs] = useState(false);
+
+  // tRPC 轮询（替代 Subscription）
   const stateQuery = trpc.evoPipeline.getEquipmentTwinState.useQuery(
     { equipmentId },
-    { refetchInterval: 5000, retry: 2 },
+    {
+      refetchInterval: 5000,
+      retry: 2,
+      // 记录最后更新时间
+    },
   );
 
+  // OTel 指标
+  const metricsQuery = trpc.evoPipeline.metrics.useQuery(undefined, {
+    refetchInterval: 15000,
+    retry: 1,
+  });
+
+  // 更新时间戳
+  useEffect(() => {
+    if (stateQuery.data) {
+      setLastUpdate(new Date());
+    }
+  }, [stateQuery.data]);
+
   const data = stateQuery.data as any;
+  const metrics = metricsQuery.data as any;
+
   if (!data) {
     return (
       <PageCard>
@@ -43,7 +98,9 @@ export default function EquipmentStatusPage({ equipmentId }: { equipmentId: stri
   return (
     <div className="space-y-2">
       {/* 健康评分 */}
-      <PageCard title="综合评分" icon={<span>📊</span>} compact>
+      <PageCard title="综合评分" icon={<span>📊</span>} compact
+        action={<LiveIndicator isRefetching={stateQuery.isRefetching} lastUpdate={lastUpdate} />}
+      >
         <div className="flex justify-around">
           <ScoreGauge label="安全" score={health.safetyScore ?? 0} color="text-green-500" />
           <ScoreGauge label="健康" score={health.healthScore ?? 0} color="text-blue-500" />
@@ -104,6 +161,53 @@ export default function EquipmentStatusPage({ equipmentId }: { equipmentId: stri
               </div>
             </PageCard>
           )}
+
+          {/* OTel 同步指标 */}
+          {metrics && (
+            <PageCard title="OTel 同步指标" icon={<span>📡</span>} compact>
+              <div className="space-y-0.5 text-[10px]">
+                {metrics.twin_sync_duration_ms && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">同步耗时 P95</span>
+                    <span className="font-mono">{(metrics.twin_sync_duration_ms as any).p95?.toFixed(1) ?? '--'} ms</span>
+                  </div>
+                )}
+                {metrics.twin_sync_mode && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">同步模式</span>
+                    <Badge variant="outline" className="text-[8px]">
+                      {(metrics.twin_sync_mode as any).value === 0 ? 'CDC' : 'Polling'}
+                    </Badge>
+                  </div>
+                )}
+                {metrics.twin_registry_instances && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">活跃实例</span>
+                    <span className="font-mono">{(metrics.twin_registry_instances as any).value ?? 0}</span>
+                  </div>
+                )}
+                {metrics.physics_validation_failures && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">物理校验失败</span>
+                    <Badge variant={(metrics.physics_validation_failures as any).value > 0 ? 'destructive' : 'default'} className="text-[8px]">
+                      {(metrics.physics_validation_failures as any).value ?? 0}
+                    </Badge>
+                  </div>
+                )}
+                {metrics.grok_circuit_state && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Grok 熔断器</span>
+                    <Badge
+                      variant={(metrics.grok_circuit_state as any).value === 0 ? 'default' : 'destructive'}
+                      className="text-[8px]"
+                    >
+                      {(metrics.grok_circuit_state as any).value === 0 ? 'Closed' : (metrics.grok_circuit_state as any).value === 1 ? 'Open' : 'Half-Open'}
+                    </Badge>
+                  </div>
+                )}
+              </div>
+            </PageCard>
+          )}
         </div>
 
         {/* 右侧：趋势图 + 告警 */}
@@ -154,6 +258,36 @@ export default function EquipmentStatusPage({ equipmentId }: { equipmentId: stri
                   </div>
                 ))}
               </div>
+            )}
+          </PageCard>
+
+          {/* 同步日志 */}
+          <PageCard title="同步日志" icon={<span>🔄</span>} compact
+            action={
+              <Button variant="ghost" size="sm" className="h-5 text-[9px]" onClick={() => setShowSyncLogs(!showSyncLogs)}>
+                {showSyncLogs ? '收起' : '展开'}
+              </Button>
+            }
+          >
+            {showSyncLogs && data.syncLogs && data.syncLogs.length > 0 ? (
+              <div className="space-y-0.5 max-h-32 overflow-y-auto">
+                {data.syncLogs.slice(0, 15).map((log: any, i: number) => (
+                  <div key={i} className="flex items-center gap-1 text-[9px]">
+                    <span className="text-muted-foreground w-14 shrink-0">
+                      {new Date(log.createdAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                    </span>
+                    <Badge variant={log.status === 'success' ? 'default' : 'destructive'} className="text-[7px] px-1">
+                      {log.status}
+                    </Badge>
+                    <span className="font-mono">{log.syncMode}</span>
+                    {log.durationMs && <span className="text-muted-foreground">{log.durationMs}ms</span>}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-[9px] text-muted-foreground py-1 text-center">
+                {showSyncLogs ? '无同步日志' : '点击展开查看同步日志'}
+              </p>
             )}
           </PageCard>
         </div>

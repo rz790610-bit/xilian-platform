@@ -68,6 +68,10 @@ import {
   type TwinEventMap,
 } from '../../platform/cognition/worldmodel/twin-event-bus';
 import { outboxRelay, createOutboxEntry } from '../../platform/cognition/worldmodel/outbox-relay';
+import { worldModelMetrics } from '../../platform/cognition/worldmodel/otel-metrics';
+import { auditLogger } from '../../platform/cognition/worldmodel/audit-logger';
+import { DBSCANEngine } from '../../platform/cognition/worldmodel/dbscan-engine';
+import { worldModelToolManager } from '../../platform/cognition/worldmodel/grok-tools';
 import type { StateVector } from '../../platform/cognition/worldmodel/world-model';
 // 复用现有路由
 import { pipelineRouter } from '../../api/pipeline.router';
@@ -205,7 +209,7 @@ const simulationRouter = router({
   /** 9. 创建仿真场景 */
   create: protectedProcedure
     .input(simulationCreateInput)
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) throw new Error('Database not available');
 
@@ -221,6 +225,15 @@ const simulationRouter = router({
         version: 1,
       });
 
+      // 审计日志
+      await auditLogger.log({
+        userId: (ctx as any).user?.id ?? 'system',
+        action: 'simulation.create',
+        resourceType: 'simulation_scenario',
+        resourceId: String(result.insertId),
+        payload: { name: input.name, machineId: input.machineId, horizonSteps: input.horizonSteps, monteCarloRuns: input.monteCarloRuns },
+      });
+
       return {
         id: result.insertId,
         machineId: input.machineId,
@@ -232,7 +245,7 @@ const simulationRouter = router({
   /** 10. 执行仿真（异步） */
   execute: protectedProcedure
     .input(simulationExecuteInput)
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) throw new Error('Database not available');
 
@@ -256,13 +269,22 @@ const simulationRouter = router({
         });
       });
 
+      // 审计日志
+      await auditLogger.log({
+        userId: (ctx as any).user?.id ?? 'system',
+        action: 'simulation.execute',
+        resourceType: 'simulation_scenario',
+        resourceId: String(input.scenarioId),
+        payload: { taskId, scenarioId: input.scenarioId },
+      });
+
       return { taskId, scenarioId: input.scenarioId, status: 'queued' };
     }),
 
   /** 11. 批量执行仿真 */
   batchExecute: protectedProcedure
     .input(simulationBatchExecuteInput)
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) throw new Error('Database not available');
 
@@ -285,7 +307,7 @@ const simulationRouter = router({
   /** 12. 删除仿真场景 */
   delete: protectedProcedure
     .input(z.object({ scenarioId: z.number().int().positive() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) throw new Error('Database not available');
 
@@ -296,11 +318,19 @@ const simulationRouter = router({
       await db.delete(simulationScenarios)
         .where(eq(simulationScenarios.id, input.scenarioId));
 
+      // 审计日志
+      await auditLogger.log({
+        userId: (ctx as any).user?.id ?? 'system',
+        action: 'simulation.delete',
+        resourceType: 'simulation_scenario',
+        resourceId: String(input.scenarioId),
+      });
+
       return { deleted: true, scenarioId: input.scenarioId };
     }),
 
   /** S2. 仿真进度实时推送 tRPC Subscription */
-  progress: publicProcedure
+  progress: protectedProcedure
     .input(subscriptionProgressInput)
     .subscription(({ input }) => {
       return observable<{
@@ -444,10 +474,61 @@ const replayRouter = router({
           }));
         }
 
+        // OTel 指标
+        worldModelMetrics.recordReplayQueryDuration(String(input.maxPoints), Date.now() - startDate.getTime());
+
         return { channels, events };
       } catch (err) {
         console.error('[replay.getData] Error:', err);
         return { channels: [], events: [] };
+      }
+    }),
+
+  /** 6b. DBSCAN 异常聚类分析 */
+  dbscanAnalysis: publicProcedure
+    .input(z.object({
+      equipmentId: equipmentIdSchema,
+      startTime: z.string(),
+      endTime: z.string(),
+      channels: z.array(z.string()).optional(),
+      eps: z.number().min(0.01).max(2).default(0.3),
+      minPts: z.number().int().min(2).max(50).default(5),
+      maxPoints: z.number().int().min(10).max(5000).default(500),
+    }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return { points: [], clusters: [], anomalyCount: 0, anomalyRate: 0, totalPoints: 0, params: { eps: input.eps, minPts: input.minPts } };
+      try {
+        const startDate = new Date(input.startTime);
+        const endDate = new Date(input.endTime);
+
+        const snapshots = await db.select().from(worldModelSnapshots)
+          .where(and(
+            eq(worldModelSnapshots.machineId, input.equipmentId),
+            gte(worldModelSnapshots.timestamp, startDate),
+            lte(worldModelSnapshots.timestamp, endDate),
+          ))
+          .orderBy(asc(worldModelSnapshots.timestamp))
+          .limit(input.maxPoints);
+
+        if (snapshots.length === 0) {
+          return { points: [], clusters: [], anomalyCount: 0, anomalyRate: 0, totalPoints: 0, params: { eps: input.eps, minPts: input.minPts } };
+        }
+
+        const channelNames = input.channels ?? ['temperature', 'vibrationRMS', 'loadRatio', 'speed'];
+        const data = snapshots.map(s => {
+          const sv = s.stateVector as Record<string, number>;
+          const values: Record<string, number> = {};
+          for (const ch of channelNames) {
+            values[ch] = ch === 'healthIndex' ? (s.healthIndex ?? 0) : (sv[ch] ?? 0);
+          }
+          return { timestamp: s.timestamp.toISOString(), values };
+        });
+
+        return DBSCANEngine.cluster(data, channelNames, input.eps, input.minPts);
+      } catch (err) {
+        console.error('[replay.dbscanAnalysis] Error:', err);
+        return { points: [], clusters: [], anomalyCount: 0, anomalyRate: 0, totalPoints: 0, params: { eps: input.eps, minPts: input.minPts } };
       }
     }),
 });
@@ -533,7 +614,7 @@ const worldmodelRouter = router({
   /** 13. 带不确定性预测 */
   predict: protectedProcedure
     .input(predictInput)
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) throw new Error('Database not available');
 
@@ -612,6 +693,24 @@ const worldmodelRouter = router({
         snapshotId: latestSnapshot.id,
         horizonMinutes: input.horizonMinutes,
         predictedState: basePrediction.trajectory[basePrediction.trajectory.length - 1]?.values ?? rawStateVector,
+      });
+
+      // OTel 指标
+      worldModelMetrics.recordSimulationDuration('prediction', !!input.includeUncertainty, durationMs);
+      if (input.includeUncertainty && input.monteCarloRuns) {
+        worldModelMetrics.recordMonteCarloSamples(input.method ?? 'sobol_qmc', input.monteCarloRuns);
+      }
+      if (validationResult && !validationResult.isValid) {
+        worldModelMetrics.incrementPhysicsValidationFailures('prediction');
+      }
+
+      // 审计日志
+      await auditLogger.log({
+        userId: (ctx as any).user?.id ?? 'system',
+        action: 'worldmodel.predict',
+        resourceType: 'world_model_prediction',
+        resourceId: input.equipmentId,
+        payload: { horizonMinutes: input.horizonMinutes, includeUncertainty: input.includeUncertainty, durationMs },
       });
 
       return {
@@ -1216,6 +1315,80 @@ export const pipelineDomainRouter = router({
   worldmodel: worldmodelRouter,
   /** AI 子路由 */
   ai: aiRouter,
-  /** 孪生状态子路由（含 Subscription） */
+  /** 孝体状态子路由（含 Subscription） */
   twin: twinRouter,
+
+  // ========================================================================
+  // Phase 3: OTel 指标 + Grok 工具
+  // ========================================================================
+
+  /** OTel 指标导出端点 */
+  metrics: publicProcedure.query(() => {
+    return worldModelMetrics.exportMetrics();
+  }),
+
+  /** OTel 指标摘要 */
+  metricsSummary: publicProcedure.query(() => {
+    return worldModelMetrics.getSummary();
+  }),
+
+  /** Grok 工具列表 */
+  grokTools: publicProcedure.query(() => {
+    return worldModelToolManager.getToolDefinitions();
+  }),
+
+  /** Grok 工具调用 */
+  invokeGrokTool: protectedProcedure
+    .input(z.object({
+      toolName: z.string(),
+      input: z.record(z.unknown()),
+      context: z.object({
+        sessionId: z.string().optional(),
+        machineId: z.string().optional(),
+        traceId: z.string(),
+      }),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const result = await worldModelToolManager.invoke(input);
+
+      // 审计日志
+      await auditLogger.log({
+        userId: (ctx as any).user?.id ?? 'system',
+        action: `grok.tool.${input.toolName}`,
+        resourceType: 'grok_tool',
+        resourceId: input.toolName,
+        payload: { traceId: input.context.traceId, durationMs: result.durationMs },
+      });
+
+      return result;
+    }),
+
+  /** 审计日志查询 */
+  auditLogs: protectedProcedure
+    .input(z.object({
+      limit: z.number().int().min(1).max(200).default(50),
+      action: z.string().optional(),
+      resourceType: z.string().optional(),
+    }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return [];
+      try {
+        const rows = await db.execute({
+          sql: `SELECT id, user_id, action, resource_type, resource_id, payload, created_at
+                FROM audit_logs
+                ${input.action ? 'WHERE action = ?' : ''}
+                ${input.resourceType ? (input.action ? 'AND' : 'WHERE') + ' resource_type = ?' : ''}
+                ORDER BY created_at DESC LIMIT ?`,
+          params: [
+            ...(input.action ? [input.action] : []),
+            ...(input.resourceType ? [input.resourceType] : []),
+            input.limit,
+          ],
+        });
+        return rows.rows ?? [];
+      } catch {
+        return [];
+      }
+    }),
 });
