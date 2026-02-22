@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS `users` (
   `role` ENUM("user", "admin") NOT NULL DEFAULT "user",
   `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  `last_signed_in` TIMESTAMP NOT NULL,
+  `last_signed_in` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -406,7 +406,7 @@ CREATE TABLE IF NOT EXISTS `device_operation_logs` (
   `success` BOOLEAN NOT NULL DEFAULT TRUE,
   `error_message` TEXT,
   `duration` INT,
-  `timestamp` TIMESTAMP NOT NULL,
+  `timestamp` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -440,8 +440,8 @@ CREATE TABLE IF NOT EXISTS `device_kpis` (
   `id` INT AUTO_INCREMENT,
   `node_id` VARCHAR(64) NOT NULL,
   `period_type` ENUM("hourly", "daily", "weekly", "monthly") NOT NULL,
-  `period_start` TIMESTAMP NOT NULL,
-  `period_end` TIMESTAMP NOT NULL,
+  `period_start` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `period_end` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `availability` DOUBLE,
   `performance` DOUBLE,
   `quality` DOUBLE,
@@ -493,7 +493,7 @@ CREATE TABLE IF NOT EXISTS `idempotent_records` (
   `status` ENUM("processing", "completed", "failed") NOT NULL DEFAULT "processing",
   `request_hash` VARCHAR(64),
   `response` JSON,
-  `expires_at` TIMESTAMP NOT NULL,
+  `expires_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
@@ -507,7 +507,7 @@ CREATE TABLE IF NOT EXISTS `system_capacity_metrics` (
   `current_value` DOUBLE NOT NULL,
   `threshold` DOUBLE NOT NULL,
   `status` ENUM("normal", "warning", "critical") NOT NULL DEFAULT "normal",
-  `last_checked_at` TIMESTAMP NOT NULL,
+  `last_checked_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -965,7 +965,7 @@ CREATE TABLE IF NOT EXISTS `sensor_mp_mapping` (
   `mp_id` VARCHAR(64) NOT NULL,
   `axis` VARCHAR(8),
   `weight` VARCHAR(10) NOT NULL DEFAULT "1.000",
-  `effective_from` TIMESTAMP NOT NULL,
+  `effective_from` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `effective_to` TIMESTAMP,
   `status` VARCHAR(32) NOT NULL DEFAULT "active",
   `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -1324,7 +1324,7 @@ CREATE TABLE IF NOT EXISTS `config_change_logs` (
   `new_version` INT NOT NULL,
   `change_reason` TEXT,
   `changed_by` VARCHAR(64) NOT NULL,
-  `changed_at` TIMESTAMP NOT NULL,
+  `changed_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `rollback_to` BIGINT,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -1470,7 +1470,7 @@ CREATE TABLE IF NOT EXISTS `device_maintenance_logs` (
   `title` VARCHAR(200) NOT NULL,
   `description` TEXT,
   `operator` VARCHAR(128) NOT NULL,
-  `started_at` TIMESTAMP NOT NULL,
+  `started_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `completed_at` TIMESTAMP,
   `result` VARCHAR(128),
   `cost` DOUBLE,
@@ -1718,8 +1718,8 @@ CREATE TABLE IF NOT EXISTS `realtime_data_latest` (
   `value` DOUBLE,
   `string_value` VARCHAR(128),
   `quality` INT NOT NULL DEFAULT 0,
-  `source_timestamp` TIMESTAMP NOT NULL,
-  `server_timestamp` TIMESTAMP NOT NULL,
+  `source_timestamp` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `server_timestamp` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -1728,7 +1728,7 @@ CREATE TABLE IF NOT EXISTS `vibration_1hour_agg` (
   `id` BIGINT AUTO_INCREMENT,
   `device_code` VARCHAR(64) NOT NULL,
   `mp_code` VARCHAR(64) NOT NULL,
-  `hour_start` TIMESTAMP NOT NULL,
+  `hour_start` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `rms_avg` DOUBLE,
   `rms_max` DOUBLE,
   `peak_avg` DOUBLE,
@@ -1818,7 +1818,7 @@ CREATE TABLE IF NOT EXISTS `saga_instances` (
   `output` JSON,
   `checkpoint` JSON,
   `error` TEXT,
-  `started_at` TIMESTAMP NOT NULL,
+  `started_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `completed_at` TIMESTAMP,
   `timeout_at` TIMESTAMP,
   `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -1870,8 +1870,8 @@ CREATE TABLE IF NOT EXISTS `processed_events` (
   `event_id` VARCHAR(64) NOT NULL,
   `event_type` VARCHAR(100) NOT NULL,
   `consumer_group` VARCHAR(100) NOT NULL,
-  `processed_at` TIMESTAMP NOT NULL,
-  `expires_at` TIMESTAMP NOT NULL,
+  `processed_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `expires_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `metadata` JSON,
   `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
@@ -1913,7 +1913,7 @@ CREATE TABLE IF NOT EXISTS `event_store` (
   `causation_id` VARCHAR(64),
   `correlation_id` VARCHAR(64),
   `occurred_at` VARCHAR(255) NOT NULL,
-  `recorded_at` TIMESTAMP NOT NULL,
+  `recorded_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `actor_id` VARCHAR(64),
   `actor_type` VARCHAR(20),
   PRIMARY KEY (`id`)
