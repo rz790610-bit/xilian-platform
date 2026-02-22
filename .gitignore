@@ -123,3 +123,5 @@ client/public/__manus__/
 .github/workflows/
 __pycache__/
 *.pyc
+
+package-lock.json
