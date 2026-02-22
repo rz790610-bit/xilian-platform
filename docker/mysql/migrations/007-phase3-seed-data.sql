@@ -1,13 +1,14 @@
 -- ============================================================
 -- 007-phase3-seed-data.sql
 -- Phase 3 种子数据：仿真场景模板 + 物理方程
+-- 幂等：使用 INSERT IGNORE 避免重复插入
 -- ============================================================
 SET NAMES utf8mb4;
 
 -- ============================================================
 -- 1. 预置 6 个仿真场景模板（提案 5.7）
 -- ============================================================
-INSERT INTO `simulation_scenarios` (`machine_id`, `name`, `description`, `scenario_type`, `parameter_overrides`, `horizon_steps`, `step_interval_sec`, `enable_monte_carlo`, `monte_carlo_runs`, `method`, `status`, `version`, `created_by`)
+INSERT IGNORE INTO `simulation_scenarios` (`machine_id`, `name`, `description`, `scenario_type`, `parameter_overrides`, `horizon_steps`, `step_interval_sec`, `enable_monte_carlo`, `monte_carlo_runs`, `method`, `status`, `version`, `created_by`)
 VALUES
   ('EQ-SGT800-001', '满载过载测试', '模拟设备在额定功率120%条件下持续运行30分钟的应力响应', 'overload', '{"loadFactor": 1.2, "duration": 1800}', 30, 60, TRUE, 50, 'sobol_qmc', 'draft', 1, 'system'),
   ('EQ-SGT800-001', '高温热应力测试', '模拟环境温度45°C条件下的热传导和材料膨胀效应', 'thermal', '{"ambientTemp": 45, "solarRadiation": 800}', 60, 30, TRUE, 100, 'sobol_qmc', 'draft', 1, 'system'),
@@ -18,16 +19,74 @@ VALUES
 
 -- ============================================================
 -- 2. 物理方程种子数据（diagnosis_physics_formulas 表）
+--    字段对齐 02-v5-ddl.sql 中的表结构：
+--    name, category, formula, variables, applicable_equipment, source, reference, version, enabled
 -- ============================================================
-INSERT IGNORE INTO `diagnosis_physics_formulas` (`name`, `formula`, `description`, `category`, `variables`, `unit`, `applicable_types`, `created_at`)
+INSERT IGNORE INTO `diagnosis_physics_formulas`
+  (`name`, `category`, `formula`, `variables`, `applicable_equipment`, `source`, `reference`, `version`, `enabled`)
 VALUES
-  ('风载力矩', 'M_{wind} = \\frac{1}{2} \\rho v^2 \\cdot A \\cdot \\frac{h}{2}', '计算风力对结构产生的弯矩', 'structural', '{"rho": "空气密度 (kg/m³)", "v": "风速 (m/s)", "A": "迎风面积 (m²)", "h": "结构高度 (m)"}', 'N·m', '["rotating_machinery", "pump", "fan"]', NOW()),
-  ('疲劳应力增量', '\\Delta\\sigma = k \\times \\frac{M}{W}', '计算循环载荷下的疲劳应力增量', 'fatigue', '{"k": "应力集中系数", "M": "弯矩 (N·m)", "W": "截面模量 (m³)"}', 'MPa', '["rotating_machinery", "compressor", "motor"]', NOW()),
-  ('S-N曲线寿命', 'N = \\frac{C}{(\\Delta\\sigma)^m}', '基于S-N曲线估算疲劳寿命', 'fatigue', '{"C": "材料常数", "m": "S-N曲线斜率", "delta_sigma": "应力幅值 (MPa)"}', 'cycles', '["rotating_machinery", "compressor", "pump", "motor"]', NOW()),
-  ('腐蚀速率', 'r = k \\cdot [Cl^-] \\cdot [humidity]', '计算氯离子和湿度条件下的腐蚀速率', 'corrosion', '{"k": "腐蚀系数", "Cl": "氯离子浓度 (ppm)", "humidity": "相对湿度 (0-1)"}', 'mm/year', '["rotating_machinery", "pump", "fan"]', NOW()),
-  ('倾覆安全系数', 'K = \\frac{M_{stab}}{M_{overturn}}', '计算结构抗倾覆安全系数', 'structural', '{"M_stab": "稳定力矩 (N·m)", "M_overturn": "倾覆力矩 (N·m)"}', '无量纲', '["rotating_machinery", "fan"]', NOW()),
-  ('热传导简化模型', 'T(x,t) = T_0 + \\Delta T \\cdot \\text{erfc}\\left(\\frac{x}{2\\sqrt{\\alpha t}}\\right)', '一维半无限体热传导温度分布', 'thermal', '{"T0": "初始温度 (°C)", "deltaT": "表面温升 (°C)", "x": "深度 (m)", "alpha": "热扩散系数 (m²/s)", "t": "时间 (s)"}', '°C', '["rotating_machinery", "compressor", "motor"]', NOW()),
-  ('振动预测模型', 'a = A \\cdot e^{\\beta t} \\cdot \\sin(2\\pi f t + \\phi)', '指数增长型振动幅值预测', 'vibration', '{"A": "初始振幅 (mm/s²)", "beta": "增长率 (1/s)", "f": "主频 (Hz)", "phi": "初相位 (rad)", "t": "时间 (s)"}', 'mm/s²', '["rotating_machinery", "compressor", "pump", "motor", "fan"]', NOW());
+  ('风载力矩',
+   'wind_load',
+   'M_{wind} = \\frac{1}{2} \\rho v^2 \\cdot A \\cdot \\frac{h}{2}',
+   '{"rho": {"label": "空气密度", "unit": "kg/m³", "default": 1.225}, "v": {"label": "风速", "unit": "m/s"}, "A": {"label": "迎风面积", "unit": "m²"}, "h": {"label": "结构高度", "unit": "m"}}',
+   '["rotating_machinery", "pump", "fan"]',
+   'physics',
+   'GB 50009-2012 建筑结构荷载规范',
+   '1.0.0', TRUE),
+
+  ('疲劳应力增量',
+   'fatigue',
+   '\\Delta\\sigma = k \\times \\frac{M}{W}',
+   '{"k": {"label": "应力集中系数", "unit": ""}, "M": {"label": "弯矩", "unit": "N·m"}, "W": {"label": "截面模量", "unit": "m³"}}',
+   '["rotating_machinery", "compressor", "motor"]',
+   'physics',
+   'Peterson''s Stress Concentration Factors, 4th Ed.',
+   '1.0.0', TRUE),
+
+  ('S-N曲线寿命',
+   'fatigue',
+   'N = \\frac{C}{(\\Delta\\sigma)^m}',
+   '{"C": {"label": "材料常数", "unit": ""}, "m": {"label": "S-N曲线斜率", "unit": ""}, "delta_sigma": {"label": "应力幅值", "unit": "MPa"}}',
+   '["rotating_machinery", "compressor", "pump", "motor"]',
+   'physics',
+   'ASTM E739 Standard Practice for Statistical Analysis of Linear or Linearized S-N Data',
+   '1.0.0', TRUE),
+
+  ('腐蚀速率',
+   'corrosion',
+   'r = k \\cdot [Cl^-] \\cdot [humidity]',
+   '{"k": {"label": "腐蚀系数", "unit": ""}, "Cl": {"label": "氯离子浓度", "unit": "ppm"}, "humidity": {"label": "相对湿度", "unit": "0-1"}}',
+   '["rotating_machinery", "pump", "fan"]',
+   'physics',
+   'ISO 9223:2012 Corrosion of metals and alloys',
+   '1.0.0', TRUE),
+
+  ('倾覆安全系数',
+   'structural',
+   'K = \\frac{M_{stab}}{M_{overturn}}',
+   '{"M_stab": {"label": "稳定力矩", "unit": "N·m"}, "M_overturn": {"label": "倾覆力矩", "unit": "N·m"}}',
+   '["rotating_machinery", "fan"]',
+   'physics',
+   'GB 50007-2011 建筑地基基础设计规范',
+   '1.0.0', TRUE),
+
+  ('热传导简化模型',
+   'thermal',
+   'T(x,t) = T_0 + \\Delta T \\cdot erfc(x / (2 * sqrt(alpha * t)))',
+   '{"T0": {"label": "初始温度", "unit": "°C"}, "deltaT": {"label": "表面温升", "unit": "°C"}, "x": {"label": "深度", "unit": "m"}, "alpha": {"label": "热扩散系数", "unit": "m²/s"}, "t": {"label": "时间", "unit": "s"}}',
+   '["rotating_machinery", "compressor", "motor"]',
+   'physics',
+   'Incropera, Fundamentals of Heat and Mass Transfer, 8th Ed.',
+   '1.0.0', TRUE),
+
+  ('振动预测模型',
+   'vibration',
+   'a = A * exp(beta * t) * sin(2 * pi * f * t + phi)',
+   '{"A": {"label": "初始振幅", "unit": "mm/s²"}, "beta": {"label": "增长率", "unit": "1/s"}, "f": {"label": "主频", "unit": "Hz"}, "phi": {"label": "初相位", "unit": "rad"}, "t": {"label": "时间", "unit": "s"}}',
+   '["rotating_machinery", "compressor", "pump", "motor", "fan"]',
+   'physics',
+   'ISO 10816 Mechanical vibration evaluation',
+   '1.0.0', TRUE);
 
 -- ============================================================
 -- 验证
