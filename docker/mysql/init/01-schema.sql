@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS `users` (
   `email` VARCHAR(320),
   `login_method` VARCHAR(64),
   `role` ENUM("user", "admin") NOT NULL DEFAULT "user",
-  `created_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP NOT NULL ON UPDATE CURRENT_TIMESTAMP,
   `last_signed_in` TIMESTAMP NOT NULL,
   PRIMARY KEY (`id`)
@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS `kb_collections` (
   `description` TEXT,
   `user_id` INT,
   `is_public` BOOLEAN NOT NULL DEFAULT TRUE,
-  `created_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP NOT NULL ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS `kb_points` (
   `entities` JSON,
   `relations` JSON,
   `embedding` JSON,
-  `created_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP NOT NULL ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -57,7 +57,7 @@ CREATE TABLE IF NOT EXISTS `kb_documents` (
   `processed_at` TIMESTAMP,
   `chunks_count` INT DEFAULT 0,
   `entities_count` INT DEFAULT 0,
-  `created_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP NOT NULL ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -71,7 +71,7 @@ CREATE TABLE IF NOT EXISTS `kg_nodes` (
   `properties` JSON,
   `x` INT,
   `y` INT,
-  `created_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP NOT NULL ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -85,7 +85,7 @@ CREATE TABLE IF NOT EXISTS `kg_edges` (
   `label` VARCHAR(100) NOT NULL,
   `type` VARCHAR(50) NOT NULL DEFAULT "related_to",
   `weight` INT DEFAULT 1,
-  `created_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP NOT NULL ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -103,7 +103,7 @@ CREATE TABLE IF NOT EXISTS `topo_nodes` (
   `config` JSON,
   `metrics` JSON,
   `last_heartbeat` TIMESTAMP,
-  `created_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP NOT NULL ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -117,7 +117,7 @@ CREATE TABLE IF NOT EXISTS `topo_edges` (
   `label` VARCHAR(100),
   `config` JSON,
   `status` ENUM("active", "inactive", "error") NOT NULL DEFAULT "active",
-  `created_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP NOT NULL ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -129,7 +129,7 @@ CREATE TABLE IF NOT EXISTS `topo_layouts` (
   `user_id` INT,
   `is_default` BOOLEAN NOT NULL DEFAULT FALSE,
   `layout_data` JSON,
-  `created_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP NOT NULL ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -151,7 +151,7 @@ CREATE TABLE IF NOT EXISTS `models` (
   `config` JSON,
   `capabilities` JSON,
   `metrics` JSON,
-  `created_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP NOT NULL ON UPDATE CURRENT_TIMESTAMP,
   `dataset_version` VARCHAR(64),
   `dataset_clip_count` INT,
@@ -172,7 +172,7 @@ CREATE TABLE IF NOT EXISTS `model_conversations` (
   `total_tokens` INT DEFAULT 0,
   `status` ENUM("active", "archived", "deleted") NOT NULL DEFAULT "active",
   `metadata` JSON,
-  `created_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP NOT NULL ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -188,7 +188,7 @@ CREATE TABLE IF NOT EXISTS `model_messages` (
   `attachments` JSON,
   `tool_calls` JSON,
   `metadata` JSON,
-  `created_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -209,7 +209,7 @@ CREATE TABLE IF NOT EXISTS `model_fine_tune_tasks` (
   `error` TEXT,
   `started_at` TIMESTAMP,
   `completed_at` TIMESTAMP,
-  `created_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP NOT NULL ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -230,7 +230,7 @@ CREATE TABLE IF NOT EXISTS `model_evaluations` (
   `error` TEXT,
   `started_at` TIMESTAMP,
   `completed_at` TIMESTAMP,
-  `created_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP NOT NULL ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -248,7 +248,7 @@ CREATE TABLE IF NOT EXISTS `model_usage_logs` (
   `status` ENUM("success", "error", "timeout") NOT NULL,
   `error` TEXT,
   `metadata` JSON,
-  `created_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `device_code` VARCHAR(64),
   `sensor_code` VARCHAR(64),
   `inference_result` JSON,
@@ -270,7 +270,7 @@ CREATE TABLE IF NOT EXISTS `event_logs` (
   `processed` BOOLEAN NOT NULL DEFAULT FALSE,
   `processed_at` TIMESTAMP,
   `processed_by` VARCHAR(100),
-  `created_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -293,7 +293,7 @@ CREATE TABLE IF NOT EXISTS `anomaly_detections` (
   `acknowledged_at` TIMESTAMP,
   `resolved_at` TIMESTAMP,
   `notes` TEXT,
-  `created_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP NOT NULL ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -314,7 +314,7 @@ CREATE TABLE IF NOT EXISTS `diagnosis_rules` (
   `priority` INT DEFAULT 5,
   `trigger_count` INT DEFAULT 0,
   `last_triggered_at` TIMESTAMP,
-  `created_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP NOT NULL ON UPDATE CURRENT_TIMESTAMP,
   `is_current` VARCHAR(255) NOT NULL DEFAULT 1,
   `rule_version` INT NOT NULL DEFAULT 1,
@@ -338,7 +338,7 @@ CREATE TABLE IF NOT EXISTS `diagnosis_tasks` (
   `error` TEXT,
   `started_at` TIMESTAMP,
   `completed_at` TIMESTAMP,
-  `created_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP NOT NULL ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -364,7 +364,7 @@ CREATE TABLE IF NOT EXISTS `device_maintenance_records` (
   `recommendations` TEXT,
   `attachments` JSON,
   `next_maintenance_date` TIMESTAMP,
-  `created_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP NOT NULL ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -388,7 +388,7 @@ CREATE TABLE IF NOT EXISTS `device_spare_parts` (
   `last_restocked_at` TIMESTAMP,
   `expiry_date` TIMESTAMP,
   `metadata` JSON,
-  `created_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP NOT NULL ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -407,7 +407,7 @@ CREATE TABLE IF NOT EXISTS `device_operation_logs` (
   `error_message` TEXT,
   `duration` INT,
   `timestamp` TIMESTAMP NOT NULL,
-  `created_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -431,7 +431,7 @@ CREATE TABLE IF NOT EXISTS `device_alerts` (
   `escalation_level` INT DEFAULT 0,
   `notifications_sent` JSON,
   `metadata` JSON,
-  `created_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP NOT NULL ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -458,7 +458,7 @@ CREATE TABLE IF NOT EXISTS `device_kpis` (
   `defect_count` INT,
   `energy_consumption` DOUBLE,
   `energy_efficiency` DOUBLE,
-  `created_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -474,7 +474,7 @@ CREATE TABLE IF NOT EXISTS `device_sampling_config` (
   `last_adjusted_at` TIMESTAMP,
   `adjustment_reason` VARCHAR(200),
   `priority` ENUM("low", "normal", "high", "critical") NOT NULL DEFAULT "normal",
-  `created_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP NOT NULL ON UPDATE CURRENT_TIMESTAMP,
   `gateway_id` VARCHAR(64),
   `endpoint` VARCHAR(256),
@@ -494,7 +494,7 @@ CREATE TABLE IF NOT EXISTS `idempotent_records` (
   `request_hash` VARCHAR(64),
   `response` JSON,
   `expires_at` TIMESTAMP NOT NULL,
-  `created_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP NOT NULL ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -508,7 +508,7 @@ CREATE TABLE IF NOT EXISTS `system_capacity_metrics` (
   `threshold` DOUBLE NOT NULL,
   `status` ENUM("normal", "warning", "critical") NOT NULL DEFAULT "normal",
   `last_checked_at` TIMESTAMP NOT NULL,
-  `created_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -968,7 +968,7 @@ CREATE TABLE IF NOT EXISTS `sensor_mp_mapping` (
   `effective_from` TIMESTAMP NOT NULL,
   `effective_to` TIMESTAMP,
   `status` VARCHAR(32) NOT NULL DEFAULT "active",
-  `created_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `created_by` VARCHAR(64),
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -985,9 +985,9 @@ CREATE TABLE IF NOT EXISTS `device_protocol_config` (
   `retry_count` INT NOT NULL DEFAULT 3,
   `status` VARCHAR(32) NOT NULL DEFAULT "active",
   `description` TEXT,
-  `created_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `created_by` VARCHAR(64),
-  `updated_at` TIMESTAMP NOT NULL,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `updated_by` VARCHAR(64),
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -1004,7 +1004,7 @@ CREATE TABLE IF NOT EXISTS `device_rule_versions` (
   `gray_devices` JSON,
   `status` VARCHAR(32) NOT NULL DEFAULT "draft",
   `published_at` TIMESTAMP,
-  `created_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `created_by` VARCHAR(64),
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -1022,7 +1022,7 @@ CREATE TABLE IF NOT EXISTS `data_governance_jobs` (
   `started_at` TIMESTAMP,
   `completed_at` TIMESTAMP,
   `error_message` TEXT,
-  `created_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -1038,7 +1038,7 @@ CREATE TABLE IF NOT EXISTS `data_lineage` (
   `transform_type` VARCHAR(64) NOT NULL,
   `transform_params` JSON,
   `operator` VARCHAR(64),
-  `created_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -1052,7 +1052,7 @@ CREATE TABLE IF NOT EXISTS `message_queue_log` (
   `status` VARCHAR(32) NOT NULL DEFAULT "sent",
   `retry_count` INT NOT NULL DEFAULT 0,
   `error_message` TEXT,
-  `created_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `delivered_at` TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -1070,7 +1070,7 @@ CREATE TABLE IF NOT EXISTS `async_task_log` (
   `error_message` TEXT,
   `started_at` TIMESTAMP,
   `completed_at` TIMESTAMP,
-  `created_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `created_by` VARCHAR(64),
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -1091,9 +1091,9 @@ CREATE TABLE IF NOT EXISTS `plugin_registry` (
   `license` VARCHAR(64),
   `status` VARCHAR(32) NOT NULL DEFAULT "draft",
   `is_builtin` VARCHAR(255) NOT NULL DEFAULT 0,
-  `created_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `created_by` VARCHAR(64),
-  `updated_at` TIMESTAMP NOT NULL,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `updated_by` VARCHAR(64),
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -1111,9 +1111,9 @@ CREATE TABLE IF NOT EXISTS `plugin_instances` (
   `last_heartbeat_at` TIMESTAMP,
   `error_message` TEXT,
   `started_at` TIMESTAMP,
-  `created_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `created_by` VARCHAR(64),
-  `updated_at` TIMESTAMP NOT NULL,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -1128,7 +1128,7 @@ CREATE TABLE IF NOT EXISTS `plugin_events` (
   `target_plugin` VARCHAR(64),
   `processed` VARCHAR(255) NOT NULL DEFAULT 0,
   `processed_at` TIMESTAMP,
-  `created_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `expires_at` TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -1146,7 +1146,7 @@ CREATE TABLE IF NOT EXISTS `audit_logs` (
   `error_message` TEXT,
   `duration_ms` INT,
   `trace_id` VARCHAR(64),
-  `created_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -1159,7 +1159,7 @@ CREATE TABLE IF NOT EXISTS `audit_logs_sensitive` (
   `requires_approval` VARCHAR(255) NOT NULL,
   `approved_by` VARCHAR(64),
   `approved_at` TIMESTAMP,
-  `created_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -1182,8 +1182,8 @@ CREATE TABLE IF NOT EXISTS `data_collection_tasks` (
   `last_error` TEXT,
   `last_run_at` TIMESTAMP,
   `status` VARCHAR(64) DEFAULT 'active',
-  `created_at` TIMESTAMP NOT NULL,
-  `updated_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -1196,8 +1196,8 @@ CREATE TABLE IF NOT EXISTS `message_routing_config` (
   `transform_script` TEXT,
   `priority` INT NOT NULL,
   `is_enabled` VARCHAR(255) NOT NULL,
-  `created_at` TIMESTAMP NOT NULL,
-  `updated_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -1307,9 +1307,9 @@ CREATE TABLE IF NOT EXISTS `system_configs` (
   `is_sensitive` VARCHAR(255) NOT NULL DEFAULT 0,
   `version` INT NOT NULL DEFAULT 1,
   `status` VARCHAR(32) NOT NULL DEFAULT "active",
-  `created_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `created_by` VARCHAR(64),
-  `updated_at` TIMESTAMP NOT NULL,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `updated_by` VARCHAR(64),
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -1344,9 +1344,9 @@ CREATE TABLE IF NOT EXISTS `alert_rules` (
   `description` TEXT,
   `version` INT NOT NULL DEFAULT 1,
   `created_by` VARCHAR(64),
-  `created_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_by` VARCHAR(64),
-  `updated_at` TIMESTAMP NOT NULL,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `is_deleted` VARCHAR(255) NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -1367,7 +1367,7 @@ CREATE TABLE IF NOT EXISTS `data_export_tasks` (
   `expires_at` TIMESTAMP,
   `error_message` TEXT,
   `created_by` VARCHAR(64) NOT NULL,
-  `created_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `completed_at` TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -1391,8 +1391,8 @@ CREATE TABLE IF NOT EXISTS `scheduled_tasks` (
   `description` TEXT,
   `version` INT NOT NULL DEFAULT 1,
   `created_by` VARCHAR(64),
-  `created_at` TIMESTAMP NOT NULL,
-  `updated_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `is_deleted` VARCHAR(255) NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -1411,8 +1411,8 @@ CREATE TABLE IF NOT EXISTS `rollback_triggers` (
   `trigger_count` INT NOT NULL DEFAULT 0,
   `version` INT NOT NULL DEFAULT 1,
   `created_by` VARCHAR(64),
-  `created_at` TIMESTAMP NOT NULL,
-  `updated_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `is_deleted` VARCHAR(255) NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -1430,7 +1430,7 @@ CREATE TABLE IF NOT EXISTS `alert_event_log` (
   `acknowledged` VARCHAR(255) NOT NULL,
   `acknowledged_by` VARCHAR(64),
   `resolved_at` TIMESTAMP,
-  `created_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -1444,7 +1444,7 @@ CREATE TABLE IF NOT EXISTS `device_daily_summary` (
   `avg_cpu_usage` DOUBLE,
   `avg_memory_usage` DOUBLE,
   `max_temperature` DOUBLE,
-  `created_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -1459,7 +1459,7 @@ CREATE TABLE IF NOT EXISTS `device_firmware_versions` (
   `is_mandatory` VARCHAR(255) NOT NULL,
   `status` VARCHAR(64) NOT NULL DEFAULT 'active',
   `released_at` TIMESTAMP,
-  `created_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -1477,7 +1477,7 @@ CREATE TABLE IF NOT EXISTS `device_maintenance_logs` (
   `parts_replaced` JSON,
   `attachments` JSON,
   `next_maintenance_date` VARCHAR(255),
-  `created_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -1489,7 +1489,7 @@ CREATE TABLE IF NOT EXISTS `device_status_log` (
   `reason` VARCHAR(128),
   `triggered_by` VARCHAR(64),
   `metadata` JSON,
-  `created_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -1505,8 +1505,8 @@ CREATE TABLE IF NOT EXISTS `anomaly_models` (
   `model_file_url` VARCHAR(500),
   `status` VARCHAR(64) NOT NULL DEFAULT 'active',
   `deployed_at` TIMESTAMP,
-  `created_at` TIMESTAMP NOT NULL,
-  `updated_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -1523,7 +1523,7 @@ CREATE TABLE IF NOT EXISTS `diagnosis_results` (
   `recommendation` TEXT,
   `resolved` VARCHAR(255) NOT NULL DEFAULT 0,
   `resolved_at` TIMESTAMP,
-  `created_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -1537,7 +1537,7 @@ CREATE TABLE IF NOT EXISTS `data_clean_results` (
   `cleaned_value` TEXT,
   `rule_applied` VARCHAR(128),
   `status` VARCHAR(64) NOT NULL DEFAULT 'active',
-  `created_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -1555,8 +1555,8 @@ CREATE TABLE IF NOT EXISTS `edge_gateway_config` (
   `status` VARCHAR(64) NOT NULL DEFAULT 'active',
   `last_heartbeat` TIMESTAMP,
   `location` VARCHAR(128),
-  `created_at` TIMESTAMP NOT NULL,
-  `updated_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -1568,7 +1568,7 @@ CREATE TABLE IF NOT EXISTS `kb_chunks` (
   `token_count` INT,
   `metadata` JSON,
   `embedding_id` BIGINT,
-  `created_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -1580,7 +1580,7 @@ CREATE TABLE IF NOT EXISTS `kb_conversation_messages` (
   `token_count` INT,
   `sources` JSON,
   `feedback` VARCHAR(255),
-  `created_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -1591,8 +1591,8 @@ CREATE TABLE IF NOT EXISTS `kb_conversations` (
   `user_id` VARCHAR(128) NOT NULL,
   `message_count` INT NOT NULL,
   `model_name` VARCHAR(200),
-  `created_at` TIMESTAMP NOT NULL,
-  `updated_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -1603,7 +1603,7 @@ CREATE TABLE IF NOT EXISTS `kb_embeddings` (
   `dimensions` INT NOT NULL,
   `vector_data` VARCHAR(128) NOT NULL,
   `norm` DOUBLE,
-  `created_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -1616,8 +1616,8 @@ CREATE TABLE IF NOT EXISTS `kb_qa_pairs` (
   `confidence` DOUBLE,
   `tags` JSON,
   `is_verified` VARCHAR(255) NOT NULL,
-  `created_at` TIMESTAMP NOT NULL,
-  `updated_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -1631,7 +1631,7 @@ CREATE TABLE IF NOT EXISTS `model_deployments` (
   `gpu_type` VARCHAR(64),
   `status` VARCHAR(64) NOT NULL DEFAULT 'active',
   `deployed_at` TIMESTAMP,
-  `created_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -1644,7 +1644,7 @@ CREATE TABLE IF NOT EXISTS `model_inference_logs` (
   `latency_ms` INT,
   `status` VARCHAR(64) NOT NULL DEFAULT 'active',
   `error_message` TEXT,
-  `created_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -1661,8 +1661,8 @@ CREATE TABLE IF NOT EXISTS `model_registry` (
   `tags` JSON,
   `status` VARCHAR(64) NOT NULL DEFAULT 'active',
   `created_by` VARCHAR(64),
-  `created_at` TIMESTAMP NOT NULL,
-  `updated_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -1679,7 +1679,7 @@ CREATE TABLE IF NOT EXISTS `model_training_jobs` (
   `status` VARCHAR(64) NOT NULL DEFAULT 'active',
   `started_at` TIMESTAMP,
   `completed_at` TIMESTAMP,
-  `created_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -1694,7 +1694,7 @@ CREATE TABLE IF NOT EXISTS `minio_file_metadata` (
   `tags` JSON,
   `uploaded_by` VARCHAR(64),
   `expires_at` TIMESTAMP,
-  `created_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -1707,7 +1707,7 @@ CREATE TABLE IF NOT EXISTS `minio_upload_logs` (
   `status` VARCHAR(64) NOT NULL DEFAULT 'active',
   `error_message` TEXT,
   `uploaded_by` VARCHAR(64),
-  `created_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -1720,7 +1720,7 @@ CREATE TABLE IF NOT EXISTS `realtime_data_latest` (
   `quality` INT NOT NULL DEFAULT 0,
   `source_timestamp` TIMESTAMP NOT NULL,
   `server_timestamp` TIMESTAMP NOT NULL,
-  `updated_at` TIMESTAMP NOT NULL,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -1735,7 +1735,7 @@ CREATE TABLE IF NOT EXISTS `vibration_1hour_agg` (
   `peak_max` DOUBLE,
   `kurtosis_avg` DOUBLE,
   `sample_count` INT NOT NULL DEFAULT 0,
-  `created_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -1747,7 +1747,7 @@ CREATE TABLE IF NOT EXISTS `topo_alerts` (
   `message` TEXT NOT NULL,
   `resolved` VARCHAR(255) NOT NULL DEFAULT 0,
   `resolved_at` TIMESTAMP,
-  `created_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -1758,7 +1758,7 @@ CREATE TABLE IF NOT EXISTS `topo_layers` (
   `layer_order` INT NOT NULL,
   `color` VARCHAR(32),
   `description` TEXT,
-  `created_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -1769,7 +1769,7 @@ CREATE TABLE IF NOT EXISTS `topo_snapshots` (
   `node_count` INT NOT NULL,
   `edge_count` INT NOT NULL,
   `created_by` VARCHAR(64),
-  `created_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -1786,7 +1786,7 @@ CREATE TABLE IF NOT EXISTS `outbox_events` (
   `max_retries` INT NOT NULL DEFAULT 3,
   `last_error` TEXT,
   `published_at` TIMESTAMP,
-  `created_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP NOT NULL ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -1802,7 +1802,7 @@ CREATE TABLE IF NOT EXISTS `outbox_routing_config` (
   `processor_class` VARCHAR(200),
   `description` TEXT,
   `is_active` BOOLEAN NOT NULL DEFAULT TRUE,
-  `created_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP NOT NULL ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -1821,7 +1821,7 @@ CREATE TABLE IF NOT EXISTS `saga_instances` (
   `started_at` TIMESTAMP NOT NULL,
   `completed_at` TIMESTAMP,
   `timeout_at` TIMESTAMP,
-  `created_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP NOT NULL ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -1840,7 +1840,7 @@ CREATE TABLE IF NOT EXISTS `saga_steps` (
   `retry_count` INT NOT NULL DEFAULT 0,
   `started_at` TIMESTAMP,
   `completed_at` TIMESTAMP,
-  `created_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP NOT NULL ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -1860,7 +1860,7 @@ CREATE TABLE IF NOT EXISTS `saga_dead_letters` (
   `resolved_at` TIMESTAMP,
   `resolved_by` VARCHAR(100),
   `resolution` TEXT,
-  `created_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP NOT NULL ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -1873,7 +1873,7 @@ CREATE TABLE IF NOT EXISTS `processed_events` (
   `processed_at` TIMESTAMP NOT NULL,
   `expires_at` TIMESTAMP NOT NULL,
   `metadata` JSON,
-  `created_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -1895,7 +1895,7 @@ CREATE TABLE IF NOT EXISTS `rollback_executions` (
   `result` JSON,
   `started_at` TIMESTAMP,
   `completed_at` TIMESTAMP,
-  `created_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP NOT NULL ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -2000,7 +2000,7 @@ CREATE TABLE IF NOT EXISTS `kg_graphs` (
   `last_evolved_at` TIMESTAMP,
   `tags` JSON,
   `created_by` VARCHAR(64),
-  `created_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP NOT NULL ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -2018,7 +2018,7 @@ CREATE TABLE IF NOT EXISTS `kg_graph_nodes` (
   `node_status` ENUM("normal", "pending_confirm", "deprecated") NOT NULL DEFAULT "normal",
   `hit_count` INT DEFAULT 0,
   `accuracy` DOUBLE,
-  `created_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP NOT NULL ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -2035,7 +2035,7 @@ CREATE TABLE IF NOT EXISTS `kg_graph_edges` (
   `config` JSON,
   `path_accuracy` DOUBLE,
   `hit_count` INT DEFAULT 0,
-  `created_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP NOT NULL ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -2053,7 +2053,7 @@ CREATE TABLE IF NOT EXISTS `kg_diagnosis_runs` (
   `duration_ms` INT,
   `feedback` ENUM("correct", "incorrect", "partial", "pending") NOT NULL DEFAULT "pending",
   `feedback_note` TEXT,
-  `created_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -2067,7 +2067,7 @@ CREATE TABLE IF NOT EXISTS `kg_diagnosis_paths` (
   `confidence` DOUBLE NOT NULL,
   `conclusion` VARCHAR(500),
   `is_selected` BOOLEAN NOT NULL DEFAULT FALSE,
-  `created_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -2084,7 +2084,7 @@ CREATE TABLE IF NOT EXISTS `kg_evolution_log` (
   `status` ENUM("applied", "pending_review", "rejected") NOT NULL DEFAULT "pending_review",
   `reviewed_by` VARCHAR(64),
   `reviewed_at` VARCHAR(255),
-  `created_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -2102,9 +2102,9 @@ CREATE TABLE IF NOT EXISTS `data_connectors` (
   `last_error` TEXT,
   `source_ref` VARCHAR(128),
   `tags` JSON,
-  `created_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `created_by` VARCHAR(64),
-  `updated_at` TIMESTAMP NOT NULL,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -2124,8 +2124,8 @@ CREATE TABLE IF NOT EXISTS `data_endpoints` (
   `status` VARCHAR(32) NOT NULL DEFAULT "active",
   `discovered_at` TIMESTAMP,
   `metadata` JSON,
-  `created_at` TIMESTAMP NOT NULL,
-  `updated_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -2141,8 +2141,8 @@ CREATE TABLE IF NOT EXISTS `data_bindings` (
   `status` VARCHAR(32) NOT NULL DEFAULT "active",
   `last_sync_at` TIMESTAMP,
   `sync_stats` JSON,
-  `created_at` TIMESTAMP NOT NULL,
-  `updated_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -2172,8 +2172,8 @@ CREATE TABLE IF NOT EXISTS `algorithm_definitions` (
   `documentation_url` VARCHAR(500),
   `tags` JSON,
   `status` ENUM("active", "deprecated", "experimental") DEFAULT "active",
-  `created_at` TIMESTAMP NOT NULL,
-  `updated_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -2189,8 +2189,8 @@ CREATE TABLE IF NOT EXISTS `algorithm_compositions` (
   `is_template` VARCHAR(255) DEFAULT 0,
   `status` ENUM("active", "deprecated", "draft") DEFAULT "active",
   `created_by` VARCHAR(64),
-  `created_at` TIMESTAMP NOT NULL,
-  `updated_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -2207,8 +2207,8 @@ CREATE TABLE IF NOT EXISTS `algorithm_device_bindings` (
   `last_run_at` TIMESTAMP,
   `last_run_status` VARCHAR(32),
   `error_message` TEXT,
-  `created_at` TIMESTAMP NOT NULL,
-  `updated_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -2232,7 +2232,7 @@ CREATE TABLE IF NOT EXISTS `algorithm_executions` (
   `ab_group` VARCHAR(16),
   `algo_version` VARCHAR(32),
   `quality_metrics` JSON,
-  `created_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -2247,8 +2247,8 @@ CREATE TABLE IF NOT EXISTS `algorithm_routing_rules` (
   `cascade_algos` JSON,
   `stop_on_match` VARCHAR(255) DEFAULT 1,
   `status` ENUM("active", "disabled") DEFAULT "active",
-  `created_at` TIMESTAMP NOT NULL,
-  `updated_at` TIMESTAMP NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
