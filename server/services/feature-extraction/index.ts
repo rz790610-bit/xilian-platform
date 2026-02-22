@@ -34,10 +34,10 @@ export { RotationExtractor } from './extractors/rotation.extractor';
 export { AcousticExtractor } from './extractors/acoustic.extractor';
 export { VisualExtractor } from './extractors/visual.extractor';
 
-// 类型
-export {
-  DataType,
-  MEASUREMENT_TYPE_MAP,
+// 类型（运行时值）
+export { DataType, MEASUREMENT_TYPE_MAP, DEFAULT_EXTRACTOR_CONFIG } from './types';
+// 类型（纯类型声明，ESM 下必须用 export type）
+export type {
   FeatureExtractor,
   RawTelemetryMessage,
   FeatureMessage,
@@ -48,7 +48,6 @@ export {
   AcousticFeatures,
   VisualFeatures,
   ExtractorConfig,
-  DEFAULT_EXTRACTOR_CONFIG,
 } from './types';
 
 // DSP 工具
