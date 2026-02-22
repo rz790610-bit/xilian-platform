@@ -349,6 +349,7 @@ function Router() {
       <Route path="/digital-twin/simulation" component={DigitalTwinLayout} />
       <Route path="/digital-twin/replay" component={DigitalTwinLayout} />
       <Route path="/digital-twin/worldmodel" component={DigitalTwinLayout} />
+      <Route path="/digital-twin/config" component={DigitalTwinLayout} />
       {/* 旧路由重定向 */}
       <Route path="/v5/digital-twin"><Redirect to="/digital-twin" /></Route>
 
