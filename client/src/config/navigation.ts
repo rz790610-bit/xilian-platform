@@ -138,15 +138,7 @@ export const navigationConfig: NavItem[] = [
       { id: 'v5-guardrail-console', label: '护栏控制台', icon: '🛡️', path: '/v5/guardrail' },
       { id: 'v5-digital-twin', label: '数字孪生', icon: '🔮', path: '/v5/digital-twin' },
       { id: 'v5-knowledge-explorer', label: '知识探索器', icon: '🕸️', path: '/v5/knowledge' },
-      // ── 认知引擎 ──
-      { id: 'ce-engine-config', label: '引擎配置', icon: '⚙️', path: '/v5/engine/config' },
-      { id: 'ce-causal-graph', label: '因果图', icon: '🕸️', path: '/v5/engine/causal' },
-      { id: 'ce-experience-pool', label: '经验池', icon: '🧠', path: '/v5/engine/experience' },
-      { id: 'ce-reasoning-trace', label: '推理追踪', icon: '🔍', path: '/v5/engine/trace' },
-      { id: 'ce-feedback-monitor', label: '反馈监控', icon: '🔄', path: '/v5/engine/feedback' },
-      { id: 'ce-perception-enhance', label: '感知增强', icon: '📡', path: '/v5/engine/perception' },
-      { id: 'ce-bpa-config', label: 'BPA 配置', icon: '🎯', path: '/v5/engine/bpa' },
-      { id: 'ce-dimension-manage', label: '维度管理', icon: '📐', path: '/v5/engine/dimension' },
+      { id: 'v5-cognition-engine', label: '认知引擎', icon: '⚡', path: '/v5/engine' },
     ]
   },
 

@@ -1,7 +1,10 @@
 /**
- * 认知引擎 — 独立子页面包装器
- * 每个子路由对应一个独立页面，从认知仪表盘独立出来
+ * 认知引擎 — 统一页面（8 个 Tab）
+ * 使用 MainLayout 确保侧边栏正常显示
  */
+import { useState } from 'react';
+import { MainLayout } from '@/components/layout/MainLayout';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import ReasoningEngineConfig from '@/components/cognitive/ReasoningEngineConfig';
 import { CausalGraphView } from '@/components/cognitive/CausalGraphView';
 import { ExperiencePoolView } from '@/components/cognitive/ExperiencePoolView';
@@ -11,77 +14,63 @@ import { PerceptionDashboardContent } from '@/pages/perception/PerceptionDashboa
 import { BPAConfigContent } from '@/pages/perception/BPAConfigManager';
 import { DimensionManagerContent } from '@/pages/perception/DimensionManager';
 
-function PageWrapper({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div className="p-4 space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold text-foreground">{title}</h1>
-      </div>
-      {children}
-    </div>
-  );
-}
+const ENGINE_TABS = [
+  { value: 'config',      label: '⚙️ 引擎配置' },
+  { value: 'causal',      label: '🕸️ 因果图' },
+  { value: 'experience',  label: '🧠 经验池' },
+  { value: 'trace',       label: '🔍 推理追踪' },
+  { value: 'feedback',    label: '🔄 反馈监控' },
+  { value: 'perception',  label: '📡 感知增强' },
+  { value: 'bpa',         label: '🎯 BPA 配置' },
+  { value: 'dimension',   label: '📐 维度管理' },
+] as const;
 
-export function EngineConfigPage() {
-  return (
-    <PageWrapper title="⚙️ 引擎配置">
-      <ReasoningEngineConfig />
-    </PageWrapper>
-  );
-}
+export default function CognitionEnginePage() {
+  const [activeTab, setActiveTab] = useState<string>('config');
 
-export function CausalGraphPage() {
   return (
-    <PageWrapper title="🕸️ 因果图">
-      <CausalGraphView />
-    </PageWrapper>
-  );
-}
+    <MainLayout title="认知引擎">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+        <TabsList className="flex flex-wrap gap-1">
+          {ENGINE_TABS.map(tab => (
+            <TabsTrigger key={tab.value} value={tab.value} className="text-xs">
+              {tab.label}
+            </TabsTrigger>
+          ))}
+        </TabsList>
 
-export function ExperiencePoolPage() {
-  return (
-    <PageWrapper title="🧠 经验池">
-      <ExperiencePoolView />
-    </PageWrapper>
-  );
-}
+        <TabsContent value="config">
+          <ReasoningEngineConfig />
+        </TabsContent>
 
-export function ReasoningTracePage() {
-  return (
-    <PageWrapper title="🔍 推理追踪">
-      <ReasoningTraceView />
-    </PageWrapper>
-  );
-}
+        <TabsContent value="causal">
+          <CausalGraphView />
+        </TabsContent>
 
-export function FeedbackMonitorPage() {
-  return (
-    <PageWrapper title="🔄 反馈监控">
-      <FeedbackMonitorView />
-    </PageWrapper>
-  );
-}
+        <TabsContent value="experience">
+          <ExperiencePoolView />
+        </TabsContent>
 
-export function PerceptionEnhancePage() {
-  return (
-    <PageWrapper title="📡 感知增强">
-      <PerceptionDashboardContent />
-    </PageWrapper>
-  );
-}
+        <TabsContent value="trace">
+          <ReasoningTraceView />
+        </TabsContent>
 
-export function BPAConfigPage() {
-  return (
-    <PageWrapper title="🎯 BPA 配置">
-      <BPAConfigContent />
-    </PageWrapper>
-  );
-}
+        <TabsContent value="feedback">
+          <FeedbackMonitorView />
+        </TabsContent>
 
-export function DimensionManagePage() {
-  return (
-    <PageWrapper title="📐 维度管理">
-      <DimensionManagerContent />
-    </PageWrapper>
+        <TabsContent value="perception">
+          <PerceptionDashboardContent />
+        </TabsContent>
+
+        <TabsContent value="bpa">
+          <BPAConfigContent />
+        </TabsContent>
+
+        <TabsContent value="dimension">
+          <DimensionManagerContent />
+        </TabsContent>
+      </Tabs>
+    </MainLayout>
   );
 }

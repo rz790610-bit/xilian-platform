@@ -99,16 +99,7 @@ import DimensionManager from "./pages/perception/DimensionManager";
 import GuardrailConsole from "./pages/guardrail/GuardrailConsole";
 import DigitalTwinView from "./pages/cognitive/DigitalTwinView";
 import KnowledgeExplorer from "./pages/cognitive/KnowledgeExplorer";
-import {
-  EngineConfigPage,
-  CausalGraphPage,
-  ExperiencePoolPage,
-  ReasoningTracePage,
-  FeedbackMonitorPage,
-  PerceptionEnhancePage,
-  BPAConfigPage,
-  DimensionManagePage,
-} from "./pages/cognitive/CognitionEnginePage";
+import CognitionEnginePage from "./pages/cognitive/CognitionEnginePage";
 
 // 基础设置模块
 import {
@@ -363,14 +354,7 @@ function Router() {
       <Route path="/v5/knowledge" component={KnowledgeExplorer} />
 
       {/* ━━━ 认知引擎子页面 ━━━ */}
-      <Route path="/v5/engine/config" component={EngineConfigPage} />
-      <Route path="/v5/engine/causal" component={CausalGraphPage} />
-      <Route path="/v5/engine/experience" component={ExperiencePoolPage} />
-      <Route path="/v5/engine/trace" component={ReasoningTracePage} />
-      <Route path="/v5/engine/feedback" component={FeedbackMonitorPage} />
-      <Route path="/v5/engine/perception" component={PerceptionEnhancePage} />
-      <Route path="/v5/engine/bpa" component={BPAConfigPage} />
-      <Route path="/v5/engine/dimension" component={DimensionManagePage} />
+      <Route path="/v5/engine" component={CognitionEnginePage} />
 
       {/* 404 */}
       <Route path="/404" component={NotFound} />
