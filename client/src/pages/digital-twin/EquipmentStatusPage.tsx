@@ -21,6 +21,7 @@ import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
 import { stateLabels, stateUnits, syncStatusMap } from './constants';
 import { ScoreGauge } from './ScoreGauge';
+import TwinTopology from './TwinTopology';
 import {
   Chart as ChartJS,
   CategoryScale, LinearScale, PointElement, LineElement,
@@ -53,6 +54,7 @@ function LiveIndicator({ isRefetching, lastUpdate }: { isRefetching: boolean; la
 export default function EquipmentStatusPage({ equipmentId }: { equipmentId: string }) {
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
   const [showSyncLogs, setShowSyncLogs] = useState(false);
+  const [activeSubTab, setActiveSubTab] = useState<'monitor' | 'topology'>('monitor');
 
   // tRPC 轮询（替代 Subscription）
   const stateQuery = trpc.evoPipeline.getEquipmentTwinState.useQuery(
@@ -109,6 +111,39 @@ export default function EquipmentStatusPage({ equipmentId }: { equipmentId: stri
         </div>
       </PageCard>
 
+      {/* 子 Tab：实时监控 / 运行逻辑 */}
+      <div className="flex gap-0.5 border-b border-border">
+        <button
+          onClick={() => setActiveSubTab('monitor')}
+          className={`px-3 py-1 text-[10px] font-medium border-b-2 transition-colors ${
+            activeSubTab === 'monitor'
+              ? 'border-primary text-primary'
+              : 'border-transparent text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          📊 实时监控
+        </button>
+        <button
+          onClick={() => setActiveSubTab('topology')}
+          className={`px-3 py-1 text-[10px] font-medium border-b-2 transition-colors ${
+            activeSubTab === 'topology'
+              ? 'border-primary text-primary'
+              : 'border-transparent text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          🔮 运行逻辑拓扑
+        </button>
+      </div>
+
+      {/* 运行逻辑拓扑视图 */}
+      {activeSubTab === 'topology' && (
+        <PageCard compact noPadding className="p-2">
+          <TwinTopology equipmentId={equipmentId} />
+        </PageCard>
+      )}
+
+      {/* 实时监控视图 */}
+      {activeSubTab === 'monitor' && (
       <div className="grid grid-cols-2 gap-2">
         {/* 左侧：传感器数据 + RUL */}
         <div className="space-y-2">
@@ -292,6 +327,7 @@ export default function EquipmentStatusPage({ equipmentId }: { equipmentId: stri
           </PageCard>
         </div>
       </div>
+      )}
 
       {/* 同步状态 */}
       <PageCard compact>
