@@ -81,7 +81,7 @@
     "jose": "6.1.0",
     "kafkajs": "2.2.4",
     "katex": "0.16.28",
-    "lucide-react": "0.453.0",
+    "lucide-react": "0.575.0",
     "mammoth": "1.11.0",
     "minio": "8.0.6",
     "modbus-serial": "8.0.23",
