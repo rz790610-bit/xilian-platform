@@ -9,7 +9,6 @@ import { registerOAuthRoutes } from "./oauth";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
-import { initKafkaMetricsWebSocket } from "../api/ws/kafkaMetrics.ws";
 
 // ============================================================
 // 平台中间件导入
@@ -159,8 +158,6 @@ async function startServer() {
     serveStatic(app);
   }
 
-  // WebSocket
-  initKafkaMetricsWebSocket(server);
 
   // ── 阶段 0d: 优雅关闭注册 ──
   gracefulShutdown.registerServer(server);

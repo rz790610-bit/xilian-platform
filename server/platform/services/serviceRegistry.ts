@@ -296,7 +296,7 @@ class ServiceRegistry {
       serviceName,
       instanceId: `k8s-${serviceName}`,
       host,
-      port: 3000,
+      port: parseInt(process.env.PORT || '3000', 10),
       protocol: 'http',
       status: 'healthy',
       metadata: { discovery: 'k8s-dns' },

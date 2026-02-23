@@ -4,6 +4,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 
 import { createModuleLogger } from './core/logger';
+import { config } from './core/config';
 const log = createModuleLogger('index');
 
 const __filename = fileURLToPath(import.meta.url);
@@ -32,7 +33,7 @@ async function startServer() {
     res.sendFile(path.join(staticPath, "index.html"));
   });
 
-  const port = process.env.PORT || 3000;
+  const port = config.server.port;
 
   server.listen(port, () => {
     log.debug(`Server running on http://localhost:${port}/`);

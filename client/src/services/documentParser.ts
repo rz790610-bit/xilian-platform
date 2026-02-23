@@ -6,7 +6,7 @@
 
 import * as pdfjsLib from 'pdfjs-dist';
 import mammoth from 'mammoth';
-import * as XLSX from 'xlsx';
+import * as XLSX from 'xlsx-js-style';
 import { recognizeImage, isImageFile, SUPPORTED_IMAGE_EXTENSIONS } from './ocrService';
 
 // 设置 PDF.js worker
