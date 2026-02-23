@@ -25,6 +25,7 @@
  */
 
 import { createModuleLogger } from './logger';
+import config from './config';
 
 const log = createModuleLogger('module-feature-flags');
 
@@ -100,23 +101,24 @@ class ModuleFeatureFlags {
   }
 
   /**
-   * 从环境变量初始化所有模块 Flag
+   * 从 config.moduleFlags 初始化所有模块 Flag
    *
-   * [豁免] process.env 直接读取 — 动态 key 场景
-   * 28 个模块的环境变量名由 toEnvKey() 动态拼接（MODULE_xxx_ENABLED），
-   * 无法静态映射到 config.ts。初始化后通过 ConfigCenter API 热更新，
-   * 不再读取 process.env。
+   * 28 个模块的环境变量已统一收敛到 config.ts 的 moduleFlags 域，
+   * 通过动态 Record<string, boolean> 方式管理。
+   * 初始化后通过 ConfigCenter API 热更新，不再读取配置。
    */
   private initializeFromEnv(): void {
+    const moduleFlags = config.moduleFlags;
     for (const moduleId of MODULE_IDS) {
-      const envKey = toEnvKey(moduleId);
-      const envValue = process.env[envKey]; // [豁免] 动态 key，见方法注释
-      const enabled = parseBool(envValue, true); // 默认全部启用
+      const enabled = moduleFlags[moduleId] ?? true; // 默认全部启用
+      // config.moduleFlags 已统一通过 envBool() 读取环境变量，
+      // 若值为 false 则必定来自环境变量显式配置（因为默认值是 true）
+      const source: 'env' | 'default' = enabled === false ? 'env' : 'default';
 
       this.flags.set(moduleId, {
         moduleId,
         enabled,
-        source: envValue !== undefined ? 'env' : 'default',
+        source,
         updatedAt: new Date(),
         updatedBy: 'system-init',
       });

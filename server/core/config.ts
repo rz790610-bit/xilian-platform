@@ -592,6 +592,30 @@ export const config = {
     redisEnabled: envBool('REDIS_ENABLED', true),
   },
 
+  /**
+   * 模块级 Feature Flags（28 个业务模块的 enabled/disabled 开关）
+   * 环境变量命名规则：MODULE_{UPPER_SNAKE_CASE}_ENABLED
+   * 例如：dataGovernance → MODULE_DATA_GOVERNANCE_ENABLED
+   * 默认全部启用（true）
+   */
+  moduleFlags: /* @__PURE__ */ (() => {
+    const ids = [
+      'topology', 'device', 'alert', 'gateway', 'accessLayer', 'knowledgeBase', 'model',
+      'dataGovernance', 'dataCollection', 'dataLabel', 'dataAsset',
+      'pipeline', 'plugin', 'algorithm', 'kgOrchestrator', 'erDiagram',
+      'fusionDiagnosis', 'grokAgent', 'distillation', 'evolution',
+      'monitoring', 'auditLog', 'secretManager',
+      'scheduler', 'eventBus', 'saga', 'outbox', 'deduplication', 'adaptiveSampling',
+      'microservice', 'database',
+    ] as const;
+    const toEnvKey = (id: string) => `MODULE_${id.replace(/([A-Z])/g, '_$1').toUpperCase()}_ENABLED`;
+    const record: Record<string, boolean> = {};
+    for (const id of ids) {
+      record[id] = envBool(toEnvKey(id), true);
+    }
+    return record;
+  })(),
+
   // ──────────────────────────────────────────
   // 外部编排 & 算法引擎
   // ──────────────────────────────────────────
@@ -742,6 +766,14 @@ export function getConfigSummary(): Record<string, Record<string, string>> {
       elasticsearchEnabled: String(config.featureFlags.elasticsearchEnabled),
     },
   };
+}
+
+/**
+ * 查询模块是否启用（从 config.moduleFlags 读取）
+ * 未注册的模块默认启用
+ */
+export function isModuleEnabled(moduleId: string): boolean {
+  return config.moduleFlags[moduleId] ?? true;
 }
 
 export default config;
