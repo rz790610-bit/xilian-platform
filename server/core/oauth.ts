@@ -49,7 +49,7 @@ export function registerOAuthRoutes(app: Express) {
 
       res.redirect(302, "/");
     } catch (error) {
-      log.error("[OAuth] Callback failed", error);
+      log.warn("[OAuth] Callback failed (user can retry)", error);
       res.status(500).json({ error: "OAuth callback failed" });
     }
   });

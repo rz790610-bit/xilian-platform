@@ -1,8 +1,11 @@
 /**
  * 真实数据库监控客户端
  * 连接 MySQL、Redis、ClickHouse、Qdrant 获取真实状态
+ *
+ * 配置来源：统一从 config.ts 读取，不直接引用 process.env
  */
 
+import { config } from '../../core/config';
 import { getDb } from '../db';
 import { sql } from 'drizzle-orm';
 import { redisClient } from './redis.client';
@@ -16,8 +19,8 @@ let qdrantClientInstance: QdrantClient | null = null;
 function getQdrantClient(): QdrantClient {
   if (!qdrantClientInstance) {
     qdrantClientInstance = new QdrantClient({
-      host: process.env.QDRANT_HOST || 'localhost',
-      port: parseInt(process.env.QDRANT_PORT || '6333'),
+      host: config.qdrant.host,
+      port: config.qdrant.port,
     });
   }
   return qdrantClientInstance;
@@ -75,13 +78,15 @@ export async function getMySQLStatus(): Promise<DatabaseStatus> {
       ? parseInt(String((sizeResult[0] as any).total_size) || '0') 
       : 0;
 
+    const totalStorageBytes = config.mysql.totalStorageGb * 1024 * 1024 * 1024;
+
     return {
       name: 'MySQL',
       type: 'mysql',
       status: 'online',
-      version: version.split('-')[0], // 去掉后缀
-      host: process.env.DATABASE_HOST || 'localhost',
-      port: parseInt(process.env.DATABASE_PORT || '3306'),
+      version: version.split('-')[0],
+      host: config.mysql.hostAlias,
+      port: config.mysql.portAlias,
       connections: {
         active: activeConnections,
         idle: Math.max(0, maxConnections - activeConnections),
@@ -94,9 +99,8 @@ export async function getMySQLStatus(): Promise<DatabaseStatus> {
       },
       storage: {
         usedBytes: totalSize,
-        // P1-DB-1: 硬编码容量改为环境变量配置
-        totalBytes: parseInt(process.env.MYSQL_TOTAL_STORAGE_GB || '100') * 1024 * 1024 * 1024,
-        usagePercent: (totalSize / (parseInt(process.env.MYSQL_TOTAL_STORAGE_GB || '100') * 1024 * 1024 * 1024)) * 100,
+        totalBytes: totalStorageBytes,
+        usagePercent: (totalSize / totalStorageBytes) * 100,
       },
       lastCheck: new Date(),
       uptime: parseInt(statusMap.get('Uptime') || '0'),
@@ -107,8 +111,8 @@ export async function getMySQLStatus(): Promise<DatabaseStatus> {
       type: 'mysql',
       status: 'offline',
       version: 'unknown',
-      host: process.env.DATABASE_HOST || 'localhost',
-      port: parseInt(process.env.DATABASE_PORT || '3306'),
+      host: config.mysql.hostAlias,
+      port: config.mysql.portAlias,
       connections: { active: 0, idle: 0, max: 0 },
       performance: { queryLatencyMs: 0, throughputQps: 0, errorRate: 100 },
       storage: { usedBytes: 0, totalBytes: 0, usagePercent: 0 },
@@ -139,8 +143,8 @@ export async function getRedisStatus(): Promise<DatabaseStatus> {
       type: 'redis',
       status: 'online',
       version: parsed.redis_version || 'unknown',
-      host: process.env.REDIS_HOST || 'localhost',
-      port: parseInt(process.env.REDIS_PORT || '6379'),
+      host: config.redis.host,
+      port: config.redis.port,
       connections: {
         active: parseInt(parsed.connected_clients || '0'),
         idle: 0,
@@ -167,8 +171,8 @@ export async function getRedisStatus(): Promise<DatabaseStatus> {
       type: 'redis',
       status: 'offline',
       version: 'unknown',
-      host: process.env.REDIS_HOST || 'localhost',
-      port: parseInt(process.env.REDIS_PORT || '6379'),
+      host: config.redis.host,
+      port: config.redis.port,
       connections: { active: 0, idle: 0, max: 0 },
       performance: { queryLatencyMs: 0, throughputQps: 0, errorRate: 100 },
       storage: { usedBytes: 0, totalBytes: 0, usagePercent: 0 },
@@ -247,8 +251,8 @@ export async function getClickHouseStatus(): Promise<DatabaseStatus> {
       type: 'clickhouse',
       status: 'online',
       version,
-      host: process.env.CLICKHOUSE_HOST || 'localhost',
-      port: parseInt(process.env.CLICKHOUSE_PORT || '8123'),
+      host: config.clickhouse.host,
+      port: config.clickhouse.port,
       connections: {
         active: (metricsMap.get('TCPConnection') || 0) + (metricsMap.get('HTTPConnection') || 0),
         idle: 0,
@@ -265,7 +269,7 @@ export async function getClickHouseStatus(): Promise<DatabaseStatus> {
         usagePercent: (totalBytes / (10 * 1024 * 1024 * 1024 * 1024)) * 100,
       },
       lastCheck: new Date(),
-      uptime: 0, // ClickHouse 没有直接的 uptime 指标
+      uptime: 0,
     };
   } catch (error: any) {
     return {
@@ -273,8 +277,8 @@ export async function getClickHouseStatus(): Promise<DatabaseStatus> {
       type: 'clickhouse',
       status: 'offline',
       version: 'unknown',
-      host: process.env.CLICKHOUSE_HOST || 'localhost',
-      port: parseInt(process.env.CLICKHOUSE_PORT || '8123'),
+      host: config.clickhouse.host,
+      port: config.clickhouse.port,
       connections: { active: 0, idle: 0, max: 0 },
       performance: { queryLatencyMs: 0, throughputQps: 0, errorRate: 100 },
       storage: { usedBytes: 0, totalBytes: 0, usagePercent: 0 },
@@ -310,15 +314,15 @@ export async function getQdrantStatus(): Promise<DatabaseStatus> {
     }
 
     const queryLatency = Date.now() - startTime;
+    const qdrantTotalStorageBytes = config.qdrant.totalStorageGb * 1024 * 1024 * 1024;
 
     return {
       name: 'Qdrant',
       type: 'qdrant',
       status: 'online',
-      // P1-DB-2: 版本号从环境变量获取，避免硬编码
-      version: process.env.QDRANT_VERSION || 'unknown',
-      host: process.env.QDRANT_HOST || 'localhost',
-      port: parseInt(process.env.QDRANT_PORT || '6333'),
+      version: config.qdrant.version,
+      host: config.qdrant.host,
+      port: config.qdrant.port,
       connections: {
         active: collections.collections.length,
         idle: 0,
@@ -331,9 +335,8 @@ export async function getQdrantStatus(): Promise<DatabaseStatus> {
       },
       storage: {
         usedBytes: totalBytes,
-        // P1-DB-2: 硬编码容量改为环境变量配置
-        totalBytes: parseInt(process.env.QDRANT_TOTAL_STORAGE_GB || '100') * 1024 * 1024 * 1024,
-        usagePercent: (totalBytes / (parseInt(process.env.QDRANT_TOTAL_STORAGE_GB || '100') * 1024 * 1024 * 1024)) * 100,
+        totalBytes: qdrantTotalStorageBytes,
+        usagePercent: (totalBytes / qdrantTotalStorageBytes) * 100,
       },
       lastCheck: new Date(),
       uptime: 0,
@@ -344,8 +347,8 @@ export async function getQdrantStatus(): Promise<DatabaseStatus> {
       type: 'qdrant',
       status: 'offline',
       version: 'unknown',
-      host: process.env.QDRANT_HOST || 'localhost',
-      port: parseInt(process.env.QDRANT_PORT || '6333'),
+      host: config.qdrant.host,
+      port: config.qdrant.port,
       connections: { active: 0, idle: 0, max: 0 },
       performance: { queryLatencyMs: 0, throughputQps: 0, errorRate: 100 },
       storage: { usedBytes: 0, totalBytes: 0, usagePercent: 0 },

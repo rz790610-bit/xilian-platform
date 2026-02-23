@@ -14,6 +14,7 @@
  * - elasticsearch: observability.service.ts, observability.router.ts, circuitBreakerIntegration.ts
  */
 
+import { config } from './config';
 import { createModuleLogger } from './logger';
 
 const log = createModuleLogger('featureFlags');
@@ -45,11 +46,11 @@ function parseBool(value: string | undefined, defaultValue: boolean = false): bo
 }
 
 export const featureFlags: FeatureFlags = {
-  airflow: parseBool(process.env.FEATURE_AIRFLOW_ENABLED, false),
-  kafkaConnect: parseBool(process.env.FEATURE_KAFKA_CONNECT_ENABLED, false),
-  elasticsearch: parseBool(process.env.FEATURE_ELASTICSEARCH_ENABLED, false),
-  flink: parseBool(process.env.FEATURE_FLINK_ENABLED, false),
-  grok: parseBool(process.env.FEATURE_GROK_ENABLED, false) || (process.env.XAI_API_KEY !== undefined && process.env.XAI_API_KEY !== ''),
+  airflow: config.featureFlags.airflowEnabled,
+  kafkaConnect: config.featureFlags.kafkaConnectEnabled,
+  elasticsearch: config.featureFlags.elasticsearchEnabled,
+  flink: config.featureFlags.flinkEnabled,
+  grok: config.featureFlags.grokEnabled || (config.xai.apiKey !== ''),
 };
 
 // 启动时打印 feature flags 状态

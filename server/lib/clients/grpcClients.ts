@@ -19,6 +19,8 @@
 import * as grpc from '@grpc/grpc-js';
 import * as protoLoader from '@grpc/proto-loader';
 import path from 'path';
+import { trace } from '@opentelemetry/api';
+import { config as appConfig } from '../../core/config';
 import { createModuleLogger } from '../../core/logger';
 
 const log = createModuleLogger('grpc-clients');
@@ -38,19 +40,19 @@ interface ServiceConfig {
 }
 
 const DEPLOYMENT_MODE: DeploymentMode =
-  (process.env.DEPLOYMENT_MODE as DeploymentMode) || 'monolith';
+  (appConfig.grpc.deploymentMode as DeploymentMode) || 'monolith';
 
 const SERVICE_CONFIGS: Record<string, ServiceConfig> = {
   device: {
-    host: process.env.DEVICE_SERVICE_HOST || 'localhost',
-    port: parseInt(process.env.DEVICE_SERVICE_PORT || '50051'),
+    host: appConfig.grpc.deviceServiceHost,
+    port: appConfig.grpc.deviceServicePort,
     protoPath: path.resolve(__dirname, '../../../services/device-service/proto/device_service.proto'),
     packageName: 'xilian.device.v1',
     serviceName: 'DeviceService',
   },
   algorithm: {
-    host: process.env.ALGORITHM_SERVICE_HOST || 'localhost',
-    port: parseInt(process.env.ALGORITHM_SERVICE_PORT || '50052'),
+    host: appConfig.grpc.algorithmServiceHost,
+    port: appConfig.grpc.algorithmServicePort,
     protoPath: path.resolve(__dirname, '../../../services/algorithm-service/proto/algorithm_service.proto'),
     packageName: 'xilian.algorithm.v1',
     serviceName: 'AlgorithmService',
@@ -83,19 +85,19 @@ async function getConnection(serviceName: string): Promise<grpc.Client> {
     connections.delete(serviceName);
   }
 
-  const config = SERVICE_CONFIGS[serviceName];
-  if (!config) {
+  const svcConfig = SERVICE_CONFIGS[serviceName];
+  if (!svcConfig) {
     throw new Error(`Unknown service: ${serviceName}`);
   }
 
-  const packageDefinition = protoLoader.loadSync(config.protoPath, {
+  const packageDefinition = protoLoader.loadSync(svcConfig.protoPath, {
     keepCase: false,
     longs: String,
     enums: String,
     defaults: true,
     oneofs: true,
     includeDirs: [
-      path.dirname(config.protoPath),
+      path.dirname(svcConfig.protoPath),
       path.resolve(__dirname, '../../../node_modules/google-proto-files'),
     ],
   });
@@ -103,25 +105,25 @@ async function getConnection(serviceName: string): Promise<grpc.Client> {
   const protoDescriptor = grpc.loadPackageDefinition(packageDefinition);
   
   // 按 package name 导航到 service constructor
-  const parts = config.packageName.split('.');
+  const parts = svcConfig.packageName.split('.');
   let current: any = protoDescriptor;
   for (const part of parts) {
     current = current[part];
-    if (!current) throw new Error(`Proto package path not found: ${config.packageName}`);
+    if (!current) throw new Error(`Proto package path not found: ${svcConfig.packageName}`);
   }
 
-  const ServiceConstructor = current[config.serviceName];
+  const ServiceConstructor = current[svcConfig.serviceName];
   if (!ServiceConstructor) {
-    throw new Error(`Service ${config.serviceName} not found in proto`);
+    throw new Error(`Service ${svcConfig.serviceName} not found in proto`);
   }
 
-  const address = `${config.host}:${config.port}`;
+  const address = `${svcConfig.host}:${svcConfig.port}`;
 
   // P0-12: gRPC TLS 支持——生产环境必须启用 TLS，开发环境可回退到 Insecure
   let channelCredentials: grpc.ChannelCredentials;
-  const tlsCertPath = process.env.GRPC_TLS_CERT_PATH;
-  const tlsKeyPath = process.env.GRPC_TLS_KEY_PATH;
-  const tlsCaPath = process.env.GRPC_TLS_CA_PATH;
+  const tlsCertPath = appConfig.grpc.tlsCertPath;
+  const tlsKeyPath = appConfig.grpc.tlsKeyPath;
+  const tlsCaPath = appConfig.grpc.tlsCaPath;
   if (tlsCertPath && tlsKeyPath) {
     const fs = await import('fs');
     const rootCerts = tlsCaPath ? fs.readFileSync(tlsCaPath) : undefined;
@@ -129,7 +131,7 @@ async function getConnection(serviceName: string): Promise<grpc.Client> {
     const certChain = fs.readFileSync(tlsCertPath);
     channelCredentials = grpc.credentials.createSsl(rootCerts, privateKey, certChain);
     log.debug(`[gRPC] Using mTLS for ${serviceName}`);
-  } else if (process.env.NODE_ENV === 'production') {
+  } else if (appConfig.app.env === 'production') {
     log.warn(`[gRPC] WARNING: No TLS certs configured for ${serviceName} in production — using insecure channel`);
     channelCredentials = grpc.credentials.createInsecure();
   } else {
@@ -179,9 +181,11 @@ function callUnary<TReq, TRes>(
     const deadline = new Date(Date.now() + timeoutMs);
     const metadata = new grpc.Metadata();
     
-    // 注入 trace context
-    if (process.env.OTEL_TRACE_ID) {
-      metadata.set('x-trace-id', process.env.OTEL_TRACE_ID);
+    // 注入 trace context（从 OTel context 获取，而非环境变量）
+    const activeSpan = trace.getActiveSpan();
+    if (activeSpan) {
+      const traceId = activeSpan.spanContext().traceId;
+      metadata.set('x-trace-id', traceId);
     }
 
     (client as any)[method](request, metadata, { deadline }, (err: any, response: TRes) => {

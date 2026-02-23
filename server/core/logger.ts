@@ -110,10 +110,13 @@ class Logger {
   private overrideLevel: number | null;
   private module: string;
   private pretty: boolean;
+  // 注意：logger 是最早初始化的模块，在 config 加载之前就可能被使用
+  // 因此这里保留 process.env 作为早期引导 fallback（已列入豁免清单）
   private static globalLevel: LogLevel = (process.env.LOG_LEVEL as LogLevel) || 'info';
   private static logBuffer: LogEntry[] = [];
   // P2-LOG-1: 生产环境建议通过 addListener 将日志转发到 Loki/ELK，而非依赖内存缓冲区
   // 内存缓冲区仅用于诊断端点和开发环境，生产环境应配置外部日志收集器
+  // 早期引导 fallback（同上）
   private static maxBufferSize = parseInt(process.env.LOG_BUFFER_SIZE || '1000', 10);
   private static listeners: Array<(entry: LogEntry) => void> = [];
 
@@ -121,6 +124,7 @@ class Logger {
     // 仅当显式传入 level 时才固化，否则动态跟随 globalLevel
     this.overrideLevel = options.level ? LOG_LEVELS[options.level] : null;
     this.module = options.module || 'app';
+    // 早期引导 fallback（同上）
     this.pretty = options.pretty ?? (process.env.NODE_ENV !== 'production');
   }
 

@@ -118,8 +118,8 @@ export function serveStatic(app: Express) {
   const distPath = path.resolve(rootDir, "dist", "public");
 
   if (!fs.existsSync(distPath)) {
-    log.error(
-      `Could not find the build directory: ${distPath}, make sure to build the client first`
+    log.warn(
+      `[Vite] Build directory not found: ${distPath} — run "pnpm build" first if serving production assets`
     );
   }
 

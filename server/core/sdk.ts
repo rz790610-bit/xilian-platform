@@ -34,8 +34,8 @@ class OAuthService {
   constructor(private client: ReturnType<typeof axios.create>) {
     log.debug("[OAuth] Initialized with baseURL:", config.auth.oAuthServerUrl);
     if (!config.auth.oAuthServerUrl) {
-      log.error(
-        "[OAuth] ERROR: OAUTH_SERVER_URL is not configured! Set OAUTH_SERVER_URL environment variable."
+      log.warn(
+        "[OAuth] OAUTH_SERVER_URL is not configured — OAuth login will not work until set."
       );
     }
   }
@@ -305,7 +305,7 @@ class SDKServer {
         });
         user = await db.getUserByOpenId(userInfo.openId);
       } catch (error) {
-        log.error("[Auth] Failed to sync user from OAuth:", error);
+        log.warn("[Auth] Failed to sync user from OAuth (will throw ForbiddenError):", error);
         throw new ForbiddenError("Failed to sync user info");
       }
     }

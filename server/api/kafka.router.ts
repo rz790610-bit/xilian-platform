@@ -5,6 +5,7 @@
 
 import { z } from 'zod';
 import { publicProcedure, protectedProcedure, router } from '../core/trpc';
+import { config } from '../core/config';
 import { kafkaClient, KAFKA_TOPICS } from '../lib/clients/kafka.client';
 import { kafkaEventBus } from '../lib/clients/kafkaEventBus';
 import { kafkaStreamProcessor } from '../services/kafkaStream.processor';
@@ -19,8 +20,8 @@ export const kafkaRouter = router({
    */
 
   getClusterStatus: publicProcedure.query(async () => {
-    const kafkaBrokers = process.env.KAFKA_BROKERS || 'localhost:9092';
-    const isConfigured = !!process.env.KAFKA_BROKERS;
+    const kafkaBrokers = config.kafka.brokers.join(',');
+    const isConfigured = config.kafka.brokers.length > 0 && config.kafka.brokers[0] !== 'localhost:9092';
 
     let clusterInfo = null;
     let health = null;

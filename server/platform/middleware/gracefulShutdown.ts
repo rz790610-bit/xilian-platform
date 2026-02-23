@@ -103,13 +103,12 @@ class GracefulShutdownManager {
 
     // 未捕获异常也触发优雅关闭
     process.on('uncaughtException', (err) => {
-      log.error('Uncaught exception, initiating shutdown:', err.message);
+      log.fatal('Uncaught exception, initiating shutdown:', err.message);
       shutdown('uncaughtException');
     });
 
     process.on('unhandledRejection', (reason) => {
-      log.error('Unhandled rejection:', String(reason));
-      // 不立即关闭，但记录警告
+      log.warn('Unhandled rejection (not shutting down):', String(reason));
     });
 
     log.info('Signal handlers registered (SIGTERM, SIGINT, uncaughtException)');
@@ -130,7 +129,7 @@ class GracefulShutdownManager {
 
     // 设置强制退出定时器
     const forceExitTimer = setTimeout(() => {
-      log.error(`Graceful shutdown timed out after ${this.options.timeout}ms, forcing exit`);
+      log.fatal(`Graceful shutdown timed out after ${this.options.timeout}ms, forcing exit`);
       process.exit(1);
     }, this.options.timeout);
     forceExitTimer.unref();
@@ -154,7 +153,7 @@ class GracefulShutdownManager {
       clearTimeout(forceExitTimer);
       process.exit(0);
     } catch (err) {
-      log.error('Error during graceful shutdown:', String(err));
+      log.fatal('Error during graceful shutdown:', String(err));
       clearTimeout(forceExitTimer);
       process.exit(1);
     }
@@ -241,7 +240,7 @@ class GracefulShutdownManager {
         ]);
         log.info(`  ✓ ${hook.name} (${Date.now() - start}ms)`);
       } catch (err) {
-        log.error(`  ✗ ${hook.name} failed:`, String(err));
+        log.warn(`  ✗ ${hook.name} failed (continuing other hooks):`, String(err));
         // 继续执行其他钩子
       }
     }

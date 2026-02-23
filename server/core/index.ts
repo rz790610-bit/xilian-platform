@@ -66,7 +66,7 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 // ============================================================
 
 function printStartupBanner(port: number, startupTime: string): void {
-  const mode = process.env.NODE_ENV || 'development';
+  const mode = config.app.env;
   const version = config.app.version;
   const url = `http://localhost:${port}/`;
 
@@ -93,7 +93,7 @@ ${CYAN}════════════════════════�
 // ============================================================
 
 async function startServer() {
-  log.info(`[Startup] Initializing... (NODE_ENV=${process.env.NODE_ENV})`);
+  log.info(`[Startup] Initializing... (NODE_ENV=${config.app.env})`);
 
   // ── 阶段 0a: 配置验证（最早执行，快速失败） ──
   const configResult = validateConfigWithSchema(config);
@@ -152,7 +152,7 @@ async function startServer() {
     log.warn(`[Startup] Port ${preferredPort} is occupied, using port ${port} instead`);
   }
 
-  if (process.env.NODE_ENV === "development") {
+  if (config.app.env === "development") {
     await setupVite(app, server, port);
   } else {
     serveStatic(app);

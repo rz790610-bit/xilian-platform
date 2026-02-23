@@ -111,14 +111,14 @@ class AuditLogger {
                VALUES ('${entry.userId.replace(/'/g, "''")}', '${entry.action.replace(/'/g, "''")}', '${entry.resourceType.replace(/'/g, "''")}', '${entry.resourceId.replace(/'/g, "''")}', ${entry.payload ? `'${JSON.stringify(entry.payload).replace(/'/g, "''")}'` : 'NULL'}, NOW(3))`
             );
           } catch (createErr) {
-            logger.error('审计日志表创建/写入失败:', createErr);
+            logger.warn('审计日志表创建/写入失败（将重试）:', createErr);
           }
         }
       }
 
       logger.debug(`审计日志已写入 ${entries.length} 条记录`);
     } catch (err) {
-      logger.error('审计日志批量写入失败:', err);
+      logger.warn('审计日志批量写入失败（已放回缓冲区重试）:', err);
       // 将失败的记录放回缓冲区
       this.buffer.unshift(...entries);
     }

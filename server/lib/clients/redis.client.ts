@@ -78,7 +78,7 @@ class RedisClientManager {
           maxRetriesPerRequest: this.config.maxRetriesPerRequest,
           retryStrategy: (times) => {
             if (times > this.maxConnectionAttempts) {
-              log.error('[Redis] Max connection attempts reached');
+              log.warn('[Redis] Max connection attempts reached, giving up reconnection');
               return null;
             }
             return Math.min(times * this.config.retryDelayMs!, 3000);

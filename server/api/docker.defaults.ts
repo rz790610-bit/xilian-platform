@@ -3,108 +3,83 @@
  * CR-05: Docker 服务默认配置
  * ============================================================================
  *
- * 将 docker.router.ts 中的 31 处 localhost 硬编码迁移为可配置常量。
- * 所有服务地址通过环境变量覆盖，默认值为 localhost（本地开发场景）。
+ * 所有服务地址统一从 config.ts 读取，不再直接引用 process.env。
+ * config.ts 是环境变量的唯一入口（env() → process.env → 默认值）。
  *
  * 在 Docker Compose 网络中，服务名即主机名（如 portai-mysql → portai-mysql:3306）。
- * 部署时通过 .env 文件覆盖这些默认值即可。
+ * 部署时通过 .env 文件覆盖 config.ts 中的环境变量即可。
  *
  * ============================================================================
  */
 
-/** 从环境变量读取，默认 localhost（本地开发） */
-const DEFAULT_HOST = process.env.DOCKER_SERVICE_HOST || 'localhost';
+import { config } from '../core/config';
 
 /**
  * 核心服务配置
- * 每个服务的 host/port 均可通过环境变量独立覆盖
+ * 全部从 config.ts 派生，保持单一配置源
  */
 export const SERVICE_DEFAULTS = {
   mysql: {
-    host: process.env.MYSQL_HOST || DEFAULT_HOST,
-    port: parseInt(process.env.MYSQL_PORT || '3306', 10),
-    user: process.env.MYSQL_USER || 'portai',
-    password: process.env.MYSQL_PASSWORD || 'portai123',
-    database: process.env.MYSQL_DATABASE || 'portai_nexus',
-    get url() {
-      return `mysql://${this.user}:${this.password}@${this.host}:${this.port}/${this.database}`;
-    },
+    get host() { return config.mysql.host; },
+    get port() { return config.mysql.port; },
+    get user() { return config.mysql.user; },
+    get password() { return config.mysql.password; },
+    get database() { return config.mysql.database; },
+    get url() { return config.mysql.url; },
   },
   redis: {
-    host: process.env.REDIS_HOST || DEFAULT_HOST,
-    port: parseInt(process.env.REDIS_PORT || '6379', 10),
+    get host() { return config.redis.host; },
+    get port() { return config.redis.port; },
   },
   kafka: {
-    host: process.env.KAFKA_HOST || DEFAULT_HOST,
-    port: parseInt(process.env.KAFKA_PORT || '9092', 10),
-    get brokers() {
-      return `${this.host}:${this.port}`;
-    },
+    get host() { return config.kafka.brokers[0]?.split(':')[0] || 'localhost'; },
+    get port() { return parseInt(config.kafka.brokers[0]?.split(':')[1] || '9092', 10); },
+    get brokers() { return config.kafka.brokers.join(','); },
   },
   clickhouse: {
-    host: process.env.CLICKHOUSE_HOST || DEFAULT_HOST,
-    port: parseInt(process.env.CLICKHOUSE_PORT || '8123', 10),
-    user: process.env.CLICKHOUSE_USER || 'portai',
-    password: process.env.CLICKHOUSE_PASSWORD || 'portai123',
-    database: process.env.CLICKHOUSE_DATABASE || 'portai_timeseries',
-    get url() {
-      return `http://${this.host}:${this.port}`;
-    },
-    get pingUrl() {
-      return `http://${this.host}:${this.port}/ping`;
-    },
+    get host() { return config.clickhouse.host; },
+    get port() { return config.clickhouse.port; },
+    get user() { return config.clickhouse.user; },
+    get password() { return config.clickhouse.password; },
+    get database() { return config.clickhouse.database; },
+    get url() { return config.clickhouse.url; },
+    get pingUrl() { return `${config.clickhouse.url}/ping`; },
   },
   qdrant: {
-    host: process.env.QDRANT_HOST || DEFAULT_HOST,
-    port: parseInt(process.env.QDRANT_PORT || '6333', 10),
-    get healthUrl() {
-      return `http://${this.host}:${this.port}/collections`;
-    },
+    get host() { return config.qdrant.host; },
+    get port() { return config.qdrant.port; },
+    get healthUrl() { return `${config.qdrant.url}/collections`; },
   },
   minio: {
-    host: process.env.MINIO_HOST || DEFAULT_HOST,
-    port: parseInt(process.env.MINIO_PORT || '9010', 10),
-    accessKey: process.env.MINIO_ACCESS_KEY || 'portai',
-    secretKey: process.env.MINIO_SECRET_KEY || 'portai123456',
-    get endpoint() {
-      return `http://${this.host}:${this.port}`;
-    },
-    get healthUrl() {
-      return `http://${this.host}:${this.port}/minio/health/live`;
-    },
+    get host() { return config.minio.endpoint; },
+    get port() { return config.minio.port; },
+    get accessKey() { return config.minio.accessKey; },
+    get secretKey() { return config.minio.secretKey; },
+    get endpoint() { return `http://${config.minio.endpoint}:${config.minio.port}`; },
+    get healthUrl() { return `http://${config.minio.endpoint}:${config.minio.port}/minio/health/live`; },
   },
   ollama: {
-    host: process.env.OLLAMA_HOST || DEFAULT_HOST,
-    port: parseInt(process.env.OLLAMA_PORT || '11434', 10),
-    get healthUrl() {
-      return `http://${this.host}:${this.port}/api/tags`;
-    },
+    get host() { return config.ollama.host; },
+    get port() { return config.ollama.port; },
+    get healthUrl() { return `http://${this.host}:${this.port}/api/tags`; },
   },
   neo4j: {
-    host: process.env.NEO4J_HOST || DEFAULT_HOST,
-    port: parseInt(process.env.NEO4J_PORT || '7687', 10),
-    user: process.env.NEO4J_USER || 'neo4j',
-    password: process.env.NEO4J_PASSWORD || 'portai123',
-    get uri() {
-      return `bolt://${this.host}:${this.port}`;
-    },
+    get host() { return config.neo4j.host; },
+    get port() { return config.neo4j.port; },
+    get user() { return config.neo4j.user; },
+    get password() { return config.neo4j.password; },
+    get uri() { return config.neo4j.url; },
   },
   prometheus: {
-    host: process.env.PROMETHEUS_HOST || DEFAULT_HOST,
-    port: parseInt(process.env.PROMETHEUS_PORT || '9090', 10),
-    get healthUrl() {
-      return `http://${this.host}:${this.port}/-/ready`;
-    },
+    get host() { return config.monitoring.prometheusHost; },
+    get port() { return config.monitoring.prometheusPort; },
+    get healthUrl() { return `http://${this.host}:${this.port}/-/ready`; },
   },
   grafana: {
-    host: process.env.GRAFANA_HOST || DEFAULT_HOST,
-    port: parseInt(process.env.GRAFANA_PORT || '3001', 10),
-    get url() {
-      return `http://${this.host}:${this.port}`;
-    },
-    get healthUrl() {
-      return `http://${this.host}:${this.port}/api/health`;
-    },
+    get host() { return config.monitoring.grafanaHost; },
+    get port() { return config.monitoring.grafanaPort; },
+    get url() { return `http://${this.host}:${this.port}`; },
+    get healthUrl() { return `http://${this.host}:${this.port}/api/health`; },
   },
 } as const;
 

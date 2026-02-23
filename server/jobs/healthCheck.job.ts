@@ -35,7 +35,7 @@ const SYSTEM_SERVICES: ServiceConfig[] = [
     type: 'service',
     icon: '🦙',
     description: '本地大模型服务',
-    checkUrl: `http://${process.env.OLLAMA_HOST || 'localhost'}:${process.env.OLLAMA_PORT || 11434}/api/tags`,
+    checkUrl: `http://${config.ollama.host}:${config.ollama.port}/api/tags`,
     checkMethod: 'GET',
     checkTimeout: 5000,
     parseResponse: (data) => ({

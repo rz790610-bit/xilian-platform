@@ -2,9 +2,12 @@
  * 存储引擎健康检查服务
  * 统一检测所有数据库/存储服务的连接状态和基本指标
  * 集成 Docker 容器状态作为补充判断
+ *
+ * 配置来源：统一从 config.ts 读取，不直接引用 process.env
  */
 import { sql } from 'drizzle-orm';
 import { getDb } from '../../lib/db';
+import { config } from '../../core/config';
 
 interface StorageEngineStatus {
   name: string;
@@ -36,7 +39,7 @@ const DOCKER_CONTAINER_MAP: Record<string, string> = {
 async function getDockerContainerStatuses(): Promise<Record<string, string>> {
   const result: Record<string, string> = {};
   try {
-    const socketPath = process.env.DOCKER_HOST?.replace('unix://', '') || '/var/run/docker.sock';
+    const socketPath = config.docker.socketPath;
     const http = await import('http');
     
     const data = await new Promise<string>((resolve, reject) => {
@@ -167,8 +170,8 @@ async function checkMySQL(dockerState?: string): Promise<StorageEngineStatus> {
  */
 async function checkRedis(dockerState?: string): Promise<StorageEngineStatus> {
   const start = Date.now();
-  const host = process.env.REDIS_HOST || 'localhost';
-  const port = parseInt(process.env.REDIS_PORT || '6379');
+  const host = config.redis.host;
+  const port = config.redis.port;
   try {
     const net = await import('net');
     const { connected, info } = await new Promise<{ connected: boolean; info: Record<string, string> }>((resolve) => {
@@ -245,17 +248,17 @@ async function checkRedis(dockerState?: string): Promise<StorageEngineStatus> {
 async function checkClickHouse(dockerState?: string): Promise<StorageEngineStatus> {
   const start = Date.now();
   try {
-    const host = process.env.CLICKHOUSE_HOST || 'localhost';
-    const port = process.env.CLICKHOUSE_PORT || '8123';
+    const host = config.clickhouse.host;
+    const port = config.clickhouse.port;
     const response = await fetchWithTimeout(`http://${host}:${port}/ping`, CONNECT_TIMEOUT);
     const latency = Date.now() - start;
 
     if (response.ok) {
       let metrics: Record<string, string | number> = {};
       try {
-        const user = process.env.CLICKHOUSE_USER || 'default';
-        const password = process.env.CLICKHOUSE_PASSWORD || '';
-        const dbName = process.env.CLICKHOUSE_DATABASE || 'portai_timeseries';
+        const user = config.clickhouse.user;
+        const password = config.clickhouse.password;
+        const dbName = config.clickhouse.database;
         const headers: Record<string, string> = {};
         if (user) headers['X-ClickHouse-User'] = user;
         if (password) headers['X-ClickHouse-Key'] = password;
@@ -321,7 +324,7 @@ async function checkClickHouse(dockerState?: string): Promise<StorageEngineStatu
 async function checkMinIO(dockerState?: string): Promise<StorageEngineStatus> {
   const start = Date.now();
   try {
-    const endpoint = process.env.MINIO_ENDPOINT || 'http://localhost:9010';
+    const endpoint = config.minio.endpoint;
     const url = endpoint.startsWith('http') ? `${endpoint}/minio/health/live` : `http://${endpoint}/minio/health/live`;
     const response = await fetchWithTimeout(url, CONNECT_TIMEOUT);
     const latency = Date.now() - start;
@@ -368,8 +371,8 @@ async function checkMinIO(dockerState?: string): Promise<StorageEngineStatus> {
 async function checkQdrant(dockerState?: string): Promise<StorageEngineStatus> {
   const start = Date.now();
   try {
-    const host = process.env.QDRANT_URL || process.env.QDRANT_HOST || 'http://localhost:6333';
-    const url = host.startsWith('http') ? host : `http://${host}`;
+    const qdrantUrl = config.qdrant.url || `http://${config.qdrant.host}:${config.qdrant.port}`;
+    const url = qdrantUrl.startsWith('http') ? qdrantUrl : `http://${qdrantUrl}`;
     const response = await fetchWithTimeout(`${url}/collections`, CONNECT_TIMEOUT);
     const latency = Date.now() - start;
 
@@ -418,7 +421,7 @@ async function checkKafka(dockerState?: string): Promise<StorageEngineStatus> {
   const start = Date.now();
   try {
     const net = await import('net');
-    const brokers = process.env.KAFKA_BROKERS || 'localhost:9092';
+    const brokers = config.kafkaCluster.brokers;
     const [host, portStr] = brokers.split(',')[0].split(':');
     const port = parseInt(portStr || '9092');
 
@@ -472,8 +475,8 @@ async function checkKafka(dockerState?: string): Promise<StorageEngineStatus> {
 async function checkNeo4j(dockerState?: string): Promise<StorageEngineStatus> {
   const start = Date.now();
   try {
-    const host = process.env.NEO4J_HOST || 'localhost';
-    const port = process.env.NEO4J_HTTP_PORT || '7474';
+    const host = config.neo4j.host;
+    const port = config.neo4j.httpPort;
     const response = await fetchWithTimeout(`http://${host}:${port}`, CONNECT_TIMEOUT);
     const latency = Date.now() - start;
 

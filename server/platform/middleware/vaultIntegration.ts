@@ -536,7 +536,7 @@ export function startAutoRenewal(intervalMs: number = 60_000): void {
           log.info('Token renewed');
         }
       } catch (err: any) {
-        log.error('Token renewal failed:', err.message);
+        log.warn('Token renewal failed (will retry next cycle):', err.message);
       }
     }
 

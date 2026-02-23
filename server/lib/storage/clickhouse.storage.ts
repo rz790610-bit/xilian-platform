@@ -15,6 +15,7 @@
  */
 
 import { createClient, ClickHouseClient } from '@clickhouse/client';
+import { config } from '../../core/config';
 import { createModuleLogger } from '../../core/logger';
 const log = createModuleLogger('clickhouse');
 
@@ -38,13 +39,13 @@ export interface ClickHouseClusterConfig {
 // 默认集群配置（3节点2副本）
 const DEFAULT_CLUSTER_CONFIG: ClickHouseClusterConfig = {
   nodes: [
-    { host: process.env.CLICKHOUSE_NODE1_HOST || 'clickhouse-1', port: 8123, weight: 1 },
-    { host: process.env.CLICKHOUSE_NODE2_HOST || 'clickhouse-2', port: 8123, weight: 1 },
-    { host: process.env.CLICKHOUSE_NODE3_HOST || 'clickhouse-3', port: 8123, weight: 1 },
+    { host: config.clickhouseCluster.node1Host, port: 8123, weight: 1 },
+    { host: config.clickhouseCluster.node2Host, port: 8123, weight: 1 },
+    { host: config.clickhouseCluster.node3Host, port: 8123, weight: 1 },
   ],
-  username: process.env.CLICKHOUSE_USER || 'portai',
-  password: process.env.CLICKHOUSE_PASSWORD || 'clickhouse123',
-  database: process.env.CLICKHOUSE_DATABASE || 'portai_timeseries',
+  username: config.clickhouse.user,
+  password: config.clickhouse.password,
+  database: config.clickhouse.database,
   cluster: 'portai_cluster',
   replicationFactor: 2,
   shards: 3,
@@ -57,11 +58,11 @@ function extractHostname(raw: string): string {
 }
 const SINGLE_NODE_CONFIG: ClickHouseClusterConfig = {
   nodes: [
-    { host: extractHostname(process.env.CLICKHOUSE_HOST || 'localhost'), port: Number(process.env.CLICKHOUSE_PORT) || 8123, weight: 1 },
+    { host: extractHostname(config.clickhouse.host), port: config.clickhouse.port, weight: 1 },
   ],
-  username: process.env.CLICKHOUSE_USER || 'portai',
-  password: process.env.CLICKHOUSE_PASSWORD || 'clickhouse123',
-  database: process.env.CLICKHOUSE_DATABASE || 'portai_timeseries',
+  username: config.clickhouse.user,
+  password: config.clickhouse.password,
+  database: config.clickhouse.database,
   cluster: 'default',
   replicationFactor: 1,
   shards: 1,
@@ -136,10 +137,10 @@ export class ClickHouseStorage {
   private isInitialized: boolean = false;
   private currentNodeIndex: number = 0;
 
-  constructor(config?: ClickHouseClusterConfig) {
+  constructor(clusterConfig?: ClickHouseClusterConfig) {
     // 根据环境选择配置
-    const isClusterMode = process.env.CLICKHOUSE_CLUSTER_MODE === 'true';
-    this.config = config || (isClusterMode ? DEFAULT_CLUSTER_CONFIG : SINGLE_NODE_CONFIG);
+    const isClusterMode = config.clickhouseCluster.enabled;
+    this.config = clusterConfig || (isClusterMode ? DEFAULT_CLUSTER_CONFIG : SINGLE_NODE_CONFIG);
   }
 
   /**

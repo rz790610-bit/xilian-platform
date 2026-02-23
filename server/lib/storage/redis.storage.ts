@@ -19,6 +19,7 @@
 
 import Redis, { Cluster, ClusterOptions, RedisOptions } from 'ioredis';
 import Redlock from 'redlock';
+import { config } from '../../core/config';
 import { createModuleLogger } from '../../core/logger';
 const log = createModuleLogger('redis');
 
@@ -42,14 +43,14 @@ export interface RedisClusterConfig {
 // 默认集群配置（6节点）
 const DEFAULT_CLUSTER_CONFIG: RedisClusterConfig = {
   nodes: [
-    { host: process.env.REDIS_NODE1_HOST || 'localhost', port: 7000 },
-    { host: process.env.REDIS_NODE2_HOST || 'localhost', port: 7001 },
-    { host: process.env.REDIS_NODE3_HOST || 'localhost', port: 7002 },
-    { host: process.env.REDIS_NODE4_HOST || 'localhost', port: 7003 },
-    { host: process.env.REDIS_NODE5_HOST || 'localhost', port: 7004 },
-    { host: process.env.REDIS_NODE6_HOST || 'localhost', port: 7005 },
+    { host: config.redisCluster.node1Host, port: 7000 },
+    { host: config.redisCluster.node2Host, port: 7001 },
+    { host: config.redisCluster.node3Host, port: 7002 },
+    { host: config.redisCluster.node4Host, port: 7003 },
+    { host: config.redisCluster.node5Host, port: 7004 },
+    { host: config.redisCluster.node6Host, port: 7005 },
   ],
-  password: process.env.REDIS_PASSWORD,
+  password: config.redis.password,
   keyPrefix: 'xilian:',
   enableReadyCheck: true,
   maxRedirections: 16,
@@ -60,9 +61,9 @@ const DEFAULT_CLUSTER_CONFIG: RedisClusterConfig = {
 
 // 单节点开发配置
 const SINGLE_NODE_CONFIG: RedisOptions = {
-  host: process.env.REDIS_HOST || 'localhost',
-  port: parseInt(process.env.REDIS_PORT || '6379'),
-  password: process.env.REDIS_PASSWORD,
+  host: config.redis.host,
+  port: config.redis.port,
+  password: config.redis.password,
   keyPrefix: 'xilian:',
   enableReadyCheck: true,
   maxRetriesPerRequest: 3,
@@ -160,7 +161,7 @@ export class RedisStorage {
   private eventHandlers: Map<EventChannel, Set<(message: EventMessage) => void>> = new Map();
 
   constructor(clusterMode?: boolean) {
-    this.isClusterMode = clusterMode ?? (process.env.REDIS_CLUSTER_MODE === 'true');
+    this.isClusterMode = clusterMode ?? config.redisCluster.enabled;
     this.clusterConfig = DEFAULT_CLUSTER_CONFIG;
     this.singleConfig = SINGLE_NODE_CONFIG;
   }

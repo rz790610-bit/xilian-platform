@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { config } from './config';
 import { notifyOwner } from "./notification";
 import { adminProcedure, publicProcedure, router } from "./trpc";
 
@@ -14,7 +15,7 @@ export const systemRouter = router({
     )
     .query(() => ({
       ok: true,
-      version: process.env.APP_VERSION || '4.0.0',
+      version: config.app.version,
       uptime: Math.floor((Date.now() - startTime) / 1000),
       timestamp: new Date().toISOString(),
       node: process.version,

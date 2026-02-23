@@ -22,7 +22,7 @@ async function startServer() {
 
   // Serve static files from dist/public in production
   const staticPath =
-    process.env.NODE_ENV === "production"
+    config.app.env === "production"
       ? path.resolve(__dirname, "public")
       : path.resolve(__dirname, "..", "dist", "public");
 
@@ -48,7 +48,7 @@ async function startServer() {
     });
     // 强制超时退出，防止连接永远不释放
     setTimeout(() => {
-      log.error('Forced shutdown after timeout');
+      log.fatal('Forced shutdown after timeout');
       process.exit(1);
     }, 30_000);
   };
@@ -56,4 +56,4 @@ async function startServer() {
   process.on('SIGINT', () => shutdown('SIGINT'));
 }
 
-startServer().catch((err) => log.error({ err }, "Server startup failed"));
+startServer().catch((err) => log.fatal({ err }, "Server startup failed"));

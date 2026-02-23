@@ -11,6 +11,7 @@
  * - 每个连接器有独立的超时控制（默认 15s，降级后 8s）
  * - 日志分级：正常 INFO，异常 WARN，超阈值后静默
  */
+import { config } from '../core/config';
 import { createModuleLogger } from '../core/logger';
 import * as alService from '../services/access-layer.service';
 
@@ -34,10 +35,10 @@ const NORMAL_CHECK_TIMEOUT_MS = 15_000;
 const DEGRADED_CHECK_TIMEOUT_MS = 8_000;
 
 /** 首次启动延迟（等待系统完全启动） */
-const INITIAL_DELAY_MS = process.env.NODE_ENV === 'production' ? 30_000 : 60_000;
+const INITIAL_DELAY_MS = config.app.env === 'production' ? 30_000 : 60_000;
 
 /** 开发模式下是否跳过 demo 连接器的健康检查 */
-const SKIP_DEMO_IN_DEV = process.env.NODE_ENV !== 'production';
+const SKIP_DEMO_IN_DEV = config.app.env !== 'production';
 
 // ============ 状态管理 ============
 

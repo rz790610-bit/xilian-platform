@@ -4,11 +4,13 @@
  * ============================================================================
  *
  * 集中管理 Grok/xAI API 的连接配置、模型参数、限流策略
- * 通过环境变量注入，支持动态配置热更新
+ * 配置来源：统一从 config.ts 读取，不直接引用 process.env
  */
 
+import { config } from '../../core/config';
+
 // ============================================================================
-// 环境变量读取
+// 类型定义
 // ============================================================================
 
 export interface GrokApiConfig {
@@ -48,60 +50,67 @@ export interface GrokApiConfig {
   enableStructuredOutput: boolean;
 }
 
+// ============================================================================
+// 配置加载
+// ============================================================================
+
 /**
- * 从环境变量加载 Grok API 配置
- * 支持 process.env 和 DynamicConfig 双重来源
+ * 从统一配置中心加载 Grok API 配置
  */
 export function loadGrokApiConfig(): GrokApiConfig {
   return {
-    baseUrl: process.env.GROK_API_BASE_URL || 'https://api.x.ai/v1',
-    apiKey: process.env.GROK_API_KEY || '',
-    defaultModel: process.env.GROK_DEFAULT_MODEL || 'grok-3',
-    reasoningModel: process.env.GROK_REASONING_MODEL || 'grok-3-mini',
-    maxConcurrency: parseInt(process.env.GROK_MAX_CONCURRENCY || '5', 10),
-    requestTimeoutMs: parseInt(process.env.GROK_REQUEST_TIMEOUT_MS || '60000', 10),
-    maxRetries: parseInt(process.env.GROK_MAX_RETRIES || '3', 10),
-    retryBaseDelayMs: parseInt(process.env.GROK_RETRY_BASE_DELAY_MS || '1000', 10),
-    rateLimitPerMinute: parseInt(process.env.GROK_RATE_LIMIT_PER_MINUTE || '60', 10),
-    tokenLimitPerMinute: parseInt(process.env.GROK_TOKEN_LIMIT_PER_MINUTE || '100000', 10),
-    defaultTemperature: parseFloat(process.env.GROK_DEFAULT_TEMPERATURE || '0.3'),
-    defaultMaxTokens: parseInt(process.env.GROK_DEFAULT_MAX_TOKENS || '4096', 10),
-    enableToolCalling: process.env.GROK_ENABLE_TOOL_CALLING !== 'false',
-    enableReasoningPersistence: process.env.GROK_ENABLE_REASONING_PERSISTENCE !== 'false',
-    enableReactLoop: process.env.GROK_ENABLE_REACT_LOOP !== 'false',
-    reactMaxIterations: parseInt(process.env.GROK_REACT_MAX_ITERATIONS || '10', 10),
-    enableStructuredOutput: process.env.GROK_ENABLE_STRUCTURED_OUTPUT !== 'false',
+    baseUrl: config.grokApi.baseUrl,
+    apiKey: config.grokApi.apiKey,
+    defaultModel: config.grokApi.defaultModel,
+    reasoningModel: config.grokApi.reasoningModel,
+    maxConcurrency: config.grokApi.maxConcurrency,
+    requestTimeoutMs: config.grokApi.requestTimeoutMs,
+    maxRetries: config.grokApi.maxRetries,
+    retryBaseDelayMs: config.grokApi.retryBaseDelayMs,
+    rateLimitPerMinute: config.grokApi.rateLimitPerMinute,
+    tokenLimitPerMinute: config.grokApi.tokenLimitPerMinute,
+    defaultTemperature: config.grokApi.defaultTemperature,
+    defaultMaxTokens: config.grokApi.defaultMaxTokens,
+    enableToolCalling: config.grokApi.enableToolCalling,
+    enableReasoningPersistence: config.grokApi.enableReasoningPersistence,
+    enableReactLoop: config.grokApi.enableReactLoop,
+    reactMaxIterations: config.grokApi.reactMaxIterations,
+    enableStructuredOutput: config.grokApi.enableStructuredOutput,
   };
 }
+
+// ============================================================================
+// 配置验证
+// ============================================================================
 
 /**
  * 验证 Grok API 配置完整性
  */
-export function validateGrokApiConfig(config: GrokApiConfig): { valid: boolean; errors: string[] } {
+export function validateGrokApiConfig(grokConfig: GrokApiConfig): { valid: boolean; errors: string[] } {
   const errors: string[] = [];
 
-  if (!config.apiKey) {
+  if (!grokConfig.apiKey) {
     errors.push('GROK_API_KEY 未配置 — Grok 推理服务将不可用');
   }
 
-  if (!config.baseUrl) {
+  if (!grokConfig.baseUrl) {
     errors.push('GROK_API_BASE_URL 未配置');
   }
 
-  if (config.maxConcurrency < 1 || config.maxConcurrency > 50) {
-    errors.push(`GROK_MAX_CONCURRENCY 值 ${config.maxConcurrency} 超出合理范围 [1, 50]`);
+  if (grokConfig.maxConcurrency < 1 || grokConfig.maxConcurrency > 50) {
+    errors.push(`GROK_MAX_CONCURRENCY 值 ${grokConfig.maxConcurrency} 超出合理范围 [1, 50]`);
   }
 
-  if (config.requestTimeoutMs < 5000) {
-    errors.push(`GROK_REQUEST_TIMEOUT_MS 值 ${config.requestTimeoutMs}ms 过短，建议 >= 5000ms`);
+  if (grokConfig.requestTimeoutMs < 5000) {
+    errors.push(`GROK_REQUEST_TIMEOUT_MS 值 ${grokConfig.requestTimeoutMs}ms 过短，建议 >= 5000ms`);
   }
 
-  if (config.reactMaxIterations < 1 || config.reactMaxIterations > 50) {
-    errors.push(`GROK_REACT_MAX_ITERATIONS 值 ${config.reactMaxIterations} 超出合理范围 [1, 50]`);
+  if (grokConfig.reactMaxIterations < 1 || grokConfig.reactMaxIterations > 50) {
+    errors.push(`GROK_REACT_MAX_ITERATIONS 值 ${grokConfig.reactMaxIterations} 超出合理范围 [1, 50]`);
   }
 
-  if (config.defaultTemperature < 0 || config.defaultTemperature > 2) {
-    errors.push(`GROK_DEFAULT_TEMPERATURE 值 ${config.defaultTemperature} 超出范围 [0, 2]`);
+  if (grokConfig.defaultTemperature < 0 || grokConfig.defaultTemperature > 2) {
+    errors.push(`GROK_DEFAULT_TEMPERATURE 值 ${grokConfig.defaultTemperature} 超出范围 [0, 2]`);
   }
 
   return { valid: errors.length === 0, errors };
@@ -129,14 +138,14 @@ GROK_API_KEY=
 # [可选] 默认模型（默认: grok-3）
 # GROK_DEFAULT_MODEL=grok-3
 
-# [可选] 推理模型（复杂任务，默认: grok-3-mini）
-# GROK_REASONING_MODEL=grok-3-mini
+# [可选] 推理模型（复杂任务，默认: grok-3-reasoning）
+# GROK_REASONING_MODEL=grok-3-reasoning
 
-# [可选] 最大并发请求数（默认: 5）
-# GROK_MAX_CONCURRENCY=5
+# [可选] 最大并发请求数（默认: 10）
+# GROK_MAX_CONCURRENCY=10
 
-# [可选] 单次请求超时毫秒（默认: 60000）
-# GROK_REQUEST_TIMEOUT_MS=60000
+# [可选] 单次请求超时毫秒（默认: 30000）
+# GROK_REQUEST_TIMEOUT_MS=30000
 
 # [可选] 最大重试次数（默认: 3）
 # GROK_MAX_RETRIES=3
@@ -147,8 +156,8 @@ GROK_API_KEY=
 # [可选] 每分钟 Token 限制（默认: 100000）
 # GROK_TOKEN_LIMIT_PER_MINUTE=100000
 
-# [可选] 默认 temperature（默认: 0.3，工业场景建议低温）
-# GROK_DEFAULT_TEMPERATURE=0.3
+# [可选] 默认 temperature（默认: 0.7）
+# GROK_DEFAULT_TEMPERATURE=0.7
 
 # [可选] 默认 max_tokens（默认: 4096）
 # GROK_DEFAULT_MAX_TOKENS=4096

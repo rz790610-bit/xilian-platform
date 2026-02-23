@@ -90,7 +90,7 @@ class AuditLogQueue {
   private startFlushTimer(): void {
     this.flushTimer = setInterval(() => {
       this.flush().catch(err => {
-        log.error('Audit log flush failed:', err);
+        log.warn('Audit log flush failed (will retry next interval):', err);
       });
     }, this.flushIntervalMs);
 
@@ -126,7 +126,7 @@ class AuditLogQueue {
           try {
             await db.insert(auditLogs).values(chunk);
           } catch (err) {
-            log.error(`Failed to insert audit logs batch (${chunk.length} entries): ${String(err)}`);
+            log.warn(`Failed to insert audit logs batch (${chunk.length} entries): ${String(err)}`);
           }
         }
       }
@@ -178,13 +178,13 @@ class AuditLogQueue {
             }
           }
         } catch (err) {
-          log.error(`Failed to insert sensitive audit logs (${sensitiveEntries.length} entries): ${String(err)}`);
+          log.warn(`Failed to insert sensitive audit logs (${sensitiveEntries.length} entries): ${String(err)}`);
         }
       }
 
       log.debug(`Flushed ${batch.length} audit log entries (${sensitiveEntries.length} sensitive)`);
     } catch (err) {
-      log.error(`Audit log flush error (${batch.length} entries): ${String(err)}`);
+      log.warn(`Audit log flush error (${batch.length} entries): ${String(err)}`);
     } finally {
       this.flushing = false;
     }

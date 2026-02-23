@@ -455,7 +455,7 @@ export class PhysicsVerifier {
         explanation,
       };
     } catch (err) {
-      logger.error({ hypothesisId: hypothesis.id, error: String(err) }, '[PhysicsVerifier] 验证异常');
+      logger.warn({ hypothesisId: hypothesis.id, error: String(err) }, '[PhysicsVerifier] 验证异常，已跳过');
       return this.createSkippedResult(hypothesis.id, 'timeout', null);
     } finally {
       this.observability.endSpan(spanId);

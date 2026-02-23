@@ -10,6 +10,7 @@
  * 6. 版本管理 — 算法版本追踪
  */
 
+import { config } from '../../core/config';
 import type {
 
   IAlgorithmExecutor,
@@ -154,7 +155,7 @@ export class AlgorithmEngine {
 
   private constructor() {
     this.dependencies = new DefaultDependencies();
-    this.workerPoolEnabled = process.env.DSP_WORKER_POOL !== 'false';
+    this.workerPoolEnabled = config.dsp.workerPoolEnabled;
   }
 
   static getInstance(): AlgorithmEngine {

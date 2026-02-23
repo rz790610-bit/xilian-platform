@@ -94,7 +94,7 @@ class RoutingAwareOutboxPublisher {
       this.isRunning = true;
       log.debug('[OutboxPublisher] Started successfully');
     } catch (error) {
-      log.error('[OutboxPublisher] Failed to start:', error);
+      log.error('[OutboxPublisher] Failed to start:', error);  // 保留: 启动关键路径失败
       throw error;
     }
   }
@@ -497,7 +497,7 @@ class RoutingAwareOutboxPublisher {
         const ageMs = Date.now() - oldest.createdAt.getTime();
 
         if (ageMs > 300000) { // 5 分钟
-          log.error(`[OutboxPublisher] Stuck event detected: ${oldest.eventId} is ${Math.round(ageMs / 60000)} minutes old`);
+          log.warn(`[OutboxPublisher] Stuck event detected: ${oldest.eventId} is ${Math.round(ageMs / 60000)} minutes old`);
         }
       }
 

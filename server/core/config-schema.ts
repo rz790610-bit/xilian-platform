@@ -202,7 +202,7 @@ export function validateConfigWithSchema(cfg: any): ConfigValidationResult {
   const success = errors.length === 0;
 
   if (errors.length > 0) {
-    log.error({ errors }, `Configuration validation failed (${errors.length} error(s))`);
+    log.warn({ errors }, `Configuration validation found ${errors.length} error(s) — review above`);
   }
 
   if (warnings.length > 0) {
@@ -223,9 +223,9 @@ export function validateConfigWithSchema(cfg: any): ConfigValidationResult {
 export function validateConfigOrDie(cfg: any): void {
   const result = validateConfigWithSchema(cfg);
   if (!result.success) {
-    log.error(
+    log.fatal(
       { errors: result.errors },
-      'FATAL: Configuration validation failed. Fix the above errors and restart.'
+      'Configuration validation failed. Fix the above errors and restart.'
     );
     process.exit(1);
   }

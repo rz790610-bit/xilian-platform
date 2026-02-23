@@ -5,6 +5,7 @@
 
 import { z } from 'zod';
 import { publicProcedure, protectedProcedure, router } from '../core/trpc';
+import { config } from '../core/config';
 import { redisClient, CACHE_KEYS } from '../lib/clients/redis.client';
 
 export const redisRouter = router({
@@ -18,11 +19,11 @@ export const redisRouter = router({
     const health = await redisClient.healthCheck();
 
     return {
-      isConfigured: !!process.env.REDIS_URL || !!process.env.REDIS_HOST,
+      isConfigured: config.redis.enabled,
       isConnected,
       mode: isConnected ? 'redis' : 'memory',
-      host: process.env.REDIS_HOST || 'localhost',
-      port: parseInt(process.env.REDIS_PORT || '6379'),
+      host: config.redis.host,
+      port: config.redis.port,
       health,
     };
   }),

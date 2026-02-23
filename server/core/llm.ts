@@ -256,11 +256,11 @@ const getApiKey = (): string => {
 };
 
 /** P1-3 修复：模型名称可配置 */
-const DEFAULT_MODEL = process.env.LLM_MODEL || "gemini-2.5-flash";
+const DEFAULT_MODEL = config.llm.model;
 
 /** P1-4 修复：默认参数可配置 */
-const DEFAULT_MAX_TOKENS = parseInt(process.env.LLM_MAX_TOKENS || "32768", 10);
-const DEFAULT_THINKING_BUDGET = parseInt(process.env.LLM_THINKING_BUDGET || "128", 10);
+const DEFAULT_MAX_TOKENS = config.llm.maxTokens;
+const DEFAULT_THINKING_BUDGET = config.llm.thinkingBudget;
 
 const normalizeResponseFormat = ({
   responseFormat,

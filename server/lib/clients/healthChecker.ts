@@ -1,11 +1,14 @@
 /**
  * 服务健康检查客户端
  * 检测各个服务的真实运行状态
+ *
+ * 配置来源：统一从 config.ts 读取，不直接引用 process.env
  */
 
 import http from 'http';
 import https from 'https';
 import net from 'net';
+import { config } from '../../core/config';
 import type { ServiceHealth } from '../../core/types/domain';
 
 export interface HealthCheckConfig {
@@ -19,90 +22,95 @@ export interface HealthCheckConfig {
   customCheck?: () => Promise<boolean>;
 }
 
-// 预定义服务配置
-const SERVICE_CONFIGS: HealthCheckConfig[] = [
-  {
-    name: 'Ollama',
-    type: 'http',
-    host: process.env.OLLAMA_HOST || 'localhost',
-    port: parseInt(process.env.OLLAMA_PORT || '11434'),
-    path: '/api/version',
-    timeout: 5000,
-    expectedStatus: 200,
-  },
-  {
-    name: 'Qdrant',
-    type: 'http',
-    host: process.env.QDRANT_HOST || 'localhost',
-    port: parseInt(process.env.QDRANT_PORT || '6333'),
-    path: '/collections',
-    timeout: 5000,
-    expectedStatus: 200,
-  },
-  {
-    name: 'Redis',
-    type: 'tcp',
-    host: process.env.REDIS_HOST || 'localhost',
-    port: parseInt(process.env.REDIS_PORT || '6379'),
-    timeout: 3000,
-  },
-  {
-    name: 'MySQL',
-    type: 'tcp',
-    host: process.env.DATABASE_HOST || process.env.MYSQL_HOST || 'localhost',
-    port: parseInt(process.env.DATABASE_PORT || process.env.MYSQL_PORT || '3306'),
-    timeout: 3000,
-  },
-  {
-    name: 'ClickHouse',
-    type: 'http',
-    host: process.env.CLICKHOUSE_HOST || 'localhost',
-    port: parseInt(process.env.CLICKHOUSE_PORT || '8123'),
-    path: '/ping',
-    timeout: 5000,
-    expectedStatus: 200,
-  },
-  {
-    name: 'Kafka',
-    type: 'tcp',
-    host: process.env.KAFKA_BROKER?.split(':')[0] || 'localhost',
-    port: parseInt(process.env.KAFKA_BROKER?.split(':')[1] || '9092'),
-    timeout: 3000,
-  },
-  {
-    name: 'Zookeeper',
-    type: 'tcp',
-    host: process.env.ZOOKEEPER_HOST || 'localhost',
-    port: parseInt(process.env.ZOOKEEPER_PORT || '2181'),
-    timeout: 3000,
-  },
-];
+// 预定义服务配置 — 使用 getter 确保读取时获取最新 config 值
+function getServiceConfigs(): HealthCheckConfig[] {
+  return [
+    {
+      name: 'Ollama',
+      type: 'http',
+      host: config.ollama.host,
+      port: config.ollama.port,
+      path: '/api/version',
+      timeout: 5000,
+      expectedStatus: 200,
+    },
+    {
+      name: 'Qdrant',
+      type: 'http',
+      host: config.qdrant.host,
+      port: config.qdrant.port,
+      path: '/collections',
+      timeout: 5000,
+      expectedStatus: 200,
+    },
+    {
+      name: 'Redis',
+      type: 'tcp',
+      host: config.redis.host,
+      port: config.redis.port,
+      timeout: 3000,
+    },
+    {
+      name: 'MySQL',
+      type: 'tcp',
+      host: config.mysql.hostAlias,
+      port: config.mysql.portAlias,
+      timeout: 3000,
+    },
+    {
+      name: 'ClickHouse',
+      type: 'http',
+      host: config.clickhouse.host,
+      port: config.clickhouse.port,
+      path: '/ping',
+      timeout: 5000,
+      expectedStatus: 200,
+    },
+    {
+      name: 'Kafka',
+      type: 'tcp',
+      host: config.kafka.broker.split(':')[0] || 'localhost',
+      port: parseInt(config.kafka.broker.split(':')[1] || '9092'),
+      timeout: 3000,
+    },
+    {
+      name: 'Zookeeper',
+      type: 'tcp',
+      host: config.zookeeper.host,
+      port: config.zookeeper.port,
+      timeout: 3000,
+    },
+  ];
+}
+
+// 可变的服务配置列表（支持运行时添加自定义检查）
+const customServiceConfigs: HealthCheckConfig[] = [];
 
 /**
  * HTTP 健康检查
  */
-async function httpHealthCheck(config: HealthCheckConfig): Promise<{
+async function httpHealthCheck(checkConfig: HealthCheckConfig): Promise<{
   healthy: boolean;
   latencyMs: number;
   statusCode?: number;
   error?: string;
 }> {
   const startTime = Date.now();
-  const protocol = config.port === 443 ? https : http;
+  const protocol = checkConfig.port === 443 ? https : http;
   
   return new Promise((resolve) => {
     const req = protocol.request(
       {
-        hostname: config.host,
-        port: config.port,
-        path: config.path || '/',
+        hostname: checkConfig.host,
+        port: checkConfig.port,
+        path: checkConfig.path || '/',
         method: 'GET',
-        timeout: config.timeout || 5000,
+        timeout: checkConfig.timeout || 5000,
       },
       (res) => {
         const latencyMs = Date.now() - startTime;
-        const healthy = config.expectedStatus 
-          ? res.statusCode === config.expectedStatus
+        const healthy = checkConfig.expectedStatus 
+          ? res.statusCode === checkConfig.expectedStatus
           : (res.statusCode || 0) >= 200 && (res.statusCode || 0) < 400;
         
         // 消费响应体
@@ -129,7 +137,7 @@ async function httpHealthCheck(config: HealthCheckConfig): Promise<{
       req.destroy();
       resolve({
         healthy: false,
-        latencyMs: config.timeout || 5000,
+        latencyMs: checkConfig.timeout || 5000,
         error: 'Timeout',
       });
     });
@@ -141,7 +149,7 @@ async function httpHealthCheck(config: HealthCheckConfig): Promise<{
 /**
  * TCP 健康检查
  */
-async function tcpHealthCheck(config: HealthCheckConfig): Promise<{
+async function tcpHealthCheck(checkConfig: HealthCheckConfig): Promise<{
   healthy: boolean;
   latencyMs: number;
   error?: string;
@@ -151,7 +159,7 @@ async function tcpHealthCheck(config: HealthCheckConfig): Promise<{
   return new Promise((resolve) => {
     const socket = new net.Socket();
     
-    socket.setTimeout(config.timeout || 3000);
+    socket.setTimeout(checkConfig.timeout || 3000);
     
     socket.on('connect', () => {
       const latencyMs = Date.now() - startTime;
@@ -175,29 +183,29 @@ async function tcpHealthCheck(config: HealthCheckConfig): Promise<{
       socket.destroy();
       resolve({
         healthy: false,
-        latencyMs: config.timeout || 3000,
+        latencyMs: checkConfig.timeout || 3000,
         error: 'Timeout',
       });
     });
 
-    socket.connect(config.port, config.host);
+    socket.connect(checkConfig.port, checkConfig.host);
   });
 }
 
 /**
  * 执行单个服务健康检查
  */
-export async function checkServiceHealth(config: HealthCheckConfig): Promise<ServiceHealth> {
+export async function checkServiceHealth(checkConfig: HealthCheckConfig): Promise<ServiceHealth> {
   let result: { healthy: boolean; latencyMs: number; statusCode?: number; error?: string };
 
-  if (config.type === 'http') {
-    result = await httpHealthCheck(config);
-  } else if (config.type === 'tcp') {
-    result = await tcpHealthCheck(config);
-  } else if (config.type === 'custom' && config.customCheck) {
+  if (checkConfig.type === 'http') {
+    result = await httpHealthCheck(checkConfig);
+  } else if (checkConfig.type === 'tcp') {
+    result = await tcpHealthCheck(checkConfig);
+  } else if (checkConfig.type === 'custom' && checkConfig.customCheck) {
     const startTime = Date.now();
     try {
-      const healthy = await config.customCheck();
+      const healthy = await checkConfig.customCheck();
       result = {
         healthy,
         latencyMs: Date.now() - startTime,
@@ -218,14 +226,14 @@ export async function checkServiceHealth(config: HealthCheckConfig): Promise<Ser
   }
 
   return {
-    name: config.name,
+    name: checkConfig.name,
     status: result.healthy ? 'healthy' : 'unhealthy',
-    endpoint: `${config.host}:${config.port}${config.path || ''}`,
+    endpoint: `${checkConfig.host}:${checkConfig.port}${checkConfig.path || ''}`,
     lastCheck: new Date(),
     responseTimeMs: result.latencyMs,
     checks: [
       {
-        name: config.type === 'http' ? 'HTTP Response' : 'TCP Connection',
+        name: checkConfig.type === 'http' ? 'HTTP Response' : 'TCP Connection',
         status: result.healthy ? 'pass' : 'fail',
         message: result.error || (result.healthy ? 'OK' : 'Failed'),
       },
@@ -242,8 +250,9 @@ export async function checkServiceHealth(config: HealthCheckConfig): Promise<Ser
  * 检查所有预定义服务
  */
 export async function checkAllServices(): Promise<ServiceHealth[]> {
+  const allConfigs = [...getServiceConfigs(), ...customServiceConfigs];
   const results = await Promise.all(
-    SERVICE_CONFIGS.map(config => checkServiceHealth(config))
+    allConfigs.map(c => checkServiceHealth(c))
   );
   return results;
 }
@@ -252,22 +261,23 @@ export async function checkAllServices(): Promise<ServiceHealth[]> {
  * 检查指定服务
  */
 export async function checkService(serviceName: string): Promise<ServiceHealth | null> {
-  const config = SERVICE_CONFIGS.find(c => c.name.toLowerCase() === serviceName.toLowerCase());
-  if (!config) {
+  const allConfigs = [...getServiceConfigs(), ...customServiceConfigs];
+  const found = allConfigs.find(c => c.name.toLowerCase() === serviceName.toLowerCase());
+  if (!found) {
     return null;
   }
-  return checkServiceHealth(config);
+  return checkServiceHealth(found);
 }
 
 /**
  * 添加自定义服务检查
  * P1-HC-1: 添加 URL 校验，防止注入恶意地址
  */
-export function addServiceConfig(config: HealthCheckConfig): void {
+export function addServiceConfig(checkConfig: HealthCheckConfig): void {
   // 校验地址格式
   try {
-    const protocol = config.port === 443 ? 'https' : 'http';
-    const url = `${protocol}://${config.host}:${config.port}${config.path || '/'}`;
+    const protocol = checkConfig.port === 443 ? 'https' : 'http';
+    const url = `${protocol}://${checkConfig.host}:${checkConfig.port}${checkConfig.path || '/'}`;
     const parsed = new URL(url);
     // 阻止内网地址注入（可根据实际需求调整）
     const hostname = parsed.hostname;
@@ -275,23 +285,21 @@ export function addServiceConfig(config: HealthCheckConfig): void {
       throw new Error('Cloud metadata endpoint is not allowed');
     }
   } catch (e) {
-    throw new Error(`Invalid service config for ${config.name}: ${(e as Error).message}`);
+    throw new Error(`Invalid service config for ${checkConfig.name}: ${(e as Error).message}`);
   }
 
-  const existingIndex = SERVICE_CONFIGS.findIndex(c => c.name === config.name);
+  const existingIndex = customServiceConfigs.findIndex(c => c.name === checkConfig.name);
   if (existingIndex >= 0) {
-    SERVICE_CONFIGS[existingIndex] = config;
+    customServiceConfigs[existingIndex] = checkConfig;
   } else {
-    SERVICE_CONFIGS.push(config);
+    customServiceConfigs.push(checkConfig);
   }
 }
 
 /**
- * 获取服务配置列表
+ * 获取服务配置列表（导出函数名保持不变，兼容已有调用）
  */
-export function getServiceConfigs(): HealthCheckConfig[] {
-  return [...SERVICE_CONFIGS];
-}
+export { getServiceConfigs };
 
 /**
  * 批量健康检查（带并发控制）
@@ -305,7 +313,7 @@ export async function batchHealthCheck(
   for (let i = 0; i < configs.length; i += concurrency) {
     const batch = configs.slice(i, i + concurrency);
     const batchResults = await Promise.all(
-      batch.map(config => checkServiceHealth(config))
+      batch.map(c => checkServiceHealth(c))
     );
     results.push(...batchResults);
   }
@@ -322,7 +330,7 @@ export class HealthMonitor {
   private onStatusChange?: (service: string, healthy: boolean, previous: boolean) => void;
 
   constructor(
-    private configs: HealthCheckConfig[] = SERVICE_CONFIGS,
+    private configs: HealthCheckConfig[] = getServiceConfigs(),
     private intervalMs: number = 30000
   ) {}
 
