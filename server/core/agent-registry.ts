@@ -158,6 +158,14 @@ export interface AgentManifest {
   /** 超时时间（ms） */
   timeoutMs?: number;
 
+  // ── XPE v1.1 编排字段 ──────────────────────────────────
+  /** 依赖的前置 Agent ID 列表（DAG 编排：此 Agent 在 after 列表中的 Agent 完成后执行） */
+  after?: string[];
+  /** 可并行执行的 Agent ID 列表（DAG 编排：这些 Agent 可与当前 Agent 同时执行） */
+  parallel?: string[];
+  /** 编排优先级（数字越小越先执行，默认 100） */
+  priority?: number;
+
   /**
    * 一次性调用（必须实现）
    * @param input - 输入数据（由 Agent 自行解析）
@@ -513,3 +521,156 @@ export interface RegistryEvent {
 
 /** 全局 Agent 注册中心单例 */
 export const agentRegistry = new AgentRegistry();
+
+// ============================================================================
+// XPE v1.1 — Agent 编排图扩展
+// ============================================================================
+
+import { topologicalSort, generateFlowDiagram as dagFlowDiagram } from './plugin-engine/dag';
+
+/**
+ * 获取 Agent 的 DAG 执行顺序
+ *
+ * 基于 after 依赖关系进行拓扑排序，返回按层级分组的执行顺序。
+ * 同一层级内的 Agent 可以并行执行。
+ *
+ * @returns 按拓扑序排列的 Agent ID 数组
+ * @throws 如果存在循环依赖
+ */
+export function getAgentExecutionOrder(): string[] {
+  const agents = agentRegistry.listAll();
+
+  // 构建 DAG 节点
+  const nodes = agents.map(a => ({
+    id: a.id,
+    dependencies: [] as string[],
+    after: a.after ?? [],
+  }));
+
+  return topologicalSort(nodes);
+}
+
+/**
+ * 生成 Agent 编排图的 Mermaid DAG 图
+ *
+ * 包含 loopStage 分组、after 依赖边、parallel 并行标注。
+ *
+ * @returns Mermaid flowchart 语法字符串
+ */
+export function generateAgentFlowDiagram(): string {
+  const agents = agentRegistry.listAll();
+
+  if (agents.length === 0) {
+    return 'graph TD\n  empty["No agents registered"]';
+  }
+
+  const lines: string[] = ['graph TD'];
+
+  // 按 loopStage 分组
+  const stageGroups = new Map<LoopStage, AgentManifest[]>();
+  for (const agent of agents) {
+    const group = stageGroups.get(agent.loopStage) ?? [];
+    group.push(agent);
+    stageGroups.set(agent.loopStage, group);
+  }
+
+  // 输出 subgraph
+  const stageOrder: LoopStage[] = ['perception', 'diagnosis', 'guardrail', 'evolution', 'utility'];
+  for (const stage of stageOrder) {
+    const group = stageGroups.get(stage);
+    if (!group || group.length === 0) continue;
+
+    lines.push(`  subgraph ${stage}["${stage.toUpperCase()}"]`);
+    for (const agent of group) {
+      const label = `${agent.name}\\n(${agent.sdkAdapter})`;
+      lines.push(`    ${agent.id}["${label}"]`);
+    }
+    lines.push('  end');
+  }
+
+  // 输出 after 依赖边（实线箭头）
+  for (const agent of agents) {
+    if (agent.after && agent.after.length > 0) {
+      for (const dep of agent.after) {
+        lines.push(`  ${dep} --> ${agent.id}`);
+      }
+    }
+  }
+
+  // 输出 parallel 并行边（虚线双向箭头）
+  const parallelPairs = new Set<string>();
+  for (const agent of agents) {
+    if (agent.parallel && agent.parallel.length > 0) {
+      for (const peerId of agent.parallel) {
+        const key = [agent.id, peerId].sort().join('::');
+        if (!parallelPairs.has(key)) {
+          parallelPairs.add(key);
+          lines.push(`  ${agent.id} -.- ${peerId}`);
+        }
+      }
+    }
+  }
+
+  return lines.join('\n');
+}
+
+/**
+ * 按 DAG 顺序编排执行 Agent 列表
+ *
+ * 尊重 after 依赖（串行）和 parallel 标注（并行）。
+ * 返回分层执行计划，每层内的 Agent 可并行执行。
+ *
+ * @returns 分层执行计划，每层是一组可并行的 Agent ID
+ */
+export function getAgentExecutionPlan(): string[][] {
+  const agents = agentRegistry.listAll();
+  const agentMap = new Map(agents.map(a => [a.id, a]));
+
+  // 构建入度表
+  const inDegree = new Map<string, number>();
+  const dependents = new Map<string, string[]>();
+
+  for (const agent of agents) {
+    inDegree.set(agent.id, 0);
+    dependents.set(agent.id, []);
+  }
+
+  for (const agent of agents) {
+    const deps = agent.after ?? [];
+    inDegree.set(agent.id, deps.length);
+    for (const dep of deps) {
+      if (dependents.has(dep)) {
+        dependents.get(dep)!.push(agent.id);
+      }
+    }
+  }
+
+  // BFS 分层
+  const layers: string[][] = [];
+  let queue = agents.filter(a => (inDegree.get(a.id) ?? 0) === 0).map(a => a.id);
+
+  while (queue.length > 0) {
+    // 按 priority 排序当前层
+    queue.sort((a, b) => {
+      const pa = agentMap.get(a)?.priority ?? 100;
+      const pb = agentMap.get(b)?.priority ?? 100;
+      return pa - pb;
+    });
+
+    layers.push([...queue]);
+
+    const nextQueue: string[] = [];
+    for (const id of queue) {
+      for (const dep of dependents.get(id) ?? []) {
+        const newDeg = (inDegree.get(dep) ?? 1) - 1;
+        inDegree.set(dep, newDeg);
+        if (newDeg === 0) {
+          nextQueue.push(dep);
+        }
+      }
+    }
+    queue = nextQueue;
+  }
+
+  return layers;
+}

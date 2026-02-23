@@ -250,5 +250,36 @@ export function buildStartupTasks(): StartupTask[] {
         await startDataArtery();
       },
     },
+
+    // ── XPE v1.1 插件引擎 ─────────────────────────────────
+
+    {
+      id: 'plugin-engine',
+      label: 'XPE PluginEngine v1.1',
+      dependencies: ['config-center', 'otel'],
+      critical: false,  // 插件引擎失败不应阻止平台启动
+      timeout: 15000,
+      init: async () => {
+        const path = await import('path');
+        const { getPluginEngine } = await import('./plugin-engine');
+        const engine = getPluginEngine();
+
+        // 发现并注册内置插件
+        const projectRoot = path.resolve(__dirname, '../..');
+        await engine.discover(projectRoot);
+
+        // 执行完整启动序列（register → install → activate）
+        const states = await engine.bootstrap();
+
+        const active = [...states.values()].filter(s => s === 'active').length;
+        const degraded = [...states.values()].filter(s => s === 'degraded').length;
+        const failed = [...states.values()].filter(s => s === 'failed').length;
+
+        log.info(
+          `PluginEngine bootstrap: ${active}/${states.size} activated, ` +
+          `${degraded} degraded, ${failed} failed`
+        );
+      },
+    },
   ];
 }

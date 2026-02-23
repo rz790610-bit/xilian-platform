@@ -1,0 +1,72 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "tasks": {
+    "check": {
+      "dependsOn": [],
+      "inputs": [
+        "server/**/*.ts",
+        "client/**/*.ts",
+        "client/**/*.tsx",
+        "shared/**/*.ts",
+        "tsconfig.json"
+      ],
+      "outputs": [],
+      "cache": true
+    },
+    "build": {
+      "dependsOn": ["check"],
+      "inputs": [
+        "server/**/*.ts",
+        "client/**/*.ts",
+        "client/**/*.tsx",
+        "client/**/*.css",
+        "shared/**/*.ts",
+        "vite.config.ts",
+        "vite.config.shared.ts",
+        "tsconfig.json",
+        "package.json"
+      ],
+      "outputs": ["dist/**"],
+      "cache": true
+    },
+    "test": {
+      "dependsOn": [],
+      "inputs": [
+        "server/**/*.ts",
+        "client/**/*.ts",
+        "client/**/*.tsx",
+        "shared/**/*.ts",
+        "vitest.config.ts",
+        "tests/**/*.ts"
+      ],
+      "outputs": [],
+      "cache": true
+    },
+    "test:coverage": {
+      "dependsOn": [],
+      "inputs": [
+        "server/**/*.ts",
+        "client/**/*.ts",
+        "client/**/*.tsx",
+        "shared/**/*.ts",
+        "vitest.config.ts",
+        "tests/**/*.ts"
+      ],
+      "outputs": ["coverage/**"],
+      "cache": false
+    },
+    "dev": {
+      "dependsOn": [],
+      "cache": false,
+      "persistent": true
+    },
+    "format": {
+      "dependsOn": [],
+      "cache": false
+    },
+    "db:push": {
+      "dependsOn": [],
+      "cache": false
+    }
+  }
+}
