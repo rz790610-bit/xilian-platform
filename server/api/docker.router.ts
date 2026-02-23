@@ -11,6 +11,7 @@ import { createModuleLogger } from '../core/logger';
 import { execSync } from 'child_process';
 import path from 'path';
 
+import { SERVICE_DEFAULTS, LOCAL_PORT_MAP } from './docker.defaults';
 const log = createModuleLogger('docker-router');
 
 // ============ 辅助函数 ============
@@ -132,19 +133,7 @@ async function isHttpReady(url: string): Promise<boolean> {
   }
 }
 
-/** 服务本地端口映射（用于快速检测本地服务是否已运行） */
-const LOCAL_PORT_MAP: Record<string, { type: 'tcp' | 'http'; host: string; port: number; url?: string }> = {
-  'portai-mysql':      { type: 'tcp',  host: 'localhost', port: 3306 },
-  'portai-redis':      { type: 'tcp',  host: 'localhost', port: 6379 },
-  'portai-kafka':      { type: 'tcp',  host: 'localhost', port: 9092 },
-  'portai-clickhouse': { type: 'http', host: 'localhost', port: 8123, url: 'http://localhost:8123/ping' },
-  'portai-qdrant':     { type: 'http', host: 'localhost', port: 6333, url: 'http://localhost:6333/collections' },
-  'portai-minio':      { type: 'http', host: 'localhost', port: 9010, url: 'http://localhost:9010/minio/health/live' },
-  'portai-ollama':     { type: 'http', host: 'localhost', port: 11434, url: 'http://localhost:11434/api/tags' },
-  'portai-neo4j':      { type: 'tcp',  host: 'localhost', port: 7687 },
-  'portai-prometheus':  { type: 'http', host: 'localhost', port: 9090, url: 'http://localhost:9090/-/ready' },
-  'portai-grafana':    { type: 'http', host: 'localhost', port: 3001, url: 'http://localhost:3001/api/health' },
-};
+// CR-05: LOCAL_PORT_MAP 已迁移到 docker.defaults.ts，通过环境变量可配置
 
 /** 检测服务是否已在本地运行（无论是 Docker 还是 brew services） */
 async function isServiceRunningLocally(containerName: string): Promise<boolean> {
@@ -218,12 +207,12 @@ function getCoreServices(): ServiceBootstrapConfig[] {
       label: 'MySQL 数据库',
       icon: '🐬',
       envVars: {
-        DATABASE_URL: 'mysql://portai:portai123@localhost:3306/portai_nexus',
+        DATABASE_URL: SERVICE_DEFAULTS.mysql.url,
       },
-      waitCheck: () => waitForPort('localhost', 3306),
+      waitCheck: () => waitForPort(SERVICE_DEFAULTS.mysql.host, SERVICE_DEFAULTS.mysql.port),
       postInit: async () => {
         // 迁移 + ORM 重连 + 种子数据
-        const dbUrl = 'mysql://portai:portai123@localhost:3306/portai_nexus';
+        const dbUrl = SERVICE_DEFAULTS.mysql.url;
         const ready = await waitForMySQL(dbUrl);
         if (!ready) return { success: false, detail: 'MySQL 连接超时' };
         const migrate = await runMigrations(dbUrl);
@@ -244,53 +233,53 @@ function getCoreServices(): ServiceBootstrapConfig[] {
       label: 'Redis 缓存',
       icon: '🔴',
       envVars: {
-        REDIS_HOST: 'localhost',
+        REDIS_HOST: SERVICE_DEFAULTS.redis.host,
         REDIS_PORT: '6379',
       },
-      waitCheck: () => waitForPort('localhost', 6379),
+      waitCheck: () => waitForPort(SERVICE_DEFAULTS.redis.host, SERVICE_DEFAULTS.redis.port),
     },
     {
       containerName: 'portai-kafka',
       label: 'Kafka 消息队列',
       icon: '📨',
       envVars: {
-        KAFKA_BROKERS: 'localhost:9092',
+        KAFKA_BROKERS: SERVICE_DEFAULTS.kafka.brokers,
         KAFKA_CLIENT_ID: 'xilian-platform',
       },
-      waitCheck: () => waitForPort('localhost', 9092),
+      waitCheck: () => waitForPort(SERVICE_DEFAULTS.kafka.host, SERVICE_DEFAULTS.kafka.port),
     },
     {
       containerName: 'portai-clickhouse',
       label: 'ClickHouse 时序库',
       icon: '🏠',
       envVars: {
-        CLICKHOUSE_HOST: 'http://localhost:8123',
+        CLICKHOUSE_HOST: SERVICE_DEFAULTS.clickhouse.url,
         CLICKHOUSE_USER: 'portai',
         CLICKHOUSE_PASSWORD: 'portai123',
         CLICKHOUSE_DATABASE: 'portai_timeseries',
       },
-      waitCheck: () => waitForHttp('http://localhost:8123/ping'),
+      waitCheck: () => waitForHttp(SERVICE_DEFAULTS.clickhouse.pingUrl),
     },
     {
       containerName: 'portai-qdrant',
       label: 'Qdrant 向量库',
       icon: '🔮',
       envVars: {
-        QDRANT_HOST: 'localhost',
+        QDRANT_HOST: SERVICE_DEFAULTS.qdrant.host,
         QDRANT_PORT: '6333',
       },
-      waitCheck: () => waitForHttp('http://localhost:6333/collections'),
+      waitCheck: () => waitForHttp(SERVICE_DEFAULTS.qdrant.healthUrl),
     },
     {
       containerName: 'portai-minio',
       label: 'MinIO 对象存储',
       icon: '📦',
       envVars: {
-        MINIO_ENDPOINT: 'http://localhost:9010',
+        MINIO_ENDPOINT: SERVICE_DEFAULTS.minio.endpoint,
         MINIO_ACCESS_KEY: 'portai',
         MINIO_SECRET_KEY: 'portai123456',
       },
-      waitCheck: () => waitForHttp('http://localhost:9010/minio/health/live'),
+      waitCheck: () => waitForHttp(SERVICE_DEFAULTS.minio.healthUrl),
     },
   ];
 }
@@ -502,28 +491,28 @@ export const dockerRouter = router({
       // 可选服务的环境变量映射
       const optionalEnvMap: Record<string, Record<string, string>> = {
         'portai-ollama': {
-          OLLAMA_HOST: 'localhost',
+          OLLAMA_HOST: SERVICE_DEFAULTS.ollama.host,
           OLLAMA_PORT: '11434',
         },
         'portai-neo4j': {
-          NEO4J_URI: 'bolt://localhost:7687',
+          NEO4J_URI: SERVICE_DEFAULTS.neo4j.uri,
           NEO4J_USER: 'neo4j',
           NEO4J_PASSWORD: 'portai123',
         },
         'portai-prometheus': {
-          PROMETHEUS_HOST: 'localhost',
+          PROMETHEUS_HOST: SERVICE_DEFAULTS.prometheus.host,
           PROMETHEUS_PORT: '9090',
         },
         'portai-grafana': {
-          GRAFANA_URL: 'http://localhost:3001',
+          GRAFANA_URL: SERVICE_DEFAULTS.grafana.url,
         },
       };
 
       const waitChecks: Record<string, () => Promise<boolean>> = {
-        'portai-ollama': () => waitForHttp('http://localhost:11434/api/tags'),
-        'portai-neo4j': () => waitForPort('localhost', 7687),
-        'portai-prometheus': () => waitForHttp('http://localhost:9090/-/ready'),
-        'portai-grafana': () => waitForHttp('http://localhost:3001/api/health'),
+        'portai-ollama': () => waitForHttp(SERVICE_DEFAULTS.ollama.healthUrl),
+        'portai-neo4j': () => waitForPort(SERVICE_DEFAULTS.neo4j.host, SERVICE_DEFAULTS.neo4j.port),
+        'portai-prometheus': () => waitForHttp(SERVICE_DEFAULTS.prometheus.healthUrl),
+        'portai-grafana': () => waitForHttp(SERVICE_DEFAULTS.grafana.healthUrl),
       };
 
       // Step 1: 启动服务（优先检测本地端口，不通才回退 Docker）
