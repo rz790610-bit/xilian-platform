@@ -1,265 +1,190 @@
-# 西联智能平台 v2.1 整改验收报告
+# 西联智能平台（PortAI Nexus）v2.1 整改验收报告
 
-> **验收日期**: 2026-02-23
-> **验收环境**: Ubuntu 22.04 沙箱 (Node.js 22.13.0, pnpm 10.4.1)
-> **验收依据**: 《西联智能平台v2.1整改验收执行手册》
-
----
-
-## 一、验收指标总览
-
-| 维度 | 整改前(Level 0) | 验收阈值 | 验收实测 | 判定 |
-|------|----------------|---------|---------|------|
-| 测试覆盖率 | 0% | ≥60% | 全量 1.3% / 核心已测文件 94.2% | **部分达标** |
-| CI 构建时间 | 无 CI | ≤3 分钟 | CI yml 已配置（需 GitHub 实测） | **待验证** |
-| ERROR 日志数 | 463 条 | ≤10 条 | **67 条** | **部分达标** |
-| 配置源头 | 6 处分散 | 单一源 + Zod | config.ts + config-schema.ts Zod 校验 | **Pass** |
-| 安全漏洞 | 未知 | 0 Critical + 0 High | **0 漏洞** (production) | **Pass** |
-| OTel Trace | 断裂 | ≥3 层 span | 代码就绪（需 Jaeger 实测） | **待验证** |
-| @deprecated | 67 处 | 0 处 | **53 处**（14 处已清理） | **部分达标** |
+**验收对象：** xilian-platform v4.0.0  
+**验收标准：** 整改验收执行手册 v2.1 Final + 代码检查手册  
+**验收级别：** L2（标准验收）  
+**验收日期：** 2026-02-23  
+**验收执行：** Manus AI  
 
 ---
 
-## 二、Phase 0.5 逐项验收
+## 一、验收总览
 
-### Z-01: Vitest 测试骨架搭建
+本次验收严格对照《西联智能平台 v2.1 整改验收执行手册》的 5 阶段 22 项标准，逐项执行自动化检查和代码审计。验收覆盖 Phase 0.5（测试与安全基础）、Phase 1（紧急修复 6 项）、Phase 2（工程基础设施 6 项）、Phase 3（架构演进）及 L3 极致验收补充项。
 
-| 检查项 | 命令 | 结果 | 判定 |
-|--------|------|------|------|
-| Vitest 配置文件存在 | `ls vitest.config.ts` | 766 bytes, 存在 | **Pass** |
-| 测试脚本可执行 | `npx vitest run` | 退出码 0 | **Pass** |
-| config.test.ts ≥3 个测试 | `npx vitest run config.test.ts` | 9 tests passed | **Pass** |
-| 覆盖率报告生成 | `npx vitest run --coverage` | coverage/ 目录已生成 | **Pass** |
+### 1.1 关键指标达成情况
 
-**Z-01 综合判定: Pass (4/4)**
+| 维度 | 验收阈值 | 实际结果 | 状态 |
+|------|----------|----------|------|
+| 测试覆盖率 | ≥ 60% | 1.4%（Statements） | **未达标** |
+| ERROR 日志数 | ≤ 10 条 | 25 处 log.error 调用 | **未达标** |
+| 安全漏洞 | 0 Critical + 0 High | 0 Critical / 7 High | **部分达标** |
+| 配置单一源 | 单一源 + Zod 校验 | Zod 校验已实现，但 14 个文件仍直接读取 process.env | **部分达标** |
+| OTel Trace | ≥ 3 层 span | 代码就绪，需 Jaeger 环境验证 | **待验证** |
+| CI 构建时间 | ≤ 3 分钟 | CI 配置已就绪，未实际运行 | **待验证** |
+| 启动时长 | ≤ 2 秒 | 需实际环境测量 | **待验证** |
 
-### Z-02: 安全基线扫描
+### 1.2 验收项通过率
 
-| 检查项 | 命令 | 结果 | 判定 |
-|--------|------|------|------|
-| Dependabot 已启用 | `ls .github/dependabot.yml` | 1451 bytes, 存在 | **Pass** |
-| npm 审计通过 | `pnpm audit --production` | **No known vulnerabilities found** | **Pass** |
-| Docker 镜像安全 | `trivy image` | 沙箱未安装 Trivy（需用户本地验证） | **待验证** |
-| 敏感信息扫描 | 手动 grep | 未发现硬编码密码/API Key | **Pass** |
-
-**Z-02 综合判定: Pass (3/4, 1 待验证)**
-
-> **修复记录**: 原 14 个漏洞（2 Critical + 10 High + 2 其他），通过以下措施清零：
-> - `xlsx 0.18.5` → `xlsx-js-style 1.2.0`（xlsx 无修复版本，替换为安全替代品）
-> - `vite 7.1.9` → `7.3.1`
-> - pnpm overrides: `fast-xml-parser>=5.3.6`, `qs>=6.14.2`, `minimatch>=10.2.1`, `lodash>=4.17.23`
+| 阶段 | 总项数 | 通过 | 部分通过 | 未通过 | 待验证 |
+|------|--------|------|----------|--------|--------|
+| Phase 0.5 | 2 | 1 | 1 | 0 | 0 |
+| Phase 1 | 6 | 3 | 2 | 1 | 0 |
+| Phase 2 | 6 | 4 | 1 | 1 | 0 |
+| Phase 3 | 1 | 0 | 0 | 1 | 0 |
+| L3 补充 | 3 | 0 | 0 | 0 | 3 |
+| **合计** | **18** | **8** | **4** | **3** | **3** |
 
 ---
 
-## 三、Phase 1 逐项验收
+## 二、Phase 0.5 验收：测试与安全基础
 
-### A-01: 日志级别语义规范
+### Z-01: Vitest 测试骨架 — **通过**
 
-| 检查项 | 结果 | 判定 |
-|--------|------|------|
-| 关键启动日志 info 级可见 | Banner + 组件注册日志均为 info 级 | **Pass** |
-| ERROR 日志数 ≤5 条 | 67 条（从 463 条降至 67 条，降幅 85.5%） | **Fail** |
-| 启动 Banner 包含版本/端口/模式 | `printStartupBanner()` 输出 appName/version/env/port | **Pass** |
+Vitest 测试框架已完整搭建，`vitest.config.ts` 配置文件存在且功能正常。执行 `pnpm test` 退出码为 0，共 **12 个测试文件、203 个测试用例全部通过**，其中 `config.test.ts` 包含 9 个测试用例，覆盖了配置验证的核心场景。覆盖率报告可通过 `pnpm test:coverage` 正常生成至 `coverage/` 目录。
 
-> **A-01 说明**: ERROR 日志从 463 条降至 67 条，但未达到 ≤5 条的阈值。剩余 67 条分布在 68 个文件中，大部分是 catch 块中的合理错误日志（如连接失败、外部服务错误），需要逐个评估是否应降级为 warn。
+> **覆盖率现状：** Statements 1.4%、Branches 43.3%、Functions 29.0%。覆盖率仍远低于 60% 的 Level 2 目标，这是因为代码库有 249,491 行（657 个被覆盖文件），而当前测试主要集中在核心基础设施模块。覆盖率提升需要持续的 TDD 实践。
 
-### A-02: 共享 Vite 配置
+### Z-02: 安全基线扫描 — **部分通过**
 
-| 检查项 | 结果 | 判定 |
-|--------|------|------|
-| 消除双轨配置 | `vite.config.shared.ts` 为单一权威来源，`vite.config.ts` 和 `server/core/vite.ts` 均引用它 | **Pass** |
+`.github/dependabot.yml` 已配置，自动依赖更新机制就绪。`pnpm audit` 扫描结果为 **0 Critical、7 High、11 Moderate**，共 18 个漏洞。High 级别漏洞分布如下：
 
-### A-03: OpenTelemetry 完整链路
+| 漏洞来源 | 数量 | 说明 |
+|----------|------|------|
+| pnpm 自身 | 3 | 命令注入、锁文件绕过、生命周期脚本绕过 |
+| node-tar | 3 | 路径遍历、任意文件覆写、硬链接逃逸 |
+| ajv | 1 | 原型污染（通过 eslint 间接依赖） |
 
-| 检查项 | 结果 | 判定 |
-|--------|------|------|
-| OTel 初始化无误 | `opentelemetry.ts` 452 行，Prometheus + OTLP 导出器 | **Pass** |
-| Jaeger Trace 可见 | 代码就绪，需 `docker compose up` 后在 Jaeger UI 验证 | **待验证** |
-| trace_id 透传 | `logger.ts` 自动附带 trace_id/span_id | **Pass** |
+代码中未发现硬编码密码。Docker 镜像扫描（Trivy）和敏感信息扫描（gitleaks）因 sandbox 环境限制未执行。
 
-### A-04: Zod 配置校验
-
-| 检查项 | 结果 | 判定 |
-|--------|------|------|
-| Zod schema 存在 | `config-schema.ts` 232 行，53 处 Zod 调用 | **Pass** |
-| 启动时调用 | `index.ts:99` 调用 `validateConfigWithSchema(config)` | **Pass** |
-| 缺失字段快速失败 | 生产环境弱密钥 → `process.exit(1)` | **Pass** |
-
-### A-05: 单一端口配置源
-
-| 检查项 | 结果 | 判定 |
-|--------|------|------|
-| 硬编码移除 | `server/index.ts` → `config.server.port`; `serviceRegistry.ts` → `process.env.PORT` | **Pass** |
-| `findAvailablePort` 默认值 | `startPort = 3000` 作为 fallback（可接受） | **Pass** |
-| `scripts/migrate-service.ts` | 迁移脚本中的 3000（非运行时代码） | **Pass** |
-
-> **修复记录**: `server/index.ts:35` 和 `serviceRegistry.ts:299` 的硬编码 3000 已替换。
-
-### A-06: 清理 @deprecated 文件
-
-| 检查项 | 结果 | 判定 |
-|--------|------|------|
-| @deprecated 标记数 | 53 处（从 67 处降至 53 处） | **部分达标** |
-
-> **修复记录**: 已删除 4 个无引用的废弃文件：
-> - `server/core/env.ts` (10 处标记)
-> - `server/api/ws/kafkaMetrics.ws.ts` (1 处)
-> - `client/src/pages/settings/basic/coding-rules.ts` (3 处)
-> - `shared/_core/errors.ts` (1 处)
->
-> 剩余 53 处均有活跃引用（如 deviceId 有 373 处引用），已创建 `docs/deprecated-migration-plan.md` 记录迁移计划。
+> **建议：** 7 个 High 级别漏洞中，pnpm 和 node-tar 漏洞需要升级对应包版本解决；ajv 漏洞来自 eslint 间接依赖，影响范围仅限开发环境。建议在本地环境执行 `pnpm audit fix` 并验证兼容性。
 
 ---
 
-## 四、Phase 2 逐项验收
+## 三、Phase 1 验收：紧急修复 6 项
 
-### B-01: Vite 版本锁定
+### A-01: 日志级别语义规范 — **未达标**
 
-| 检查项 | 结果 | 判定 |
-|--------|------|------|
-| Vite 精确版本 | `"vite": "7.3.1"`（无 ^ 前缀） | **Pass** |
-| esbuild 精确版本 | `"esbuild": "0.25.0"` | **Pass** |
-| tsx 精确版本 | `"tsx": "4.19.1"` | **Pass** |
-| 升级 SOP 文档 | `docs/upgrade-sop.md` 存在 | **Pass** |
+服务端代码中 `console.log/warn/error` 残留 3 处，其中 2 处为注释引用（`logger.ts` 和 `auditLog.ts`），1 处为 `config.ts` 中的 `console.error` 用于 FATAL 场景（JWT_SECRET 生产环境使用默认值时强制退出），该处可接受。
 
-### B-02: 显式启动序列编排
+但 `log.error` 调用仍有 **25 处**，远超验收阈值（≤ 5 条）。根据代码检查手册第三章的五级语义标准，大量 error 调用应降级为 warn（可自恢复场景）或 info（正常运行里程碑）。启动 Banner 已包含端口和模式信息，符合要求。
 
-| 检查项 | 结果 | 判定 |
-|--------|------|------|
-| StartupOrchestrator 存在 | `server/core/startup.ts` 308 行 | **Pass** |
-| 拓扑排序 | Kahn's Algorithm 实现 | **Pass** |
-| 并行初始化 | 同层任务 `Promise.all` 并行 | **Pass** |
-| 分级容错 | critical → exit(1), non-critical → degraded | **Pass** |
-| 超时保护 | `withTimeout()` 每任务独立超时 | **Pass** |
-| 测试覆盖 | `startup-orchestrator.test.ts` 21 tests passed | **Pass** |
+### A-02: 共享 Vite 配置 — **通过**
 
-### B-03: Turborepo Monorepo 迁移
+`vite.config.shared.ts` 作为单一权威来源已建立。`vite.config.ts`（开发模式）和 `server/core/vite.ts`（生产模式）均通过 `import { resolveAliases, resolveBuildConfig }` 引用共享配置，双模式 alias 和 plugin 配置已物理统一，消除了分叉可能性。
 
-| 检查项 | 结果 | 判定 |
-|--------|------|------|
-| 评估文档 | `docs/design/turborepo-evaluation.md` 存在 | **Pass** |
-| turbo 安装 | 未安装（评估报告建议 Phase 3 实施） | **符合预期** |
+### A-03: OpenTelemetry 完整链路 — **通过（代码层面）**
 
-> **说明**: B-03 在整改方案中定义为"评估 + 预备"，实际 monorepo 拆分计划在 Phase 3 执行。
+11 个 `@opentelemetry/*` 包已安装，包括 `sdk-node`、`exporter-trace-otlp-http`、`exporter-prometheus`、`auto-instrumentations-node` 和 `pino-opentelemetry-transport`。OTel 初始化已注册为启动任务（`id: 'otel'`，`critical: false`），失败时降级运行。`logger.ts` 通过 `@opentelemetry/api` 的 `trace.getActiveSpan()` 自动注入 trace context 到日志。端到端 Trace 验证需要 Jaeger 环境，建议在本地部署时执行手册中的验证命令。
 
-### B-04: Dev Containers 标准化
+### A-04: Zod 配置校验 — **通过**
 
-| 检查项 | 结果 | 判定 |
-|--------|------|------|
-| devcontainer.json 存在 | `.devcontainer/devcontainer.json` 3593 bytes | **Pass** |
-| docker-compose 存在 | `.devcontainer/docker-compose.devcontainer.yml` | **Pass** |
-| README 存在 | `.devcontainer/README.md` | **Pass** |
+Zod 4.1.12 已安装。`server/core/config.ts` 中实现了 `validateConfig()` 函数，配置验证失败时调用 `process.exit(1)` 快速退出，符合手册要求的"缺配置立即退出"标准。配置校验测试（`config.test.ts`）包含 9 个用例，覆盖了缺失字段、类型转换、默认值等场景。
 
-### B-06: CI 流水线与远程缓存
+### A-05: 单一端口配置源 — **部分通过**
 
-| 检查项 | 结果 | 判定 |
-|--------|------|------|
-| CI yml 存在 | `.github/workflows/ci.yml` 3781 bytes | **Pass** |
-| 覆盖率报告 | CI 中包含 `npx vitest run --coverage` | **Pass** |
-| 构建验证 | CI 中包含 `pnpm build` 步骤 | **Pass** |
-| 构建时间 < 3 min | 需 GitHub Actions 实测 | **待验证** |
+`localhost:3000` 硬编码已消除，端口通过 `config.ts` 的 `findAvailablePort()` 统一管理。但仍有 **14 个文件共 69 处直接读取 `process.env`**，未走 `config.ts` 统一入口。主要违规文件：
 
-### B-07: Agent 注册与编排
+| 文件 | 直接引用数 | 说明 |
+|------|-----------|------|
+| `server/api/docker.defaults.ts` | 25+ | MySQL/Redis/Kafka/ClickHouse 等全部直接读取 |
+| `server/core/featureFlags.ts` | 6 | Feature Flag 直接读取 |
+| `server/core/llm.ts` | 3 | LLM 模型配置直接读取 |
+| `server/core/logger.ts` | 3 | 日志级别和缓冲区大小直接读取 |
 
-| 检查项 | 结果 | 判定 |
-|--------|------|------|
-| AgentRegistry 存在 | `server/core/agent-registry.ts` 515 行 | **Pass** |
-| 注册 + 按 Capability 查询 | `register()` + `findByCapability()` | **Pass** |
-| 流式响应 | `invokeStream()` 返回 AsyncGenerator | **Pass** |
-| 测试覆盖 | `agent-registry.test.ts` 28 tests passed | **Pass** |
-| 设计文档 | `docs/design/agent-registry.md` 390 行 | **Pass** |
+> **建议：** `docker.defaults.ts` 是最大违规点，应将其配置项迁移到 `config.ts` 的 Zod schema 中统一管理。
+
+### A-06: 废弃文件清理 — **部分通过**
+
+`@deprecated` 标记仅剩 **1 处**（`client/src/services/qdrant.ts`），已标注迁移路径（"请使用 tRPC knowledge 路由替代"）。相比审计时的 20+ 废弃文件，清理工作基本完成，但该文件仍需最终移除。
 
 ---
 
-## 五、测试覆盖率详情
+## 四、Phase 2 验收：工程基础设施 6 项
 
-### 5.1 总体统计
+### B-01: Vite 版本锁定 — **通过**
 
-| 指标 | 数值 |
-|------|------|
-| 测试文件数 | 10 |
-| 测试用例总数 | **183** |
-| 通过率 | **100%** |
-| 全量语句覆盖率 | 1.3%（2310/172764） |
-| 核心模块覆盖率 | 16.1%（997/6200） |
-| 核心已测文件覆盖率 | **94.2%**（997/1058） |
+`package.json` 中 Vite 版本为 `7.3.1`，使用精确版本号（非 `^` 或 `~` 前缀）。手册原始要求为 7.1.9，当前版本为后续升级结果，锁定策略正确。
 
-### 5.2 核心模块覆盖率明细
+### B-02: 显式启动序列编排 — **通过**
 
-| 文件 | 覆盖率 | 语句数 |
-|------|--------|--------|
-| agent-registry.ts | 100.0% | 200/200 |
-| errors.ts | 100.0% | 183/183 |
-| featureFlags.ts | 100.0% | 52/52 |
-| startup.ts | 97.8% | 175/179 |
-| env-loader.ts | 91.7% | 22/24 |
-| logger.ts | 87.8% | 151/172 |
-| config.ts | 86.3% | 214/248 |
+`server/core/startup.ts` 实现了 `executeStartupSequence()` 函数，`server/core/startup-tasks.ts` 声明了 **14 个启动任务**，每个任务均标注 `critical` 级别和 `timeout`。当前所有任务设为 `critical: false`（降级运行），确保单个服务不可用时平台仍可启动。启动序列在 `server/core/index.ts` 中通过 `executeStartupSequence(tasks)` 调用执行。
 
-### 5.3 覆盖率差距分析
+### B-03: Turborepo Monorepo 迁移 — **未完成**
 
-全量覆盖率仅 1.3% 的原因：项目总计 172,764 条语句，其中 server/core/ 仅占 6,200 条（3.6%）。大量代码分布在 services/、platform/、lib/ 等目录，这些模块依赖外部服务（MySQL、Kafka、Redis、ClickHouse），无法在纯单元测试中覆盖，需要集成测试环境。
+`turbo.json` 不存在，Turborepo 尚未集成。CI 配置中已预留 Turborepo 缓存相关注释，但实际构建仍使用直接 `pnpm build`。此项为 Phase 2 规划项，需后续实施。
 
-**建议**: 将覆盖率阈值调整为"核心模块 ≥60%"更为合理，当前核心已测文件 94.2% 已远超此标准。
+### B-04: Dev Containers 标准化 — **通过**
+
+`.devcontainer/` 目录已建立，包含 `devcontainer.json`、`docker-compose.devcontainer.yml` 和 `README.md`。开发环境标准化配置就绪。
+
+### B-06: CI 流水线 — **通过（配置层面）**
+
+`.github/workflows/ci.yml` 已配置完整的 4 阶段流水线：Lint & Type Check → Test（含覆盖率）→ Security Audit → Build & Verify。触发条件为 push 到 main/develop 分支及所有 PR。另有 `completeness-audit.yml` 用于架构完整性审计。实际 CI 运行时间需在 GitHub Actions 中验证。
+
+### B-07: Agent 注册与编排 — **通过**
+
+`server/core/agent-registry.ts` 实现了完整的 Agent 注册中心，`agent-registry.bootstrap.ts` 负责启动时注册。测试文件包含 **28 个用例全部通过**，覆盖了 Agent 注册、按 Stage 发现（`discoverByStage`）、健康检查等核心功能。流式响应通过 SSE 实现（符合代码检查手册第十一章通信协议选用规范）。
 
 ---
 
-## 六、Git 提交记录
+## 五、Phase 3 验收：架构演进
 
-```
-4673b2c fix: 验收修复 — Z-02漏洞清零/A-05端口去硬编码/A-06废弃代码清理/B-01版本锁定/测试补充
-c3685d6 feat(B-04): Dev Containers 标准化配置
-51303c8 docs(B-03): Turborepo monorepo 评估报告
-ea39297 docs(B-07): Agent 注册中心设计文档
-23a5503 feat(B-06): CI Pipeline 完善
-96eefce feat(B-02): 启动序列显式化
-baba026 feat(B-01,B-05): Vite版本锁定 + dotenv分层配置
-4dfd8af docs: 自评报告 v2.0
-9545454 fix: 第二轮整改
-e242b59 chore: 整改方案 v2.1 阶段一全部落地
-d5e8e3a fix: 启动 Banner + Vite HMR 修复
-```
+### C-04: Encore.ts POC — **未启动**
+
+项目中未发现任何 Encore.ts 相关文件或配置。此项为 20h 的 POC 评估任务，尚未开始。根据整改方案，此项优先级为 P3，属于长期规划。
 
 ---
 
-## 七、验收结论
+## 六、L3 极致验收补充项
 
-### 7.1 各 Phase 通过率
-
-| Phase | 总检查项 | Pass | 部分达标 | 待验证 | Fail |
-|-------|---------|------|---------|--------|------|
-| Phase 0.5 | 8 | 7 | 0 | 1 | 0 |
-| Phase 1 | 11 | 9 | 1 | 1 | 0 |
-| Phase 2 | 17 | 15 | 0 | 2 | 0 |
-| **合计** | **36** | **31** | **1** | **4** | **0** |
-
-### 7.2 未完全达标项汇总
-
-| 编号 | 检查项 | 现状 | 阈值 | 差距 | 建议 |
-|------|--------|------|------|------|------|
-| A-01 | ERROR 日志数 | 67 条 | ≤5 条 | -62 | 剩余均为 catch 块合理日志，建议调整阈值为 ≤80 或逐个评审 |
-| A-06 | @deprecated | 53 处 | 0 处 | -53 | 均有活跃引用，已创建迁移计划，建议 Phase 3 分批迁移 |
-
-### 7.3 待用户本地验证项
-
-| 编号 | 检查项 | 验证方法 |
-|------|--------|----------|
-| Z-02 | Docker 镜像安全 | `trivy image xilian:latest` |
-| A-03 | Jaeger Trace 可见 | `docker compose up` → Jaeger UI |
-| B-06 | CI 构建时间 | 推送到 GitHub → 查看 Actions 运行时间 |
-| 整体 | 启动时长 | Mac 上 `time pnpm dev` |
-
-### 7.4 综合评定
-
-**Phase 0.5 + Phase 1 + Phase 2 整改方案 v2.1 验收结论：基本达标（31/36 Pass, 86.1%）**
-
-核心安全指标（0 漏洞）、工程基础设施（CI/DevContainers/启动编排/Agent Registry）、配置管理（Zod 校验/分层加载/版本锁定）均已达标。剩余差距集中在 ERROR 日志精细化降级和 @deprecated 迁移，这些属于渐进式改进项，不影响系统功能和安全性。
+| 检查项 | 状态 | 说明 |
+|--------|------|------|
+| E-01: 故障注入测试 | **未实现** | `scripts/chaos-test.sh` 不存在 |
+| E-02: 端到端 Trace 验证 | **待验证** | 需 Jaeger 环境 |
+| E-03: 新人冷启动体验测试 | **未实现** | `scripts/onboarding-test.sh` 不存在 |
 
 ---
 
-## 八、后续建议
+## 七、本次验收发现的关键修复
 
-1. **Phase 3 优先项**: @deprecated 批量迁移（kafka-topics 9 处 + domain.ts 6 处）
-2. **ERROR 日志评审**: 逐个审查 67 处 log.error，将连接重试类降级为 warn
-3. **集成测试**: 搭建 Docker Compose 测试环境，覆盖 MySQL/Kafka/Redis 依赖模块
-4. **覆盖率策略**: 将阈值从"全量 60%"调整为"核心模块 60% + 新增代码 80%"
+在验收过程中发现并修复了一个 **关键问题**：
+
+> **Drizzle 迁移文件严重缺失。** 旧迁移 SQL 仅包含 30 张表的 CREATE TABLE 语句，但 `drizzle/schema.ts`（121 张）+ `drizzle/evolution-schema.ts`（43 张）共定义了 **164 张表**。这意味着执行 `pnpm db:push` 后，包括 `algorithm_definitions`、`saga_instances` 在内的 134 张业务核心表不会被创建，直接导致 `algorithm-sync` 和 `saga-orchestrator` 启动任务降级。
+
+**修复措施：** 已重新生成 Drizzle 迁移文件（`drizzle/migrations/0000_initial.sql`），现在覆盖全部 164 张表。修复已提交并推送到 GitHub（commit message: `fix: regenerate drizzle migration to cover all 164 tables`）。
+
+---
+
+## 八、验收结论与建议
+
+### 8.1 总体评估
+
+当前代码库在 **架构设计和工程框架** 层面已完成大部分整改工作，启动编排、共享配置、OTel 集成、Zod 校验、Agent 注册中心、CI 配置等核心基础设施均已就位。但在 **定量指标** 层面，测试覆盖率（1.4%）和 ERROR 日志数（25 处）与 Level 2 目标仍有显著差距。
+
+**整体判定：Phase 0.5~2 框架层面基本达标，定量指标层面尚需持续投入。**
+
+### 8.2 优先行动建议
+
+| 优先级 | 行动项 | 预估工时 | 影响 |
+|--------|--------|----------|------|
+| **P0** | 降级 20+ 处 log.error 为 log.warn/info | 4h | ERROR 日志达标 |
+| **P0** | 将 docker.defaults.ts 等 14 个文件的 process.env 迁移到 config.ts | 6h | 配置单一源达标 |
+| **P0** | 修复 7 个 High 级别 npm 漏洞 | 3h | 安全基线达标 |
+| **P1** | 持续补充测试用例，优先覆盖核心业务路径 | 40h+ | 覆盖率提升 |
+| **P1** | 集成 Turborepo | 8h | 增量构建能力 |
+| **P2** | 移除最后 1 个 @deprecated 文件 | 1h | 废弃代码清零 |
+| **P2** | 编写 chaos-test.sh 和 onboarding-test.sh | 8h | L3 验收就绪 |
+| **P3** | 启动 Encore.ts POC 评估 | 20h | 架构演进决策 |
+
+### 8.3 本地部署注意事项
+
+本次验收同步输出了完整的本地部署指南（`docs/LOCAL-DEPLOYMENT-GUIDE.md`），关键提醒：
+
+1. **必须先执行 `pnpm db:push`**：迁移文件已修复，但需要在有 MySQL 的环境中实际执行才能创建全部 164 张表。
+2. **最小启动仅需 MySQL + Redis**：其他服务（ClickHouse、Kafka、Neo4j 等）均为可选，缺失时自动降级。
+3. **环境变量模板**：参考 `.env.development` 和 `.env.local.template` 配置本地环境。
+
+---
+
+*本报告基于 sandbox 环境中的静态代码分析和自动化测试生成。部分验收项（Jaeger Trace 验证、Docker 镜像扫描、CI 实际运行时间、启动时长测量）需在完整的本地部署环境中补充验证。*
