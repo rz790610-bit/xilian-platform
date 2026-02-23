@@ -136,9 +136,8 @@ export const navigationConfig: NavItem[] = [
   },
   {
     id: 'digital-twin',
-    label: '数字孪生',
+    label: '数字孞生',
     icon: '🔮',
-    section: '深度进化',
     children: [
       { id: 'twin-status', label: '设备状态', icon: '📊', path: '/digital-twin' },
       { id: 'twin-simulation', label: '仿真推演', icon: '🎲', path: '/digital-twin/simulation' },
