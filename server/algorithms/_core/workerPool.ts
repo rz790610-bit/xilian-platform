@@ -157,7 +157,7 @@ export class DspWorkerPool {
     });
 
     worker.on('error', (err) => {
-      log.error(`[WorkerPool] Worker #${id} error:`, err.message);
+      log.warn(`[WorkerPool] Worker #${id} error:`, err.message);
       this.handleWorkerCrash(wrapper);
     });
 
@@ -342,7 +342,7 @@ export class DspWorkerPool {
       for (const wrapper of this.workers) {
         // 检测卡死的 Worker（busy 超过 2 倍超时时间）
         if (wrapper.busy && (now - wrapper.lastActiveAt) > this.config.taskTimeout * 2) {
-          log.error(`[WorkerPool] Worker #${wrapper.id} appears stuck, terminating`);
+          log.warn(`[WorkerPool] Worker #${wrapper.id} appears stuck, terminating`);
           wrapper.worker.terminate().then(() => {
             this.replaceWorker(wrapper);
           });

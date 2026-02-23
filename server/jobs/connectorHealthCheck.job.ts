@@ -230,7 +230,7 @@ export async function runConnectorHealthCheck(): Promise<{
       }
     }
   } catch (err: any) {
-    log.error(`[ConnectorHealthCheck] 巡检执行失败: ${err.message}`);
+    log.warn(`[ConnectorHealthCheck] 巡检执行失败: ${err.message}`);
   } finally {
     isChecking = false;
   }

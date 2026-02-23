@@ -226,7 +226,7 @@ export async function initOpenTelemetry(): Promise<void> {
       );
     } else {
       // 生产环境：报 error（但仍不阻塞启动）
-      log.error(
+      log.warn(
         { error: String(err) },
         'OpenTelemetry initialization failed in production — distributed tracing unavailable'
       );
@@ -243,7 +243,7 @@ export async function shutdownOpenTelemetry(): Promise<void> {
       await sdkInstance.shutdown();
       log.info('OpenTelemetry SDK shutdown');
     } catch (err) {
-      log.error({ err }, 'Error shutting down OTel SDK');
+      log.warn({ err }, 'Error shutting down OTel SDK');
     }
   }
 }

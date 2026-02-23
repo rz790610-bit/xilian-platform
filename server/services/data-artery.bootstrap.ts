@@ -101,7 +101,7 @@ export async function startDataArtery(): Promise<void> {
     await startTelemetrySink();
     log.info('[DataArtery] ✓ Layer 1: Kafka→ClickHouse Sink 已启动');
   } catch (error) {
-    log.error('[DataArtery] ✗ Layer 1: ClickHouse Sink 启动失败:', error);
+    log.warn('[DataArtery] ✗ Layer 1: ClickHouse Sink 启动失败:', error);
     log.warn('[DataArtery] 数据动脉降级运行：遥测数据将不会写入 ClickHouse');
   }
 
@@ -113,8 +113,8 @@ export async function startDataArtery(): Promise<void> {
   } catch (error: any) {
     const errMsg = error?.message || error?.toString?.() || JSON.stringify(error) || 'unknown error';
     const errStack = error?.stack || '';
-    log.error(`[DataArtery] ✗ Layer 2: 特征提取服务启动失败: ${errMsg}`);
-    if (errStack) log.error(`[DataArtery] Layer 2 堆栈: ${errStack}`);
+    log.warn(`[DataArtery] ✗ Layer 2: 特征提取服务启动失败: ${errMsg}`);
+    if (errStack) log.warn(`[DataArtery] Layer 2 堆栈: ${errStack}`);
     log.warn('[DataArtery] 数据动脉降级运行：原始数据将直接写入 ClickHouse（无特征提取）');
   }
 
@@ -124,7 +124,7 @@ export async function startDataArtery(): Promise<void> {
     await startGatewayBridge();
     log.info('[DataArtery] ✓ Layer 3: 网关→Kafka 桥接已启动');
   } catch (error) {
-    log.error('[DataArtery] ✗ Layer 3: 网关桥接启动失败:', error);
+    log.warn('[DataArtery] ✗ Layer 3: 网关桥接启动失败:', error);
     log.warn('[DataArtery] 数据动脉降级运行：网关数据需通过其他方式接入');
   }
 
@@ -138,7 +138,7 @@ export async function startDataArtery(): Promise<void> {
     startConnectorHealthCheck(); // 使用 Job 内部默认间隔（5分钟正常 / 30分钟降级）
     log.info('[DataArtery] ✓ Layer 4: 连接器健康巡检已启动 (5分钟间隔, 降级后30分钟)');
   } catch (error) {
-    log.error('[DataArtery] ✗ Layer 4: 连接器健康巡检启动失败:', error);
+    log.warn('[DataArtery] ✗ Layer 4: 连接器健康巡检启动失败:', error);
     log.warn('[DataArtery] 数据动脉降级运行：连接器状态将不会自动更新');
   }
 }
@@ -163,7 +163,7 @@ export async function stopDataArtery(): Promise<void> {
     await stopGatewayBridge();
     log.info('[DataArtery] ✓ Layer 3: 网关桥接已关闭');
   } catch (error) {
-    log.error('[DataArtery] ✗ Layer 3 关闭失败:', error);
+    log.warn('[DataArtery] ✗ Layer 3 关闭失败:', error);
   }
 
   // 轮询等待特征提取服务缓冲区清空（最多 5 秒）
@@ -180,7 +180,7 @@ export async function stopDataArtery(): Promise<void> {
     await stopFeatureExtraction();
     log.info('[DataArtery] ✓ Layer 2: 特征提取服务已关闭');
   } catch (error) {
-    log.error('[DataArtery] ✗ Layer 2 关闭失败:', error);
+    log.warn('[DataArtery] ✗ Layer 2 关闭失败:', error);
   }
 
   // 轮询等待 Sink 缓冲区刷写完毕（最多 5 秒）
@@ -197,7 +197,7 @@ export async function stopDataArtery(): Promise<void> {
     await stopTelemetrySink();
     log.info('[DataArtery] ✓ Layer 1: ClickHouse Sink 已关闭');
   } catch (error) {
-    log.error('[DataArtery] ✗ Layer 1 关闭失败:', error);
+    log.warn('[DataArtery] ✗ Layer 1 关闭失败:', error);
   }
 
   const uptime = Math.round((Date.now() - arteryStartedAt) / 1000);

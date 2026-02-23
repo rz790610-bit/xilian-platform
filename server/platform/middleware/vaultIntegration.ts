@@ -129,7 +129,7 @@ function vaultRequest(
         tlsOptions.ca = fs.readFileSync(config.caCert);
         tlsOptions.rejectUnauthorized = true;
       } catch (err: any) {
-        log.error(`Failed to load Vault CA cert from ${config.caCert}: ${err.message}`);
+        log.warn(`Failed to load Vault CA cert from ${config.caCert}: ${err.message}`);
         tlsOptions.rejectUnauthorized = true; // 仍然拒绝未验证的连接
       }
     } else if (isHttps) {

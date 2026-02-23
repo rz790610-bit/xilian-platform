@@ -270,7 +270,7 @@ export class BaseRegistry<TItem extends RegistryItemMeta> {
       try {
         listener(event, item, this);
       } catch (err) {
-        log.error({ err, registry: this.name }, `Registry event listener error in ${this.name}`);
+        log.warn({ err, registry: this.name }, `Registry event listener error in ${this.name}`);
       }
     }
   }

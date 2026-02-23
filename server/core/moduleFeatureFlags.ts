@@ -158,7 +158,7 @@ class ModuleFeatureFlags {
       try {
         await listener(event);
       } catch (err) {
-        log.error(`[ModuleFeatureFlags] Listener error:`, err instanceof Error ? err.message : String(err));
+        log.warn(`[ModuleFeatureFlags] Listener error:`, err instanceof Error ? err.message : String(err));
       }
     }
   }

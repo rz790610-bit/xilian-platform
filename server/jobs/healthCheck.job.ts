@@ -534,7 +534,7 @@ export function startPeriodicHealthCheck(intervalMs: number = 30000): void {
   
   // 立即执行一次
   checkAllServicesAndUpdateTopology().catch(err => {
-    log.error('[HealthCheck] Initial check failed:', err);
+    log.warn('[HealthCheck] Initial check failed:', err);
   });
   
   // 设置定时任务
@@ -543,7 +543,7 @@ export function startPeriodicHealthCheck(intervalMs: number = 30000): void {
       const result = await checkAllServicesAndUpdateTopology();
       log.debug(`[HealthCheck] ${result.results.filter(r => r.online).length}/${result.results.length} services online`);
     } catch (err) {
-      log.error('[HealthCheck] Periodic check failed:', err);
+      log.warn('[HealthCheck] Periodic check failed:', err);
     }
   }, intervalMs);
   

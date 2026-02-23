@@ -153,7 +153,7 @@ class RoutingAwareOutboxPublisher {
         await this.initializeDefaultConfig();
       }
     } catch (error) {
-      log.error('[OutboxPublisher] Failed to load routing config:', error);
+      log.warn('[OutboxPublisher] Failed to load routing config:', error);
       this.initializeDefaultConfig();
     }
   }
@@ -241,7 +241,7 @@ class RoutingAwareOutboxPublisher {
           await this.processStaleEvents();
         }
       } catch (error) {
-        log.error('[OutboxPublisher] Polling processor error:', error);
+        log.warn('[OutboxPublisher] Polling processor error:', error);
       }
     }, this.POLL_INTERVAL_MS);
   }
@@ -295,7 +295,7 @@ class RoutingAwareOutboxPublisher {
         await this.publishEvent({ ...event, payload });
         this.metrics.pollingPublished++;
       } catch (error) {
-        log.error(`[OutboxPublisher] Failed to process polling event ${event.eventId}:`, error);
+        log.warn(`[OutboxPublisher] Failed to process polling event ${event.eventId}:`, error);
         await this.markEventFailed(event.eventId, String(error));
       }
     }
@@ -329,7 +329,7 @@ class RoutingAwareOutboxPublisher {
         try {
           await this.publishEvent(event);
         } catch (error) {
-          log.error(`[OutboxPublisher] Failed to publish stale event ${event.eventId}:`, error);
+          log.warn(`[OutboxPublisher] Failed to publish stale event ${event.eventId}:`, error);
         }
       }
     }
@@ -357,7 +357,7 @@ class RoutingAwareOutboxPublisher {
       try {
         await this.publishEvent(event);
       } catch (error) {
-        log.error(`[OutboxPublisher] Fallback publish failed for ${event.eventId}:`, error);
+        log.warn(`[OutboxPublisher] Fallback publish failed for ${event.eventId}:`, error);
       }
     }
   }
@@ -510,7 +510,7 @@ class RoutingAwareOutboxPublisher {
         log.warn(`[OutboxPublisher] ${failedEvents.length} failed events require attention`);
       }
     } catch (error) {
-      log.error('[OutboxPublisher] Health check failed:', error);
+      log.warn('[OutboxPublisher] Health check failed:', error);
     }
   }
 

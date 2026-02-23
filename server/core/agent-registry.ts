@@ -356,7 +356,7 @@ export class AgentRegistry {
       state.failureCount++;
       const durationMs = Date.now() - startTime;
 
-      log.error(
+      log.warn(
         { agentId, err: err.message, durationMs },
         `Agent invocation failed: ${manifest.name}`
       );
@@ -396,7 +396,7 @@ export class AgentRegistry {
         yield* manifest.invokeStream(input, context);
       } catch (err: any) {
         state.failureCount++;
-        log.error({ agentId, err: err.message }, `Agent stream failed: ${manifest.name}`);
+        log.warn({ agentId, err: err.message }, `Agent stream failed: ${manifest.name}`);
         yield { content: `Error: ${err.message}`, type: 'final' };
       } finally {
         state.activeConcurrency--;

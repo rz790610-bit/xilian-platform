@@ -108,7 +108,7 @@ class RedisClientManager {
       });
 
       this.client.on('error', (err) => {
-        log.error('[Redis] Connection error:', err.message);
+        log.warn('[Redis] Connection error:', err.message);
         this.isConnected = false;
       });
 
@@ -121,7 +121,7 @@ class RedisClientManager {
       await this.client.ping();
       log.debug('[Redis] Redis client initialized successfully');
     } catch (error) {
-      log.error('[Redis] Failed to initialize:', error);
+      log.warn('[Redis] Failed to initialize:', error);
       this.client = null;
       this.isConnected = false;
     }

@@ -201,7 +201,7 @@ async function startServer() {
         );
       }
     }).catch(err => {
-      log.error('[Startup] Background service orchestration failed:', err);
+      log.warn('[Startup] Background service orchestration failed:', err);
     });
   });
 }
