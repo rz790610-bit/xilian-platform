@@ -28,7 +28,7 @@ const CLICKHOUSE_CONFIG = {
   host: resolveClickHouseUrl(),
   username: process.env.CLICKHOUSE_USER || 'portai',
   // P0-CRED-2: 移除硬编码密码，生产环境必须配置 CLICKHOUSE_PASSWORD
-  password: process.env.CLICKHOUSE_PASSWORD || (() => { console.warn('[SECURITY] CLICKHOUSE_PASSWORD not set — MUST configure in production'); return ''; })(),
+  password: process.env.CLICKHOUSE_PASSWORD || (() => { log.warn({ security: true, field: 'CLICKHOUSE_PASSWORD' }, 'CLICKHOUSE_PASSWORD not set — MUST configure in production'); return ''; })(),
   database: process.env.CLICKHOUSE_DATABASE || 'portai_timeseries',
 };
 

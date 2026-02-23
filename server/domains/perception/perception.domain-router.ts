@@ -8,6 +8,8 @@
 
 import { router, publicProcedure, protectedProcedure } from '../../core/trpc';
 import { z } from 'zod';
+import { createModuleLogger } from '../../core/logger';
+const log = createModuleLogger('perception');
 import { getDb } from '../../lib/db';
 import { eq, and, desc, count } from 'drizzle-orm';
 import {
@@ -98,7 +100,7 @@ const conditionRouter = router({
           version: '1.0.0',
         });
         return { id: Number(result[0].insertId), success: true };
-      } catch (e) { console.error('[perception.createProfile]', e); return { id: 0, success: false }; }
+      } catch (e) { log.warn({ err: e }, '[perception.createProfile] failed'); return { id: 0, success: false }; }
     }),
 
   switchCondition: publicProcedure
@@ -189,7 +191,7 @@ const samplingRouter = router({
           });
         }
         return { success: true };
-      } catch (e) { console.error('[perception.updateConfig]', e); return { success: false }; }
+      } catch (e) { log.warn({ err: e }, '[perception.updateConfig] failed'); return { success: false }; }
     }),
 
   getStats: publicProcedure
@@ -311,7 +313,7 @@ const bpaConfigRouter = router({
           .where(eq(bpaConfigs.id, input.id));
         return { success: true };
       } catch (e) {
-        console.error('[bpaConfig.toggleEnabled]', e);
+        log.warn({ err: e }, '[bpaConfig.toggleEnabled] failed');
         return { success: false };
       }
     }),
@@ -390,7 +392,7 @@ const dimensionRouter = router({
           .where(eq(stateVectorDimensions.id, input.id));
         return { success: true };
       } catch (e) {
-        console.error('[dimension.toggleEnabled]', e);
+        log.warn({ err: e }, '[dimension.toggleEnabled] failed');
         return { success: false };
       }
     }),

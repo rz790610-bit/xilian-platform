@@ -70,6 +70,8 @@ import {
 import { outboxRelay, createOutboxEntry } from '../../platform/cognition/worldmodel/outbox-relay';
 import { worldModelMetrics } from '../../platform/cognition/worldmodel/otel-metrics';
 import { auditLogger } from '../../platform/cognition/worldmodel/audit-logger';
+import { createModuleLogger } from '../../core/logger';
+const log = createModuleLogger('pipeline');
 import { DBSCANEngine } from '../../platform/cognition/worldmodel/dbscan-engine';
 import { worldModelToolManager } from '../../platform/cognition/worldmodel/grok-tools';
 import { twinConfigRouter } from './twinConfig.domain-router';
@@ -168,7 +170,7 @@ const simulationRouter = router({
         }));
         return result;
       } catch (err) {
-        console.error('[simulation.list] Error:', err);
+        log.warn({ err }, '[simulation.list] query failed');
         return [];
       }
     }),
@@ -202,7 +204,7 @@ const simulationRouter = router({
           createdAt: r.createdAt.toISOString(),
         }));
       } catch (err) {
-        console.error('[simulation.compare] Error:', err);
+        log.warn({ err }, '[simulation.compare] query failed');
         return [];
       }
     }),
@@ -266,7 +268,7 @@ const simulationRouter = router({
       // 异步执行（生产环境应改为 BullMQ）
       setImmediate(() => {
         executeSimulationTask(scenario, taskId).catch(err => {
-          console.error(`[simulation.execute] Task ${taskId} failed:`, err);
+          log.error({ err, taskId }, '[simulation.execute] task failed');
         });
       });
 
@@ -296,7 +298,7 @@ const simulationRouter = router({
         const taskId = `sim-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
         setImmediate(() => {
           executeSimulationTask(scenario, taskId).catch(err => {
-            console.error(`[simulation.batchExecute] Task ${taskId} failed:`, err);
+            log.error({ err, taskId }, '[simulation.batchExecute] task failed');
           });
         });
         return { taskId, scenarioId: scenario.id, status: 'queued' as const };
@@ -413,7 +415,7 @@ const replayRouter = router({
           availableChannels: ['temperature', 'vibration', 'pressure', 'load', 'windSpeed', 'healthIndex'],
         };
       } catch (err) {
-        console.error('[replay.getTimeRange] Error:', err);
+        log.warn({ err }, '[replay.getTimeRange] query failed');
         return null;
       }
     }),
@@ -480,7 +482,7 @@ const replayRouter = router({
 
         return { channels, events };
       } catch (err) {
-        console.error('[replay.getData] Error:', err);
+        log.warn({ err }, '[replay.getData] query failed');
         return { channels: [], events: [] };
       }
     }),
@@ -528,7 +530,7 @@ const replayRouter = router({
 
         return DBSCANEngine.cluster(data, channelNames, input.eps, input.minPts);
       } catch (err) {
-        console.error('[replay.dbscanAnalysis] Error:', err);
+        log.warn({ err }, '[replay.dbscanAnalysis] query failed');
         return { points: [], clusters: [], anomalyCount: 0, anomalyRate: 0, totalPoints: 0, params: { eps: input.eps, minPts: input.minPts } };
       }
     }),
@@ -580,7 +582,7 @@ const worldmodelRouter = router({
           syncEngineStats: stateSyncEngine.getStats(),
         };
       } catch (err) {
-        console.error('[worldmodel.getConfig] Error:', err);
+        log.warn({ err }, '[worldmodel.getConfig] query failed');
         return null;
       }
     }),
@@ -607,7 +609,7 @@ const worldmodelRouter = router({
           version: f.version,
         }));
       } catch (err) {
-        console.error('[worldmodel.getEquations] Error:', err);
+        log.warn({ err }, '[worldmodel.getEquations] query failed');
         return [];
       }
     }),
@@ -1163,7 +1165,7 @@ export const pipelineDomainRouter = router({
 
         return result;
       } catch (err) {
-        console.error('[listEquipmentTwins] Error:', err);
+        log.warn({ err }, '[listEquipmentTwins] query failed');
         return [];
       }
     }),
@@ -1303,7 +1305,7 @@ export const pipelineDomainRouter = router({
           } : null,
         };
       } catch (err) {
-        console.error('[getEquipmentTwinState] Error:', err);
+        log.warn({ err }, '[getEquipmentTwinState] query failed');
         return null;
       }
     }),

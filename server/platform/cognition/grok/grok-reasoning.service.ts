@@ -14,6 +14,8 @@
  *   const result = await service.diagnose('QC-001', '振动异常', { ... });
  */
 
+import { createModuleLogger } from "../../../core/logger";
+const log = createModuleLogger("grok-reasoning");
 import { GrokToolCallingEngine, type ReasoningConfig, type ReasoningResult, type ReasoningStep } from './grok-tool-calling';
 import { reasoningChainManager } from './grok-reasoning-chain';
 import type { ToolContext } from './grok-tools';
@@ -226,9 +228,9 @@ export class GrokReasoningService {
   private onReasoningStep(sessionId: string, step: ReasoningStep): void {
     // 实时日志
     if (step.toolName) {
-      console.log(`[GrokReasoning] Session ${sessionId} Step ${step.stepIndex}: ${step.toolName} (${step.durationMs}ms)`);
+      log.debug({ sessionId, stepIndex: step.stepIndex, toolName: step.toolName, durationMs: step.durationMs }, 'Reasoning step completed (tool)');
     } else {
-      console.log(`[GrokReasoning] Session ${sessionId} Step ${step.stepIndex}: Thought (${step.durationMs}ms)`);
+      log.debug({ sessionId, stepIndex: step.stepIndex, durationMs: step.durationMs }, 'Reasoning step completed (thought)');
     }
   }
 

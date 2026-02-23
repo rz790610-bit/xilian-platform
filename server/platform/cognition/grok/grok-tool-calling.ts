@@ -15,6 +15,8 @@
  *   Thought → Action → Observation → Thought → ... → Final Answer
  */
 
+import { createModuleLogger } from "../../../core/logger";
+const log = createModuleLogger("grok-engine");
 import { BUILTIN_GROK_TOOLS, GROK_TOOL_MAP, toGrokApiToolDef, type GrokTool, type ToolContext } from './grok-tools';
 
 // ============================================================================
@@ -176,7 +178,7 @@ export class GrokToolCallingEngine {
 
       // 超时检查
       if (Date.now() - startTime > cfg.timeoutMs) {
-        console.warn(`[GrokEngine] Reasoning timeout after ${step} steps`);
+        log.warn({ step }, 'Reasoning timeout, falling back');
         fallbackUsed = true;
         break;
       }
@@ -274,7 +276,7 @@ export class GrokToolCallingEngine {
           onStep?.(reasoningStep);
         }
       } catch (apiError: any) {
-        console.error(`[GrokEngine] API error at step ${step}:`, apiError.message);
+        log.error({ step, err: apiError.message }, 'API error during reasoning');
         // API 错误：尝试继续
         steps.push({
           stepIndex: step,
@@ -289,7 +291,7 @@ export class GrokToolCallingEngine {
     }
 
     // 超过最大步数或超时，降级到规则引擎
-    console.warn(`[GrokEngine] Exceeded ${cfg.maxSteps} steps or timeout, falling back`);
+    log.warn({ maxSteps: cfg.maxSteps }, 'Exceeded max steps or timeout, falling back');
     return {
       sessionId: context.sessionId,
       steps,

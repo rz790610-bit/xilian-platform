@@ -303,7 +303,7 @@ export class GrokEnhancer {
     Object.assign(this.config, config);
     // 如果全局开关变更，记录日志
     if ('enabled' in config) {
-      console.log(`[GrokEnhancer] Global switch: ${config.enabled ? 'ON' : 'OFF'}`);
+      log.info({ enabled: config.enabled }, 'GrokEnhancer global switch toggled');
     }
   }
 
@@ -427,7 +427,7 @@ export class GrokEnhancer {
     } catch (err) {
       this.circuitBreaker.recordFailure();
       this.stats.failedCalls++;
-      console.error(`[GrokEnhancer] Grok call failed for ${request.type}:`, err);
+      log.warn({ err, requestType: request.type }, "Grok call failed (degraded)");
 
       return this.fallbackToTemplate(request, startTime, promptVersion, 'grok_error');
     }

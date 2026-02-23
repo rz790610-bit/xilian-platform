@@ -16,6 +16,8 @@
  * Phase 3 v1.3 | ADR-007 Outbox Pattern 配套
  */
 
+import { createModuleLogger } from "../../../core/logger";
+const log = createModuleLogger("twin-event-bus");
 import { EventEmitter } from 'events';
 
 // ============================================================================
@@ -387,7 +389,7 @@ export class TwinEventBus {
         const channel = `${CHANNEL_PREFIX}${event.eventType}`;
         await this.redisPublisher.publish(channel, JSON.stringify(event));
       } catch (err) {
-        console.error(`[TwinEventBus] Redis publish failed for ${event.eventType}:`, err);
+        log.warn({ err, eventType: event.eventType }, 'Redis publish failed (event still emitted locally)');
       }
     }
 
@@ -397,7 +399,7 @@ export class TwinEventBus {
         this.stats.persisted++;
       }).catch((err) => {
         this.stats.persistErrors++;
-        console.error(`[TwinEventBus] Persist failed for ${event.eventType}:`, err);
+        log.warn({ err, eventType: event.eventType }, 'Event persist failed (non-blocking)');
       });
     }
   }
@@ -426,7 +428,7 @@ export class TwinEventBus {
               this.localEmitter.emit(eventType, event);
             }
           } catch (err) {
-            console.error(`[TwinEventBus] Redis message parse error on ${channel}:`, err);
+            log.warn({ err, channel }, 'Redis message parse error');
           }
         });
       }

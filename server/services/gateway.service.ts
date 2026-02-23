@@ -13,6 +13,8 @@
  * ============================================================
  */
 
+import { createModuleLogger } from "../core/logger";
+const log = createModuleLogger("gateway");
 import { z } from 'zod';
 import { router, publicProcedure } from '../core/trpc';
 
@@ -21,9 +23,9 @@ const KONG_ADMIN_URL = process.env.KONG_ADMIN_URL || 'http://kong:8001';
 const KONG_STATUS_URL = process.env.KONG_STATUS_URL || 'http://kong:8100';
 
 const log = {
-  info: (...args: any[]) => console.log('[Gateway]', ...args),
-  warn: (...args: any[]) => console.warn('[Gateway]', ...args),
-  error: (...args: any[]) => console.error('[Gateway]', ...args),
+  info: (...args: any[]) => log.info({}, args.join(' ')),
+  warn: (...args: any[]) => log.warn({}, args.join(' ')),
+  error: (...args: any[]) => log.error({}, args.join(' ')),
 };
 
 // ── Kong Admin API 请求封装 ──

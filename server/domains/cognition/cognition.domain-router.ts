@@ -8,6 +8,8 @@
 import { router, publicProcedure, protectedProcedure } from '../../core/trpc';
 import { reasoningEngineRouter } from './reasoning.router';
 import { z } from 'zod';
+import { createModuleLogger } from '../../core/logger';
+const log = createModuleLogger('cognition');
 import { getDb } from '../../lib/db';
 import { eq, desc, sql, and, gte, count } from 'drizzle-orm';
 import {
@@ -67,7 +69,7 @@ const sessionRouter = router({
           startedAt: new Date(),
         });
         return { sessionId, status: 'running' };
-      } catch (e) { console.error('[cognition.trigger]', e); return { sessionId: '', status: 'failed' }; }
+      } catch (e) { log.warn({ err: e }, '[cognition.trigger] session creation failed'); return { sessionId: '', status: 'failed' }; }
     }),
 
   /** 获取会话详情 */

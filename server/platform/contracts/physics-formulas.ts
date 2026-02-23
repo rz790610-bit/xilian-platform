@@ -21,6 +21,8 @@
  *   - 所有公式可通过 API 查询和调用
  */
 
+import { createModuleLogger } from "../../core/logger";
+const log = createModuleLogger("physics-formulas");
 import type { PhysicsFormula, PhysicsFormulaResult } from './data-contracts';
 
 // ============================================================================
@@ -224,8 +226,7 @@ export class PhysicsEngine {
       }
       // 范围检查
       if (v.range && (value < v.range[0] || value > v.range[1])) {
-        console.warn(
-          `[PhysicsEngine] Variable ${v.symbol}=${value} out of range [${v.range[0]}, ${v.range[1]}] for formula ${formulaId}`
+        log.warn({ symbol: v.symbol, value, range: v.range, formulaId }, "Variable out of range"
         );
       }
       resolvedVars[v.symbol] = value;

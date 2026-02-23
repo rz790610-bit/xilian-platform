@@ -24,6 +24,8 @@
  * 架构位置：L7 世界模型层 → 事件基础设施
  */
 
+import { createModuleLogger } from "../../../core/logger";
+const log = createModuleLogger("outbox-relay");
 import { twinEventBus, type TwinEvent, type TwinEventType } from './twin-event-bus';
 
 // ============================================================================
@@ -138,16 +140,16 @@ export class OutboxRelay {
   start(): void {
     if (this.timer) return;
     if (!this.config.enabled) {
-      console.log('[OutboxRelay] Disabled by config, not starting');
+      log.info({}, 'OutboxRelay disabled by config, not starting');
       return;
     }
 
-    console.log(`[OutboxRelay] Starting with interval=${this.config.pollIntervalMs}ms, batch=${this.config.batchSize}`);
+    log.info({ intervalMs: this.config.pollIntervalMs, batchSize: this.config.batchSize }, 'OutboxRelay starting');
     this.stats.isRunning = true;
 
     this.timer = setInterval(() => {
       this.poll().catch((err) => {
-        console.error('[OutboxRelay] Poll error:', err);
+        log.warn({ err }, 'OutboxRelay poll error (will retry)');
       });
     }, this.config.pollIntervalMs);
   }
@@ -161,7 +163,7 @@ export class OutboxRelay {
       this.timer = null;
     }
     this.stats.isRunning = false;
-    console.log('[OutboxRelay] Stopped');
+    log.info({}, 'OutboxRelay stopped');
   }
 
   /**
@@ -177,7 +179,7 @@ export class OutboxRelay {
     }
 
     if (this.isProcessing) {
-      console.warn('[OutboxRelay] Graceful shutdown timeout, forcing stop');
+      log.warn({}, 'OutboxRelay graceful shutdown timeout, forcing stop');
     }
   }
 
@@ -220,7 +222,7 @@ export class OutboxRelay {
         (this.stats.avgProcessTimeMs * (this.stats.pollCycles - 1) + processTime) / this.stats.pollCycles;
 
     } catch (err) {
-      console.error('[OutboxRelay] Poll cycle error:', err);
+      log.warn({ err }, 'OutboxRelay poll cycle error (will retry)');
     } finally {
       this.isProcessing = false;
     }
@@ -251,18 +253,17 @@ export class OutboxRelay {
         try {
           await this.markDeadLetterFn!(record.id);
           this.stats.totalDeadLettered++;
-          console.warn(
-            `[OutboxRelay] Record ${record.id} moved to dead letter after ${record.retryCount} retries`,
+          log.warn({ record: record.id },             `[OutboxRelay] Record ${record.id} moved to dead letter after ${record.retryCount} retries`,
           );
         } catch (dlErr) {
-          console.error(`[OutboxRelay] Failed to mark dead letter for record ${record.id}:`, dlErr);
+          log.error({ err: dlErr, recordId: record.id }, 'Failed to mark dead letter');
         }
       } else {
         // 递增重试计数
         try {
           await this.incrementRetryFn!(record.id);
         } catch (retryErr) {
-          console.error(`[OutboxRelay] Failed to increment retry for record ${record.id}:`, retryErr);
+          log.error({ err: retryErr, recordId: record.id }, 'Failed to increment retry');
         }
       }
     }

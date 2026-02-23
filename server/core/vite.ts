@@ -13,7 +13,6 @@ const log = createModuleLogger('vite');
  * 
  * 通过检测 package.json 的存在来确定正确的项目根目录
  */
-
 function getProjectRoot(): string {
   const currentDir = import.meta.dirname;
   
@@ -30,7 +29,7 @@ function getProjectRoot(): string {
   }
   
   // 兜底：使用 process.cwd()
-  log.warn("[Vite] Could not determine project root from import.meta.dirname, falling back to cwd:", process.cwd());
+  log.warn({ cwd: process.cwd() }, 'Could not determine project root from import.meta.dirname, falling back to cwd');
   return process.cwd();
 }
 
@@ -52,52 +51,39 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
 // ============================================================
 // Vite 开发服务器（Express 中间件模式）
 // ============================================================
-// 注意：此配置仅用于 `pnpm dev`（Express 中间件模式）。
-// `pnpm build` 使用项目根目录的 vite.config.ts（Vite CLI 模式）。
-// 两者的 resolve.alias 和 plugins 必须保持一致。
+// 配置来自 vite.config.shared.ts — 双模式的单一权威来源
 // ============================================================
 
 export async function setupVite(app: Express, server: Server, port: number) {
   const t0 = Date.now();
   log.info('[Vite] Initializing dev server (middleware mode)...');
 
-  // 动态 import，仅在开发模式下加载，避免生产环境缺少这些 dev 包导致崩溃
-  log.info('[Vite] Loading plugins...');
+  // 动态 import 共享配置和 Vite
+  log.info('[Vite] Loading shared config and plugins...');
   const { createServer: createViteServer } = await import("vite");
-  const react = (await import("@vitejs/plugin-react")).default;
-  const tailwindcss = (await import("@tailwindcss/vite")).default;
+  const {
+    resolveAliases,
+    resolveBuildConfig,
+    resolveClientPaths,
+    loadPlugins,
+  } = await import("../../vite.config.shared");
 
-  // 可选加载 jsx-loc 插件（可能未安装）
-  let plugins: any[] = [react(), tailwindcss()];
-  try {
-    const { jsxLocPlugin } = await import("@builder.io/vite-plugin-jsx-loc");
-    plugins.push(jsxLocPlugin());
-  } catch {
-    // jsx-loc 插件不可用，跳过
-  }
-
+  const plugins = await loadPlugins();
   const rootDir = getProjectRoot();
-  log.info(`[Vite] Project root: ${rootDir}`);
+  const clientPaths = resolveClientPaths(rootDir);
+
+  log.info({ rootDir }, '[Vite] Project root resolved');
   log.info('[Vite] Creating Vite server (dependency pre-bundling may take a moment on first run)...');
 
   const vite = await withTimeout(createViteServer({
     plugins,
     resolve: {
-      alias: {
-        "@": path.resolve(rootDir, "client", "src"),
-        "@shared": path.resolve(rootDir, "shared"),
-        "@assets": path.resolve(rootDir, "attached_assets"),
-      },
+      alias: resolveAliases(rootDir),
     },
-    envDir: rootDir,
-    root: path.resolve(rootDir, "client"),
-    publicDir: path.resolve(rootDir, "client", "public"),
-    build: {
-      outDir: path.resolve(rootDir, "dist/public"),
-      emptyOutDir: true,
-    },
+    ...clientPaths,
+    build: resolveBuildConfig(rootDir),
     // ★ configFile: false — 不加载根目录的 vite.config.ts
-    // 根目录的 vite.config.ts 仅用于 `pnpm build`（Vite CLI 模式）
+    // 共享配置已通过 import 方式加载，无需重复读取
     configFile: false,
     server: {
       middlewareMode: true,
@@ -114,8 +100,6 @@ export async function setupVite(app: Express, server: Server, port: number) {
 
     try {
       const clientTemplate = path.resolve(rootDir, "client", "index.html");
-
-      // always reload the index.html file from disk incase it changes
       const template = await fs.promises.readFile(clientTemplate, "utf-8");
       const page = await vite.transformIndexHtml(url, template);
       res.status(200).set({ "Content-Type": "text/html" }).end(page);
@@ -126,7 +110,7 @@ export async function setupVite(app: Express, server: Server, port: number) {
   });
 
   const dt = Date.now() - t0;
-  log.info(`[Vite] ✓ Dev server ready (${dt}ms)`);
+  log.info({ durationMs: dt }, '[Vite] ✓ Dev server ready');
 }
 
 export function serveStatic(app: Express) {

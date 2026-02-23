@@ -205,7 +205,7 @@ export class AdaptiveSamplingEngine {
   switchPhase(phase: string): void {
     const profile = this.profiles.get(phase);
     if (!profile) {
-      console.warn(`[AdaptiveSampler] Unknown phase: ${phase}, keeping current`);
+      log.warn({ phase }, "Unknown phase, keeping current sampling rate");
       return;
     }
 

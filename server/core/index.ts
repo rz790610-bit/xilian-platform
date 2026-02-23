@@ -20,6 +20,7 @@ import { initOpenTelemetry, shutdownOpenTelemetry } from "../platform/middleware
 import { configCenter } from "../platform/services/configCenter";
 import { createModuleLogger } from './logger';
 import { config } from './config';
+import { validateConfigWithSchema } from './config-schema';
 const log = createModuleLogger('index');
 
 // ============================================================
@@ -211,7 +212,14 @@ ${CYAN}════════════════════════�
 async function startServer() {
   log.info(`[Startup] Initializing... (NODE_ENV=${process.env.NODE_ENV})`);
 
-  // ── 阶段 0: 预初始化（在 Express 之前） ──
+  // ── 阶段 0a: 配置验证（最早执行，快速失败） ──
+  const configResult = validateConfigWithSchema(config);
+  if (!configResult.success) {
+    log.fatal({ errors: configResult.errors }, 'Configuration validation failed — aborting startup');
+    process.exit(1);
+  }
+
+  // ── 阶段 0b: 预初始化（在 Express 之前） ──
   // OTel 必须在 require express 之前初始化才能自动插桩 HTTP
   // 但由于我们使用 ESM import，这里是最早的可行时机
   await initOpenTelemetry().catch(err => {
@@ -276,7 +284,8 @@ async function startServer() {
   );
 
   // ── 阶段 7: 端口发现与 Vite/静态文件 ──
-  const preferredPort = parseInt(process.env.PORT || "3000");
+  // A-05: 端口从 config.app.port 读取（单一权威来源）
+  const preferredPort = config.app.port;
   const port = await findAvailablePort(preferredPort);
 
   if (port !== preferredPort) {

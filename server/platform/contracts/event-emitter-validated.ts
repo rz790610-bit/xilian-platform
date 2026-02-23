@@ -12,6 +12,8 @@
  */
 
 const uuidv4 = () => crypto.randomUUID();
+import { createModuleLogger } from "../../core/logger";
+const log = createModuleLogger("event-emitter");
 import { eventSchemaRegistry, type ValidationResult } from './event-schema-registry';
 import type {
   EventType,
@@ -110,10 +112,7 @@ export class ValidatedEventEmitter {
         }
 
         // 非抛出模式：记录日志但仍然发送（降级）
-        console.warn(
-          `[ValidatedEmitter] Schema validation failed for ${eventType} (eventId=${eventId}):`,
-          result.errors
-        );
+        log.warn({ eventType, eventId, errors: result.errors }, 'Schema validation failed (degraded, still sending)');
       }
     }
 
@@ -122,7 +121,7 @@ export class ValidatedEventEmitter {
       await this.config.transport(envelope as EventEnvelope);
       this.emitCount++;
     } catch (err) {
-      console.error(`[ValidatedEmitter] Transport failed for ${eventType} (eventId=${eventId}):`, err);
+      log.error({ err, eventType, eventId }, 'Transport failed');
       throw err;
     }
 

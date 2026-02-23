@@ -16,6 +16,8 @@
  * 依赖：world-model.ts (WorldModel), twin-event-bus.ts (TwinEventBus)
  */
 
+import { createModuleLogger } from "../../../core/logger";
+const log = createModuleLogger("world-model");
 import {
   WorldModel,
   type WorldModelConfig,
@@ -218,7 +220,7 @@ export class WorldModelRegistry {
     // 定时快照持久化
     this.snapshotTimer = setInterval(() => {
       this.persistSnapshot().catch((err) => {
-        console.error('[WorldModelRegistry] Snapshot persist error:', err);
+        log.warn({ err }, 'Snapshot persist error (non-blocking)');
       });
     }, REGISTRY_DEFAULTS.snapshotIntervalMs);
   }
@@ -493,7 +495,7 @@ export class WorldModelRegistry {
           this.persistSnapshotFn(machineId, meta.stateVector, meta.healthIndex)
             .then(() => { count++; })
             .catch((err) => {
-              console.error(`[WorldModelRegistry] Snapshot persist failed for ${machineId}:`, err);
+              log.warn({ err, machineId }, 'Snapshot persist failed (non-blocking)');
             }),
         );
       }
@@ -682,7 +684,7 @@ export class StateSyncEngine {
     this.pollingTimer = setInterval(() => {
       this.pollLatestTelemetry().catch((err) => {
         this.stats.errors++;
-        console.error('[StateSyncEngine] Polling error:', err);
+        log.warn({ err }, 'StateSyncEngine polling error (will retry)');
       });
     }, SYNC_DEFAULTS.pollingIntervalMs);
 
@@ -767,7 +769,7 @@ export class StateSyncEngine {
       }
     } catch (err) {
       this.stats.errors++;
-      console.error('[StateSyncEngine] Polling query error:', err);
+      log.warn({ err }, 'StateSyncEngine polling query error');
     }
   }
 
@@ -799,7 +801,7 @@ export class StateSyncEngine {
     if (previousMode === newMode) return;
 
     this.currentMode = newMode;
-    console.log(`[StateSyncEngine] Mode switched: ${previousMode} → ${newMode} (${reason})`);
+    log.info({ previousMode, newMode, reason }, 'StateSyncEngine mode switched');
 
     this.eventBus.publish(TwinEventBus.createEvent(
       TwinEventType.SYNC_MODE_CHANGED,

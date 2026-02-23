@@ -293,7 +293,7 @@ export class FeatureRegistryService {
     // 检查是否有活跃消费者
     const lineage = this.lineages.get(featureId);
     if (lineage && lineage.consumers.length > 0) {
-      console.warn(`[FeatureRegistry] 停用特征 ${feature.name}，但仍有 ${lineage.consumers.length} 个消费者`);
+      log.warn({ featureName: feature.name, consumerCount: lineage.consumers.length }, "Deactivating feature with active consumers");
     }
 
     return true;

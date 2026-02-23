@@ -2,16 +2,25 @@ import { createModuleLogger } from '../../core/logger';
 const log = createModuleLogger('opentelemetry');
 
 /**
- * OpenTelemetry 分布式追踪 - 平台基础设施层
- * 
- * 基于 OTel SDK 实现自动插桩，为所有 HTTP/gRPC/Kafka/DB 调用
- * 生成 trace span，导出到 Jaeger（与现有 jaeger.client.ts 查询端对齐）。
- * 
+ * ============================================================================
+ * OpenTelemetry 分布式追踪 — 平台基础设施层
+ * ============================================================================
+ *
+ * 整改方案 v2.1 A-03: 修复 OTel 初始化
+ *
+ * 根因修复：
+ *   1. @opentelemetry/api 未在 package.json 显式声明 → 已添加
+ *   2. @opentelemetry/exporter-prometheus 未声明 → 已添加
+ *   3. pino-opentelemetry-transport 未安装 → 已添加
+ *   4. 初始化失败时无结构化日志 → 已修复
+ *
+ * 环境感知策略：
+ *   - 开发环境（无 Jaeger）：OTel 静默降级，不报 error
+ *   - 生产环境（有 Jaeger）：OTel 完整启用，失败报 error
+ *
  * 架构位置: server/platform/middleware/ (平台基础层)
- * 依赖: @opentelemetry/sdk-node, @opentelemetry/auto-instrumentations-node
+ * ============================================================================
  */
-
-
 
 // ============================================================
 // 配置
@@ -40,11 +49,30 @@ function getConfig(): OTelConfig {
   };
 }
 
+/**
+ * 检测 OTel 后端（Jaeger/OTel Collector）是否可达
+ * 开发环境下如果后端不可达，静默降级而非报错
+ */
+async function isOTelBackendReachable(url: string, timeoutMs = 3000): Promise<boolean> {
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    // 尝试连接 OTLP endpoint 的健康检查
+    const response = await fetch(url, {
+      method: 'GET',
+      signal: controller.signal,
+    }).catch(() => null);
+    clearTimeout(timer);
+    return response !== null;
+  } catch {
+    return false;
+  }
+}
+
 // ============================================================
 // SDK 初始化
 // ============================================================
 
-// P2-A04: 消除顶层 any，使用类型守卫
 let sdkInstance: { shutdown(): Promise<void> } | null = null;
 let tracerInstance: { startActiveSpan: Function } | null = null;
 
@@ -60,16 +88,30 @@ export async function initOpenTelemetry(): Promise<void> {
     return;
   }
 
+  const isDev = process.env.NODE_ENV === 'development';
+
+  // 环境感知：开发环境下先检测后端是否可达
+  if (isDev) {
+    const reachable = await isOTelBackendReachable(config.traceExporterUrl);
+    if (!reachable) {
+      log.info(
+        { endpoint: config.traceExporterUrl },
+        'OTel backend not reachable in dev mode, skipping initialization (this is normal if Jaeger is not running)'
+      );
+      return;
+    }
+  }
+
   try {
+    // 核心依赖导入
     const { NodeSDK } = await import('@opentelemetry/sdk-node');
     const { OTLPTraceExporter } = await import('@opentelemetry/exporter-trace-otlp-http');
-    const resources = await import('@opentelemetry/resources');
-    const Resource = (resources as any).Resource ?? (resources as any).default?.Resource ?? resources.default;
+    const { resourceFromAttributes } = await import('@opentelemetry/resources');
     const { ATTR_SERVICE_NAME, ATTR_SERVICE_VERSION } = await import('@opentelemetry/semantic-conventions');
     const { BatchSpanProcessor } = await import('@opentelemetry/sdk-trace-node');
 
-    // 构建资源描述
-    const resource = new Resource({
+    // 构建资源描述（@opentelemetry/resources v2.x 使用 resourceFromAttributes 替代 new Resource）
+    const resource = resourceFromAttributes({
       [ATTR_SERVICE_NAME]: config.serviceName,
       [ATTR_SERVICE_VERSION]: process.env.npm_package_version || '4.0.0',
       'deployment.environment': process.env.NODE_ENV || 'development',
@@ -81,18 +123,17 @@ export async function initOpenTelemetry(): Promise<void> {
     });
 
     // Metrics 导出器 — 使用 Prometheus 拉取模式（/api/metrics 端点）
-    // 注意：不使用 OTLP push 到 Jaeger，因为 Jaeger 不支持 OTLP Metrics
     let metricReader: any = undefined;
     try {
       const { PrometheusExporter } = await import('@opentelemetry/exporter-prometheus');
       const prometheusExporter = new PrometheusExporter({
-        port: undefined, // 不单独监听端口，由 Express 路由挂载
-        preventServerStart: true, // 防止启动独立 HTTP 服务器
+        port: undefined,
+        preventServerStart: true,
       });
       metricReader = prometheusExporter;
-      log.info('OTel Metrics configured (Prometheus pull mode via /api/metrics)');
-    } catch {
-      // 降级：尝试 OTLP push 模式（需要 OTel Collector 中转）
+      log.info('OTel Metrics: Prometheus pull mode configured');
+    } catch (promErr) {
+      // 降级：尝试 OTLP push 模式
       try {
         const { OTLPMetricExporter } = await import('@opentelemetry/exporter-metrics-otlp-http');
         const { PeriodicExportingMetricReader } = await import('@opentelemetry/sdk-metrics');
@@ -104,9 +145,12 @@ export async function initOpenTelemetry(): Promise<void> {
           exporter: metricExporter,
           exportIntervalMillis: 30000,
         });
-        log.info(`OTel Metrics configured (OTLP push to ${otlpCollectorUrl})`);
-      } catch (err) {
-        log.warn('OTel Metrics exporter not available:', (err as Error).message);
+        log.info({ endpoint: otlpCollectorUrl }, 'OTel Metrics: OTLP push mode configured');
+      } catch (otlpErr) {
+        log.warn(
+          { promError: (promErr as Error).message, otlpError: (otlpErr as Error).message },
+          'OTel Metrics exporters not available, metrics disabled'
+        );
       }
     }
 
@@ -120,10 +164,9 @@ export async function initOpenTelemetry(): Promise<void> {
         sampler = new ParentBasedSampler({
           root: new TraceIdRatioBasedSampler(config.samplingRatio),
         });
-        log.info(`OTel sampling ratio: ${config.samplingRatio}`);
       }
     } catch {
-      log.warn('OTel sampler configuration skipped');
+      // 采样器配置失败，使用默认（AlwaysOn）
     }
 
     // 构建 SDK 配置
@@ -140,24 +183,22 @@ export async function initOpenTelemetry(): Promise<void> {
         const { getNodeAutoInstrumentations } = await import('@opentelemetry/auto-instrumentations-node');
         sdkConfig.instrumentations = [
           getNodeAutoInstrumentations({
-            // 禁用 fs 插桩（太吵）
             '@opentelemetry/instrumentation-fs': { enabled: false },
-            // 禁用 dns 插桩
             '@opentelemetry/instrumentation-dns': { enabled: false },
-            // 启用 HTTP 插桩（核心）
             '@opentelemetry/instrumentation-http': {
               ignoreIncomingPaths: ['/healthz', '/healthz/ready', '/api/metrics'],
             },
-            // 启用 Express 插桩
             '@opentelemetry/instrumentation-express': { enabled: true },
-            // 启用 MySQL2 插桩
             '@opentelemetry/instrumentation-mysql2': { enabled: true },
-            // 启用 Redis 插桩
             '@opentelemetry/instrumentation-redis-4': { enabled: true },
           }),
         ];
+        log.info('OTel auto-instrumentation enabled');
       } catch (err) {
-        log.warn('Auto-instrumentation not available, using manual spans only:', (err as Error).message);
+        log.warn(
+          { error: (err as Error).message },
+          'Auto-instrumentation not available, using manual spans only'
+        );
       }
     }
 
@@ -168,10 +209,28 @@ export async function initOpenTelemetry(): Promise<void> {
     const { trace } = await import('@opentelemetry/api');
     tracerInstance = trace.getTracer(config.serviceName, '4.0.0');
 
-    log.info(`OpenTelemetry initialized (service=${config.serviceName}, endpoint=${config.traceExporterUrl}, sampling=${config.samplingRatio}, metrics=${metricReader ? 'enabled' : 'disabled'})`);
+    log.info({
+      serviceName: config.serviceName,
+      endpoint: config.traceExporterUrl,
+      samplingRatio: config.samplingRatio,
+      metrics: metricReader ? 'enabled' : 'disabled',
+      autoInstrumentation: config.autoInstrumentation,
+    }, 'OpenTelemetry initialized successfully');
+
   } catch (err) {
-    log.error('Failed to initialize OpenTelemetry:', String(err));
-    log.warn('Continuing without distributed tracing');
+    if (isDev) {
+      // 开发环境：降级为 warn，不阻塞启动
+      log.warn(
+        { error: String(err) },
+        'OpenTelemetry initialization failed in dev mode, continuing without tracing'
+      );
+    } else {
+      // 生产环境：报 error（但仍不阻塞启动）
+      log.error(
+        { error: String(err) },
+        'OpenTelemetry initialization failed in production — distributed tracing unavailable'
+      );
+    }
   }
 }
 
@@ -184,7 +243,7 @@ export async function shutdownOpenTelemetry(): Promise<void> {
       await sdkInstance.shutdown();
       log.info('OpenTelemetry SDK shutdown');
     } catch (err) {
-      log.error('Error shutting down OTel SDK:', String(err));
+      log.error({ err }, 'Error shutting down OTel SDK');
     }
   }
 }
@@ -202,7 +261,7 @@ export function getTracer() {
 
 /**
  * 创建一个追踪 span 包装异步函数
- * 
+ *
  * @example
  * const result = await withSpan('algorithm.execute', { algorithm: 'fft' }, async (span) => {
  *   span.setAttribute('input.size', data.length);
@@ -215,7 +274,6 @@ export async function withSpan<T>(
   fn: (span: any) => Promise<T>,
 ): Promise<T> {
   if (!tracerInstance) {
-    // OTel 未初始化，直接执行
     return fn(createNoopSpan());
   }
 
@@ -223,11 +281,9 @@ export async function withSpan<T>(
 
   return tracerInstance.startActiveSpan(name, async (span: any) => {
     try {
-      // 设置属性
       for (const [key, value] of Object.entries(attributes)) {
         span.setAttribute(key, value);
       }
-
       const result = await fn(span);
       span.setStatus({ code: SpanStatusCode.OK });
       return result;
@@ -367,7 +423,7 @@ export async function tracePipeline<T>(
 }
 
 /**
- * P2-A04: 追踪 Kafka 生产者发送
+ * 追踪 Kafka 生产者发送
  */
 export async function traceKafkaProduce<T>(
   topic: string,
@@ -381,7 +437,7 @@ export async function traceKafkaProduce<T>(
 }
 
 /**
- * P2-A04: 追踪 ClickHouse 查询
+ * 追踪 ClickHouse 查询
  */
 export async function traceClickHouseQuery<T>(
   operation: string,

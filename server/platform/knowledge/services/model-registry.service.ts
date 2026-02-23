@@ -219,7 +219,7 @@ export class ModelRegistryService {
     };
 
     if (!validTransitions[model.stage]?.includes(targetStage)) {
-      console.warn(`[ModelRegistry] 无效的阶段转换: ${model.stage} → ${targetStage}`);
+      log.warn({ currentStage: model.stage, targetStage }, "Invalid stage transition");
       return false;
     }
 

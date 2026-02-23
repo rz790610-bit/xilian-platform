@@ -7,6 +7,8 @@
 
 import { router, publicProcedure, protectedProcedure } from '../../core/trpc';
 import { z } from 'zod';
+import { createModuleLogger } from '../../core/logger';
+const log = createModuleLogger('guardrail');
 import { getDb } from '../../lib/db';
 import { eq, desc, count, and } from 'drizzle-orm';
 import {
@@ -89,7 +91,7 @@ const ruleRouter = router({
           version: '1.0.0',
         });
         return { id: Number(result[0].insertId), success: true };
-      } catch (e) { console.error('[guardrail.create]', e); return { id: 0, success: false }; }
+      } catch (e) { log.warn({ err: e }, '[guardrail.create] rule creation failed'); return { id: 0, success: false }; }
     }),
 
   update: publicProcedure
@@ -133,7 +135,7 @@ const ruleRouter = router({
         if (input.physicalBasis !== undefined) updateSet.physicalBasis = input.physicalBasis;
         await db.update(guardrailRules).set(updateSet).where(eq(guardrailRules.id, input.id));
         return { success: true };
-      } catch (e) { console.error('[guardrail.update]', e); return { success: false }; }
+      } catch (e) { log.warn({ err: e }, '[guardrail.update] rule update failed'); return { success: false }; }
     }),
 
   delete: publicProcedure

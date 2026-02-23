@@ -8,6 +8,7 @@
  * 
  * 生产环境可选 L0 - gVisor/Kata Container 系统级隔离
  */
+import { createModuleLogger } from "../core/logger";
 import { Worker, MessageChannel, MessagePort } from 'worker_threads';
 import { EventEmitter } from 'events';
 import * as vm from 'vm';
@@ -422,10 +423,10 @@ export function buildSandboxAPI(
 
   // 日志 API（始终可用）
   api.log = {
-    info: (...args: unknown[]) => console.log(`[Plugin:${pluginId}]`, ...args),
-    warn: (...args: unknown[]) => console.warn(`[Plugin:${pluginId}]`, ...args),
-    error: (...args: unknown[]) => console.error(`[Plugin:${pluginId}]`, ...args),
-    debug: (...args: unknown[]) => console.debug(`[Plugin:${pluginId}]`, ...args),
+    info: (...args: unknown[]) => { const plog = createModuleLogger(`plugin:${pluginId}`); plog.info({}, args.map(String).join(' ')); },
+    warn: (...args: unknown[]) => { const plog = createModuleLogger(`plugin:${pluginId}`); plog.warn({}, args.map(String).join(' ')); },
+    error: (...args: unknown[]) => { const plog = createModuleLogger(`plugin:${pluginId}`); plog.error({}, args.map(String).join(' ')); },
+    debug: (...args: unknown[]) => { const plog = createModuleLogger(`plugin:${pluginId}`); plog.debug({}, args.map(String).join(' ')); },
   };
 
   // 存储 API
