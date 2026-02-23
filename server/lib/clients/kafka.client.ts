@@ -5,6 +5,7 @@
 
 import { Kafka, Producer, Consumer, Admin, logLevel, CompressionTypes } from 'kafkajs';
 import { createModuleLogger } from '../../core/logger';
+import { traceKafkaProduce, traceKafkaMessage } from '../../platform/middleware/opentelemetry';
 const log = createModuleLogger('kafka');
 
 // Kafka 配置接口
@@ -136,25 +137,26 @@ class KafkaClientManager {
   /**
    * 发送消息到指定主题
    */
-  async produce(topic: string, messages: KafkaMessage[]): Promise<void> {
+    async produce(topic: string, messages: KafkaMessage[]): Promise<void> {
     if (!this.producer || !this.isConnected) {
       throw new Error('Kafka Producer 未连接');
     }
-
-    const kafkaMessages = messages.map(msg => ({
-      key: msg.key,
-      value: typeof msg.value === 'string' ? msg.value : msg.value,
-      headers: msg.headers ? Object.fromEntries(
-        Object.entries(msg.headers).map(([k, v]) => [k, Buffer.from(v)])
-      ) : undefined,
-      timestamp: msg.timestamp,
-      partition: msg.partition,
-    }));
-
-    await this.producer.send({
-      topic,
-      messages: kafkaMessages,
-      compression: CompressionTypes.GZIP,
+    // CR-04: OTel span 追踪 Kafka 生产
+    await traceKafkaProduce(topic, async () => {
+      const kafkaMessages = messages.map(msg => ({
+        key: msg.key,
+        value: typeof msg.value === 'string' ? msg.value : msg.value,
+        headers: msg.headers ? Object.fromEntries(
+          Object.entries(msg.headers).map(([k, v]) => [k, Buffer.from(v)])
+        ) : undefined,
+        timestamp: msg.timestamp,
+        partition: msg.partition,
+      }));
+      await this.producer.send({
+        topic,
+        messages: kafkaMessages,
+        compression: CompressionTypes.GZIP,
+      });
     });
   }
 
@@ -213,14 +215,17 @@ class KafkaClientManager {
             }
           }
 
-          await handler({
-            topic,
-            partition,
-            offset: message.offset,
-            key: message.key?.toString() || null,
-            value: message.value?.toString() || null,
-            headers,
-            timestamp: message.timestamp,
+          // CR-04: OTel span 追踪 Kafka 消费
+          await traceKafkaMessage(topic, partition, async () => {
+            await handler({
+              topic,
+              partition,
+              offset: message.offset,
+              key: message.key?.toString() || null,
+              value: message.value?.toString() || null,
+              headers,
+              timestamp: message.timestamp,
+            });
           });
         } catch (err) {
           log.warn(`[Kafka] 消息处理失败 topic=${topic} partition=${partition} offset=${message.offset}:`, err);

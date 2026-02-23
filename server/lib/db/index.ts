@@ -12,6 +12,7 @@ import {
 } from "../../../drizzle/schema";
 import { config } from '../../core/config';
 import { createModuleLogger } from '../../core/logger';
+import { createTracedDb } from './tracing';
 const log = createModuleLogger('index');
 
 // ============================================================================
@@ -63,7 +64,7 @@ export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
       _pool = createPool();
-      _db = drizzle(_pool);
+      _db = createTracedDb(drizzle(_pool));
       startPoolHealthCheck(_pool);
       log.info({
         connectionLimit: parseInt(process.env.DB_POOL_MAX || '50', 10),
