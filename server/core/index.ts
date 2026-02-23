@@ -1,4 +1,6 @@
-import "dotenv/config";
+// B-05: dotenv 分层加载器（替代简单的 dotenv/config）
+// 加载优先级：.env.{NODE_ENV} → .env.local → .env → 环境变量
+import './env-loader';
 import express from "express";
 import { createServer } from "http";
 import net from "net";

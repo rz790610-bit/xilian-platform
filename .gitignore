@@ -8,14 +8,18 @@ build/
 *.dist
 
 # Environment variables
+# B-05 配置分层：
+#   提交到 Git：.env.development, .env.production.template
+#   不提交（含敏感信息）：.env, .env.local, .env.production
 .env
 .env.local
+.env.production
 .env.development.local
+.env.test.local
+.env.production.local
 
 # Docker migration backup
 docker-backup/
-.env.test.local
-.env.production.local
 
 # IDE and editor files
 .vscode/
