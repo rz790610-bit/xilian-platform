@@ -13,6 +13,7 @@ import { circuitBreakerRegistry } from '../platform/middleware/circuitBreaker';
 import { metricsCollector } from '../platform/middleware/metricsCollector';
 import { createModuleLogger } from '../core/logger';
 import os from 'os';
+import { config } from '../core/config';
 
 const log = createModuleLogger('microservice-router');
 
@@ -133,7 +134,7 @@ async function getServiceRuntimeState(svc: ServiceDefinition): Promise<ServiceRu
     cpu: Math.round(totalCpu * 100 * 10) / 10,
     memory: Math.round(memUsage * 100 * 10) / 10,
     activeConnections: Math.floor(Math.random() * 50) + 10, // WebSocket 连接数待对接
-    version: process.env.APP_VERSION || '1.9.0',
+    version: config.app.version,
     replicas: { ready: 1, desired: 1 },
     lastChecked: new Date(),
   };

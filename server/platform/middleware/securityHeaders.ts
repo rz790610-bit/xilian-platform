@@ -11,6 +11,7 @@
 import helmet from 'helmet';
 import type { RequestHandler, Request, Response, NextFunction } from 'express';
 import { createModuleLogger } from '../../core/logger';
+import { config } from '../../core/config';
 
 const log = createModuleLogger('security-headers');
 
@@ -30,13 +31,11 @@ export interface SecurityConfig {
 }
 
 function getConfig(): SecurityConfig {
-  const isDev = process.env.NODE_ENV === 'development';
+  const isDev = config.app.env === 'development';
   return {
-    corsOrigins: process.env.CORS_ORIGINS
-      ? process.env.CORS_ORIGINS.split(',').map(s => s.trim())
-      : isDev ? ['*'] : [],
+    corsOrigins: config.security.corsOrigins,
     // HSTS 只在配置了 TLS 终端时启用，避免浏览器缓存 HSTS 策略导致 HTTP 访问失败
-    hsts: process.env.ENABLE_HSTS === 'true',
+    hsts: config.security.enableHsts,
     csp: !isDev,
     relaxInDev: isDev,
   };

@@ -7,6 +7,7 @@ import { getDb } from "../../lib/db";
 import * as schema from "../../../drizzle/schema";
 import { eq, desc, like, and, count, sql } from "drizzle-orm";
 import { z } from "zod";
+import { config } from '../../core/config';
 
 // ============ Zod Schemas（P2-A07: 消除 any 穿透） ============
 const alertConditionSchema = z.object({
@@ -36,7 +37,7 @@ const healthRouter = router({
       mysql,
       clickhouse: ch,
       redis,
-      version: process.env.APP_VERSION || "0.0.0",
+      version: config.app.version,
       uptime: process.uptime(),
       timestamp: new Date().toISOString(),
       responseMs: Date.now() - startTime,

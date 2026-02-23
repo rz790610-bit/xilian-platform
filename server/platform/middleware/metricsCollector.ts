@@ -19,6 +19,7 @@
 
 import { Router, Request, Response, NextFunction } from 'express';
 import { createModuleLogger } from '../../core/logger';
+import { config } from '../../core/config';
 const log = createModuleLogger('metrics-collector');
 
 import client, {
@@ -40,7 +41,7 @@ const register = new Registry();
 // 设置默认标签
 register.setDefaultLabels({
   app: 'portai-nexus',
-  env: process.env.NODE_ENV || 'development',
+  env: config.app.env,
 });
 
 // 收集 Node.js 默认指标（CPU、内存、事件循环延迟、GC 等）

@@ -29,6 +29,7 @@
 
 import { kafkaClient, KAFKA_TOPICS } from '../lib/clients/kafka.client';
 import { createModuleLogger } from '../core/logger';
+import { config as appConfig } from '../core/config';
 import type { RawTelemetryMessage } from './feature-extraction/types';
 
 const log = createModuleLogger('gateway-bridge');
@@ -161,9 +162,9 @@ export class MqttProtocolHandler implements ProtocolHandler {
     password?: string;
     topicPrefix?: string;
   }) {
-    this.brokerUrl = config?.brokerUrl || process.env.MQTT_BROKER_URL || 'mqtt://localhost:1883';
-    this.username = config?.username || process.env.MQTT_USERNAME || '';
-    this.password = config?.password || process.env.MQTT_PASSWORD || '';
+    this.brokerUrl = config?.brokerUrl || appConfig.mqtt.brokerUrl;
+    this.username = config?.username || appConfig.mqtt.username;
+    this.password = config?.password || appConfig.mqtt.password;
     this.topicPrefix = config?.topicPrefix || 'xilian';
   }
 
@@ -184,7 +185,7 @@ export class MqttProtocolHandler implements ProtocolHandler {
     }
 
     // 检查是否配置了 MQTT Broker
-    const isConfigured = !!process.env.MQTT_BROKER_URL;
+    const isConfigured = appConfig.mqtt.brokerUrl !== `${appConfig.mqtt.ssl ? 'mqtts' : 'mqtt'}://${appConfig.mqtt.host}:${appConfig.mqtt.port}`;
     if (!isConfigured) {
       log.info('[MqttHandler] 未配置 MQTT_BROKER_URL，MQTT 协议处理器以待机模式运行（可通过配置环境变量启用）');
       return;

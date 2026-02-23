@@ -20,7 +20,7 @@ const LOCAL_DEV_USER: User = {
   name: "本地开发用户",
   email: "dev@localhost",
   loginMethod: "local",
-  role: (process.env.SKIP_AUTH_ROLE as User['role']) || "user",
+  role: (config.auth.skipAuthRole as User['role']) || "user",
   lastSignedIn: new Date(),
   createdAt: new Date(),
   updatedAt: new Date(),
@@ -32,7 +32,7 @@ export async function createContext(
   let user: User | null = null;
 
   // 检查是否为本地开发模式
-  const skipAuth = process.env.SKIP_AUTH === "true";
+  const skipAuth = config.auth.skipAuth;
 
   if (skipAuth) {
     // P0-S02 修复：生产环境下禁止 SKIP_AUTH，防止误部署导致全站 admin 权限泄露

@@ -1,4 +1,5 @@
 import { createModuleLogger } from '../../core/logger';
+import { config } from '../../core/config';
 const log = createModuleLogger('service-registry');
 
 /**
@@ -64,7 +65,7 @@ class ServiceRegistry {
   private isK8s = false;
 
   constructor() {
-    this.isK8s = !!process.env.KUBERNETES_SERVICE_HOST;
+    this.isK8s = !!config.k8s.serviceHost;
   }
 
   /**
@@ -289,21 +290,21 @@ class ServiceRegistry {
   private async discoverViaK8sDns(serviceName: string): Promise<ServiceInstance[]> {
     // K8s 中，服务名直接作为 DNS 名称解析
     // 例如: sensor-ingestion.xilian.svc.cluster.local
-    const namespace = process.env.POD_NAMESPACE || 'xilian';
+    const namespace = config.app.podNamespace || 'xilian';
     const host = `${serviceName}.${namespace}.svc.cluster.local`;
 
     return [{
       serviceName,
       instanceId: `k8s-${serviceName}`,
       host,
-      port: parseInt(process.env.PORT || '3000', 10),
+      port: config.app.port,
       protocol: 'http',
       status: 'healthy',
       metadata: { discovery: 'k8s-dns' },
       registeredAt: new Date(),
       lastHeartbeat: new Date(),
       weight: 1,
-      version: process.env.APP_VERSION || '4.0.0',
+      version: config.app.version,
     }];
   }
 
