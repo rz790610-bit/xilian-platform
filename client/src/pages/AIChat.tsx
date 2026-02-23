@@ -21,6 +21,9 @@ import * as qdrant from '@/services/qdrant';
 import { trpc } from '@/lib/trpc';
 import { parseDocument } from '@/services/documentParser';
 
+import { createLogger } from '@/lib/logger';
+const log = createLogger('AIChat');
+
 // 功能模式类型
 type ChatMode = 'chat' | 'document' | 'knowledge';
 
@@ -297,7 +300,7 @@ export default function AIChat() {
       }
     } catch (error) {
       toast.error('文件解析失败');
-      console.error('文档解析错误:', error);
+      log.error('文档解析错误:', error);
     }
     
     if (fileInputRef.current) {
@@ -348,7 +351,7 @@ export default function AIChat() {
         toast.success(`已添加附件: ${file.name} (约 ${wordCount} 字)`);
       } catch (error) {
         toast.error(`解析文件失败: ${file.name}`);
-        console.error(`文档解析错误 (${file.name}):`, error);
+        log.error(`文档解析错误 (${file.name}):`, error);
       }
     }
 
@@ -413,7 +416,7 @@ export default function AIChat() {
       toast.success('已保存到知识库');
       setSaveToKnowledge(false); // 重置复选框
     } catch (error) {
-      console.error('保存到知识库失败:', error);
+      log.error('保存到知识库失败:', error);
       toast.error('保存到知识库失败');
     } finally {
       setSavingToKnowledge(false);
@@ -546,7 +549,7 @@ export default function AIChat() {
       }
 
     } catch (error) {
-      console.error('Chat error:', error);
+      log.error('Chat error:', error);
       setMessages(prev => prev.map(m => 
         m.id === aiMessageId 
           ? { 

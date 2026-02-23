@@ -5,6 +5,9 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 
+import { createLogger } from '@/lib/logger';
+const log = createLogger('useKafkaMetricsWs');
+
 // 指标数据结构
 export interface KafkaMetrics {
   timestamp: number;
@@ -96,13 +99,13 @@ export function useKafkaMetricsWs(): UseKafkaMetricsWsResult {
 
     try {
       const wsUrl = getWsUrl();
-      console.log("[KafkaMetricsWS] Connecting to:", wsUrl);
+      log.info("[KafkaMetricsWS] Connecting to:", wsUrl);
       
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 
       ws.onopen = () => {
-        console.log("[KafkaMetricsWS] Connected");
+        log.info("[KafkaMetricsWS] Connected");
         setIsConnected(true);
         setError(null);
         reconnectAttempts.current = 0;
@@ -123,19 +126,19 @@ export function useKafkaMetricsWs(): UseKafkaMetricsWsResult {
             }
           }
         } catch (e) {
-          console.error("[KafkaMetricsWS] Failed to parse message:", e);
+          log.error("[KafkaMetricsWS] Failed to parse message:", e);
         }
       };
 
       ws.onclose = (event) => {
-        console.log("[KafkaMetricsWS] Disconnected:", event.code, event.reason);
+        log.info("[KafkaMetricsWS] Disconnected:", event.code, event.reason);
         setIsConnected(false);
         wsRef.current = null;
 
         // 自动重连
         if (reconnectAttempts.current < maxReconnectAttempts) {
           const delay = baseReconnectDelay * Math.pow(2, reconnectAttempts.current);
-          console.log(`[KafkaMetricsWS] Reconnecting in ${delay}ms...`);
+          log.info(`[KafkaMetricsWS] Reconnecting in ${delay}ms...`);
           reconnectTimeoutRef.current = setTimeout(() => {
             reconnectAttempts.current++;
             connect();
@@ -146,11 +149,11 @@ export function useKafkaMetricsWs(): UseKafkaMetricsWsResult {
       };
 
       ws.onerror = (event) => {
-        console.error("[KafkaMetricsWS] Error:", event);
+        log.error("[KafkaMetricsWS] Error:", event);
         setError("WebSocket 连接错误");
       };
     } catch (e) {
-      console.error("[KafkaMetricsWS] Failed to connect:", e);
+      log.error("[KafkaMetricsWS] Failed to connect:", e);
       setError("无法建立 WebSocket 连接");
     }
   }, []);

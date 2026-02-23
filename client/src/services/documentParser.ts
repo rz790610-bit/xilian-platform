@@ -9,6 +9,9 @@ import mammoth from 'mammoth';
 import * as XLSX from 'xlsx-js-style';
 import { recognizeImage, isImageFile, SUPPORTED_IMAGE_EXTENSIONS } from './ocrService';
 
+import { createLogger } from '@/lib/logger';
+const log = createLogger('documentParser');
+
 // 设置 PDF.js worker
 // P1-D: 添加 CDN 加载失败时的 fallback
 try {
@@ -16,7 +19,7 @@ try {
 } catch {
   // fallback: 禁用 worker，使用主线程解析（性能较差但不会崩溃）
   pdfjsLib.GlobalWorkerOptions.workerSrc = '';
-  console.warn('[documentParser] PDF.js Worker CDN 加载失败，回退到主线程模式');
+  log.warn('[documentParser] PDF.js Worker CDN 加载失败，回退到主线程模式');
 }
 
 /**

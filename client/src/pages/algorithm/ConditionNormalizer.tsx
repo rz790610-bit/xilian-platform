@@ -14,6 +14,9 @@
 import { useState, useCallback, useMemo } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import {
+import { createLogger } from '@/lib/logger';
+const log = createLogger('ConditionNormalizer');
+
   ConfigSection, ConfigSlider, ConfigInput, ConfigSelect, ConfigKV, ConfigActions, ApiDocBlock, ConfigRangeInput,
 } from '@/components/common/AlgorithmConfigPanel';
 
@@ -259,7 +262,7 @@ function ConsoleTab() {
         setResult(data.result.data.data);
       }
     } catch (err) {
-      console.error('Process failed:', err);
+      log.error('Process failed:', err);
     } finally {
       setProcessing(false);
     }
@@ -506,7 +509,7 @@ function BaselineTab() {
         setBaselines(data.result.data.data);
       }
     } catch (err) {
-      console.error('Fetch baselines failed:', err);
+      log.error('Fetch baselines failed:', err);
     }
   }, []);
 
@@ -548,7 +551,7 @@ function BaselineTab() {
       }
       await fetchBaselines();
     } catch (err) {
-      console.error('Learn failed:', err);
+      log.error('Learn failed:', err);
     } finally {
       setLearning(false);
     }
@@ -682,7 +685,7 @@ function ThresholdTab() {
         setThresholds(data.result.data.data);
       }
     } catch (err) {
-      console.error('Fetch thresholds failed:', err);
+      log.error('Fetch thresholds failed:', err);
     }
   }, []);
 
@@ -698,7 +701,7 @@ function ThresholdTab() {
       setEditValues(null);
       await fetchThresholds();
     } catch (err) {
-      console.error('Save threshold failed:', err);
+      log.error('Save threshold failed:', err);
     }
   }, [editValues, fetchThresholds]);
 
@@ -840,7 +843,7 @@ function ConditionsTab() {
         setConditions(data.result.data.data);
       }
     } catch (err) {
-      console.error('Fetch conditions failed:', err);
+      log.error('Fetch conditions failed:', err);
     }
   }, []);
 
@@ -862,7 +865,7 @@ function ConditionsTab() {
       setNewCond({ id: '', description: '', keyFeatures: '', typicalDuration: '', plcCode: '' });
       await fetchConditions();
     } catch (err) {
-      console.error('Add condition failed:', err);
+      log.error('Add condition failed:', err);
     }
   }, [newCond, fetchConditions]);
 
@@ -875,7 +878,7 @@ function ConditionsTab() {
       });
       await fetchConditions();
     } catch (err) {
-      console.error('Remove condition failed:', err);
+      log.error('Remove condition failed:', err);
     }
   }, [fetchConditions]);
 
@@ -1041,7 +1044,7 @@ function HistoryTab() {
         setHistory(data.result.data.data);
       }
     } catch (err) {
-      console.error('Fetch history failed:', err);
+      log.error('Fetch history failed:', err);
     }
   }, []);
 
@@ -1054,7 +1057,7 @@ function HistoryTab() {
       });
       setHistory([]);
     } catch (err) {
-      console.error('Clear history failed:', err);
+      log.error('Clear history failed:', err);
     }
   }, []);
 
@@ -1267,7 +1270,7 @@ function NormalizerConfigTab() {
         }
       }
     } catch (err) {
-      console.error('Load config failed:', err);
+      log.error('Load config failed:', err);
     }
   }, []);
 

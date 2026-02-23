@@ -1,3 +1,6 @@
+import { createLogger } from '@/lib/logger';
+const log = createLogger('qdrant');
+
 // Qdrant 向量数据库服务模块
 // 用于存储和检索诊断知识库
 //
@@ -66,7 +69,7 @@ export async function checkQdrantStatus(): Promise<boolean> {
     clearTimeout(timeoutId);
     return response.ok;
   } catch (error) {
-    console.warn('Qdrant 连接检查失败:', error);
+    log.warn('Qdrant 连接检查失败:', error);
     return false;
   }
 }
@@ -85,7 +88,7 @@ export async function getCollections(): Promise<CollectionInfo[]> {
     
     if (!response.ok) {
       const text = await response.text();
-      console.error('Qdrant 响应错误:', response.status, text);
+      log.error('Qdrant 响应错误:', response.status, text);
       throw new Error(`获取集合列表失败: ${response.status}`);
     }
     
@@ -116,7 +119,7 @@ export async function getCollections(): Promise<CollectionInfo[]> {
     
     return collections;
   } catch (error) {
-    console.error('获取集合列表失败:', error);
+    log.error('获取集合列表失败:', error);
     throw error;
   }
 }
@@ -636,7 +639,7 @@ export async function ragSearch(
       const results = await searchKnowledge(collection, query, limit);
       allResults.push(...results);
     } catch (error) {
-      console.warn(`搜索集合 ${collection} 失败:`, error);
+      log.warn(`搜索集合 ${collection} 失败:`, error);
     }
   }
   

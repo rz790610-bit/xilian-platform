@@ -8,6 +8,9 @@ import App from "./App";
 import { getLoginUrl } from "./const";
 import "./index.css";
 
+import { createLogger } from '@/lib/logger';
+const log = createLogger('main');
+
 // [P3-E1 修复] 配置全局 staleTime，避免窗口重新聚焦时频繁重新请求
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -29,7 +32,7 @@ const redirectToLoginIfUnauthorized = (error: unknown) => {
     window.location.hostname === "127.0.0.1" ||
     window.location.hostname.endsWith('.local');
   if (isLocalDev) {
-    console.log("[Auth] Skipping redirect in local development (hostname:", window.location.hostname, ")");
+    log.info("[Auth] Skipping redirect in local development (hostname:", window.location.hostname, ")");
     return;
   }
 
@@ -44,7 +47,7 @@ queryClient.getQueryCache().subscribe(event => {
   if (event.type === "updated" && event.action.type === "error") {
     const error = event.query.state.error;
     redirectToLoginIfUnauthorized(error);
-    console.error("[API Query Error]", error);
+    log.error("[API Query Error]", error);
   }
 });
 
@@ -52,7 +55,7 @@ queryClient.getMutationCache().subscribe(event => {
   if (event.type === "updated" && event.action.type === "error") {
     const error = event.mutation.state.error;
     redirectToLoginIfUnauthorized(error);
-    console.error("[API Mutation Error]", error);
+    log.error("[API Mutation Error]", error);
   }
 });
 

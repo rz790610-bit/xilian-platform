@@ -14,6 +14,9 @@ import type { Agent } from '@/types';
 import * as ollama from '@/services/ollama';
 import * as qdrant from '@/services/qdrant';
 import { 
+import { createLogger } from '@/lib/logger';
+const log = createLogger('Agents');
+
   Send, Loader2, Bot, User, Wifi, WifiOff, RefreshCw, 
   Wrench, Zap, Settings2, FileText, Trash2
 } from 'lucide-react';
@@ -286,7 +289,7 @@ export default function Agents() {
             systemContent += `\n\n---\n以下是与用户问题相关的参考资料，请结合这些信息进行诊断分析：\n\n${ragContext}`;
           }
         } catch (error) {
-          console.warn('RAG 检索失败:', error);
+          log.warn('RAG 检索失败:', error);
         }
       }
       
@@ -322,7 +325,7 @@ export default function Agents() {
       ));
 
     } catch (error) {
-      console.error('Agent chat error:', error);
+      log.error('Agent chat error:', error);
       setMessages(prev => prev.map(m => 
         m.id === aiMessageId 
           ? { 

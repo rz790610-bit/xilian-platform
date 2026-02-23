@@ -15,6 +15,9 @@
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
 
+import { createLogger } from '@/lib/logger';
+const log = createLogger('useLocalStorage');
+
 type SetValue<T> = T | ((prev: T) => T);
 
 export function useLocalStorage<T>(
@@ -28,7 +31,7 @@ export function useLocalStorage<T>(
       const item = window.localStorage.getItem(key);
       return item ? (JSON.parse(item) as T) : initialValue;
     } catch (error) {
-      console.warn(`[useLocalStorage] Error reading "${key}":`, error);
+      log.warn(`[useLocalStorage] Error reading "${key}":`, error);
       return initialValue;
     }
   }, [key, initialValue]);
@@ -47,7 +50,7 @@ export function useLocalStorage<T>(
           window.localStorage.setItem(keyRef.current, JSON.stringify(newValue));
         }
       } catch (error) {
-        console.warn(`[useLocalStorage] Error writing "${keyRef.current}":`, error);
+        log.warn(`[useLocalStorage] Error writing "${keyRef.current}":`, error);
       }
     },
     [storedValue]
@@ -61,7 +64,7 @@ export function useLocalStorage<T>(
         window.localStorage.removeItem(keyRef.current);
       }
     } catch (error) {
-      console.warn(`[useLocalStorage] Error removing "${keyRef.current}":`, error);
+      log.warn(`[useLocalStorage] Error removing "${keyRef.current}":`, error);
     }
   }, [initialValue]);
 
@@ -112,7 +115,7 @@ export function useAutoSave<T>(
           setLastSaved(new Date());
         }
       } catch (error) {
-        console.warn(`[useAutoSave] Error saving "${key}":`, error);
+        log.warn(`[useAutoSave] Error saving "${key}":`, error);
       }
       setIsSaving(false);
     }, delay);

@@ -1,3 +1,6 @@
+import { createLogger } from '@/lib/logger';
+const log = createLogger('ollama');
+
 // Ollama API 服务模块
 // 对接本地 Ollama 大模型服务
 
@@ -73,7 +76,7 @@ export async function getModels(): Promise<OllamaModel[]> {
     const data = await response.json();
     return data.models || [];
   } catch (error) {
-    console.error('获取模型列表失败:', error);
+    log.error('获取模型列表失败:', error);
     throw error;
   }
 }

@@ -13,6 +13,9 @@ import { cn } from '@/lib/utils';
 import { trpc } from '@/lib/trpc';
 import { useToast } from '@/components/common/Toast';
 import { 
+import { createLogger } from '@/lib/logger';
+const log = createLogger('SystemTopology');
+
   Plus, Trash2, RefreshCw, Save, Download, Upload, 
   ZoomIn, ZoomOut, Maximize2, Move, Link2, Unlink,
   Settings2, Activity, Server, Database, Cpu, Network
@@ -162,12 +165,12 @@ export default function SystemTopology() {
   });
   
   const updateNodePositionMutation = trpc.topology.updateNodePosition.useMutation({
-    onError: (err) => console.error('更新位置失败:', err),
+    onError: (err) => log.error('更新位置失败:', err),
   });
 
   // ST-1 修复：添加批量位置更新接口
   const updateNodePositionsMutation = trpc.topology.updateNodePositions.useMutation({
-    onError: (err) => console.error('批量更新位置失败:', err),
+    onError: (err) => log.error('批量更新位置失败:', err),
   });
   
   const updateNodeStatusMutation = trpc.topology.updateNodeStatus.useMutation({

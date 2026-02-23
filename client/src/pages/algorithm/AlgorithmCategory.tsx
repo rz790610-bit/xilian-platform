@@ -14,6 +14,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 
+import { createLogger } from '@/lib/logger';
+const log = createLogger('AlgorithmCategory');
+
 const CATEGORY_META: Record<string, { label: string; icon: string; desc: string }> = {
   mechanical: { label: "机械算法", icon: "⚙️", desc: "FFT频谱分析、倒频谱、包络解调、小波包、带通滤波、谱峭度、重采样、阶次跟踪" },
   electrical: { label: "电气算法", icon: "⚡", desc: "电机电流分析MCSA、局部放电PD、变频器状态、电能质量" },
@@ -256,9 +259,9 @@ function AlgorithmComposePage() {
 
   // 添加步骤（不使用 useCallback，避免闭包捕获过时状态）
   const addStep = () => {
-    console.log('[addStep] called, selectedAlgoCode =', selectedAlgoCode);
+    log.info('[addStep] called, selectedAlgoCode =', selectedAlgoCode);
     if (!selectedAlgoCode) {
-      console.warn('[addStep] selectedAlgoCode is empty, returning');
+      log.warn('[addStep] selectedAlgoCode is empty, returning');
       return;
     }
     const newId = `step_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
@@ -280,7 +283,7 @@ function AlgorithmComposePage() {
     setSelectedAlgoCode("");
     setShowAddStep(false);
     toast.success(`已添加步骤: ${label}`);
-    console.log('[addStep] step added successfully');
+    log.info('[addStep] step added successfully');
   };
 
   // 删除步骤
@@ -576,7 +579,7 @@ function AlgorithmComposePage() {
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
-                  console.log('[Button onClick] fired');
+                  log.info('[Button onClick] fired');
                   addStep();
                 }}
                 className="w-full relative z-10 shrink-0"

@@ -19,6 +19,9 @@ import {
 import { trpc } from '@/lib/trpc';
 import * as qdrant from '@/services/qdrant';
 import {
+import { createLogger } from '@/lib/logger';
+const log = createLogger('VectorAdmin');
+
   vectorsToProjectedPoints,
   clusterProjectedPoints,
   type ReductionMethod,
@@ -169,7 +172,7 @@ export default function VectorAdmin() {
         setClusterResult(clusterProjectedPoints(projected, clusterCount));
       }
     } catch (error) {
-      console.error('加载向量数据失败:', error);
+      log.error('加载向量数据失败:', error);
       toast.error('加载向量数据失败（请确保 Qdrant 可直连）');
     } finally {
       setLoadingVectors(false);

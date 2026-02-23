@@ -11,6 +11,9 @@ import { PipelineConnection } from './PipelineConnection';
 import type { EditorNode, SourceType, ProcessorType, SinkType, EditorNodeType } from '@shared/pipelineTypes';
 import { SOURCE_TYPES, PROCESSOR_TYPES, SINK_TYPES } from '@shared/pipelineTypes';
 
+import { createLogger } from '@/lib/logger';
+const log = createLogger('PipelineCanvas');
+
 interface PipelineCanvasProps {
   className?: string;
 }
@@ -205,7 +208,7 @@ export function PipelineCanvas({ className }: PipelineCanvasProps) {
         addNode(type, subType as SourceType | ProcessorType | SinkType, Math.max(0, x), Math.max(0, y));
       }
     } catch (err) {
-      console.error('Drop error:', err);
+      log.error('Drop error:', err);
     }
   }, [editor.panX, editor.panY, editor.zoom, addNode]);
 
