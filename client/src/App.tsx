@@ -102,6 +102,19 @@ import DigitalTwinLayout from "./pages/digital-twin/DigitalTwinLayout";
 import KnowledgeExplorer from "./pages/cognitive/KnowledgeExplorer";
 import CognitionEnginePage from "./pages/cognitive/CognitionEnginePage";
 
+// Phase 1 — 感知层增强独立页面
+import BPABuilderPage from "./pages/perception-enhance/BPABuilderPage";
+import StateVectorPage from "./pages/perception-enhance/StateVectorPage";
+import DSFusionPage from "./pages/perception-enhance/DSFusionPage";
+import PersistencePage from "./pages/perception-enhance/PersistencePage";
+// Phase 2 — 认知推理引擎独立页面
+import CausalGraphPage from "./pages/cognition-reasoning/CausalGraphPage";
+import ExperiencePoolPage from "./pages/cognition-reasoning/ExperiencePoolPage";
+import PhysicsVerifierPage from "./pages/cognition-reasoning/PhysicsVerifierPage";
+import OrchestratorPage from "./pages/cognition-reasoning/OrchestratorPage";
+import FeedbackLoopPage from "./pages/cognition-reasoning/FeedbackLoopPage";
+import ObservabilityPage from "./pages/cognition-reasoning/ObservabilityPage";
+
 // 基础设置模块
 import {
   DictionaryManager,
@@ -364,6 +377,20 @@ function Router() {
 
       {/* ━━━ 认知引擎子页面 ━━━ */}
       <Route path="/v5/engine" component={CognitionEnginePage} />
+
+      {/* ━━━ Phase 1 — 感知层增强 ━━━ */}
+      <Route path="/v5/perception/bpa-builder" component={BPABuilderPage} />
+      <Route path="/v5/perception/state-vector" component={StateVectorPage} />
+      <Route path="/v5/perception/ds-fusion" component={DSFusionPage} />
+      <Route path="/v5/perception/persistence" component={PersistencePage} />
+
+      {/* ━━━ Phase 2 — 认知推理引擎 ━━━ */}
+      <Route path="/v5/cognition/causal-graph" component={CausalGraphPage} />
+      <Route path="/v5/cognition/experience-pool" component={ExperiencePoolPage} />
+      <Route path="/v5/cognition/physics-verifier" component={PhysicsVerifierPage} />
+      <Route path="/v5/cognition/orchestrator" component={OrchestratorPage} />
+      <Route path="/v5/cognition/feedback-loop" component={FeedbackLoopPage} />
+      <Route path="/v5/cognition/observability" component={ObservabilityPage} />
 
       {/* 404 */}
       <Route path="/404" component={NotFound} />

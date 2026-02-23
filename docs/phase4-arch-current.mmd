@@ -1,0 +1,12 @@
+graph TB
+    subgraph Current["当前（扁平结构）"]
+        PAGES["pages/<br/>GuardrailConsole.tsx<br/>KnowledgeExplorer.tsx"]
+        DOMAINS["domains/<br/>guardrail + knowledge"]
+        PLATFORM["platform/<br/>cognition/safety + knowledge/services"]
+    end
+    subgraph Storage["MySQL"]
+        DB["guardrail_rules<br/>guardrail_violations<br/>knowledge_crystals"]
+    end
+    PAGES -.->|"跨层直接import"| PLATFORM
+    DOMAINS --> PLATFORM
+    PLATFORM -.->|"内存脱节"| DB

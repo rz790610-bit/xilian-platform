@@ -1,0 +1,10 @@
+graph LR
+    T["触发条件满足"] --> SEV{"severity 评估"}
+    SEV -->|"≤0.7"| L1["Level 1: ALERT"]
+    SEV -->|"0.7-0.9"| L2["Level 2: THROTTLE<br/>(同步写DB)"]
+    SEV -->|">0.9"| L3["Level 3: HALT<br/>(同步写DB)"]
+    L1 -->|"延迟+severity升高"| L2
+    L2 -->|"延迟+未改善"| L3
+    L1 -->|"确认/恢复"| R["resolved"]
+    L2 -->|"确认/恢复"| R
+    L3 -->|"人工确认"| R

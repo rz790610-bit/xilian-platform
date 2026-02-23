@@ -1,0 +1,9 @@
+stateDiagram-v2
+    [*] --> draft: 创建(手动/系统)
+    draft --> pending_review: 提交审核
+    pending_review --> approved: 审核通过
+    pending_review --> rejected: 审核拒绝(附意见)
+    rejected --> pending_review: 修改后重新提交
+    approved --> deprecated: 手动废弃
+    approved --> pending_review: 自动降级(NFR>40%)
+    deprecated --> [*]

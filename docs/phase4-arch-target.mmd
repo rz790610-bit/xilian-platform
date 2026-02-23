@@ -1,0 +1,35 @@
+graph TB
+    subgraph FSD["FSD Layers（全栈统一）"]
+        APP["app/（入口、EventBus 注册）"]
+        PAGES["pages/（dashboard 路由）"]
+        WIDGETS["widgets/（GuardrailConsole、KnowledgeExplorer）"]
+        FEATURES["features/（guardrail、knowledge-crystal）"]
+        ENTITIES["entities/（guardrail-rule、knowledge-crystal）"]
+        SHARED["shared/（ui、kernel、lib、types）"]
+    end
+    subgraph FG["features/guardrail/"]
+        GE["model/GuardrailEngine v4<br/>EWMA+severity+fallback<br/>+冷却/升级分离"]
+        GR["api/guardrail.router.ts"]
+        GJ["service/effectiveness-job.ts"]
+        GEV["events/guardrail-events.ts"]
+    end
+    subgraph FK["features/knowledge-crystal/"]
+        DBS["model/DbKnowledgeStore<br/>TF-IDF+缓存+防抖<br/>+content_hash去重"]
+        KR["api/knowledge.router.ts"]
+        AD["service/auto-deprecation.ts"]
+    end
+    subgraph Cache["TTL 缓存层"]
+        RC["RuleCache 60s"]
+        KC["CrystalCache 300s"]
+    end
+    subgraph DB["MySQL"]
+        GDB["guardrail_rules +cooldown_ms +escalation_config<br/>guardrail_violations +escalation_level +severity<br/>guardrail_effectiveness_logs (新)"]
+        KDB["knowledge_crystals +type/status/content_hash<br/>crystal_applications (新) +FK<br/>crystal_migrations (新) +FK"]
+    end
+    FG --> ENTITIES & SHARED
+    FK --> ENTITIES & SHARED
+    GE --> RC --> GDB
+    GE -->|"emit violation"| GEV
+    GEV -->|"写入"| GDB
+    GEV -->|"触发结晶"| DBS
+    DBS --> KC --> KDB

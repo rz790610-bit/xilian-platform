@@ -140,6 +140,30 @@ export const navigationConfig: NavItem[] = [
     ]
   },
   {
+    id: 'v5-perception-enhance',
+    label: '感知层增强',
+    icon: '📡',
+    children: [
+      { id: 'v5-bpa-builder', label: 'BPA 构建器', icon: '🎯', path: '/v5/perception/bpa-builder' },
+      { id: 'v5-state-vector', label: '状态向量合成器', icon: '📐', path: '/v5/perception/state-vector' },
+      { id: 'v5-ds-fusion', label: 'DS 融合引擎', icon: '🔀', path: '/v5/perception/ds-fusion' },
+      { id: 'v5-persistence', label: '持久化服务', icon: '💾', path: '/v5/perception/persistence' },
+    ]
+  },
+  {
+    id: 'v5-cognition-reasoning',
+    label: '认知推理引擎',
+    icon: '⚡',
+    children: [
+      { id: 'v5-causal-graph', label: '因果图', icon: '🕸️', path: '/v5/cognition/causal-graph' },
+      { id: 'v5-experience-pool', label: '经验池', icon: '🧠', path: '/v5/cognition/experience-pool' },
+      { id: 'v5-physics-verifier', label: '物理验证器', icon: '⚖️', path: '/v5/cognition/physics-verifier' },
+      { id: 'v5-orchestrator', label: '混合编排器', icon: '🎼', path: '/v5/cognition/orchestrator' },
+      { id: 'v5-feedback-loop', label: '知识反馈环', icon: '🔄', path: '/v5/cognition/feedback-loop' },
+      { id: 'v5-observability', label: '可观测性', icon: '📊', path: '/v5/cognition/observability' },
+    ]
+  },
+  {
     id: 'v5-cognitive',
     label: '认知中枢',
     icon: '🧠',

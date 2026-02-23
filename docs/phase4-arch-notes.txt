@@ -1,0 +1,6 @@
+Phase 4 架构图关键信息:
+- 当前架构图: docs/phase4-arch-current.png - 显示了虚线连接(内存规则与DB脱节/InMemoryStore/纯内存/TODO)
+- 目标架构图: docs/phase4-arch-target.png - 显示了实线连接(DB加载+趋势+升级链/DB持久化/新建表)
+- 新增组件: DbKnowledgeStore适配器
+- 新增表: crystal_applications, crystal_migrations, guardrail_effectiveness_logs
+- 扩展表: guardrail_rules(+cooldown_ms), guardrail_violations(+escalation_level/resolved_at), knowledge_crystals(+type/status/source_type/created_by/app_count)
