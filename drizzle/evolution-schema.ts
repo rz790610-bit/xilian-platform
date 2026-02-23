@@ -350,6 +350,12 @@ export const guardrailRules = mysqlTable('guardrail_rules', {
   applicableConditions: json('applicable_conditions').$type<string[]>(),
   /** 物理依据 */
   physicalBasis: text('physical_basis'),
+  /** 触发冷却时间(毫秒) */
+  cooldownMs: int('cooldown_ms').notNull().default(60000),
+  /** 升级链配置 {levels:[{action,delayMs}]} */
+  escalationConfig: json('escalation_config').$type<{
+    levels: Array<{ action: string; delayMs: number }>;
+  }>(),
   createdAt: timestamp('created_at', { fsp: 3 }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { fsp: 3 }).defaultNow().notNull(),
 }, (table) => [
@@ -381,6 +387,12 @@ export const guardrailViolations = mysqlTable('guardrail_violations', {
   outcome: mysqlEnum('outcome', ['executed', 'overridden', 'failed', 'pending']).notNull().default('pending'),
   /** 干预后设备状态改善（事后填充） */
   postInterventionImprovement: double('post_intervention_improvement'),
+  /** 当前升级级别 1=ALERT 2=THROTTLE 3=HALT */
+  escalationLevel: tinyint('escalation_level').notNull().default(1),
+  /** 告警解除时间 */
+  resolvedAt: timestamp('resolved_at', { fsp: 3 }),
+  /** 告警严重度 0.0-1.0 */
+  severity: double('severity'),
   createdAt: timestamp('created_at', { fsp: 3 }).defaultNow().notNull(),
 }, (table) => [
   index('idx_gv_rule').on(table.ruleId),
@@ -533,11 +545,31 @@ export const knowledgeCrystals = mysqlTable('knowledge_crystals', {
   verificationCount: int('verification_count').notNull().default(0),
   /** 最后验证时间 */
   lastVerifiedAt: timestamp('last_verified_at', { fsp: 3 }),
+  /** 结晶类型 */
+  type: mysqlEnum('type', ['pattern', 'threshold_update', 'causal_link', 'anomaly_signature']).notNull().default('pattern'),
+  /** 生命周期状态 */
+  status: mysqlEnum('status', ['draft', 'pending_review', 'approved', 'rejected', 'deprecated']).notNull().default('draft'),
+  /** 来源类型 */
+  sourceType: mysqlEnum('source_type', ['cognition', 'evolution', 'manual', 'guardrail']).notNull().default('cognition'),
+  /** 创建者（system:cognition / system:evolution / user:xxx） */
+  createdBy: varchar('created_by', { length: 100 }),
+  /** 应用次数 */
+  applicationCount: int('application_count').notNull().default(0),
+  /** 负面反馈率 */
+  negativeFeedbackRate: double('negative_feedback_rate').notNull().default(0),
+  /** 审核意见（rejected 时必填） */
+  reviewComment: text('review_comment'),
+  /** pattern 内容 MD5 哈希，用于并发去重 */
+  contentHash: varchar('content_hash', { length: 32 }),
   createdAt: timestamp('created_at', { fsp: 3 }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { fsp: 3 }).defaultNow().notNull(),
 }, (table) => [
   index('idx_kc_confidence').on(table.confidence),
   index('idx_kc_kg_node').on(table.kgNodeId),
+  uniqueIndex('uk_crystal_hash').on(table.type, table.contentHash),
+  index('idx_kc_type_status').on(table.type, table.status),
+  index('idx_kc_status_nfr').on(table.status, table.negativeFeedbackRate),
+  index('idx_kc_content_hash').on(table.contentHash),
 ]);
 export type KnowledgeCrystal = typeof knowledgeCrystals.$inferSelect;
 export type InsertKnowledgeCrystal = typeof knowledgeCrystals.$inferInsert;
@@ -1548,3 +1580,68 @@ export const twinConfigSimulationRuns = mysqlTable('twin_config_simulation_runs'
 ]);
 export type TwinConfigSimulationRunRow = typeof twinConfigSimulationRuns.$inferSelect;
 export type InsertTwinConfigSimulationRun = typeof twinConfigSimulationRuns.$inferInsert;
+
+// ============================================================================
+// Phase 4 新增表（3 张）
+// ============================================================================
+
+/**
+ * 护栏效果评估日志 — 批处理任务每日写入，按规则聚合触发统计
+ */
+export const guardrailEffectivenessLogs = mysqlTable('guardrail_effectiveness_logs', {
+  id: bigint('id', { mode: 'number' }).autoincrement().primaryKey(),
+  ruleId: bigint('rule_id', { mode: 'number' }).notNull(),
+  periodStart: date('period_start').notNull(),
+  periodEnd: date('period_end').notNull(),
+  totalTriggers: int('total_triggers').notNull().default(0),
+  truePositives: int('true_positives').notNull().default(0),
+  falsePositives: int('false_positives').notNull().default(0),
+  avgSeverity: double('avg_severity'),
+  computedAt: timestamp('computed_at', { fsp: 3 }).defaultNow().notNull(),
+}, (table) => [
+  index('idx_gel_rule').on(table.ruleId),
+  index('idx_gel_period').on(table.periodStart, table.periodEnd),
+]);
+export type GuardrailEffectivenessLog = typeof guardrailEffectivenessLogs.$inferSelect;
+export type InsertGuardrailEffectivenessLog = typeof guardrailEffectivenessLogs.$inferInsert;
+
+/**
+ * 结晶应用追踪 — 记录每次结晶被应用的场景、上下文和效果
+ */
+export const crystalApplications = mysqlTable('crystal_applications', {
+  id: bigint('id', { mode: 'number' }).autoincrement().primaryKey(),
+  crystalId: bigint('crystal_id', { mode: 'number' }).notNull(),
+  appliedIn: varchar('applied_in', { length: 50 }).notNull(),
+  contextSummary: text('context_summary'),
+  outcome: mysqlEnum('outcome', ['positive', 'negative', 'neutral']),
+  appliedAt: timestamp('applied_at', { fsp: 3 }).defaultNow().notNull(),
+}, (table) => [
+  index('idx_ca_crystal').on(table.crystalId),
+  index('idx_ca_time').on(table.appliedAt),
+]);
+export type CrystalApplication = typeof crystalApplications.$inferSelect;
+export type InsertCrystalApplication = typeof crystalApplications.$inferInsert;
+
+/**
+ * 结晶迁移追踪 — 记录跨工况迁移的源、目标、适配调整和结果
+ * ON DELETE 策略：crystal_id RESTRICT（源结晶不可删除），new_crystal_id SET NULL（保留迁移记录）
+ */
+export const crystalMigrations = mysqlTable('crystal_migrations', {
+  id: bigint('id', { mode: 'number' }).autoincrement().primaryKey(),
+  crystalId: bigint('crystal_id', { mode: 'number' }).notNull(),
+  fromProfile: varchar('from_profile', { length: 100 }).notNull(),
+  toProfile: varchar('to_profile', { length: 100 }).notNull(),
+  adaptations: json('adaptations').$type<Array<{
+    field: string;
+    originalValue: unknown;
+    adaptedValue: unknown;
+    reason: string;
+  }>>().notNull(),
+  newCrystalId: bigint('new_crystal_id', { mode: 'number' }),
+  status: mysqlEnum('status', ['pending', 'success', 'failed']).notNull().default('pending'),
+  migratedAt: timestamp('migrated_at', { fsp: 3 }).defaultNow().notNull(),
+}, (table) => [
+  index('idx_cm_crystal').on(table.crystalId),
+]);
+export type CrystalMigration = typeof crystalMigrations.$inferSelect;
+export type InsertCrystalMigration = typeof crystalMigrations.$inferInsert;

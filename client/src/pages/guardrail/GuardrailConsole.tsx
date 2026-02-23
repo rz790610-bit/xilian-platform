@@ -25,8 +25,11 @@ import { toast } from 'sonner';
 // 类型
 // ============================================================================
 
-interface GuardrailRule { id: string; name: string; category: 'safety' | 'health' | 'efficiency'; enabled: boolean; severity: 'critical' | 'high' | 'medium' | 'low'; description: string; conditionSummary: string; triggerCount: number; lastTriggeredAt: string | null; cooldownMs: number }
-interface AlertHistory { id: string; ruleId: string; category: 'safety' | 'health' | 'efficiency'; severity: 'critical' | 'high' | 'medium' | 'low'; equipmentId: string; message: string; acknowledged: boolean; createdAt: string }
+interface GuardrailRule { id: string; name: string; category: 'safety' | 'health' | 'efficiency'; enabled: boolean; severity: 'critical' | 'high' | 'medium' | 'low'; description: string; conditionSummary: string; triggerCount: number; lastTriggeredAt: string | null; cooldownMs: number; escalationConfig?: any }
+interface AlertHistory { id: string; ruleId: string; category: 'safety' | 'health' | 'efficiency'; severity: 'critical' | 'high' | 'medium' | 'low'; equipmentId: string; message: string; acknowledged: boolean; createdAt: string; escalationLevel?: number; violationSeverity?: number | null; resolvedAt?: string | null }
+interface EffectivenessOverview { totalTriggers: number; executionRate: number; falsePositiveRate: number; dataAsOf: string | null }
+interface RuleEffectiveness { ruleId: number; ruleName: string; ruleType: string; totalTriggers: number; truePositives: number; falsePositives: number; avgSeverity: number; precision: number; periodStart: string; periodEnd: string }
+interface DailyStat { date: string; count: number; avgSeverity: number }
 
 // ============================================================================
 // 创建/编辑规则对话框
@@ -144,6 +147,9 @@ export default function GuardrailConsole() {
   const rulesQuery = trpc.evoGuardrail.listRules.useQuery(undefined, { retry: 2 });
   const historyQuery = trpc.evoGuardrail.listAlertHistory.useQuery({ limit: 100 }, { retry: 2 });
   const alertsQuery = trpc.evoGuardrail.listAlerts.useQuery({ limit: 100, acknowledged: false }, { retry: 2 });
+  const effectivenessOverviewQuery = trpc.evoGuardrail.effectiveness.overview.useQuery({ days: 30 }, { enabled: activeTab === 'effectiveness', retry: 2 });
+  const effectivenessByRuleQuery = trpc.evoGuardrail.effectiveness.byRule.useQuery({ days: 30 }, { enabled: activeTab === 'effectiveness', retry: 2 });
+  const dailyStatsQuery = trpc.evoGuardrail.violation.dailyStats.useQuery({ days: 30 }, { enabled: activeTab === 'effectiveness', retry: 2 });
 
   const toggleRuleMutation = trpc.evoGuardrail.toggleRule.useMutation({ onSuccess: () => { rulesQuery.refetch(); toast.success('规则状态已更新'); }, onError: (e) => toast.error(`操作失败: ${e.message}`) });
   const acknowledgeMutation = trpc.evoGuardrail.acknowledgeAlert.useMutation({ onSuccess: () => { historyQuery.refetch(); alertsQuery.refetch(); toast.success('告警已确认'); }, onError: (e) => toast.error(`操作失败: ${e.message}`) });
@@ -224,6 +230,7 @@ export default function GuardrailConsole() {
             </TabsTrigger>
             <TabsTrigger value="history" className="text-xs">告警历史</TabsTrigger>
             <TabsTrigger value="stats" className="text-xs">统计分析</TabsTrigger>
+            <TabsTrigger value="effectiveness" className="text-xs">效果分析</TabsTrigger>
           </TabsList>
           <div className="flex gap-0.5 bg-muted p-0.5 rounded-md">
             {(['all', 'safety', 'health', 'efficiency'] as const).map(cat => (
@@ -377,6 +384,91 @@ export default function GuardrailConsole() {
               </TableBody>
             </Table>
           </PageCard>
+        </TabsContent>
+
+        {/* ===== G6: 效果分析 ===== */}
+        <TabsContent value="effectiveness" className="mt-2">
+          {(() => {
+            const overview = effectivenessOverviewQuery.data as EffectivenessOverview | undefined;
+            const byRuleData = (effectivenessByRuleQuery.data as { stats: RuleEffectiveness[] } | undefined)?.stats ?? [];
+            const dailyStats = (dailyStatsQuery.data as DailyStat[]) ?? [];
+            const isEffLoading = effectivenessOverviewQuery.isLoading;
+
+            if (isEffLoading) return <div className="flex items-center justify-center py-8 gap-2"><div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" /><span className="text-xs text-muted-foreground">加载效果数据...</span></div>;
+
+            return (
+              <div className="space-y-3">
+                {/* 效果概览卡片 */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                  <StatCard value={overview?.totalTriggers ?? 0} label="30天总触发" icon="⚡" />
+                  <StatCard value={`${Math.round((overview?.executionRate ?? 0) * 100)}%`} label="执行率" icon="✅" />
+                  <StatCard value={`${Math.round((overview?.falsePositiveRate ?? 0) * 100)}%`} label="误报率" icon="⚠️" />
+                  <StatCard value={overview?.dataAsOf ? new Date(overview.dataAsOf).toLocaleDateString() : '暂无'} label="数据截至" icon="📅" />
+                </div>
+
+                {/* 每日触发趋势 */}
+                {dailyStats.length > 0 && (
+                  <PageCard title="每日触发趋势（近30天）" icon="📈">
+                    <div className="h-32 flex items-end gap-0.5">
+                      {(() => {
+                        const maxCount = Math.max(...dailyStats.map(d => Number(d.count)), 1);
+                        return dailyStats.map((d, i) => (
+                          <div key={i} className="flex-1 flex flex-col items-center gap-0.5">
+                            <span className="text-[8px] text-muted-foreground">{Number(d.count)}</span>
+                            <div className="w-full bg-primary/80 rounded-t" style={{ height: `${(Number(d.count) / maxCount) * 100}px`, minHeight: '2px' }} title={`${d.date}: ${d.count}次, 平均严重度 ${Number(d.avgSeverity).toFixed(2)}`} />
+                            {i % 5 === 0 && <span className="text-[7px] text-muted-foreground">{String(d.date).slice(5)}</span>}
+                          </div>
+                        ));
+                      })()}
+                    </div>
+                  </PageCard>
+                )}
+
+                {/* 规则效果表格 */}
+                <PageCard title="规则效果评估" icon="📊" noPadding>
+                  <div className="p-2">
+                    {byRuleData.length === 0 ? (
+                      <div className="text-center py-4 text-xs text-muted-foreground">暂无效果评估数据，请先运行批处理任务</div>
+                    ) : (
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="text-[10px] py-1">规则</TableHead>
+                            <TableHead className="text-[10px] py-1">类别</TableHead>
+                            <TableHead className="text-[10px] py-1 text-right">总触发</TableHead>
+                            <TableHead className="text-[10px] py-1 text-right">真阳性</TableHead>
+                            <TableHead className="text-[10px] py-1 text-right">误报</TableHead>
+                            <TableHead className="text-[10px] py-1 text-right">精确率</TableHead>
+                            <TableHead className="text-[10px] py-1 text-right">平均严重度</TableHead>
+                            <TableHead className="text-[10px] py-1">评估周期</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {byRuleData.map(stat => (
+                            <TableRow key={stat.ruleId}>
+                              <TableCell className="text-xs font-medium py-1">{stat.ruleName}</TableCell>
+                              <TableCell className="py-1"><Badge variant="outline" className="text-[10px]">{categoryLabels[stat.ruleType] ?? stat.ruleType}</Badge></TableCell>
+                              <TableCell className="text-right font-mono text-xs py-1">{stat.totalTriggers}</TableCell>
+                              <TableCell className="text-right font-mono text-xs py-1 text-green-600">{stat.truePositives}</TableCell>
+                              <TableCell className="text-right font-mono text-xs py-1 text-red-600">{stat.falsePositives}</TableCell>
+                              <TableCell className="text-right py-1">
+                                <div className="flex items-center justify-end gap-1">
+                                  <div className="w-12 h-1.5 bg-muted rounded-full overflow-hidden"><div className={`h-full rounded-full ${stat.precision > 0.8 ? 'bg-green-500' : stat.precision > 0.6 ? 'bg-yellow-500' : 'bg-red-500'}`} style={{ width: `${stat.precision * 100}%` }} /></div>
+                                  <span className="text-[10px] font-mono">{Math.round(stat.precision * 100)}%</span>
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-right font-mono text-[10px] py-1">{Number(stat.avgSeverity).toFixed(2)}</TableCell>
+                              <TableCell className="text-[10px] text-muted-foreground py-1 whitespace-nowrap">{stat.periodStart?.slice(0, 10)} ~ {stat.periodEnd?.slice(0, 10)}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    )}
+                  </div>
+                </PageCard>
+              </div>
+            );
+          })()}
         </TabsContent>
       </Tabs>
 

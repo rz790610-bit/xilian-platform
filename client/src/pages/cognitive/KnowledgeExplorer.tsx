@@ -28,7 +28,9 @@ import { toast } from 'sonner';
 
 interface KGNode { id: string; label: string; type: 'equipment' | 'component' | 'failure' | 'symptom' | 'action' | 'condition'; properties: Record<string, string> }
 interface KGEdge { source: string; target: string; relation: string; weight: number }
-interface Crystal { id: string; type: 'pattern' | 'rule' | 'threshold' | 'model'; name: string; description: string; confidence: number; sourceCount: number; appliedCount: number; status: 'draft' | 'reviewed' | 'applied' | 'deprecated'; createdAt: string }
+interface Crystal { id: string; type: 'pattern' | 'rule' | 'threshold' | 'model'; name: string; description: string; confidence: number; sourceCount: number; appliedCount: number; status: 'draft' | 'reviewed' | 'applied' | 'deprecated'; createdAt: string; negativeFeedbackRate?: number; reviewComment?: string; contentHash?: string; sourceType?: string; createdBy?: string }
+interface CrystalApplication { id: number; crystalId: number; appliedIn: string; contextSummary: string; outcome: 'positive' | 'negative' | 'neutral'; appliedAt: string }
+interface CrystalMigration { id: number; crystalId: number; fromProfile: string; toProfile: string; adaptations: string; status: string; migratedAt: string }
 interface Feature { id: string; name: string; domain: string; version: string; inputDimensions: string[]; outputType: string; driftStatus: 'stable' | 'drifting' | 'critical'; usageCount: number }
 interface ModelEntry { id: string; name: string; version: string; type: string; stage: 'development' | 'staging' | 'production' | 'archived'; accuracy: number; lastTrainedAt: string; servingCount: number }
 
@@ -176,9 +178,25 @@ export default function KnowledgeExplorer() {
   const [createFeatureOpen, setCreateFeatureOpen] = useState(false);
   const [selectedCrystal, setSelectedCrystal] = useState<Crystal | null>(null);
   const [graphDepth, setGraphDepth] = useState(3);
+  const [crystalStatusFilter, setCrystalStatusFilter] = useState<string>('all');
+  const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
+  const [reviewTarget, setReviewTarget] = useState<Crystal | null>(null);
+  const [reviewComment, setReviewComment] = useState('');
+  const [reviewAction, setReviewAction] = useState<'approve' | 'reject'>('approve');
 
   const graphQuery = trpc.evoKnowledge.getKnowledgeGraph.useQuery({ depth: graphDepth }, { enabled: activeTab === 'graph', retry: 2 });
-  const crystalsQuery = trpc.evoKnowledge.listCrystals.useQuery(undefined, { retry: 2 });
+  const crystalsQuery = trpc.evoKnowledge.listCrystals.useQuery(
+    crystalStatusFilter !== 'all' ? { status: crystalStatusFilter } : undefined,
+    { retry: 2 }
+  );
+  const reviewCrystalMutation = trpc.evoKnowledge.reviewCrystal.useMutation({
+    onSuccess: () => { crystalsQuery.refetch(); setReviewDialogOpen(false); setReviewTarget(null); toast.success('审核完成'); },
+    onError: (e: any) => toast.error(`审核失败: ${e.message}`),
+  });
+  const crystalEffectivenessQuery = trpc.evoKnowledge.getCrystalEffectiveness.useQuery(
+    { crystalId: selectedCrystal?.id ? Number(selectedCrystal.id) : 0 },
+    { enabled: !!selectedCrystal, retry: 1 }
+  );
   const featuresQuery = trpc.evoKnowledge.listFeatures.useQuery(undefined, { retry: 2 });
   const modelsQuery = trpc.evoKnowledge.listModels.useQuery(undefined, { retry: 2 });
 
@@ -215,6 +233,13 @@ export default function KnowledgeExplorer() {
   const handleDeprecate = useCallback((crystalId: string) => {
     toast.success('结晶已标记为废弃'); setSelectedCrystal(null); crystalsQuery.refetch();
   }, [crystalsQuery]);
+
+  const handleReviewSubmit = useCallback(() => {
+    if (!reviewTarget) return;
+    reviewCrystalMutation.mutate({ crystalId: Number(reviewTarget.id), action: reviewAction, comment: reviewComment || undefined });
+  }, [reviewTarget, reviewAction, reviewComment, reviewCrystalMutation]);
+
+  const filteredCrystals = crystals;
 
   return (
     <MainLayout title="知识探索器">
@@ -257,31 +282,48 @@ export default function KnowledgeExplorer() {
 
         {/* ===== 知识结晶 ===== */}
         <TabsContent value="crystals" className="mt-2">
+          {/* K6: 状态筛选栏 */}
+          <div className="flex gap-0.5 bg-muted p-0.5 rounded-md mb-2">
+            {(['all', 'draft', 'pending_review', 'approved', 'deprecated'] as const).map(st => (
+              <button key={st} className={`px-2 py-1 text-[10px] rounded transition-colors ${crystalStatusFilter === st ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`} onClick={() => setCrystalStatusFilter(st)}>
+                {st === 'all' ? '全部' : st === 'draft' ? '草稿' : st === 'pending_review' ? '待审核' : st === 'approved' ? '已批准' : '已废弃'}
+              </button>
+            ))}
+          </div>
+
           {crystalsQuery.isLoading ? (
             <div className="flex items-center justify-center py-8 gap-2"><div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" /><span className="text-xs text-muted-foreground">加载中...</span></div>
-          ) : crystals.length === 0 ? (
+          ) : filteredCrystals.length === 0 ? (
             <div className="text-center py-8"><p className="text-xs text-muted-foreground">暂无知识结晶</p><Button size="sm" className="mt-2 h-7 text-xs" onClick={() => setCreateCrystalOpen(true)}>创建第一个结晶</Button></div>
           ) : (
             <div className="space-y-1.5">
-              {crystals.map(crystal => (
+              {filteredCrystals.map(crystal => (
                 <PageCard key={crystal.id} className="cursor-pointer" onClick={() => setSelectedCrystal(crystal)}>
                   <div className="flex items-center justify-between mb-1">
                     <div className="flex items-center gap-1.5">
-                      <Badge variant="outline" className="text-[10px]">{typeLabels[crystal.type]}</Badge>
+                      <Badge variant="outline" className="text-[10px]">{typeLabels[crystal.type] ?? crystal.type}</Badge>
                       <span className="text-xs font-medium">{crystal.name}</span>
-                      <Badge variant={statusVariant(crystal.status)} className="text-[10px]">{statusLabels[crystal.status]}</Badge>
+                      <Badge variant={statusVariant(crystal.status)} className="text-[10px]">{statusLabels[crystal.status] ?? crystal.status}</Badge>
+                      {crystal.sourceType && <Badge variant="outline" className="text-[10px] opacity-60">{crystal.sourceType}</Badge>}
                     </div>
-                    {crystal.status === 'reviewed' && (
-                      <Button size="sm" className="h-6 text-[10px]" onClick={(e) => { e.stopPropagation(); applyCrystalMutation.mutate({ crystalId: crystal.id }); }}>应用</Button>
-                    )}
+                    <div className="flex gap-0.5">
+                      {(crystal.status === 'draft' || crystal.status === 'pending_review' as any) && (
+                        <Button size="sm" variant="outline" className="h-6 text-[10px]" onClick={(e) => { e.stopPropagation(); setReviewTarget(crystal); setReviewDialogOpen(true); }}>审核</Button>
+                      )}
+                      {(crystal.status === 'reviewed' || crystal.status === 'approved' as any) && (
+                        <Button size="sm" className="h-6 text-[10px]" onClick={(e) => { e.stopPropagation(); applyCrystalMutation.mutate({ crystalId: crystal.id }); }}>应用</Button>
+                      )}
+                    </div>
                   </div>
                   <p className="text-[10px] text-muted-foreground mb-1">{crystal.description}</p>
                   <div className="flex gap-3 text-[10px] text-muted-foreground">
                     <span>置信度: <span className="text-foreground font-mono">{Math.round(crystal.confidence * 100)}%</span></span>
                     <span>数据源: <span className="text-foreground">{crystal.sourceCount}</span></span>
                     <span>应用: <span className="text-foreground">{crystal.appliedCount}次</span></span>
+                    {crystal.negativeFeedbackRate != null && <span>负反馈: <span className={`font-mono ${crystal.negativeFeedbackRate > 0.3 ? 'text-red-500' : 'text-foreground'}`}>{Math.round(crystal.negativeFeedbackRate * 100)}%</span></span>}
                     <span>创建: {new Date(crystal.createdAt).toLocaleDateString()}</span>
                   </div>
+                  {crystal.reviewComment && <p className="text-[10px] text-yellow-600 mt-0.5">审核意见: {crystal.reviewComment}</p>}
                 </PageCard>
               ))}
             </div>
@@ -432,6 +474,33 @@ export default function KnowledgeExplorer() {
       <CreateCrystalDialog open={createCrystalOpen} onOpenChange={setCreateCrystalOpen} onSubmit={handleCreateCrystal} isSubmitting={false} />
       <CreateFeatureDialog open={createFeatureOpen} onOpenChange={setCreateFeatureOpen} onSubmit={handleCreateFeature} isSubmitting={false} />
       <CrystalDetailDialog open={!!selectedCrystal} onOpenChange={(open) => { if (!open) setSelectedCrystal(null); }} crystal={selectedCrystal} onApply={(id) => applyCrystalMutation.mutate({ crystalId: id })} onDeprecate={handleDeprecate} isApplying={applyCrystalMutation.isPending} />
+
+      {/* K6: 审核对话框 */}
+      <Dialog open={reviewDialogOpen} onOpenChange={setReviewDialogOpen}>
+        <DialogContent className="max-w-sm p-3 gap-1.5">
+          <DialogHeader className="gap-0.5 pb-0">
+            <DialogTitle className="text-sm">审核知识结晶</DialogTitle>
+            <DialogDescription className="text-[10px]">审核 "{reviewTarget?.name}" — 决定是否批准或驳回</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1.5">
+            <div className="space-y-0.5">
+              <Label className="text-[10px] text-muted-foreground">审核动作</Label>
+              <Select value={reviewAction} onValueChange={v => setReviewAction(v as 'approve' | 'reject')}>
+                <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="approve">✅ 批准</SelectItem><SelectItem value="reject">❌ 驳回</SelectItem></SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-0.5">
+              <Label className="text-[10px] text-muted-foreground">审核意见 (可选)</Label>
+              <Textarea className="text-xs min-h-[36px]" value={reviewComment} onChange={e => setReviewComment(e.target.value)} placeholder="输入审核意见..." rows={2} />
+            </div>
+          </div>
+          <DialogFooter className="pt-1">
+            <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setReviewDialogOpen(false)}>取消</Button>
+            <Button size="sm" className="h-7 text-xs" onClick={handleReviewSubmit} disabled={reviewCrystalMutation.isPending}>{reviewCrystalMutation.isPending ? '提交中...' : '提交审核'}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
     </MainLayout>
   );
