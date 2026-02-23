@@ -1,0 +1,106 @@
+# Dev Container 专用 Docker Compose
+# 仅启动开发所需的核心服务，不启动完整微服务栈
+#
+# 使用方式：
+#   1. VS Code: 自动通过 devcontainer.json 引用
+#   2. 手动: docker compose -f .devcontainer/docker-compose.devcontainer.yml up
+#
+# 服务分层：
+#   - app: 开发容器（Node.js 22）
+#   - mysql: 主数据库
+#   - redis: 缓存 + 消息队列
+#   - clickhouse: 时序分析（可选，按需启用）
+
+services:
+  # ── 开发容器 ──
+  app:
+    image: mcr.microsoft.com/devcontainers/typescript-node:22-bookworm
+    volumes:
+      - ..:/workspace:cached
+      - node_modules:/workspace/node_modules
+    command: sleep infinity
+    environment:
+      - NODE_ENV=development
+      - TZ=Asia/Shanghai
+      # 数据库连接
+      - DATABASE_HOST=mysql
+      - DATABASE_PORT=3306
+      - DATABASE_USER=xilian
+      - DATABASE_PASSWORD=xilian_dev_2026
+      - DATABASE_NAME=xilian_platform
+      # Redis
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      # ClickHouse
+      - CLICKHOUSE_HOST=clickhouse
+      - CLICKHOUSE_PORT=8123
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - devnet
+
+  # ── MySQL 8.0 ──
+  mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root_dev_2026
+      MYSQL_DATABASE: xilian_platform
+      MYSQL_USER: xilian
+      MYSQL_PASSWORD: xilian_dev_2026
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - devnet
+
+  # ── Redis 7 ──
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - devnet
+
+  # ── ClickHouse（可选，按需启用）──
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.3
+    restart: unless-stopped
+    ports:
+      - "8123:8123"
+      - "9010:9000"
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+    environment:
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+    profiles:
+      - analytics
+    networks:
+      - devnet
+
+volumes:
+  node_modules:
+  mysql_data:
+  redis_data:
+  clickhouse_data:
+
+networks:
+  devnet:
+    driver: bridge

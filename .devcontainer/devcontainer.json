@@ -1,0 +1,135 @@
+{
+  "name": "西联智能平台 (xilian-platform)",
+  "dockerComposeFile": "docker-compose.devcontainer.yml",
+  "service": "app",
+  "workspaceFolder": "/workspace",
+
+  // ── 功能扩展 ──
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "22",
+      "nodeGypDependencies": true
+    },
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {
+      "version": "latest",
+      "moby": true,
+      "dockerDashComposeVersion": "v2"
+    },
+    "ghcr.io/devcontainers/features/git:1": {
+      "version": "latest",
+      "ppa": true
+    },
+    "ghcr.io/devcontainers/features/github-cli:1": {
+      "version": "latest"
+    },
+    "ghcr.io/devcontainers/features/python:1": {
+      "version": "3.12",
+      "installTools": true
+    }
+  },
+
+  // ── 环境变量 ──
+  "containerEnv": {
+    "NODE_ENV": "development",
+    "OTEL_ENABLED": "false",
+    "TZ": "Asia/Shanghai"
+  },
+
+  // ── 端口转发 ──
+  "forwardPorts": [
+    3000,   // 应用主端口
+    3306,   // MySQL
+    6379,   // Redis
+    8123,   // ClickHouse HTTP
+    9000,   // MinIO API
+    9001,   // MinIO Console
+    6333,   // Qdrant
+    9092,   // Kafka
+    7474,   // Neo4j Browser
+    9090,   // Prometheus
+    3001,   // Grafana
+    16686,  // Jaeger UI
+    5601    // Kibana
+  ],
+
+  // ── VS Code 扩展 ──
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        // TypeScript & JavaScript
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "ms-vscode.vscode-typescript-next",
+
+        // Tailwind CSS
+        "bradlc.vscode-tailwindcss",
+
+        // Docker & Kubernetes
+        "ms-azuretools.vscode-docker",
+        "ms-kubernetes-tools.vscode-kubernetes-tools",
+
+        // Database
+        "cweijan.vscode-mysql-client2",
+        "redis.redis-for-vscode",
+
+        // Git
+        "eamodio.gitlens",
+        "mhutchie.git-graph",
+
+        // Testing
+        "vitest.explorer",
+
+        // API & HTTP
+        "humao.rest-client",
+
+        // Protobuf
+        "zxh404.vscode-proto3",
+
+        // YAML & TOML
+        "redhat.vscode-yaml",
+        "tamasfe.even-better-toml",
+
+        // Markdown
+        "yzhang.markdown-all-in-one",
+
+        // Error Lens
+        "usernamehw.errorlens",
+
+        // AI 辅助
+        "github.copilot",
+        "github.copilot-chat"
+      ],
+      "settings": {
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+          "source.fixAll.eslint": "explicit"
+        },
+        "typescript.tsdk": "node_modules/typescript/lib",
+        "typescript.enablePromptUseWorkspaceTsdk": true,
+        "eslint.workingDirectories": ["."],
+        "tailwindCSS.experimental.classRegex": [
+          ["cva\\(([^)]*)\\)", "[\"'`]([^\"'`]*).*?[\"'`]"],
+          ["cx\\(([^)]*)\\)", "(?:'|\"|`)([^']*)(?:'|\"|`)"]
+        ],
+        "files.associations": {
+          "*.css": "tailwindcss"
+        },
+        "[typescript]": {
+          "editor.defaultFormatter": "esbenp.prettier-vscode"
+        },
+        "[typescriptreact]": {
+          "editor.defaultFormatter": "esbenp.prettier-vscode"
+        }
+      }
+    }
+  },
+
+  // ── 生命周期钩子 ──
+  "postCreateCommand": "corepack enable && corepack prepare pnpm@10.4.1 --activate && pnpm install",
+  "postStartCommand": "echo '🚀 西联智能平台开发环境已就绪' && echo '运行 pnpm dev 启动开发服务器'",
+  "postAttachCommand": "git config --global --add safe.directory /workspace",
+
+  // ── 用户配置 ──
+  "remoteUser": "node"
+}
