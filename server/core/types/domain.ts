@@ -26,14 +26,11 @@
  * ID 体系规范（v2.0）：
  * - deviceCode: 设备编码，关联 asset_nodes.code，用于传感器/遥测数据关联
  * - sensorId: 传感器唯一标识，关联 asset_sensors.sensor_id
- * - deviceId: @deprecated 旧字段，过渡期保留，新代码请使用 deviceCode
  */
 export interface SensorReading {
   sensorId: string;
   /** 设备编码，关联 asset_nodes.code */
   deviceCode: string;
-  /** @deprecated 使用 deviceCode 代替。过渡期内等同于 deviceCode */
-  deviceId?: string;
   metricName?: string;
   value: number;
   unit?: string;
@@ -61,8 +58,6 @@ export interface AnomalyResult {
   nodeId: string;
   /** 设备编码，关联 asset_nodes.code（可选） */
   deviceCode?: string;
-  /** @deprecated 使用 nodeId 代替 */
-  deviceId?: string;
   metricName?: string;
   value?: number;
   currentValue?: number;
@@ -94,8 +89,6 @@ export interface AggregateResult {
   sensorId?: string;
   /** 设备编码，关联 asset_nodes.code */
   deviceCode?: string;
-  /** @deprecated 使用 deviceCode 代替 */
-  deviceId?: string;
   period?: '1m' | '5m' | '1h' | '1d' | string;
   periodStart?: Date;
   windowStart?: number;
@@ -189,8 +182,6 @@ export interface QueryOptions {
   endTime?: Date | string;
   /** 设备编码列表，关联 asset_nodes.code */
   deviceCodes?: string[];
-  /** @deprecated 使用 deviceCodes 代替 */
-  deviceIds?: string[];
   sensorIds?: string[];
   metricNames?: string[];
   // 分页兼容
@@ -238,8 +229,6 @@ export interface EventPayload {
   /** 设备编码，关联 asset_nodes.code */
   deviceCode?: string;
   sensorId?: string;
-  /** @deprecated 使用 nodeId 或 deviceCode 代替 */
-  deviceId?: string;
   userId?: string;
   correlationId?: string;
   // 载荷

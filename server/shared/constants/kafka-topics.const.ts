@@ -59,25 +59,6 @@ export const KAFKA_TOPICS = {
   /** 归档通知 */
   ARCHIVE_NOTIFICATIONS: 'xilian.archive-notifications',
 
-  // ===== 兼容旧版（映射到新 Topic） =====
-  /** @deprecated 使用 SENSOR_DATA */
-  SENSOR_READINGS: 'xilian.sensor.readings',
-  /** @deprecated 使用 TELEMETRY_FEATURE */
-  TELEMETRY: 'xilian.telemetry',
-  /** @deprecated 使用 EVENT_ALERT */
-  DEVICE_EVENTS: 'xilian.device.events',
-  /** @deprecated 使用 ANOMALY_RESULTS */
-  ANOMALY_ALERTS: 'xilian.anomaly.alerts',
-  /** @deprecated 使用 ANOMALY_RESULTS */
-  ANOMALIES: 'xilian.anomalies',
-  /** @deprecated 使用 AGGREGATIONS_1M */
-  AGGREGATIONS: 'xilian.aggregations',
-  /** @deprecated */
-  DIAGNOSIS_TASKS: 'xilian.diagnosis.tasks',
-  /** @deprecated */
-  WORKFLOW_EVENTS: 'xilian.workflow.events',
-  /** @deprecated */
-  SYSTEM_LOGS: 'xilian.system.logs',
 } as const;
 
 // ============ Topic 集群配置（分区、副本、保留策略） ============

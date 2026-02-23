@@ -33,8 +33,6 @@ export interface MetaLearnerQuery {
   ocProfileId?: string;
   /** 设备树节点ID */
   nodeId?: string;
-  /** @deprecated 使用 nodeId 代替 */
-  deviceId?: string;
   /** 异常类型 */
   anomalyType?: string;
   /** 异常源 */

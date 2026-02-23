@@ -64,8 +64,6 @@ export interface DimensionContext {
   ocProfileId?: string;
   /** 设备树节点ID */
   nodeId?: string;
-  /** @deprecated 使用 nodeId 代替 */
-  deviceId?: string;
   /** 降级模式 */
   degradationMode: DegradationMode;
 }
@@ -391,8 +389,7 @@ export class CognitionUnit {
     const context: DimensionContext = {
       completedDimensions: results,
       ocProfileId: stimulus.ocProfileId,
-      nodeId: stimulus.nodeId || stimulus.deviceId,
-      deviceId: stimulus.deviceId,  // @deprecated 兼容
+      nodeId: stimulus.nodeId,
       degradationMode: this.config.degradationMode,
     };
 

@@ -192,8 +192,8 @@ export class PerceptionProcessor implements DimensionProcessor<PerceptionOutput>
    */
   private async resolveBaseline(stimulus: CognitionStimulus): Promise<OCBaseline | null> {
     const ocProfileId = stimulus.payload?.ocProfileId as string | undefined;
-    // 优先使用 nodeId，回退 deviceId
-    const nodeId = (stimulus.nodeId || stimulus.payload?.nodeId || stimulus.payload?.deviceId) as string | undefined;
+    // 使用 nodeId
+    const nodeId = (stimulus.nodeId || stimulus.payload?.nodeId) as string | undefined;
 
     if (ocProfileId) {
       const baseline = await this.baselineAdapter.getBaseline(ocProfileId);

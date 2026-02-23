@@ -339,8 +339,6 @@ export interface PipelineHookContext {
   ocProfileId?: string;
   /** 设备树节点ID（关联设备） */
   deviceNodeId?: string;
-  /** @deprecated 使用 deviceNodeId 代替 */
-  deviceId?: string;
   /** 节点输出数据 */
   data: Record<string, unknown>;
 }

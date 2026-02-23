@@ -204,8 +204,6 @@ export interface CognitionStimulus {
   nodeId?: string;
   /** 设备编码 */
   deviceCode?: string;
-  /** @deprecated 使用 nodeId 代替 */
-  deviceId?: string;
   /** 关联的流水线运行 ID */
   pipelineRunId?: string;
   /** 原始数据载荷 */
@@ -472,8 +470,6 @@ export interface OCBaseline {
 export interface OCTransitionEvent {
   /** 设备树节点ID */
   nodeId: string;
-  /** @deprecated 使用 nodeId 代替 */
-  deviceId?: string;
   /** 前一个工况 ID */
   fromProfileId: string | null;
   /** 当前工况 ID */
@@ -524,8 +520,6 @@ export interface ToolExecutionContext {
   ocProfileId?: string;
   /** 设备树节点ID */
   nodeId?: string;
-  /** @deprecated 使用 nodeId 代替 */
-  deviceId?: string;
   /** 关联的流水线运行 ID */
   pipelineRunId?: string;
   /** 调用方 */

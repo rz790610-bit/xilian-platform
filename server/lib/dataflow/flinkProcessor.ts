@@ -294,19 +294,6 @@ export class AnomalyDetector {
     return result;
   }
 
-  /** @deprecated 已迁移到统一异常检测引擎 (anomalyEngine.ts) */
-  private calculateZScore(values: number[], currentValue: number): {
-    mean: number;
-    stdDev: number;
-    zScore: number;
-  } {
-    const n = values.length;
-    const mean = values.reduce((a, b) => a + b, 0) / n;
-    const variance = values.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / n;
-    const stdDev = Math.sqrt(variance);
-    const detection = unifiedDetectZScore(currentValue, mean, stdDev);
-    return { mean, stdDev, zScore: detection.score };
-  }
 
   private slideWindows(): void {
     const now = Date.now();
