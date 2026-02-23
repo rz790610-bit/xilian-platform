@@ -279,14 +279,10 @@ export const connectionService = {
         `SELECT SUM(DATA_LENGTH) as data_size, SUM(INDEX_LENGTH) as index_size FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE()`
       );
 
-      // 从 DATABASE_URL 解析 host/port
-      const dbUrl = process.env.DATABASE_URL || '';
-      const urlMatch = dbUrl.match(/@([^:]+):(\d+)\//);
-
       return {
         connected: true,
-        host: urlMatch?.[1] || 'localhost',
-        port: Number(urlMatch?.[2] || 3306),
+        host: config.mysql.host,
+        port: config.mysql.port,
         database: String(info.db_name || '-'),
         version: String(info.version || '-'),
         uptime: Number(uptimeRows[0]?.Value || 0),

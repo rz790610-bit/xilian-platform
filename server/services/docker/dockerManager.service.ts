@@ -12,6 +12,7 @@
 import http from 'http';
 import https from 'https';
 import { URL } from 'url';
+import { config } from '../../core/config';
 
 // ============ 类型定义 ============
 
@@ -171,7 +172,7 @@ class DockerClient {
   private useSocket: boolean;
 
   constructor() {
-    const dockerHost = process.env.DOCKER_HOST || 'unix:///var/run/docker.sock';
+    const dockerHost = config.docker.host || 'unix:///var/run/docker.sock';
     
     if (dockerHost.startsWith('unix://')) {
       this.socketPath = dockerHost.replace('unix://', '');

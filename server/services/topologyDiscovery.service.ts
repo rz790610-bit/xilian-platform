@@ -359,6 +359,7 @@ async function detectService(service: DiscoverableService): Promise<{
       }
       
       case 'env': {
+        // 【配置迁移豁免】拓扑发现通过动态 envVar 检测服务是否存在，无法静态映射
         const envValue = process.env[service.detection.envVar!];
         return {
           online: !!envValue,

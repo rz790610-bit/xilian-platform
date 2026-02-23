@@ -21,6 +21,7 @@
 import http from 'http';
 import https from 'https';
 import { createModuleLogger } from '../../core/logger';
+import { config as appConfig } from '../../core/config';
 
 const log = createModuleLogger('vault');
 
@@ -42,12 +43,12 @@ interface VaultConfig {
 }
 
 const config: VaultConfig = {
-  addr: process.env.VAULT_ADDR || 'http://localhost:8200',
-  token: process.env.VAULT_TOKEN || null,
-  roleId: process.env.VAULT_ROLE_ID || null,
-  secretId: process.env.VAULT_SECRET_ID || null,
-  namespace: process.env.VAULT_NAMESPACE || null,
-  caCert: process.env.VAULT_CACERT || null,
+  addr: appConfig.vault.addr || 'http://localhost:8200',
+  token: appConfig.vault.token || null,
+  roleId: appConfig.vault.roleId || null,
+  secretId: appConfig.vault.secretId || null,
+  namespace: appConfig.vault.namespace || null,
+  caCert: appConfig.vault.caCert || null,
   maxRetries: 3,
   retryDelayMs: 1000,
   cacheTtlMs: 300_000, // 5 分钟

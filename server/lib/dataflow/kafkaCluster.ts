@@ -11,6 +11,7 @@
 
 import { Kafka, Admin, Producer, Consumer, logLevel, CompressionTypes, ITopicConfig } from 'kafkajs';
 import { KAFKA_TOPICS, KAFKA_TOPIC_CLUSTER_CONFIGS, type TopicClusterConfig } from '../../shared/constants/kafka-topics.const';
+import { config as appConfig } from '../../core/config';
 import { createModuleLogger } from '../../core/logger';
 const log = createModuleLogger('kafkaCluster');
 
@@ -71,11 +72,11 @@ export const XILIAN_TOPICS: Record<string, TopicConfig> = Object.fromEntries(
 
 const DEFAULT_CLUSTER_CONFIG: KafkaClusterConfig = {
   brokers: [
-    { id: 1, host: process.env.KAFKA_BROKER1_HOST || 'localhost', port: 9092, rack: 'rack1' },
-    { id: 2, host: process.env.KAFKA_BROKER2_HOST || 'localhost', port: 9093, rack: 'rack2' },
-    { id: 3, host: process.env.KAFKA_BROKER3_HOST || 'localhost', port: 9094, rack: 'rack3' },
+    { id: 1, host: appConfig.kafkaCluster.broker1Host, port: 9092, rack: 'rack1' },
+    { id: 2, host: appConfig.kafkaCluster.broker2Host, port: 9093, rack: 'rack2' },
+    { id: 3, host: appConfig.kafkaCluster.broker3Host, port: 9094, rack: 'rack3' },
   ],
-  clusterId: process.env.KAFKA_CLUSTER_ID || 'xilian-kafka-cluster',
+  clusterId: appConfig.kafkaCluster.clusterId,
   clientId: 'xilian-platform',
   connectionTimeout: 10000,
   requestTimeout: 30000,
@@ -841,7 +842,7 @@ export class KafkaArchiver {
   constructor(config?: Partial<ArchiveConfig>) {
     this.config = {
       enabled: false,
-      storagePath: process.env.KAFKA_ARCHIVE_PATH || '/data/kafka-archives',
+      storagePath: appConfig.kafkaCluster.archivePath,
       retentionDays: 30,
       compressionType: 'gzip',
       maxFileSizeMB: 256,

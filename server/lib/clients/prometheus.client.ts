@@ -6,14 +6,15 @@
 import http from 'http';
 import https from 'https';
 import { createModuleLogger } from '../../core/logger';
+import appConfig from '../../core/config';
 const log = createModuleLogger('prometheus');
 
 // 配置
 
 const PROMETHEUS_CONFIG = {
-  host: process.env.PROMETHEUS_HOST || 'localhost',
-  port: parseInt(process.env.PROMETHEUS_PORT || '9090'),
-  protocol: process.env.PROMETHEUS_PROTOCOL || 'http',
+  host: appConfig.monitoring.prometheusHost,
+  port: appConfig.monitoring.prometheusPort,
+  protocol: appConfig.monitoring.prometheusProtocol,
   timeout: 30000,
 };
 

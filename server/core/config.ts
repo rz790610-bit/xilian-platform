@@ -580,6 +580,7 @@ export const config = {
     elasticsearchEnabled: envBool('FEATURE_ELASTICSEARCH_ENABLED', false),
     flinkEnabled: envBool('FEATURE_FLINK_ENABLED', false),
     grokEnabled: envBool('FEATURE_GROK_ENABLED', true),
+    grokEnhance: envBool('ENABLE_GROK_ENHANCE', true),
   },
 
   /** 存储引擎开关（用于 storageManager） */

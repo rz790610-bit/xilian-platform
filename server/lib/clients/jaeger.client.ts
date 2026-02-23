@@ -6,14 +6,15 @@
 import http from 'http';
 import https from 'https';
 import { createModuleLogger } from '../../core/logger';
+import appConfig from '../../core/config';
 const log = createModuleLogger('jaeger');
 
 // 配置
 
 const JAEGER_CONFIG = {
-  host: process.env.JAEGER_HOST || 'localhost',
-  port: parseInt(process.env.JAEGER_PORT || '16686'),
-  protocol: process.env.JAEGER_PROTOCOL || 'http',
+  host: appConfig.monitoring.jaegerHost,
+  port: appConfig.monitoring.jaegerPort,
+  protocol: appConfig.monitoring.jaegerProtocol,
   timeout: 30000,
 };
 

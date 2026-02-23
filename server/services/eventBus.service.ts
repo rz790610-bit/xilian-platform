@@ -497,6 +497,7 @@ import { z } from 'zod';
 import { publicProcedure, protectedProcedure, router } from '../core/trpc';
 import type { EventHandler } from "../core/types/domain";
 import { createModuleLogger } from '../core/logger';
+import appConfig from '../core/config';
 const log = createModuleLogger('eventBus');
 
 export const eventBusRouter = router({
@@ -520,11 +521,11 @@ export const eventBusRouter = router({
 
   // 获取 Kafka 状态
   getKafkaStatus: publicProcedure.query(async () => {
-    const kafkaBrokers = process.env.KAFKA_BROKERS || 'localhost:9092';
-    const isKafkaConfigured = !!process.env.KAFKA_BROKERS;
+    const kafkaBrokers = appConfig.kafka.brokers;
+    const isKafkaConfigured = !(kafkaBrokers.length === 1 && kafkaBrokers[0] === 'localhost:9092');
     return {
       isConfigured: isKafkaConfigured,
-      brokers: kafkaBrokers.split(','),
+      brokers: kafkaBrokers,
       status: isKafkaConfigured ? 'configured' : 'using_memory_fallback',
       mode: isKafkaConfigured ? 'kafka' : 'memory',
       eventBusMode: eventBus.getMode(),

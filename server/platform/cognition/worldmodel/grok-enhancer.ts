@@ -23,6 +23,7 @@
  */
 
 import { createModuleLogger } from '../../../core/logger';
+import config from '../../../core/config';
 const log = createModuleLogger('grok-enhancer');
 
 // ============================================================================
@@ -94,7 +95,7 @@ export interface GrokEnhancerConfig {
 // ============================================================================
 
 const DEFAULT_CONFIG: GrokEnhancerConfig = {
-  enabled: process.env['ENABLE_GROK_ENHANCE'] !== 'false', // 默认开启，设为 false 关闭
+  enabled: config.featureFlags.grokEnhance, // 默认开启，通过 ENABLE_GROK_ENHANCE=false 关闭
   circuitBreakerThreshold: 5,
   circuitBreakerDurationMs: 30_000,
   rateLimitPerMinute: 10,

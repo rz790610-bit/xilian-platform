@@ -10,6 +10,9 @@ const log = createModuleLogger('infrastructure');
 // ============================================================
 // 环境变量管理
 // ============================================================
+// 【配置迁移豁免】本服务的核心功能是动态遍历 ENV_SECRET_KEYS 列表展示环境变量状态，
+// 必须通过 process.env[key] 动态读取，无法静态映射到 config.ts。
+// 这是运维审计功能，不是业务配置读取。
 
 const ENV_SECRET_KEYS = [
   'MYSQL_ROOT_PASSWORD', 'MYSQL_PASSWORD', 'MYSQL_HOST', 'MYSQL_PORT', 'MYSQL_DATABASE',

@@ -99,11 +99,18 @@ class ModuleFeatureFlags {
     this.initializeFromEnv();
   }
 
-  /** 从环境变量初始化所有模块 Flag */
+  /**
+   * 从环境变量初始化所有模块 Flag
+   *
+   * [豁免] process.env 直接读取 — 动态 key 场景
+   * 28 个模块的环境变量名由 toEnvKey() 动态拼接（MODULE_xxx_ENABLED），
+   * 无法静态映射到 config.ts。初始化后通过 ConfigCenter API 热更新，
+   * 不再读取 process.env。
+   */
   private initializeFromEnv(): void {
     for (const moduleId of MODULE_IDS) {
       const envKey = toEnvKey(moduleId);
-      const envValue = process.env[envKey];
+      const envValue = process.env[envKey]; // [豁免] 动态 key，见方法注释
       const enabled = parseBool(envValue, true); // 默认全部启用
 
       this.flags.set(moduleId, {

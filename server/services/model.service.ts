@@ -18,10 +18,11 @@ import {
 import { eq, desc, and, sql, like } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { createModuleLogger } from '../core/logger';
+import appConfig from '../core/config';
 const log = createModuleLogger('model');
 
 // Ollama API 配置
-const OLLAMA_BASE_URL = process.env.OLLAMA_URL || "http://localhost:11434";
+const OLLAMA_BASE_URL = appConfig.ollama.host;
 
 // 获取数据库实例
 async function getDbInstance() {

@@ -17,6 +17,7 @@
  */
 
 import { createModuleLogger } from '../core/logger';
+import appConfig from '../core/config';
 import { getDb } from '../lib/db';
 import { diagnosisResults, auditLogs, assetNodes, assetSensors, assetMeasurementPoints, alertRules, deviceAlerts } from '../../drizzle/schema';
 import { eq, desc, and, gte, sql } from 'drizzle-orm';
@@ -52,20 +53,20 @@ interface GrokConfig {
 
 function loadConfig(): GrokConfig {
   return {
-    apiUrl: process.env.XAI_API_URL || 'https://api.x.ai',
-    apiKey: process.env.XAI_API_KEY || '',
-    model: process.env.XAI_MODEL || 'grok-4-0709',
-    enabled: process.env.FEATURE_GROK_ENABLED === 'true' || process.env.XAI_API_KEY !== undefined && process.env.XAI_API_KEY !== '',
-    timeout: parseInt(process.env.XAI_TIMEOUT || '60000', 10),
-    maxTokens: parseInt(process.env.XAI_MAX_TOKENS || '8192', 10),
-    temperature: parseFloat(process.env.XAI_TEMPERATURE || '0.2'),
-    fallbackToOllama: process.env.XAI_FALLBACK_OLLAMA !== 'false',
-    ollamaUrl: process.env.OLLAMA_HOST || 'http://localhost:11434',
-    ollamaModel: process.env.OLLAMA_MODEL || 'llama3.1:70b',
+    apiUrl: appConfig.xai.apiUrl,
+    apiKey: appConfig.xai.apiKey,
+    model: appConfig.xai.model,
+    enabled: appConfig.featureFlags.grokEnabled || !!appConfig.xai.apiKey,
+    timeout: appConfig.xai.timeout,
+    maxTokens: appConfig.xai.maxTokens,
+    temperature: appConfig.xai.temperature,
+    fallbackToOllama: appConfig.xai.fallbackOllama,
+    ollamaUrl: appConfig.ollama.host,
+    ollamaModel: appConfig.ollama.model,
   };
 }
 
-const config = loadConfig();
+const grokCfg = loadConfig();
 
 // ============================================================
 // 类型定义
@@ -455,7 +456,7 @@ async function executeToolCall(
       const limit = (args.limit as number) || 5;
 
       // 使用 Qdrant 向量搜索（如果可用），否则降级到数据库全文搜索
-      const QDRANT_URL = process.env.QDRANT_URL || 'http://localhost:6333';
+      const QDRANT_URL = appConfig.qdrant.url;
       try {
         // 尝试 Qdrant 搜索
         const searchResponse = await fetch(`${QDRANT_URL}/collections/knowledge_base/points/search`, {
@@ -629,7 +630,7 @@ async function executeToolCall(
 // ============================================================
 
 async function getQueryEmbedding(text: string): Promise<number[]> {
-  const ollamaUrl = config.ollamaUrl;
+  const ollamaUrl = grokCfg.ollamaUrl;
   try {
     const response = await fetch(`${ollamaUrl}/api/embeddings`, {
       method: 'POST',
@@ -712,11 +713,11 @@ async function callXaiApi(
   usage: { prompt_tokens: number; completion_tokens: number; total_tokens: number };
 }> {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), config.timeout);
+  const timeoutId = setTimeout(() => controller.abort(), grokCfg.timeout);
 
   try {
     const payload: Record<string, unknown> = {
-      model: config.model,
+      model: grokCfg.model,
       messages: messages.map(m => {
         const msg: Record<string, unknown> = { role: m.role, content: m.content };
         if (m.tool_calls) msg.tool_calls = m.tool_calls;
@@ -724,8 +725,8 @@ async function callXaiApi(
         if (m.name) msg.name = m.name;
         return msg;
       }),
-      temperature: config.temperature,
-      max_tokens: config.maxTokens,
+      temperature: grokCfg.temperature,
+      max_tokens: grokCfg.maxTokens,
     };
 
     if (tools && tools.length > 0) {
@@ -733,11 +734,11 @@ async function callXaiApi(
       payload.tool_choice = 'auto';
     }
 
-    const response = await fetch(`${config.apiUrl}/v1/chat/completions`, {
+    const response = await fetch(`${grokCfg.apiUrl}/v1/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${config.apiKey}`,
+        'Authorization': `Bearer ${grokCfg.apiKey}`,
       },
       body: JSON.stringify(payload),
       signal: controller.signal,
@@ -789,19 +790,19 @@ async function callOllamaFallback(
 }> {
   log.info('Falling back to Ollama for diagnostic');
 
-  const response = await fetch(`${config.ollamaUrl}/api/chat`, {
+  const response = await fetch(`${grokCfg.ollamaUrl}/api/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: config.ollamaModel,
+      model: grokCfg.ollamaModel,
       messages: messages.map(m => ({ role: m.role, content: m.content })),
       stream: false,
       options: {
-        temperature: config.temperature,
-        num_predict: config.maxTokens,
+        temperature: grokCfg.temperature,
+        num_predict: grokCfg.maxTokens,
       },
     }),
-    signal: AbortSignal.timeout(config.timeout),
+    signal: AbortSignal.timeout(grokCfg.timeout),
   });
 
   if (!response.ok) {
@@ -856,9 +857,9 @@ export async function diagnose(request: DiagnosticRequest): Promise<DiagnosticRe
     let response;
 
     try {
-      if (config.enabled && config.apiKey) {
+      if (grokCfg.enabled && grokCfg.apiKey) {
         response = await callXaiApi(session.messages, DIAGNOSTIC_TOOLS);
-      } else if (config.fallbackToOllama) {
+      } else if (grokCfg.fallbackToOllama) {
         provider = 'ollama';
         response = await callOllamaFallback(session.messages);
       } else {
@@ -868,7 +869,7 @@ export async function diagnose(request: DiagnosticRequest): Promise<DiagnosticRe
       log.warn(`Diagnostic API call failed (round ${round}):`, err);
 
       // xAI 失败时尝试 Ollama 降级
-      if (provider === 'xai' && config.fallbackToOllama) {
+      if (provider === 'xai' && grokCfg.fallbackToOllama) {
         try {
           provider = 'ollama';
           response = await callOllamaFallback(session.messages);
@@ -947,7 +948,7 @@ export async function diagnose(request: DiagnosticRequest): Promise<DiagnosticRe
     dataSources: toolCallRecords.map(t => t.tool),
     toolCalls: toolCallRecords,
     modelInfo: {
-      model: provider === 'xai' ? config.model : config.ollamaModel,
+      model: provider === 'xai' ? grokCfg.model : grokCfg.ollamaModel,
       provider,
       tokensUsed: totalTokens,
       latencyMs: Date.now() - startTime,
@@ -1106,17 +1107,17 @@ export function getAgentStatus(): {
   config: Partial<GrokConfig>;
 } {
   return {
-    enabled: config.enabled || config.fallbackToOllama,
-    provider: config.enabled && config.apiKey ? 'xai' : config.fallbackToOllama ? 'ollama' : 'none',
-    model: config.enabled && config.apiKey ? config.model : config.ollamaModel,
+    enabled: grokCfg.enabled || grokCfg.fallbackToOllama,
+    provider: grokCfg.enabled && grokCfg.apiKey ? 'xai' : grokCfg.fallbackToOllama ? 'ollama' : 'none',
+    model: grokCfg.enabled && grokCfg.apiKey ? grokCfg.model : grokCfg.ollamaModel,
     activeSessions: sessions.size,
     config: {
-      apiUrl: config.apiUrl,
-      model: config.model,
-      timeout: config.timeout,
-      maxTokens: config.maxTokens,
-      temperature: config.temperature,
-      fallbackToOllama: config.fallbackToOllama,
+      apiUrl: grokCfg.apiUrl,
+      model: grokCfg.model,
+      timeout: grokCfg.timeout,
+      maxTokens: grokCfg.maxTokens,
+      temperature: grokCfg.temperature,
+      fallbackToOllama: grokCfg.fallbackToOllama,
     },
   };
 }

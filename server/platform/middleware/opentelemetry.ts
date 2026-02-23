@@ -1,4 +1,5 @@
 import { createModuleLogger } from '../../core/logger';
+import { config as appConfig } from '../../core/config';
 const log = createModuleLogger('opentelemetry');
 
 /**
@@ -41,11 +42,11 @@ export interface OTelConfig {
 
 function getConfig(): OTelConfig {
   return {
-    enabled: process.env.OTEL_ENABLED !== 'false',
-    serviceName: process.env.OTEL_SERVICE_NAME || 'xilian-platform',
-    traceExporterUrl: process.env.OTEL_EXPORTER_OTLP_ENDPOINT || 'http://jaeger:4318',
-    samplingRatio: parseFloat(process.env.OTEL_SAMPLING_RATIO || '0.1'),
-    autoInstrumentation: process.env.OTEL_AUTO_INSTRUMENT !== 'false',
+    enabled: appConfig.otel.enabled,
+    serviceName: appConfig.otel.serviceName,
+    traceExporterUrl: appConfig.otel.exporterEndpoint,
+    samplingRatio: appConfig.otel.samplingRatio,
+    autoInstrumentation: appConfig.otel.autoInstrument,
   };
 }
 
@@ -88,7 +89,7 @@ export async function initOpenTelemetry(): Promise<void> {
     return;
   }
 
-  const isDev = process.env.NODE_ENV === 'development';
+  const isDev = appConfig.app.env === 'development';
 
   // 环境感知：开发环境下先检测后端是否可达
   if (isDev) {
@@ -113,8 +114,8 @@ export async function initOpenTelemetry(): Promise<void> {
     // 构建资源描述（@opentelemetry/resources v2.x 使用 resourceFromAttributes 替代 new Resource）
     const resource = resourceFromAttributes({
       [ATTR_SERVICE_NAME]: config.serviceName,
-      [ATTR_SERVICE_VERSION]: process.env.npm_package_version || '4.0.0',
-      'deployment.environment': process.env.NODE_ENV || 'development',
+      [ATTR_SERVICE_VERSION]: appConfig.app.version,
+      'deployment.environment': appConfig.app.env,
     });
 
     // Trace 导出器
@@ -137,7 +138,7 @@ export async function initOpenTelemetry(): Promise<void> {
       try {
         const { OTLPMetricExporter } = await import('@opentelemetry/exporter-metrics-otlp-http');
         const { PeriodicExportingMetricReader } = await import('@opentelemetry/sdk-metrics');
-        const otlpCollectorUrl = process.env.OTEL_COLLECTOR_ENDPOINT || 'http://otel-collector:4318';
+        const otlpCollectorUrl = appConfig.otel.collectorEndpoint;
         const metricExporter = new OTLPMetricExporter({
           url: `${otlpCollectorUrl}/v1/metrics`,
         });

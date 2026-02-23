@@ -7,16 +7,17 @@ import http from 'http';
 import https from 'https';
 import type { LogEntry } from "../../core/types/domain";
 import { createModuleLogger } from '../../core/logger';
+import appConfig from '../../core/config';
 const log = createModuleLogger('elasticsearch');
 
 // 配置
 
 const ES_CONFIG = {
-  host: process.env.ELASTICSEARCH_HOST || 'localhost',
-  port: parseInt(process.env.ELASTICSEARCH_PORT || '9200'),
-  protocol: process.env.ELASTICSEARCH_PROTOCOL || 'http',
-  username: process.env.ELASTICSEARCH_USERNAME,
-  password: process.env.ELASTICSEARCH_PASSWORD,
+  host: appConfig.elasticsearch.host,
+  port: appConfig.elasticsearch.port,
+  protocol: appConfig.elasticsearch.protocol,
+  username: appConfig.elasticsearch.username,
+  password: appConfig.elasticsearch.password,
   timeout: 30000,
 };
 

@@ -18,6 +18,7 @@ import { neo4jStorage, Neo4jStorage } from './neo4j.storage';
 import { qdrantStorage, QdrantStorage } from './qdrant.storage';
 import { minioStorage, MinioStorage } from './minio.storage';
 import { redisStorage, RedisStorage } from './redis.storage';
+import { config as appConfig } from '../../core/config';
 import { createModuleLogger } from '../../core/logger';
 const log = createModuleLogger('storageManager');
 
@@ -51,12 +52,12 @@ export interface StorageConfig {
 
 // 默认配置
 const DEFAULT_CONFIG: StorageConfig = {
-  clickhouse: { enabled: process.env.CLICKHOUSE_ENABLED !== 'false' },
+  clickhouse: { enabled: appConfig.storageFlags.clickhouseEnabled },
   postgres: { enabled: true }, // 总是启用
-  neo4j: { enabled: process.env.NEO4J_ENABLED !== 'false' },
-  qdrant: { enabled: process.env.QDRANT_ENABLED !== 'false' },
-  minio: { enabled: process.env.MINIO_ENABLED !== 'false' },
-  redis: { enabled: process.env.REDIS_ENABLED !== 'false' },
+  neo4j: { enabled: appConfig.storageFlags.neo4jEnabled },
+  qdrant: { enabled: appConfig.storageFlags.qdrantEnabled },
+  minio: { enabled: appConfig.storageFlags.minioEnabled },
+  redis: { enabled: appConfig.storageFlags.redisEnabled },
 };
 
 // ============ 存储管理器类 ============

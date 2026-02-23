@@ -36,7 +36,7 @@ let _db: ReturnType<typeof drizzle> | null = null;
 let _healthCheckTimer: ReturnType<typeof setInterval> | null = null;
 
 function createPool(): mysql.Pool {
-  const dbUrl = process.env.DATABASE_URL;
+  const dbUrl = config.mysql.url;
   if (!dbUrl) throw new Error('[Database] DATABASE_URL is not set');
 
   // 解析 DATABASE_URL 而不使用 uri 参数，避免 mysql2 的 uri 解析覆盖 charset 配置导致中文乱码
@@ -48,11 +48,11 @@ function createPool(): mysql.Pool {
     user: decodeURIComponent(url.username),
     password: decodeURIComponent(url.password),
     database: url.pathname.replace(/^\//, ''),
-    connectionLimit: parseInt(process.env.DB_POOL_MAX || '50', 10),
+    connectionLimit: config.dbPool.max,
     waitForConnections: true,
-    queueLimit: parseInt(process.env.DB_POOL_QUEUE_LIMIT || '200', 10),
-    idleTimeout: parseInt(process.env.DB_POOL_IDLE_TIMEOUT || '30000', 10),
-    maxIdle: parseInt(process.env.DB_POOL_MIN_IDLE || '10', 10),
+    queueLimit: config.dbPool.queueLimit,
+    idleTimeout: config.dbPool.idleTimeout,
+    maxIdle: config.dbPool.minIdle,
     enableKeepAlive: true,
     keepAliveInitialDelay: 30_000,
     charset: 'utf8mb4',
@@ -61,15 +61,15 @@ function createPool(): mysql.Pool {
 
 // Lazily create the drizzle instance with connection pool.
 export async function getDb() {
-  if (!_db && process.env.DATABASE_URL) {
+  if (!_db && config.mysql.url) {
     try {
       _pool = createPool();
       _db = createTracedDb(drizzle(_pool)) as any;
       startPoolHealthCheck(_pool);
       log.info({
-        connectionLimit: parseInt(process.env.DB_POOL_MAX || '50', 10),
-        maxIdle: parseInt(process.env.DB_POOL_MIN_IDLE || '10', 10),
-        idleTimeout: parseInt(process.env.DB_POOL_IDLE_TIMEOUT || '30000', 10),
+        connectionLimit: config.dbPool.max,
+        maxIdle: config.dbPool.minIdle,
+        idleTimeout: config.dbPool.idleTimeout,
       }, '[Database] Connection pool initialized');
     } catch (error) {
       log.warn("[Database] Failed to create connection pool:", error);

@@ -30,6 +30,7 @@ import type {
 } from '../../shared/pipelineTypes';
 import { topologicalSort, ALL_NODE_TYPES } from '../../shared/pipelineTypes';
 import { createModuleLogger } from '../core/logger';
+import appConfig from '../core/config';
 const log = createModuleLogger('pipeline');
 
 // ============ 兼容旧接口（pipeline.router.ts 引用） ============
@@ -90,7 +91,7 @@ export interface LineageRecord {
  * 每个 execute 方法接收 (config, inputRecords) 返回 DataRecord[]
  */
 class ConnectorFactory {
-  private static OLLAMA_BASE_URL = process.env.OLLAMA_URL || 'http://localhost:11434';
+  private static OLLAMA_BASE_URL = appConfig.ollama.host;
 
   /**
    * 执行单个节点
@@ -353,7 +354,7 @@ class ConnectorFactory {
   private static async execMinIO(config: Record<string, unknown>): Promise<DataRecord[]> {
     const bucket = config.bucket as string;
     const prefix = config.prefix as string || '';
-    const minioUrl = process.env.MINIO_ENDPOINT || 'http://localhost:9000';
+    const minioUrl = appConfig.minio.endpoint;
     try {
       const resp = await fetch(`${minioUrl}/${bucket}?prefix=${prefix}&list-type=2`);
       if (!resp.ok) throw new Error(`MinIO list error: ${resp.status}`);
@@ -1001,7 +1002,7 @@ class ConnectorFactory {
   private static async execMinIOSink(config: Record<string, unknown>, records: DataRecord[]): Promise<DataRecord[]> {
     const bucket = config.bucket as string;
     const prefix = config.prefix as string || '';
-    const minioUrl = process.env.MINIO_ENDPOINT || 'http://localhost:9000';
+    const minioUrl = appConfig.minio.endpoint;
     for (const r of records) await fetch(`${minioUrl}/${bucket}/${prefix}${r.id}.json`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(r.data) });
     return records;
   }

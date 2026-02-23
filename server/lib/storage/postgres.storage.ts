@@ -12,6 +12,7 @@
  */
 
 import { getDb } from '../db';
+import appConfig from '../../core/config';
 import { 
 
   users, 
@@ -159,10 +160,10 @@ export interface KpiRecord {
 
 export class PostgresStorage {
   private poolConfig = {
-    maxConnections: parseInt(process.env.PG_POOL_MAX || '20'),
-    minConnections: parseInt(process.env.PG_POOL_MIN || '5'),
-    idleTimeoutMs: parseInt(process.env.PG_IDLE_TIMEOUT || '30000'),
-    connectionTimeoutMs: parseInt(process.env.PG_CONN_TIMEOUT || '5000'),
+    maxConnections: appConfig.postgres.poolMax,
+    minConnections: appConfig.postgres.poolMin,
+    idleTimeoutMs: appConfig.postgres.idleTimeout,
+    connectionTimeoutMs: appConfig.postgres.connTimeout,
   };
 
   // ============ 设备管理 ============

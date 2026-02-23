@@ -21,6 +21,7 @@
 import { z } from "zod";
 import { publicProcedure, router } from "../core/trpc";
 import { createModuleLogger } from '../core/logger';
+import appConfig from '../core/config';
 import { getDb } from "../lib/db";
 import { models } from "../../drizzle/schema";
 import { eq } from "drizzle-orm";
@@ -29,13 +30,13 @@ const log = createModuleLogger('model-auto-init');
 
 // ==================== 配置 ====================
 
-const OLLAMA_BASE_URL = process.env.OLLAMA_URL || "http://localhost:11434";
-const AUTO_INIT_ENABLED = process.env.OLLAMA_AUTO_INIT !== "false";
-const DEFAULT_LLM_MODEL = process.env.OLLAMA_DEFAULT_LLM || "qwen2.5:7b";
-const DEFAULT_EMBED_MODEL = process.env.OLLAMA_DEFAULT_EMBED || "nomic-embed-text";
-const EXTRA_MODELS = process.env.OLLAMA_EXTRA_MODELS?.split(",").map(s => s.trim()).filter(Boolean) || [];
-const INIT_RETRY_COUNT = parseInt(process.env.OLLAMA_INIT_RETRY || "3", 10);
-const INIT_RETRY_DELAY = parseInt(process.env.OLLAMA_INIT_DELAY || "10", 10) * 1000;
+const OLLAMA_BASE_URL = appConfig.ollama.host;
+const AUTO_INIT_ENABLED = appConfig.ollama.autoInit;
+let DEFAULT_LLM_MODEL = appConfig.ollama.defaultLlm;
+let DEFAULT_EMBED_MODEL = appConfig.ollama.defaultEmbed;
+let EXTRA_MODELS: string[] = [...(appConfig.ollama.extraModels || [])];
+const INIT_RETRY_COUNT = appConfig.ollama.initRetry;
+const INIT_RETRY_DELAY = appConfig.ollama.initDelay * 1000;
 
 // ==================== 状态管理 ====================
 
@@ -507,13 +508,13 @@ export const modelAutoInitRouter = router({
     .mutation(async ({ input }) => {
       // 运行时更新（注意：重启后会恢复环境变量配置）
       if (input.defaultLlm) {
-        process.env.OLLAMA_DEFAULT_LLM = input.defaultLlm;
+        DEFAULT_LLM_MODEL = input.defaultLlm;
       }
       if (input.defaultEmbed) {
-        process.env.OLLAMA_DEFAULT_EMBED = input.defaultEmbed;
+        DEFAULT_EMBED_MODEL = input.defaultEmbed;
       }
       if (input.extraModels) {
-        process.env.OLLAMA_EXTRA_MODELS = input.extraModels.join(",");
+        EXTRA_MODELS = input.extraModels;
       }
 
       log.info(`[AutoInit] Default models updated: LLM=${input.defaultLlm || DEFAULT_LLM_MODEL}, Embed=${input.defaultEmbed || DEFAULT_EMBED_MODEL}`);

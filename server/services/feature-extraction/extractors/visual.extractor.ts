@@ -22,6 +22,7 @@ import {
   VisualFeatures,
 } from '../types';
 import { createModuleLogger } from '../../../core/logger';
+import { config } from '../../../core/config';
 
 const log = createModuleLogger('visual-extractor');
 
@@ -37,7 +38,7 @@ export class VisualExtractor implements FeatureExtractor {
   private inferenceCheckIntervalMs: number = 60000; // 1分钟重试
 
   constructor(
-    inferenceUrl: string = process.env.VISUAL_INFERENCE_URL || 'http://triton:8000',
+    inferenceUrl: string = config.visual.inferenceUrl,
     inferenceTimeoutMs: number = 5000
   ) {
     this.inferenceUrl = inferenceUrl;

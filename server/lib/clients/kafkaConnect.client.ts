@@ -6,14 +6,15 @@
 import http from 'http';
 import https from 'https';
 import { createModuleLogger } from '../../core/logger';
+import appConfig from '../../core/config';
 const log = createModuleLogger('kafkaConnect');
 
 // 配置
 
 const KAFKA_CONNECT_CONFIG = {
-  host: process.env.KAFKA_CONNECT_HOST || 'localhost',
-  port: parseInt(process.env.KAFKA_CONNECT_PORT || '8083'),
-  protocol: process.env.KAFKA_CONNECT_PROTOCOL || 'http',
+  host: appConfig.kafkaConnect.host,
+  port: appConfig.kafkaConnect.port,
+  protocol: appConfig.kafkaConnect.protocol,
   timeout: 30000,
 };
 

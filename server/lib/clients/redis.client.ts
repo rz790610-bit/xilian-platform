@@ -5,6 +5,7 @@
 
 import Redis from 'ioredis';
 import { createModuleLogger } from '../../core/logger';
+import appConfig from '../../core/config';
 const log = createModuleLogger('redis');
 
 // Redis 配置接口
@@ -21,10 +22,10 @@ interface RedisConfig {
 
 // 默认配置
 const DEFAULT_CONFIG: RedisConfig = {
-  host: process.env.REDIS_HOST || 'localhost',
-  port: parseInt(process.env.REDIS_PORT || '6379'),
-  password: process.env.REDIS_PASSWORD,
-  db: parseInt(process.env.REDIS_DB || '0'),
+  host: appConfig.redis.host,
+  port: appConfig.redis.port,
+  password: appConfig.redis.password || undefined,
+  db: appConfig.redis.db,
   keyPrefix: 'xilian:',
   maxRetriesPerRequest: 3,
   retryDelayMs: 100,
@@ -62,9 +63,9 @@ class RedisClientManager {
       return;
     }
 
-    const redisUrl = process.env.REDIS_URL;
+    const redisUrl = appConfig.redis.url;
     
-    if (!redisUrl && !process.env.REDIS_HOST) {
+    if (!redisUrl && appConfig.redis.host === 'localhost') {
       log.debug('[Redis] No Redis configuration found, using memory fallback');
       return;
     }

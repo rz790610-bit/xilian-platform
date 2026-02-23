@@ -16,6 +16,7 @@
 import rateLimit, { type RateLimitRequestHandler, type Options } from 'express-rate-limit';
 import type { Request, Response } from 'express';
 import { createModuleLogger } from '../../core/logger';
+import { config as appConfig } from '../../core/config';
 
 const log = createModuleLogger('rate-limiter');
 
@@ -23,7 +24,7 @@ const log = createModuleLogger('rate-limiter');
 // 环境检测
 // ============================================================
 
-const isDevelopment = process.env.NODE_ENV === 'development';
+const isDevelopment = appConfig.app.env === 'development';
 
 // ============================================================
 // 配置
@@ -65,13 +66,13 @@ function getConfig(): RateLimitConfig {
   const defaults = isDevelopment ? devDefaults : prodDefaults;
 
   return {
-    globalMaxPerMinute: parseInt(process.env.RATE_LIMIT_GLOBAL || defaults.global, 10),
-    apiMaxPerMinute: parseInt(process.env.RATE_LIMIT_API || defaults.api, 10),
-    authMaxPer15Min: parseInt(process.env.RATE_LIMIT_AUTH || defaults.auth, 10),
-    uploadMaxPerHour: parseInt(process.env.RATE_LIMIT_UPLOAD || defaults.upload, 10),
-    algorithmMaxPerMinute: parseInt(process.env.RATE_LIMIT_ALGORITHM || defaults.algorithm, 10),
-    enabled: process.env.RATE_LIMIT_ENABLED !== 'false',
-    trustProxy: process.env.TRUST_PROXY === 'true',
+    globalMaxPerMinute: appConfig.rateLimit.global || parseInt(defaults.global, 10),
+    apiMaxPerMinute: appConfig.rateLimit.api || parseInt(defaults.api, 10),
+    authMaxPer15Min: appConfig.rateLimit.auth || parseInt(defaults.auth, 10),
+    uploadMaxPerHour: appConfig.rateLimit.upload || parseInt(defaults.upload, 10),
+    algorithmMaxPerMinute: appConfig.rateLimit.algorithm || parseInt(defaults.algorithm, 10),
+    enabled: appConfig.rateLimit.enabled,
+    trustProxy: appConfig.app.trustProxy,
   };
 }
 

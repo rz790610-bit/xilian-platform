@@ -25,6 +25,7 @@
  */
 
 import { createModuleLogger } from '../core/logger';
+import appConfig from '../core/config';
 import { moduleRegistry } from '../core/registries/module.registry';
 import { stubTracker } from '../core/stub';
 import { moduleFeatureFlags } from '../core/moduleFeatureFlags';
@@ -46,12 +47,12 @@ interface PlatformAgentConfig {
 
 function loadConfig(): PlatformAgentConfig {
   return {
-    apiUrl: process.env.XAI_API_URL || 'https://api.x.ai',
-    apiKey: process.env.XAI_API_KEY || '',
-    model: process.env.XAI_PLATFORM_MODEL || process.env.XAI_MODEL || 'grok-4.1-fast',
+    apiUrl: appConfig.xai.apiUrl,
+    apiKey: appConfig.xai.apiKey,
+    model: appConfig.xai.platformModel || appConfig.xai.model,
     enabled: featureFlags.grok,
-    timeout: parseInt(process.env.XAI_TIMEOUT || '60000', 10),
-    maxTokens: parseInt(process.env.XAI_MAX_TOKENS || '4096', 10),
+    timeout: appConfig.xai.timeout,
+    maxTokens: appConfig.xai.maxTokens,
     temperature: 0.1, // 诊断场景低温度
   };
 }

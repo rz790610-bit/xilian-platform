@@ -10,6 +10,8 @@
 // 数据类型枚举
 // ============================================================
 
+import { config } from '../../core/config';
+
 /**
  * 工业传感器数据类型
  * 对应 asset_measurement_points.measurement_type
@@ -364,6 +366,6 @@ export const DEFAULT_EXTRACTOR_CONFIG: ExtractorConfig = {
   scalarBaselineTtlSec: 3600,
   acousticFrameLenMs: 25,
   mfccCoefficients: 13,
-  visualInferenceUrl: process.env.VISUAL_INFERENCE_URL || 'http://triton:8000',
+  visualInferenceUrl: config.visual.inferenceUrl,
   visualInferenceTimeoutMs: 5000,
 };

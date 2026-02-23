@@ -4,6 +4,7 @@ import { invokeLLM } from "../core/llm";
 import { PDFParse } from "pdf-parse";
 import mammoth from "mammoth";
 import { createModuleLogger } from '../core/logger';
+import appConfig from '../core/config';
 import {
   createKbCollection, getKbCollections, getKbCollectionByName, deleteKbCollection,
   createKbPoint, createKbPointsBatch, getKbPoints, deleteKbPoint,
@@ -15,7 +16,7 @@ import {
 const log = createModuleLogger('knowledge');
 
 // Qdrant 配置
-const QDRANT_URL = process.env.QDRANT_URL || "http://localhost:6333";
+const QDRANT_URL = appConfig.qdrant.url;
 const EMBEDDING_DIM = 384;
 
 // 实体关系抽取 Prompt

@@ -6,6 +6,7 @@
 import { Kafka, Producer, Consumer, Admin, logLevel, CompressionTypes } from 'kafkajs';
 import { createModuleLogger } from '../../core/logger';
 import { traceKafkaProduce, traceKafkaMessage } from '../../platform/middleware/opentelemetry';
+import appConfig from '../../core/config';
 const log = createModuleLogger('kafka');
 
 // Kafka 配置接口
@@ -44,7 +45,7 @@ export type MessageHandler = (message: {
 // 默认配置
 const DEFAULT_CONFIG: KafkaConfig = {
   clientId: 'xilian-platform',
-  brokers: (process.env.KAFKA_BROKERS || 'localhost:9092').split(','),
+  brokers: appConfig.kafka.brokers,
   connectionTimeout: 10000,
   requestTimeout: 30000,
   retry: {
@@ -90,9 +91,9 @@ class KafkaClientManager {
         retry: this.config.retry,
         logLevel: logLevel.WARN,
       };
-      const saslMechanism = process.env.KAFKA_SASL_MECHANISM as 'plain' | 'scram-sha-256' | 'scram-sha-512' | undefined;
-      const saslUsername = process.env.KAFKA_SASL_USERNAME;
-      const saslPassword = process.env.KAFKA_SASL_PASSWORD;
+      const saslMechanism = appConfig.kafka.saslMechanism as 'plain' | 'scram-sha-256' | 'scram-sha-512' | undefined;
+      const saslUsername = appConfig.kafka.saslUsername;
+      const saslPassword = appConfig.kafka.saslPassword;
       if (saslMechanism && saslUsername && saslPassword) {
         kafkaOptions.sasl = {
           mechanism: saslMechanism,
@@ -101,11 +102,11 @@ class KafkaClientManager {
         };
         kafkaOptions.ssl = true;
         log.debug('[Kafka] SASL authentication enabled');
-      } else if (process.env.NODE_ENV === 'production') {
+      } else if (appConfig.app.env === 'production') {
         log.warn('[Kafka] WARNING: No SASL credentials configured in production');
       }
       // 单独的 SSL 配置（无 SASL 时也可启用 SSL）
-      if (process.env.KAFKA_SSL === 'true' && !kafkaOptions.ssl) {
+      if (appConfig.kafka.ssl && !kafkaOptions.ssl) {
         kafkaOptions.ssl = true;
       }
       this.kafka = new Kafka(kafkaOptions);

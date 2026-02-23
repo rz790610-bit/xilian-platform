@@ -15,6 +15,7 @@
  */
 
 import { createModuleLogger } from "../../../core/logger";
+import config from "../../../core/config";
 const log = createModuleLogger("grok-reasoning");
 import { GrokToolCallingEngine, type ReasoningConfig, type ReasoningResult, type ReasoningStep } from './grok-tool-calling';
 import { reasoningChainManager } from './grok-reasoning-chain';
@@ -59,8 +60,8 @@ export interface ServiceConfig {
 // ============================================================================
 
 const DEFAULT_SERVICE_CONFIG: ServiceConfig = {
-  grokApiUrl: process.env.XAI_API_URL || 'https://api.x.ai',
-  grokApiKey: process.env.XAI_API_KEY || '',
+  grokApiUrl: config.xai.apiUrl,
+  grokApiKey: config.xai.apiKey,
   defaultModel: 'grok-3',
   defaultMaxSteps: 8,
   defaultTimeoutMs: 60000,

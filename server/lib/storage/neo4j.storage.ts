@@ -25,6 +25,7 @@
 
 import neo4j, { Driver, Session, Transaction, Record as Neo4jRecord } from 'neo4j-driver';
 import { createModuleLogger } from '../../core/logger';
+import appConfig from '../../core/config';
 const log = createModuleLogger('neo4j');
 
 // ============ 配置类型 ============
@@ -42,10 +43,10 @@ export interface Neo4jClusterConfig {
 
 // 默认集群配置
 const DEFAULT_CONFIG: Neo4jClusterConfig = {
-  uri: process.env.NEO4J_URI || 'neo4j://localhost:7687',
-  username: process.env.NEO4J_USER || 'neo4j',
-  password: process.env.NEO4J_PASSWORD || 'password',
-  database: process.env.NEO4J_DATABASE || 'neo4j',
+  uri: appConfig.neo4j.uri,
+  username: appConfig.neo4j.user,
+  password: appConfig.neo4j.password,
+  database: appConfig.neo4j.database,
   maxConnectionPoolSize: 50,
   connectionAcquisitionTimeout: 60000,
   connectionTimeout: 30000,

@@ -18,6 +18,7 @@ import { getDb } from '../../lib/db';
 import { auditLogs, auditLogsSensitive } from '../../../drizzle/schema';
 import type { InsertAuditLog, InsertAuditLogsSensitive } from '../../../drizzle/schema';
 import { createModuleLogger } from '../../core/logger';
+import { config as appConfig } from '../../core/config';
 
 const log = createModuleLogger('auditLog');
 
@@ -44,16 +45,13 @@ interface AuditConfig {
 
 function loadConfig(): AuditConfig {
   return {
-    enabled: process.env.AUDIT_LOG_ENABLED !== 'false',
-    logQueries: process.env.AUDIT_LOG_QUERIES === 'true',
-    sensitiveKeywords: (process.env.AUDIT_LOG_SENSITIVE_KEYWORDS || 
-      'password,secret,token,key,credential,permission,role,admin,delete,remove,drop,truncate').split(','),
-    highRiskKeywords: (process.env.AUDIT_LOG_HIGH_RISK_KEYWORDS ||
-      'delete,remove,drop,truncate,admin.update,permission.grant').split(','),
-    excludePaths: (process.env.AUDIT_LOG_EXCLUDE_PATHS ||
-      'auth.me,system.health,system.status').split(','),
-    queueSize: parseInt(process.env.AUDIT_LOG_QUEUE_SIZE || '1000'),
-    flushInterval: parseInt(process.env.AUDIT_LOG_FLUSH_INTERVAL || '2000'),
+    enabled: appConfig.auditLog.enabled,
+    logQueries: appConfig.auditLog.queries,
+    sensitiveKeywords: appConfig.auditLog.sensitiveKeywords,
+    highRiskKeywords: appConfig.auditLog.highRiskKeywords,
+    excludePaths: appConfig.auditLog.excludePaths,
+    queueSize: appConfig.auditLog.queueSize,
+    flushInterval: appConfig.auditLog.flushInterval,
   };
 }
 

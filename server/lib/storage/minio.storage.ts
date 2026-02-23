@@ -34,6 +34,7 @@ import {
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { Readable } from 'stream';
 import { createModuleLogger } from '../../core/logger';
+import appConfig from '../../core/config';
 const log = createModuleLogger('minio');
 
 // ============ 配置类型 ============
@@ -49,12 +50,12 @@ export interface MinioConfig {
 
 // 默认配置
 const DEFAULT_CONFIG: MinioConfig = {
-  endpoint: process.env.MINIO_ENDPOINT || 'http://localhost:9000',
-  region: process.env.MINIO_REGION || 'us-east-1',
-  accessKeyId: process.env.MINIO_ACCESS_KEY || 'minioadmin',
-  secretAccessKey: process.env.MINIO_SECRET_KEY || 'minioadmin',
+  endpoint: appConfig.minio.endpoint,
+  region: appConfig.minio.region,
+  accessKeyId: appConfig.minio.accessKey,
+  secretAccessKey: appConfig.minio.secretKey,
   forcePathStyle: true,
-  ssl: process.env.MINIO_SSL === 'true',
+  ssl: appConfig.minio.ssl,
 };
 
 // ============ Bucket 配置 ============

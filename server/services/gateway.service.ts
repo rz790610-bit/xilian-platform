@@ -14,13 +14,14 @@
  */
 
 import { createModuleLogger } from "../core/logger";
+import appConfig from '../core/config';
 const log = createModuleLogger("gateway");
 import { z } from 'zod';
 import { router, publicProcedure } from '../core/trpc';
 
 // ── Kong Admin API 基础配置 ──
-const KONG_ADMIN_URL = process.env.KONG_ADMIN_URL || 'http://kong:8001';
-const KONG_STATUS_URL = process.env.KONG_STATUS_URL || 'http://kong:8100';
+const KONG_ADMIN_URL = appConfig.kong.adminUrl;
+const KONG_STATUS_URL = appConfig.kong.statusUrl;
 
 
 // ── Kong Admin API 请求封装 ──

@@ -5,6 +5,7 @@
 
 import { getDb } from '../lib/db';
 import { createModuleLogger } from '../core/logger';
+import appConfig from '../core/config';
 const log = createModuleLogger('readReplica');
 
 // ============ 类型定义 ============
@@ -104,14 +105,14 @@ class ReadReplicaService {
    */
   private async initializeReplicas(): Promise<void> {
     // 从环境变量读取副本配置
-    const replicaHosts = process.env.DB_REPLICA_HOSTS?.split(',') || [];
-    const replicaPort = parseInt(process.env.DB_REPLICA_PORT || '3306');
+    const replicaHosts = appConfig.mysqlReplica.replicaHosts;
+    const replicaPort = appConfig.mysqlReplica.replicaPort;
 
     if (replicaHosts.length === 0) {
       // 没有配置副本，使用主库作为只读源
       this.replicas.set('primary-readonly', {
         id: 'primary-readonly',
-        host: process.env.DATABASE_HOST || 'localhost',
+        host: appConfig.mysql.host,
         isHealthy: true,
         lagSeconds: 0,
         activeConnections: 0,

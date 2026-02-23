@@ -14,6 +14,7 @@
  */
 
 import { QdrantClient } from '@qdrant/js-client-rest';
+import { config as appConfig } from '../../core/config';
 import { createModuleLogger } from '../../core/logger';
 const log = createModuleLogger('qdrant');
 
@@ -33,20 +34,20 @@ export interface QdrantClusterConfig {
 // 默认集群配置（2节点1副本）
 const DEFAULT_CLUSTER_CONFIG: QdrantClusterConfig = {
   nodes: [
-    { host: process.env.QDRANT_NODE1_HOST || 'localhost', port: 6333 },
-    { host: process.env.QDRANT_NODE2_HOST || 'localhost', port: 6334 },
+    { host: appConfig.qdrantCluster.node1Host, port: 6333 },
+    { host: appConfig.qdrantCluster.node2Host, port: 6334 },
   ],
-  apiKey: process.env.QDRANT_API_KEY,
-  https: process.env.QDRANT_HTTPS === 'true',
+  apiKey: appConfig.qdrant.apiKey,
+  https: appConfig.qdrant.https,
   timeout: 30000,
 };
 
 // 单节点开发配置
 const SINGLE_NODE_CONFIG: QdrantClusterConfig = {
   nodes: [
-    { host: process.env.QDRANT_HOST || 'localhost', port: 6333 },
+    { host: appConfig.qdrant.host, port: appConfig.qdrant.port },
   ],
-  apiKey: process.env.QDRANT_API_KEY,
+  apiKey: appConfig.qdrant.apiKey,
   https: false,
   timeout: 30000,
 };
@@ -207,7 +208,7 @@ export class QdrantStorage {
   private currentClientIndex: number = 0;
 
   constructor(config?: QdrantClusterConfig) {
-    const isClusterMode = process.env.QDRANT_CLUSTER_MODE === 'true';
+    const isClusterMode = appConfig.qdrantCluster.clusterMode;
     this.config = config || (isClusterMode ? DEFAULT_CLUSTER_CONFIG : SINGLE_NODE_CONFIG);
   }
 
