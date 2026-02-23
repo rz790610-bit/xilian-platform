@@ -75,7 +75,7 @@ const crystalRouter = router({
     .input(z.object({
       name: z.string().min(1),
       type: z.enum(['pattern', 'threshold_update', 'causal_link', 'anomaly_signature']),
-      pattern: z.record(z.unknown()),
+      pattern: z.record(z.string(), z.unknown()),
       confidence: z.number().min(0).max(1),
       sourceType: z.enum(['cognition', 'evolution', 'manual', 'guardrail']).default('manual'),
     }))
@@ -220,7 +220,7 @@ const crystalRouter = router({
         const contentHash = md5(JSON.stringify(newPattern));
 
         const [newCrystal] = await db.insert(knowledgeCrystals).values({
-          name: `${source[0].name ?? '结晶'} [迁移→${input.toProfile}]`,
+          name: `${(source[0] as any).name ?? '结晶'} [迁移→${input.toProfile}]`,
           type: source[0].type ?? 'pattern',
           pattern: JSON.stringify(newPattern),
           confidence: (source[0].confidence ?? 0.5) * 0.8,  // 迁移后置信度打折

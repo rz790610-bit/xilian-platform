@@ -304,7 +304,7 @@ const effectivenessRouter = router({
 
         const stats = await db.select()
           .from(guardrailEffectivenessLogs)
-          .where(gte(guardrailEffectivenessLogs.periodEnd, cutoffDate.toISOString().slice(0, 10)))
+          .where(gte(guardrailEffectivenessLogs.periodEnd, cutoffDate.toISOString().slice(0, 10) as any))
           .orderBy(desc(guardrailEffectivenessLogs.computedAt));
 
         // 按 ruleId 取最新一条记录
@@ -481,7 +481,7 @@ const synergisticRouter = router({
           ruleType: rule?.type ?? 'safety',
           machineId: v.machineId,
           condition: rule?.condition ?? {},
-          triggerContext: v.context ?? {},
+          triggerContext: (v as any).context ?? {},
           severity: (v as any).severity ?? 0.5,
           discoveredAt: v.createdAt.toISOString(),
         };

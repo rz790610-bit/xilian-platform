@@ -39,7 +39,7 @@
  */
 
 import type { DiagnosisReport } from '../diagnosis/fusion-diagnosis.service';
-import { createModuleLogger } from '../../../lib/logger';
+import { createModuleLogger } from '../../../core/logger';
 
 const logger = createModuleLogger('guardrail-engine');
 

@@ -186,14 +186,14 @@ export default function KnowledgeExplorer() {
 
   const graphQuery = trpc.evoKnowledge.getKnowledgeGraph.useQuery({ depth: graphDepth }, { enabled: activeTab === 'graph', retry: 2 });
   const crystalsQuery = trpc.evoKnowledge.listCrystals.useQuery(
-    crystalStatusFilter !== 'all' ? { status: crystalStatusFilter } : undefined,
+    crystalStatusFilter !== 'all' ? { status: crystalStatusFilter as any } : undefined,
     { retry: 2 }
   );
-  const reviewCrystalMutation = trpc.evoKnowledge.reviewCrystal.useMutation({
+  const reviewCrystalMutation = trpc.evoKnowledge.crystal.review.useMutation({
     onSuccess: () => { crystalsQuery.refetch(); setReviewDialogOpen(false); setReviewTarget(null); toast.success('审核完成'); },
     onError: (e: any) => toast.error(`审核失败: ${e.message}`),
   });
-  const crystalEffectivenessQuery = trpc.evoKnowledge.getCrystalEffectiveness.useQuery(
+  const crystalEffectivenessQuery = trpc.evoKnowledge.crystal.getEffectiveness.useQuery(
     { crystalId: selectedCrystal?.id ? Number(selectedCrystal.id) : 0 },
     { enabled: !!selectedCrystal, retry: 1 }
   );
@@ -236,7 +236,7 @@ export default function KnowledgeExplorer() {
 
   const handleReviewSubmit = useCallback(() => {
     if (!reviewTarget) return;
-    reviewCrystalMutation.mutate({ crystalId: Number(reviewTarget.id), action: reviewAction, comment: reviewComment || undefined });
+    reviewCrystalMutation.mutate({ crystalId: Number(reviewTarget.id), decision: reviewAction === 'approve' ? 'approved' : 'rejected', comment: reviewComment || undefined });
   }, [reviewTarget, reviewAction, reviewComment, reviewCrystalMutation]);
 
   const filteredCrystals = crystals;

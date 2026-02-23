@@ -23,7 +23,7 @@ import {
   crystalApplications,
   crystalMigrations,
 } from '../../../../drizzle/evolution-schema';
-import { createModuleLogger } from '../../../lib/logger';
+import { createModuleLogger } from '../../../core/logger';
 
 const logger = createModuleLogger('db-knowledge-store');
 
@@ -145,7 +145,8 @@ export class DbKnowledgeStore {
     sourceSessionIds?: string[];
     createdBy?: string;
   }): Promise<{ id: number; deduplicated: boolean }> {
-    const db = getDb();
+    const db = await getDb();
+    if (!db) throw new Error('Database not available');
     const contentHash = md5(JSON.stringify(crystal.pattern));
     const sourceType = crystal.sourceType ?? 'cognition';
     const createdBy = crystal.createdBy ?? `system:${sourceType}`;
@@ -189,7 +190,8 @@ export class DbKnowledgeStore {
     id: number,
     outcome: 'positive' | 'negative' | 'neutral' = 'positive',
   ): Promise<void> {
-    const db = getDb();
+    const db = await getDb();
+    if (!db) throw new Error('Database not available');
     await db.update(knowledgeCrystals)
       .set({
         verificationCount: sql`verification_count + 1`,
@@ -213,14 +215,15 @@ export class DbKnowledgeStore {
     pattern: Record<string, unknown>,
     limit: number = 20,
   ): Promise<any | null> {
-    const db = getDb();
+    const db = await getDb();
+    if (!db) return null;
 
     // 1. 先检查 content_hash 精确匹配
     const contentHash = md5(JSON.stringify(pattern));
     const exactMatch = await db.select().from(knowledgeCrystals)
       .where(
         and(
-          eq(knowledgeCrystals.type, type),
+          eq(knowledgeCrystals.type, type as any),
           eq(knowledgeCrystals.contentHash, contentHash),
         )
       )
@@ -235,17 +238,17 @@ export class DbKnowledgeStore {
 
     // 3. 回退：TF-IDF 文本相似度
     const cacheKey = `type:${type}`;
-    let candidates = this.cache.get(cacheKey);
+    let candidates: any[] | undefined = this.cache.get(cacheKey);
     if (!candidates) {
       candidates = await db.select().from(knowledgeCrystals)
-        .where(eq(knowledgeCrystals.type, type))
+        .where(eq(knowledgeCrystals.type, type as any))
         .orderBy(desc(knowledgeCrystals.createdAt))  // 按创建时间优先
         .limit(limit);
-      this.cache.set(cacheKey, candidates);
+      this.cache.set(cacheKey, candidates ?? []);
     }
 
     const targetText = JSON.stringify(pattern);
-    for (const c of candidates) {
+    for (const c of (candidates ?? []))  {
       const patternText = typeof c.pattern === 'string' ? c.pattern : JSON.stringify(c.pattern);
       const similarity = tfidfSimilarity(targetText, patternText);
       if (similarity > 0.8) return c;
@@ -262,7 +265,8 @@ export class DbKnowledgeStore {
    * 记录结晶应用
    */
   async recordApplication(record: CrystalApplicationRecord): Promise<number> {
-    const db = getDb();
+    const db = await getDb();
+    if (!db) throw new Error('Database not available');
     const [result] = await db.insert(crystalApplications).values({
       crystalId: record.crystalId,
       appliedIn: record.appliedIn,
@@ -285,15 +289,16 @@ export class DbKnowledgeStore {
     negativeRate: number;
     recentApplications: any[];
   }> {
-    const db = getDb();
+    const db = await getDb();
+    if (!db) return { totalApplications: 0, positiveRate: 0, negativeRate: 0, recentApplications: [] };
     const apps = await db.select()
       .from(crystalApplications)
       .where(eq(crystalApplications.crystalId, crystalId))
       .orderBy(desc(crystalApplications.appliedAt));
 
     const total = apps.length;
-    const positive = apps.filter(a => a.outcome === 'positive').length;
-    const negative = apps.filter(a => a.outcome === 'negative').length;
+    const positive = apps.filter((a: any) => a.outcome === 'positive').length;
+    const negative = apps.filter((a: any) => a.outcome === 'negative').length;
 
     return {
       totalApplications: total,
@@ -314,7 +319,8 @@ export class DbKnowledgeStore {
     migrationId: number;
     newCrystalId: number;
   }> {
-    const db = getDb();
+    const db = await getDb();
+    if (!db) throw new Error('Database not available');
 
     // 1. 获取源结晶
     const source = await db.select().from(knowledgeCrystals)
@@ -339,8 +345,8 @@ export class DbKnowledgeStore {
     const contentHash = md5(JSON.stringify(newPattern));
 
     const [newCrystal] = await db.insert(knowledgeCrystals).values({
-      name: `${source[0].name} [迁移→${request.toProfile}]`,
-      type: source[0].type,
+      name: `${(source[0] as any).name ?? '结晶'} [迁移→${request.toProfile}]`,
+      type: source[0].type as any,
       pattern: JSON.stringify(newPattern),
       confidence: (source[0].confidence ?? 0.5) * 0.8,  // 迁移后置信度打折
       sourceType: source[0].sourceType ?? 'cognition',
@@ -375,7 +381,8 @@ export class DbKnowledgeStore {
    * 自动失效：扫描 approved 状态结晶，负面反馈率 > 40% 且应用 > 5 次时降级为 pending_review
    */
   async autoDeprecationCheck(): Promise<number> {
-    const db = getDb();
+    const db = await getDb();
+    if (!db) return 0;
     const candidates = await db.select().from(knowledgeCrystals)
       .where(
         and(
@@ -386,10 +393,10 @@ export class DbKnowledgeStore {
       );
 
     let deprecatedCount = 0;
-    for (const c of candidates) {
+    for (const c of (candidates ?? [])) {
       await db.update(knowledgeCrystals).set({
         status: 'pending_review',
-        reviewComment: `自动降级：负面反馈率 ${((c.negativeFeedbackRate ?? 0) * 100).toFixed(1)}% 超过阈值 40%`,
+        reviewComment: `自动降级：负面反馈率 ${(((c as any).negativeFeedbackRate ?? 0) * 100).toFixed(1)}% 超过阈值 40%`,
       } as any).where(eq(knowledgeCrystals.id, c.id));
 
       logger.warn(`Crystal ${c.id} auto-deprecated: NFR=${c.negativeFeedbackRate}`);
