@@ -121,7 +121,7 @@ export class ValidatedEventEmitter {
       await this.config.transport(envelope as EventEnvelope);
       this.emitCount++;
     } catch (err) {
-      log.error({ err, eventType, eventId }, 'Transport failed');
+      log.warn({ err, eventType, eventId }, 'Transport failed');
       throw err;
     }
 

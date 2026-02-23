@@ -250,7 +250,7 @@ export class ExtractorRegistry {
       };
     } catch (error) {
       stats.failed++;
-      log.error(`[ExtractorRegistry] 提取失败 [${extractor.name}]:`, error);
+      log.warn(`[ExtractorRegistry] 提取失败 [${extractor.name}]:`, error);
       return null;
     }
   }

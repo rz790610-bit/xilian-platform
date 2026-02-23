@@ -163,7 +163,7 @@ class DeduplicationService {
         checkTimeMs: Date.now() - startTime,
       };
     } catch (error) {
-      log.error(`[Deduplication] Check failed for ${eventId}:`, error);
+      log.warn(`[Deduplication] Check failed for ${eventId}:`, error);
       // 出错时保守处理，认为不重复
       return {
         isDuplicate: false,
@@ -321,7 +321,7 @@ class DeduplicationService {
 
       this.metrics.flushedToDb += batch.length;
     } catch (error) {
-      log.error(`[Deduplication] Flush failed for ${batch.length} items:`, error);
+      log.warn(`[Deduplication] Flush failed for ${batch.length} items:`, error);
       this.metrics.flushErrors++;
       // 放回队列
       this.flushQueue.unshift(...batch);
@@ -357,7 +357,7 @@ class DeduplicationService {
 
       log.debug('[Deduplication] Cleaned up expired records');
     } catch (error) {
-      log.error('[Deduplication] Cleanup failed:', error);
+      log.warn('[Deduplication] Cleanup failed:', error);
     }
   }
 

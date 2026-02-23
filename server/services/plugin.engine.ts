@@ -460,7 +460,7 @@ export class PluginEngine extends EventEmitter {
     // 自动安装内置插件
     for (const plugin of this.builtinPlugins) {
       this.installPlugin(plugin).catch(err => {
-        log.error(`[PluginEngine] Failed to install builtin plugin ${plugin.metadata.id}:`, err);
+        log.warn(`[PluginEngine] Failed to install builtin plugin ${plugin.metadata.id}:`, err);
       });
     }
   }
@@ -481,7 +481,7 @@ export class PluginEngine extends EventEmitter {
       logger: {
         info: (msg: string, ...args: unknown[]) => log.debug(`[Plugin:${pluginId}] ${msg}`, ...args),
         warn: (msg: string, ...args: unknown[]) => log.warn(`[Plugin:${pluginId}] ${msg}`, ...args),
-        error: (msg: string, ...args: unknown[]) => log.error(`[Plugin:${pluginId}] ${msg}`, ...args),
+        error: (msg: string, ...args: unknown[]) => log.warn(`[Plugin:${pluginId}] ${msg}`, ...args),
         debug: (msg: string, ...args: unknown[]) => log.debug(`[Plugin:${pluginId}] ${msg}`, ...args),
       },
       services: {

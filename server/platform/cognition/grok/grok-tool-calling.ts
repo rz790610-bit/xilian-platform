@@ -276,7 +276,7 @@ export class GrokToolCallingEngine {
           onStep?.(reasoningStep);
         }
       } catch (apiError: any) {
-        log.error({ step, err: apiError.message }, 'API error during reasoning');
+        log.warn({ step, err: apiError.message }, 'API error during reasoning');
         // API 错误：尝试继续
         steps.push({
           stepIndex: step,

@@ -1,6 +1,11 @@
 /**
  * PortAI Nexus — 统一日志框架
- * 基于 Pino 的结构化日志系统，替代散落的 console.log
+ * 基于自定义 Logger 的结构化日志系统，替代散落的 console.log
+ * 
+ * P1-1 集成：OpenTelemetry trace context 自动注入
+ *   - 当 OTel SDK 已初始化时，每条日志自动附带 trace_id / span_id
+ *   - 通过 @opentelemetry/api 的 trace.getActiveSpan() 获取当前 span
+ *   - 生产环境 JSON 输出中包含 trace_id/span_id，可被 Loki/ELK 关联
  * 
  * 使用方式：
  *   import { logger, createModuleLogger } from '../core/logger';
@@ -16,6 +21,8 @@ interface LogEntry {
   module: string;
   timestamp: string;
   message: string;
+  trace_id?: string;
+  span_id?: string;
   [key: string]: unknown;
 }
 
@@ -44,6 +51,54 @@ const LEVEL_COLORS: Record<LogLevel, string> = {
 };
 
 const RESET = '\x1b[0m';
+
+// ============================================
+// OTel trace context 注入
+// ============================================
+
+/**
+ * 尝试从 @opentelemetry/api 获取当前活跃 span 的 trace context。
+ * 如果 OTel SDK 未初始化或无活跃 span，返回空对象。
+ * 使用延迟加载避免循环依赖（logger.ts 在 OTel 初始化之前就被导入）。
+ */
+let otelApi: any = null;
+let otelLoadAttempted = false;
+
+function getTraceContext(): { trace_id?: string; span_id?: string } {
+  if (!otelLoadAttempted) {
+    otelLoadAttempted = true;
+    try {
+      // 动态 require 避免在 OTel 未安装时报错
+      otelApi = require('@opentelemetry/api');
+    } catch {
+      // @opentelemetry/api 未安装，静默跳过
+      otelApi = null;
+    }
+  }
+
+  if (!otelApi) return {};
+
+  try {
+    const span = otelApi.trace.getActiveSpan?.();
+    if (!span) return {};
+
+    const ctx = span.spanContext?.();
+    if (!ctx || !ctx.traceId || ctx.traceId === '00000000000000000000000000000000') {
+      return {};
+    }
+
+    return {
+      trace_id: ctx.traceId,
+      span_id: ctx.spanId,
+    };
+  } catch {
+    return {};
+  }
+}
+
+// ============================================
+// Logger 核心类
+// ============================================
 
 class Logger {
   /**
@@ -138,11 +193,15 @@ class Logger {
       extra = data;
     }
 
+    // P1-1: 注入 OTel trace context（仅在有活跃 span 时）
+    const traceCtx = getTraceContext();
+
     const entry: LogEntry = {
       level,
       module: this.module,
       timestamp,
       message: msg,
+      ...traceCtx,
       ...extra,
     };
 
@@ -159,20 +218,31 @@ class Logger {
 
     // 输出
     if (this.pretty) {
-      this.prettyPrint(level, timestamp, msg, extra);
+      this.prettyPrint(level, timestamp, msg, extra, traceCtx);
     } else {
-      // 生产环境输出 JSON 结构化日志
+      // 生产环境输出 JSON 结构化日志（包含 trace_id/span_id）
       const output = level === 'error' || level === 'fatal' ? process.stderr : process.stdout;
       output.write(JSON.stringify(entry) + '\n');
     }
   }
 
-  private prettyPrint(level: LogLevel, timestamp: string, msg: string, extra: Record<string, unknown>): void {
+  private prettyPrint(
+    level: LogLevel,
+    timestamp: string,
+    msg: string,
+    extra: Record<string, unknown>,
+    traceCtx: { trace_id?: string; span_id?: string }
+  ): void {
     const color = LEVEL_COLORS[level];
     const time = timestamp.slice(11, 23); // HH:mm:ss.SSS
     const levelStr = level.toUpperCase().padEnd(5);
     const moduleStr = `[${this.module}]`;
     
+    // 在开发环境中，如果有 trace context，显示缩短的 trace_id
+    const traceStr = traceCtx.trace_id 
+      ? ` \x1b[90m(trace:${traceCtx.trace_id.slice(0, 8)})\x1b[0m` 
+      : '';
+
     let extraStr = '';
     const keys = Object.keys(extra);
     if (keys.length > 0) {
@@ -190,7 +260,7 @@ class Logger {
     }
 
     const output = level === 'error' || level === 'fatal' ? process.stderr : process.stdout;
-    output.write(`${color}${time} ${levelStr}${RESET} ${moduleStr} ${msg}${extraStr}\n`);
+    output.write(`${color}${time} ${levelStr}${RESET} ${moduleStr}${traceStr} ${msg}${extraStr}\n`);
   }
 }
 

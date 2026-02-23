@@ -207,7 +207,7 @@ export class KafkaStreamProcessor {
         await this.handleAnomaly(anomalyResult);
       }
     } catch (error) {
-      log.error('[KafkaStreamProcessor] 处理消息失败:', error);
+      log.warn('[KafkaStreamProcessor] 处理消息失败:', error);
     }
   }
 
@@ -339,7 +339,7 @@ export class KafkaStreamProcessor {
         });
       }
     } catch (error) {
-      log.error('[KafkaStreamProcessor] 保存异常记录失败:', error);
+      log.warn('[KafkaStreamProcessor] 保存异常记录失败:', error);
     }
 
     // 发送异常事件到 Kafka
@@ -353,7 +353,7 @@ export class KafkaStreamProcessor {
         timestamp: Date.now().toString(),
       }]);
     } catch (error) {
-      log.error('[KafkaStreamProcessor] 发送异常事件失败:', error);
+      log.warn('[KafkaStreamProcessor] 发送异常事件失败:', error);
     }
 
     // 通知处理器
@@ -361,7 +361,7 @@ export class KafkaStreamProcessor {
       try {
         handler(result);
       } catch (error) {
-        log.error('[KafkaStreamProcessor] 异常处理器执行失败:', error);
+        log.warn('[KafkaStreamProcessor] 异常处理器执行失败:', error);
       }
     }
   }
@@ -433,7 +433,7 @@ export class KafkaStreamProcessor {
           });
         }
       } catch (error) {
-        log.error('[KafkaStreamProcessor] 保存聚合数据失败:', error);
+        log.warn('[KafkaStreamProcessor] 保存聚合数据失败:', error);
       }
 
       // 发送聚合事件到 Kafka
@@ -444,7 +444,7 @@ export class KafkaStreamProcessor {
           timestamp: Date.now().toString(),
         }]);
       } catch (error) {
-        log.error('[KafkaStreamProcessor] 发送聚合事件失败:', error);
+        log.warn('[KafkaStreamProcessor] 发送聚合事件失败:', error);
       }
 
       // 通知处理器
@@ -452,7 +452,7 @@ export class KafkaStreamProcessor {
         try {
           handler(aggregation);
         } catch (error) {
-          log.error('[KafkaStreamProcessor] 聚合处理器执行失败:', error);
+          log.warn('[KafkaStreamProcessor] 聚合处理器执行失败:', error);
         }
       }
     }

@@ -207,7 +207,7 @@ export class DecisionProcessor implements DimensionProcessor<DecisionOutput> {
         },
       };
     } catch (err) {
-      log.error({
+      log.warn({
         stimulusId: stimulus.id,
         error: err instanceof Error ? err.message : String(err),
       }, 'Decision processing failed');

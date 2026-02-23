@@ -25,7 +25,7 @@
  * });
  * ```
  */
-import { ENV } from "./env";
+import { config } from "./config";
 import { createModuleLogger } from './logger';
 const log = createModuleLogger('voiceTranscription');
 
@@ -78,14 +78,14 @@ export async function transcribeAudio(
 ): Promise<TranscriptionResponse | TranscriptionError> {
   try {
     // Step 1: Validate environment configuration
-    if (!ENV.forgeApiUrl) {
+    if (!config.externalApis.forgeApiUrl) {
       return {
         error: "Voice transcription service is not configured",
         code: "SERVICE_ERROR",
         details: "BUILT_IN_FORGE_API_URL is not set"
       };
     }
-    if (!ENV.forgeApiKey) {
+    if (!config.externalApis.forgeApiKey) {
       return {
         error: "Voice transcription service authentication is missing",
         code: "SERVICE_ERROR",
@@ -146,9 +146,9 @@ export async function transcribeAudio(
     formData.append("prompt", prompt);
 
     // Step 4: Call the transcription service
-    const baseUrl = ENV.forgeApiUrl.endsWith("/")
-      ? ENV.forgeApiUrl
-      : `${ENV.forgeApiUrl}/`;
+    const baseUrl = config.externalApis.forgeApiUrl.endsWith("/")
+      ? config.externalApis.forgeApiUrl
+      : `${config.externalApis.forgeApiUrl}/`;
     
     const fullUrl = new URL(
       "v1/audio/transcriptions",
@@ -158,7 +158,7 @@ export async function transcribeAudio(
     const response = await fetch(fullUrl, {
       method: "POST",
       headers: {
-        authorization: `Bearer ${ENV.forgeApiKey}`,
+        authorization: `Bearer ${config.externalApis.forgeApiKey}`,
         "Accept-Encoding": "identity",
       },
       body: formData,

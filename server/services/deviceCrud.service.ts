@@ -269,7 +269,7 @@ export class DeviceCrudService {
 
       return this.getById(input.deviceId);
     } catch (error) {
-      log.error('[DeviceCrudService] Create failed:', error);
+      log.warn('[DeviceCrudService] Create failed:', error);
       throw error;
     }
   }
@@ -347,7 +347,7 @@ export class DeviceCrudService {
         updatedAt: d.updatedAt,
       };
     } catch (error) {
-      log.error('[DeviceCrudService] GetById failed:', error);
+      log.warn('[DeviceCrudService] GetById failed:', error);
       return null;
     }
   }
@@ -462,7 +462,7 @@ export class DeviceCrudService {
         hasPrev: page > 1,
       };
     } catch (error) {
-      log.error('[DeviceCrudService] List failed:', error);
+      log.warn('[DeviceCrudService] List failed:', error);
       return {
         items: [],
         data: [],
@@ -599,7 +599,7 @@ export class DeviceCrudService {
 
       return this.getById(deviceId);
     } catch (error) {
-      log.error('[DeviceCrudService] Update failed:', error);
+      log.warn('[DeviceCrudService] Update failed:', error);
       throw error;
     }
   }
@@ -664,7 +664,7 @@ export class DeviceCrudService {
 
       return true;
     } catch (error) {
-      log.error('[DeviceCrudService] Delete failed:', error);
+      log.warn('[DeviceCrudService] Delete failed:', error);
       throw error;
     }
   }
@@ -727,7 +727,7 @@ export class DeviceCrudService {
 
       return true;
     } catch (error) {
-      log.error('[DeviceCrudService] UpdateStatus failed:', error);
+      log.warn('[DeviceCrudService] UpdateStatus failed:', error);
       return false;
     }
   }
@@ -874,7 +874,7 @@ export class DeviceCrudService {
         recentlyOffline,
       };
     } catch (error) {
-      log.error('[DeviceCrudService] GetStatistics failed:', error);
+      log.warn('[DeviceCrudService] GetStatistics failed:', error);
       return {
         total: 0,
         byStatus: { online: 0, offline: 0, maintenance: 0, error: 0, unknown: 0 },
@@ -980,7 +980,7 @@ export class DeviceCrudService {
         healthScore,
       };
     } catch (error) {
-      log.error('[DeviceCrudService] HealthCheck failed:', error);
+      log.warn('[DeviceCrudService] HealthCheck failed:', error);
       return null;
     }
   }

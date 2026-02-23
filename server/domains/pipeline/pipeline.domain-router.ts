@@ -268,7 +268,7 @@ const simulationRouter = router({
       // 异步执行（生产环境应改为 BullMQ）
       setImmediate(() => {
         executeSimulationTask(scenario, taskId).catch(err => {
-          log.error({ err, taskId }, '[simulation.execute] task failed');
+          log.warn({ err, taskId }, '[simulation.execute] task failed');
         });
       });
 
@@ -298,7 +298,7 @@ const simulationRouter = router({
         const taskId = `sim-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
         setImmediate(() => {
           executeSimulationTask(scenario, taskId).catch(err => {
-            log.error({ err, taskId }, '[simulation.batchExecute] task failed');
+            log.warn({ err, taskId }, '[simulation.batchExecute] task failed');
           });
         });
         return { taskId, scenarioId: scenario.id, status: 'queued' as const };

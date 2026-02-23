@@ -53,7 +53,7 @@ async function parsePDF(buffer: Buffer): Promise<string> {
     const result = await parser.getText();
     return result.text || "";
   } catch (error) {
-    log.error("PDF parsing failed:", error);
+    log.warn("PDF parsing failed:", error);
     throw new Error("PDF 解析失败");
   }
 }
@@ -63,7 +63,7 @@ async function parseWord(buffer: Buffer): Promise<string> {
     const result = await mammoth.extractRawText({ buffer });
     return result.value || "";
   } catch (error) {
-    log.error("Word parsing failed:", error);
+    log.warn("Word parsing failed:", error);
     throw new Error("Word 文档解析失败");
   }
 }
@@ -148,7 +148,7 @@ async function upsertToQdrant(
     });
     return response.ok;
   } catch (error) {
-    log.error("Qdrant upsert failed:", error);
+    log.warn("Qdrant upsert failed:", error);
     return false;
   }
 }
@@ -338,7 +338,7 @@ export const knowledgeRouter = router({
               relations = parsed.relations || [];
             }
           } catch (e) {
-            log.error("Entity extraction failed:", e);
+            log.warn("Entity extraction failed:", e);
           }
         }
         
@@ -476,7 +476,7 @@ export const knowledgeRouter = router({
         }
         return { entities: [], relations: [] };
       } catch (error) {
-        log.error("Entity extraction failed:", error);
+        log.warn("Entity extraction failed:", error);
         return { entities: [], relations: [], error: String(error) };
       }
     }),
@@ -499,7 +499,7 @@ export const knowledgeRouter = router({
         const msgContent = response.choices[0]?.message?.content;
         return { summary: typeof msgContent === 'string' ? msgContent : '' };
       } catch (error) {
-        log.error("Summarization failed:", error);
+        log.warn("Summarization failed:", error);
         return { summary: "", error: String(error) };
       }
     }),

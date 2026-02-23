@@ -166,7 +166,7 @@ export class DataflowManager {
       this.isInitialized = true;
       log.debug('[DataflowManager] Dataflow layer initialized');
     } catch (error) {
-      log.error('[DataflowManager] Initialization failed:', error);
+      log.warn('[DataflowManager] Initialization failed:', error);
       throw error;
     }
   }
@@ -238,7 +238,7 @@ export class DataflowManager {
 
       log.debug('[DataflowManager] All processors started');
     } catch (error) {
-      log.error('[DataflowManager] Failed to start processors:', error);
+      log.warn('[DataflowManager] Failed to start processors:', error);
       this.isRunning = false;
       throw error;
     }
@@ -261,7 +261,7 @@ export class DataflowManager {
 
       log.debug('[DataflowManager] All processors stopped');
     } catch (error) {
-      log.error('[DataflowManager] Error stopping processors:', error);
+      log.warn('[DataflowManager] Error stopping processors:', error);
       throw error;
     }
   }
@@ -521,7 +521,7 @@ export class DataflowManager {
         try {
           handler(event);
         } catch (error) {
-          log.error(`[DataflowManager] Event handler error for ${type}:`, error);
+          log.warn(`[DataflowManager] Event handler error for ${type}:`, error);
         }
       }
     }

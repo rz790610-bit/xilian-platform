@@ -292,7 +292,7 @@ export class FeatureExtractionService {
 
     } catch (error) {
       this.metrics.extractionFailed++;
-      log.error('[FeatureExtraction] 处理消息失败:', error);
+      log.warn('[FeatureExtraction] 处理消息失败:', error);
     }
   }
 
@@ -319,7 +319,7 @@ export class FeatureExtractionService {
 
     } catch (error) {
       this.metrics.publishFailed += batch.length;
-      log.error(`[FeatureExtraction] 发布 ${batch.length} 条特征消息失败:`, error);
+      log.warn(`[FeatureExtraction] 发布 ${batch.length} 条特征消息失败:`, error);
 
       // 放回缓冲区（最多保留 10000 条）
       if (this.publishBuffer.length + batch.length <= 10000) {

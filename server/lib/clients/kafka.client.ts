@@ -121,7 +121,7 @@ class KafkaClientManager {
       log.debug('[Kafka] Kafka 客户端初始化完成');
     } catch (error: any) {
       this.isConnected = false;
-      log.error(`[Kafka] 初始化失败 (服务将以降级模式运行): ${error.message}`);
+      log.warn(`[Kafka] 初始化失败 (服务将以降级模式运行): ${error.message}`);
       // 不抛出异常，允许平台在没有 Kafka 的情况下启动
     }
   }
@@ -223,7 +223,7 @@ class KafkaClientManager {
             timestamp: message.timestamp,
           });
         } catch (err) {
-          log.error(`[Kafka] 消息处理失败 topic=${topic} partition=${partition} offset=${message.offset}:`, err);
+          log.warn(`[Kafka] 消息处理失败 topic=${topic} partition=${partition} offset=${message.offset}:`, err);
           // 不抛出异常，避免消费者崩溃，消息将被跳过
         }
       },

@@ -200,7 +200,7 @@ export class PostgresStorage {
       }
       return null;
     } catch (error) {
-      log.error('[PostgreSQL] Create device error:', error);
+      log.warn('[PostgreSQL] Create device error:', error);
       return null;
     }
   }
@@ -216,7 +216,7 @@ export class PostgresStorage {
       const result = await db.select().from(assetNodes).where(eq(assetNodes.nodeId, deviceId)).limit(1);
       return result[0] ? this.mapDeviceRecord(result[0]) : null;
     } catch (error) {
-      log.error('[PostgreSQL] Get device error:', error);
+      log.warn('[PostgreSQL] Get device error:', error);
       return null;
     }
   }
@@ -249,7 +249,7 @@ export class PostgresStorage {
       const updated = await db.select().from(assetNodes).where(eq(assetNodes.nodeId, deviceId)).limit(1);
       return updated[0] ? this.mapDeviceRecord(updated[0]) : null;
     } catch (error) {
-      log.error('[PostgreSQL] Update device error:', error);
+      log.warn('[PostgreSQL] Update device error:', error);
       return null;
     }
   }
@@ -265,7 +265,7 @@ export class PostgresStorage {
       await db.delete(assetNodes).where(eq(assetNodes.nodeId, deviceId));
       return true;
     } catch (error) {
-      log.error('[PostgreSQL] Delete device error:', error);
+      log.warn('[PostgreSQL] Delete device error:', error);
       return false;
     }
   }
@@ -332,7 +332,7 @@ export class PostgresStorage {
         totalPages: Math.ceil(total / limit),
       };
     } catch (error) {
-      log.error('[PostgreSQL] List devices error:', error);
+      log.warn('[PostgreSQL] List devices error:', error);
       return { data: [], items: [], total: 0, page: 1, pageSize: 20, totalPages: 0 };
     }
   }
@@ -350,7 +350,7 @@ export class PostgresStorage {
       const result = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
       return result[0] ? this.mapUserRecord(result[0]) : null;
     } catch (error) {
-      log.error('[PostgreSQL] Get user error:', error);
+      log.warn('[PostgreSQL] Get user error:', error);
       return null;
     }
   }
@@ -368,7 +368,7 @@ export class PostgresStorage {
         .where(eq(users.openId, openId));
       return true;
     } catch (error) {
-      log.error('[PostgreSQL] Update user role error:', error);
+      log.warn('[PostgreSQL] Update user role error:', error);
       return false;
     }
   }
@@ -410,7 +410,7 @@ export class PostgresStorage {
         totalPages: Math.ceil(total / limit),
       };
     } catch (error) {
-      log.error('[PostgreSQL] List users error:', error);
+      log.warn('[PostgreSQL] List users error:', error);
       return { data: [], items: [], total: 0, page: 1, pageSize: 20, totalPages: 0 };
     }
   }
@@ -445,7 +445,7 @@ export class PostgresStorage {
       }
       return null;
     } catch (error) {
-      log.error('[PostgreSQL] Create maintenance log error:', error);
+      log.warn('[PostgreSQL] Create maintenance log error:', error);
       return null;
     }
   }
@@ -504,7 +504,7 @@ export class PostgresStorage {
         totalPages: Math.ceil(total / limit),
       };
     } catch (error) {
-      log.error('[PostgreSQL] List maintenance logs error:', error);
+      log.warn('[PostgreSQL] List maintenance logs error:', error);
       return { data: [], items: [], total: 0, page: 1, pageSize: 20, totalPages: 0 };
     }
   }
@@ -544,7 +544,7 @@ export class PostgresStorage {
       }
       return null;
     } catch (error) {
-      log.error('[PostgreSQL] Create spare part error:', error);
+      log.warn('[PostgreSQL] Create spare part error:', error);
       return null;
     }
   }
@@ -565,7 +565,7 @@ export class PostgresStorage {
         .where(eq(deviceSpareParts.partId, partId));
       return true;
     } catch (error) {
-      log.error('[PostgreSQL] Update spare part quantity error:', error);
+      log.warn('[PostgreSQL] Update spare part quantity error:', error);
       return false;
     }
   }
@@ -584,7 +584,7 @@ export class PostgresStorage {
 
       return result.map(r => this.mapSparePartRecord(r));
     } catch (error) {
-      log.error('[PostgreSQL] Get low stock parts error:', error);
+      log.warn('[PostgreSQL] Get low stock parts error:', error);
       return [];
     }
   }
@@ -619,7 +619,7 @@ export class PostgresStorage {
       }
       return null;
     } catch (error) {
-      log.error('[PostgreSQL] Create alert error:', error);
+      log.warn('[PostgreSQL] Create alert error:', error);
       return null;
     }
   }
@@ -640,7 +640,7 @@ export class PostgresStorage {
         .where(eq(deviceAlerts.id, alertId));
       return true;
     } catch (error) {
-      log.error('[PostgreSQL] Acknowledge alert error:', error);
+      log.warn('[PostgreSQL] Acknowledge alert error:', error);
       return false;
     }
   }
@@ -661,7 +661,7 @@ export class PostgresStorage {
         .where(eq(deviceAlerts.id, alertId));
       return true;
     } catch (error) {
-      log.error('[PostgreSQL] Resolve alert error:', error);
+      log.warn('[PostgreSQL] Resolve alert error:', error);
       return false;
     }
   }
@@ -709,7 +709,7 @@ export class PostgresStorage {
         totalPages: Math.ceil(total / limit),
       };
     } catch (error) {
-      log.error('[PostgreSQL] Get active alerts error:', error);
+      log.warn('[PostgreSQL] Get active alerts error:', error);
       return { data: [], items: [], total: 0, page: 1, pageSize: 20, totalPages: 0 };
     }
   }
@@ -751,7 +751,7 @@ export class PostgresStorage {
       }
       return null;
     } catch (error) {
-      log.error('[PostgreSQL] Record KPI error:', error);
+      log.warn('[PostgreSQL] Record KPI error:', error);
       return null;
     }
   }
@@ -789,7 +789,7 @@ export class PostgresStorage {
 
       return result.map(r => this.mapKpiRecord(r));
     } catch (error) {
-      log.error('[PostgreSQL] Get device KPIs error:', error);
+      log.warn('[PostgreSQL] Get device KPIs error:', error);
       return [];
     }
   }
@@ -860,7 +860,7 @@ export class PostgresStorage {
         lowStockParts: Number(lowStockStats[0]?.count || 0),
       };
     } catch (error) {
-      log.error('[PostgreSQL] Get database stats error:', error);
+      log.warn('[PostgreSQL] Get database stats error:', error);
       return {
         totalDevices: 0,
         onlineDevices: 0,

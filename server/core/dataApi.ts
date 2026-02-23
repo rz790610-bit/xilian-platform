@@ -4,7 +4,7 @@
  *     query: { gl: "US", hl: "en", q: "manus" },
  *   })
  */
-import { ENV } from "./env";
+import { config } from "./config";
 
 export type DataApiCallOptions = {
   query?: Record<string, unknown>;
@@ -17,15 +17,15 @@ export async function callDataApi(
   apiId: string,
   options: DataApiCallOptions = {}
 ): Promise<unknown> {
-  if (!ENV.forgeApiUrl) {
+  if (!config.externalApis.forgeApiUrl) {
     throw new Error("BUILT_IN_FORGE_API_URL is not configured");
   }
-  if (!ENV.forgeApiKey) {
+  if (!config.externalApis.forgeApiKey) {
     throw new Error("BUILT_IN_FORGE_API_KEY is not configured");
   }
 
   // Build the full URL by appending the service path to the base URL
-  const baseUrl = ENV.forgeApiUrl.endsWith("/") ? ENV.forgeApiUrl : `${ENV.forgeApiUrl}/`;
+  const baseUrl = config.externalApis.forgeApiUrl.endsWith("/") ? config.externalApis.forgeApiUrl : `${config.externalApis.forgeApiUrl}/`;
   const fullUrl = new URL("webdevtoken.v1.WebDevService/CallApi", baseUrl).toString();
 
   const response = await fetch(fullUrl, {
@@ -34,7 +34,7 @@ export async function callDataApi(
       accept: "application/json",
       "content-type": "application/json",
       "connect-protocol-version": "1",
-      authorization: `Bearer ${ENV.forgeApiKey}`,
+      authorization: `Bearer ${config.externalApis.forgeApiKey}`,
     },
     body: JSON.stringify({
       apiId,

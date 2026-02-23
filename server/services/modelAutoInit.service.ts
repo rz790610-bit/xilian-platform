@@ -153,7 +153,7 @@ async function pullModelWithProgress(
     const installed = await getInstalledModels();
     return installed.some(m => m === modelName || m === `${modelName}:latest` || `${modelName}:latest` === m);
   } catch (error) {
-    log.error(`[AutoInit] Failed to pull model ${modelName}:`, error);
+    log.warn(`[AutoInit] Failed to pull model ${modelName}:`, error);
     return false;
   }
 }
@@ -232,7 +232,7 @@ async function syncModelToDb(modelName: string, modelType: "llm" | "embedding"):
         .where(eq(models.modelId, modelId));
     }
   } catch (error) {
-    log.error(`[AutoInit] Failed to sync model ${modelName} to DB:`, error);
+    log.warn(`[AutoInit] Failed to sync model ${modelName} to DB:`, error);
   }
 }
 
@@ -311,7 +311,7 @@ async function runAutoInit(): Promise<void> {
     initState.status = "failed";
     initState.error = `Ollama not reachable at ${OLLAMA_BASE_URL} after ${INIT_RETRY_COUNT} retries`;
     initState.completedAt = new Date().toISOString();
-    log.error(`[AutoInit] ${initState.error}`);
+    log.warn(`[AutoInit] ${initState.error}`);
     return;
   }
 
@@ -371,7 +371,7 @@ async function runAutoInit(): Promise<void> {
       } else {
         entry.status = "failed";
         entry.error = "Pull failed or verification failed";
-        log.error(`[AutoInit] Pull failed: ${entry.model}`);
+        log.warn(`[AutoInit] Pull failed: ${entry.model}`);
       }
     }
   }
@@ -412,7 +412,7 @@ export function startModelAutoInit(): void {
   setTimeout(() => {
     initPromise = runAutoInit()
       .catch(error => {
-        log.error("[AutoInit] Unexpected error:", error);
+        log.warn("[AutoInit] Unexpected error:", error);
         initState.status = "failed";
         initState.error = error.message || "Unexpected error";
         initState.completedAt = new Date().toISOString();
@@ -439,7 +439,7 @@ export async function retriggerAutoInit(): Promise<void> {
 
   initPromise = runAutoInit()
     .catch(error => {
-      log.error("[AutoInit] Retrigger error:", error);
+      log.warn("[AutoInit] Retrigger error:", error);
       initState.status = "failed";
       initState.error = error.message || "Unexpected error";
       initState.completedAt = new Date().toISOString();

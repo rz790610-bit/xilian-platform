@@ -25,7 +25,7 @@ const KONG_STATUS_URL = process.env.KONG_STATUS_URL || 'http://kong:8100';
 const log = {
   info: (...args: any[]) => log.info({}, args.join(' ')),
   warn: (...args: any[]) => log.warn({}, args.join(' ')),
-  error: (...args: any[]) => log.error({}, args.join(' ')),
+  error: (...args: any[]) => log.warn({}, args.join(' ')),
 };
 
 // ── Kong Admin API 请求封装 ──
@@ -60,7 +60,7 @@ async function kongRequest<T = any>(
     const data = await response.json();
     return { data: data as T, error: null, status: response.status };
   } catch (err: any) {
-    log.error(`Kong API 请求失败: ${path}`, err.message);
+    log.warn(`Kong API 请求失败: ${path}`, err.message);
     return {
       data: null,
       error: `Kong 网关不可达: ${err.message}`,

@@ -146,7 +146,7 @@ class WebSocketGateway {
     });
 
     ws.on('error', (error: Error) => {
-      log.error('[WSGateway] Client error:', error.message);
+      log.warn('[WSGateway] Client error:', error.message);
       this.clients.delete(ws);
     });
   }

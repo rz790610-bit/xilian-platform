@@ -106,7 +106,7 @@ export const twinConfigRouter = router({
         modules: LAYER_MODULE_MAP[r.layerId] ?? [],
       }));
     } catch (err) {
-      log.error({ err: String(err) }, '[listLayers] Error');
+      log.warn({ err: String(err) }, '[listLayers] Error');
       return [];
     }
   }),
@@ -143,7 +143,7 @@ export const twinConfigRouter = router({
           .orderBy(asc(engineConfigRegistry.module), asc(engineConfigRegistry.sortOrder));
         return rows;
       } catch (err) {
-        log.error({ err: String(err) }, '[listConfigs] Error');
+        log.warn({ err: String(err) }, '[listConfigs] Error');
         return [];
       }
     }),
@@ -159,7 +159,7 @@ export const twinConfigRouter = router({
           .where(eq(engineConfigRegistry.id, input.id)).limit(1);
         return rows[0] ?? null;
       } catch (err) {
-        log.error({ err: String(err) }, '[getConfig] Error');
+        log.warn({ err: String(err) }, '[getConfig] Error');
         return null;
       }
     }),
@@ -186,7 +186,7 @@ export const twinConfigRouter = router({
           groups,
         };
       } catch (err) {
-        log.error({ err: String(err) }, '[getModuleConfigs] Error');
+        log.warn({ err: String(err) }, '[getModuleConfigs] Error');
         return { module: input.module, layerId: MODULE_LAYER_MAP[input.module] ?? 'unknown', groups: {} };
       }
     }),
@@ -218,7 +218,7 @@ export const twinConfigRouter = router({
         ]);
         return { items, total: Number(countResult[0]?.count ?? 0) };
       } catch (err) {
-        log.error({ err: String(err) }, '[getAuditLog] Error');
+        log.warn({ err: String(err) }, '[getAuditLog] Error');
         return { items: [], total: 0 };
       }
     }),
@@ -242,7 +242,7 @@ export const twinConfigRouter = router({
           .orderBy(desc(twinConfigSnapshot.createdAt))
           .limit(input.limit);
       } catch (err) {
-        log.error({ err: String(err) }, '[listSnapshots] Error');
+        log.warn({ err: String(err) }, '[listSnapshots] Error');
         return [];
       }
     }),
@@ -258,7 +258,7 @@ export const twinConfigRouter = router({
           .where(eq(twinConfigSnapshot.id, input.id)).limit(1);
         return rows[0] ?? null;
       } catch (err) {
-        log.error({ err: String(err) }, '[getSnapshot] Error');
+        log.warn({ err: String(err) }, '[getSnapshot] Error');
         return null;
       }
     }),
@@ -280,7 +280,7 @@ export const twinConfigRouter = router({
           .orderBy(desc(twinConfigSimulationRuns.createdAt))
           .limit(input.limit);
       } catch (err) {
-        log.error({ err: String(err) }, '[getSimulationRuns] Error');
+        log.warn({ err: String(err) }, '[getSimulationRuns] Error');
         return [];
       }
     }),
@@ -341,7 +341,7 @@ export const twinConfigRouter = router({
         }
         return { labelA, labelB, diffs };
       } catch (err) {
-        log.error({ err: String(err) }, '[compareConfigs] Error');
+        log.warn({ err: String(err) }, '[compareConfigs] Error');
         return { diffs: [] };
       }
     }),
@@ -404,7 +404,7 @@ export const twinConfigRouter = router({
         log.info({ module: existing.module, key: existing.configKey, impactScore }, '[updateConfig] Config updated');
         return { success: true, impactScore };
       } catch (err) {
-        log.error({ err: String(err) }, '[updateConfig] Error');
+        log.warn({ err: String(err) }, '[updateConfig] Error');
         throw err;
       }
     }),
@@ -463,7 +463,7 @@ export const twinConfigRouter = router({
         log.info({ count: results.length }, '[batchUpdateConfigs] Batch update completed');
         return { success: true, updated: results.length, results };
       } catch (err) {
-        log.error({ err: String(err) }, '[batchUpdateConfigs] Error');
+        log.warn({ err: String(err) }, '[batchUpdateConfigs] Error');
         throw err;
       }
     }),
@@ -499,7 +499,7 @@ export const twinConfigRouter = router({
 
         return { success: true, restoredValue: existing.defaultValue };
       } catch (err) {
-        log.error({ err: String(err) }, '[resetConfig] Error');
+        log.warn({ err: String(err) }, '[resetConfig] Error');
         throw err;
       }
     }),
@@ -533,7 +533,7 @@ export const twinConfigRouter = router({
         log.info({ layerId: input.layerId, enabled: input.enabled }, '[toggleLayer] Layer switch toggled');
         return { success: true };
       } catch (err) {
-        log.error({ err: String(err) }, '[toggleLayer] Error');
+        log.warn({ err: String(err) }, '[toggleLayer] Error');
         throw err;
       }
     }),
@@ -578,7 +578,7 @@ export const twinConfigRouter = router({
         log.info({ name: input.snapshotName, configCount: configs.length }, '[createSnapshot] Snapshot created');
         return { success: true, snapshotId: Number(result[0].insertId) };
       } catch (err) {
-        log.error({ err: String(err) }, '[createSnapshot] Error');
+        log.warn({ err: String(err) }, '[createSnapshot] Error');
         throw err;
       }
     }),
@@ -647,7 +647,7 @@ export const twinConfigRouter = router({
         log.info({ snapshotId: input.snapshotId, restoredCount }, '[rollbackToSnapshot] Rollback completed');
         return { success: true, restoredCount };
       } catch (err) {
-        log.error({ err: String(err) }, '[rollbackToSnapshot] Error');
+        log.warn({ err: String(err) }, '[rollbackToSnapshot] Error');
         throw err;
       }
     }),
@@ -732,7 +732,7 @@ export const twinConfigRouter = router({
               reason: `仿真运行 #${runId}`,
             });
           } catch (simErr) {
-            log.error({ err: String(simErr) }, '[simulateConfig] Simulation error');
+            log.warn({ err: String(simErr) }, '[simulateConfig] Simulation error');
             await db.update(twinConfigSimulationRuns)
               .set({ status: 'failed', completedAt: new Date() })
               .where(eq(twinConfigSimulationRuns.id, runId));
@@ -741,7 +741,7 @@ export const twinConfigRouter = router({
 
         return { success: true, runId };
       } catch (err) {
-        log.error({ err: String(err) }, '[simulateConfig] Error');
+        log.warn({ err: String(err) }, '[simulateConfig] Error');
         throw err;
       }
     }),
@@ -773,7 +773,7 @@ export const twinConfigRouter = router({
 
         return { success: true };
       } catch (err) {
-        log.error({ err: String(err) }, '[toggleModule] Error');
+        log.warn({ err: String(err) }, '[toggleModule] Error');
         throw err;
       }
     }),

@@ -273,7 +273,7 @@ class DeviceService {
         status: 'unknown',
       };
     } catch (error) {
-      log.error('[DeviceService] Create device failed:', error);
+      log.warn('[DeviceService] Create device failed:', error);
       return null;
     }
   }
@@ -329,7 +329,7 @@ class DeviceService {
         };
       });
     } catch (error) {
-      log.error('[DeviceService] List devices failed:', error);
+      log.warn('[DeviceService] List devices failed:', error);
       return [];
     }
   }
@@ -375,7 +375,7 @@ class DeviceService {
         lastHeartbeat: d.lastHeartbeat || undefined,
       };
     } catch (error) {
-      log.error('[DeviceService] Get device failed:', error);
+      log.warn('[DeviceService] Get device failed:', error);
       return null;
     }
   }
@@ -410,7 +410,7 @@ class DeviceService {
 
       return true;
     } catch (error) {
-      log.error('[DeviceService] Update device status failed:', error);
+      log.warn('[DeviceService] Update device status failed:', error);
       return false;
     }
   }
@@ -426,7 +426,7 @@ class DeviceService {
       await db.delete(assetNodes).where(eq(assetNodes.nodeId, deviceId));
       return true;
     } catch (error) {
-      log.error('[DeviceService] Delete device failed:', error);
+      log.warn('[DeviceService] Delete device failed:', error);
       return false;
     }
   }
@@ -485,7 +485,7 @@ class SensorService {
         status: 'active',
       };
     } catch (error) {
-      log.error('[SensorService] Create sensor failed:', error);
+      log.warn('[SensorService] Create sensor failed:', error);
       return null;
     }
   }
@@ -521,7 +521,7 @@ class SensorService {
         lastReadingAt: s.lastReadingAt || undefined,
       }));
     } catch (error) {
-      log.error('[SensorService] List sensors failed:', error);
+      log.warn('[SensorService] List sensors failed:', error);
       return [];
     }
   }
@@ -561,7 +561,7 @@ class SensorService {
         };
       });
     } catch (error) {
-      log.error('[SensorService] Get readings failed:', error);
+      log.warn('[SensorService] Get readings failed:', error);
       return [];
     }
   }
@@ -623,7 +623,7 @@ class SensorService {
         })
         .filter((r): r is NonNullable<typeof r> => r !== null);
     } catch (error) {
-      log.error('[SensorService] Get aggregates failed:', error);
+      log.warn('[SensorService] Get aggregates failed:', error);
       return [];
     }
   }
@@ -645,7 +645,7 @@ class SensorService {
         })
         .where(eq(assetSensors.sensorId, sensorId));
     } catch (error) {
-      log.error('[SensorService] Update last value failed:', error);
+      log.warn('[SensorService] Update last value failed:', error);
     }
   }
 
@@ -660,7 +660,7 @@ class SensorService {
       await db.delete(assetSensors).where(eq(assetSensors.sensorId, sensorId));
       return true;
     } catch (error) {
-      log.error('[SensorService] Delete sensor failed:', error);
+      log.warn('[SensorService] Delete sensor failed:', error);
       return false;
     }
   }

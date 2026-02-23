@@ -307,7 +307,7 @@ class CircuitBreakerRegistry {
    */
   forceOpen(serviceName: string, operatorId: string): boolean {
     if (!operatorId) {
-      log.error(`[${serviceName}] forceOpen rejected: operatorId is required`);
+      log.warn(`[${serviceName}] forceOpen rejected: operatorId is required`);
       return false;
     }
     const breaker = this.breakers.get(serviceName);
@@ -324,7 +324,7 @@ class CircuitBreakerRegistry {
    */
   forceClose(serviceName: string, operatorId: string): boolean {
     if (!operatorId) {
-      log.error(`[${serviceName}] forceClose rejected: operatorId is required`);
+      log.warn(`[${serviceName}] forceClose rejected: operatorId is required`);
       return false;
     }
     const breaker = this.breakers.get(serviceName);
@@ -366,7 +366,7 @@ class CircuitBreakerRegistry {
       try {
         listener(name, state);
       } catch (err) {
-        log.error(`State change listener error:`, String(err));
+        log.warn(`State change listener error:`, String(err));
       }
     }
   }

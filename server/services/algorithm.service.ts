@@ -997,7 +997,7 @@ class AlgorithmService {
         nodeIds: [`${nodeType}_${Date.now()}`],
       };
     } catch (error: any) {
-      log.error('[AlgorithmService] KG write failed:', error.message);
+      log.warn('[AlgorithmService] KG write failed:', error.message);
       return { nodesCreated: 0, edgesCreated: 0, nodeIds: [] };
     }
   }
@@ -1088,7 +1088,7 @@ class AlgorithmService {
                 trigger: 'cascade',
                 parentExecutionId: `${algoCode}_cascade`,
               }).catch(err => {
-                log.error(`[AlgorithmService] Cascade execution failed: ${cascade.algo_code}`, err.message);
+                log.warn(`[AlgorithmService] Cascade execution failed: ${cascade.algo_code}`, err.message);
               });
             }
           }
@@ -1499,7 +1499,7 @@ class AlgorithmService {
         completedAt: new Date(),
       });
     } catch (error: any) {
-      log.error('[AlgorithmService] Failed to record execution:', error.message);
+      log.warn('[AlgorithmService] Failed to record execution:', error.message);
     }
   }
 

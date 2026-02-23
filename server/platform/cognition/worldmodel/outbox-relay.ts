@@ -256,14 +256,14 @@ export class OutboxRelay {
           log.warn({ record: record.id },             `[OutboxRelay] Record ${record.id} moved to dead letter after ${record.retryCount} retries`,
           );
         } catch (dlErr) {
-          log.error({ err: dlErr, recordId: record.id }, 'Failed to mark dead letter');
+          log.warn({ err: dlErr, recordId: record.id }, 'Failed to mark dead letter');
         }
       } else {
         // 递增重试计数
         try {
           await this.incrementRetryFn!(record.id);
         } catch (retryErr) {
-          log.error({ err: retryErr, recordId: record.id }, 'Failed to increment retry');
+          log.warn({ err: retryErr, recordId: record.id }, 'Failed to increment retry');
         }
       }
     }

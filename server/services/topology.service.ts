@@ -32,7 +32,7 @@ export async function createTopoNode(data: InsertTopoNode): Promise<TopoNode | n
     const result = await db.select().from(topoNodes).where(eq(topoNodes.nodeId, data.nodeId)).limit(1);
     return result[0] || null;
   } catch (error) {
-    log.error("[Topology] Failed to create/upsert node:", error);
+    log.warn("[Topology] Failed to create/upsert node:", error);
     return null;
   }
 }
@@ -44,7 +44,7 @@ export async function getTopoNodes(): Promise<TopoNode[]> {
   try {
     return await db.select().from(topoNodes).orderBy(desc(topoNodes.createdAt));
   } catch (error) {
-    log.error("[Topology] Failed to get nodes:", error);
+    log.warn("[Topology] Failed to get nodes:", error);
     return [];
   }
 }
@@ -57,7 +57,7 @@ export async function getTopoNodeById(nodeId: string): Promise<TopoNode | null> 
     const result = await db.select().from(topoNodes).where(eq(topoNodes.nodeId, nodeId)).limit(1);
     return result[0] || null;
   } catch (error) {
-    log.error("[Topology] Failed to get node:", error);
+    log.warn("[Topology] Failed to get node:", error);
     return null;
   }
 }
@@ -70,7 +70,7 @@ export async function updateTopoNode(nodeId: string, data: Partial<InsertTopoNod
     await db.update(topoNodes).set(data).where(eq(topoNodes.nodeId, nodeId));
     return true;
   } catch (error) {
-    log.error("[Topology] Failed to update node:", error);
+    log.warn("[Topology] Failed to update node:", error);
     return false;
   }
 }
@@ -83,7 +83,7 @@ export async function updateTopoNodePosition(nodeId: string, x: number, y: numbe
     await db.update(topoNodes).set({ x, y }).where(eq(topoNodes.nodeId, nodeId));
     return true;
   } catch (error) {
-    log.error("[Topology] Failed to update node position:", error);
+    log.warn("[Topology] Failed to update node position:", error);
     return false;
   }
 }
@@ -96,7 +96,7 @@ export async function updateTopoNodeStatus(nodeId: string, status: 'online' | 'o
     await db.update(topoNodes).set({ status, lastHeartbeat: new Date() }).where(eq(topoNodes.nodeId, nodeId));
     return true;
   } catch (error) {
-    log.error("[Topology] Failed to update node status:", error);
+    log.warn("[Topology] Failed to update node status:", error);
     return false;
   }
 }
@@ -109,7 +109,7 @@ export async function updateTopoNodeMetrics(nodeId: string, metrics: { cpu?: num
     await db.update(topoNodes).set({ metrics, lastHeartbeat: new Date() }).where(eq(topoNodes.nodeId, nodeId));
     return true;
   } catch (error) {
-    log.error("[Topology] Failed to update node metrics:", error);
+    log.warn("[Topology] Failed to update node metrics:", error);
     return false;
   }
 }
@@ -125,7 +125,7 @@ export async function deleteTopoNode(nodeId: string): Promise<boolean> {
     await db.delete(topoNodes).where(eq(topoNodes.nodeId, nodeId));
     return true;
   } catch (error) {
-    log.error("[Topology] Failed to delete node:", error);
+    log.warn("[Topology] Failed to delete node:", error);
     return false;
   }
 }
@@ -151,7 +151,7 @@ export async function createTopoEdge(data: InsertTopoEdge): Promise<TopoEdge | n
     const result = await db.select().from(topoEdges).where(eq(topoEdges.edgeId, data.edgeId)).limit(1);
     return result[0] || null;
   } catch (error) {
-    log.error("[Topology] Failed to create/upsert edge:", error);
+    log.warn("[Topology] Failed to create/upsert edge:", error);
     return null;
   }
 }
@@ -163,7 +163,7 @@ export async function getTopoEdges(): Promise<TopoEdge[]> {
   try {
     return await db.select().from(topoEdges).orderBy(desc(topoEdges.createdAt));
   } catch (error) {
-    log.error("[Topology] Failed to get edges:", error);
+    log.warn("[Topology] Failed to get edges:", error);
     return [];
   }
 }
@@ -176,7 +176,7 @@ export async function updateTopoEdge(edgeId: string, data: Partial<InsertTopoEdg
     await db.update(topoEdges).set(data).where(eq(topoEdges.edgeId, edgeId));
     return true;
   } catch (error) {
-    log.error("[Topology] Failed to update edge:", error);
+    log.warn("[Topology] Failed to update edge:", error);
     return false;
   }
 }
@@ -189,7 +189,7 @@ export async function deleteTopoEdge(edgeId: string): Promise<boolean> {
     await db.delete(topoEdges).where(eq(topoEdges.edgeId, edgeId));
     return true;
   } catch (error) {
-    log.error("[Topology] Failed to delete edge:", error);
+    log.warn("[Topology] Failed to delete edge:", error);
     return false;
   }
 }
@@ -206,7 +206,7 @@ export async function createTopoLayout(data: InsertTopoLayout): Promise<TopoLayo
     const layout = await db.select().from(topoLayouts).where(eq(topoLayouts.id, insertId)).limit(1);
     return layout[0] || null;
   } catch (error) {
-    log.error("[Topology] Failed to create layout:", error);
+    log.warn("[Topology] Failed to create layout:", error);
     return null;
   }
 }
@@ -221,7 +221,7 @@ export async function getTopoLayouts(userId?: number): Promise<TopoLayout[]> {
     }
     return await db.select().from(topoLayouts).orderBy(desc(topoLayouts.createdAt));
   } catch (error) {
-    log.error("[Topology] Failed to get layouts:", error);
+    log.warn("[Topology] Failed to get layouts:", error);
     return [];
   }
 }
@@ -234,7 +234,7 @@ export async function getDefaultTopoLayout(): Promise<TopoLayout | null> {
     const result = await db.select().from(topoLayouts).where(eq(topoLayouts.isDefault, true)).limit(1);
     return result[0] || null;
   } catch (error) {
-    log.error("[Topology] Failed to get default layout:", error);
+    log.warn("[Topology] Failed to get default layout:", error);
     return null;
   }
 }
@@ -251,7 +251,7 @@ export async function updateTopoLayout(id: number, data: Partial<InsertTopoLayou
     await db.update(topoLayouts).set(data).where(eq(topoLayouts.id, id));
     return true;
   } catch (error) {
-    log.error("[Topology] Failed to update layout:", error);
+    log.warn("[Topology] Failed to update layout:", error);
     return false;
   }
 }
@@ -264,7 +264,7 @@ export async function deleteTopoLayout(id: number): Promise<boolean> {
     await db.delete(topoLayouts).where(eq(topoLayouts.id, id));
     return true;
   } catch (error) {
-    log.error("[Topology] Failed to delete layout:", error);
+    log.warn("[Topology] Failed to delete layout:", error);
     return false;
   }
 }
@@ -334,7 +334,7 @@ export async function initializeDefaultTopology(): Promise<boolean> {
     _topologyInitialized = true;
     return true;
   } catch (error) {
-    log.error("[Topology] Failed to initialize default topology:", error);
+    log.warn("[Topology] Failed to initialize default topology:", error);
     return false;
   }
 }
@@ -602,7 +602,7 @@ export const topologyRouter = router({
       // 重新初始化
       return await initializeDefaultTopology();
     } catch (error) {
-      log.error("[Topology] Failed to reset topology:", error);
+      log.warn("[Topology] Failed to reset topology:", error);
       return false;
     }
   }),

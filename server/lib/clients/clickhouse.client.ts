@@ -67,7 +67,7 @@ export async function checkConnection(): Promise<boolean> {
     return true;
   } catch (error) {
     isConnected = false;
-    log.error('[ClickHouse] Connection check failed:', error);
+    log.warn('[ClickHouse] Connection check failed:', error);
     return false;
   }
 }
@@ -598,7 +598,7 @@ export async function getDatabaseStats(): Promise<{
       newestData: timeStats.newest ? new Date(timeStats.newest) : null,
     };
   } catch (error) {
-    log.error('[ClickHouse] Failed to get database stats:', error);
+    log.warn('[ClickHouse] Failed to get database stats:', error);
     return {
       totalTables: 0,
       totalRows: 0,

@@ -256,7 +256,7 @@ export class ShadowEvaluator {
       session.endedAt = new Date();
       session.status = 'failed';
 
-      log.error({
+      log.warn({
         sessionId,
         error: err instanceof Error ? err.message : String(err),
       }, 'Shadow evaluation failed');

@@ -179,7 +179,7 @@ export class TelemetryClickHouseSink {
       await result.json();
       log.info('[TelemetrySink] ClickHouse 连接正常');
     } catch (error) {
-      log.error('[TelemetrySink] ClickHouse 连接失败，服务无法启动:', error);
+      log.warn('[TelemetrySink] ClickHouse 连接失败，服务无法启动:', error);
       this.isRunning = false;
       throw error;
     }
@@ -306,7 +306,7 @@ export class TelemetryClickHouseSink {
       }
     } catch (error) {
       this.metrics.parseErrors++;
-      log.error('[TelemetrySink] 消息解析失败:', error);
+      log.warn('[TelemetrySink] 消息解析失败:', error);
     }
   }
 
@@ -439,7 +439,7 @@ export class TelemetryClickHouseSink {
           );
           await this.sleep(delay);
         } else {
-          log.error(
+          log.warn(
             `[TelemetrySink] 写入失败，已达最大重试次数 (${this.config.maxRetries})。丢弃 ${batch.length} 行:`,
             error
           );

@@ -165,7 +165,7 @@ export class ClickHouseStorage {
         this.clients.set(`${node.host}:${node.port}`, client);
         log.debug(`[ClickHouse] Connected to node ${node.host}:${node.port}`);
       } catch (error) {
-        log.error(`[ClickHouse] Failed to connect to ${node.host}:${node.port}:`, error);
+        log.warn(`[ClickHouse] Failed to connect to ${node.host}:${node.port}:`, error);
       }
     }
 
@@ -410,7 +410,7 @@ export class ClickHouseStorage {
 
       inserted = readings.length;
     } catch (error) {
-      log.error('[ClickHouse] Insert sensor readings error:', error);
+      log.warn('[ClickHouse] Insert sensor readings error:', error);
       errors = readings.length;
     }
 
@@ -446,7 +446,7 @@ export class ClickHouseStorage {
 
       return true;
     } catch (error) {
-      log.error('[ClickHouse] Insert fault event error:', error);
+      log.warn('[ClickHouse] Insert fault event error:', error);
       return false;
     }
   }
@@ -500,7 +500,7 @@ export class ClickHouseStorage {
         metadata: typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata,
       }));
     } catch (error) {
-      log.error('[ClickHouse] Query raw readings error:', error);
+      log.warn('[ClickHouse] Query raw readings error:', error);
       return [];
     }
   }
@@ -552,7 +552,7 @@ export class ClickHouseStorage {
         last_value: row.last_value,
       }));
     } catch (error) {
-      log.error('[ClickHouse] Query aggregated data error:', error);
+      log.warn('[ClickHouse] Query aggregated data error:', error);
       return [];
     }
   }
@@ -640,7 +640,7 @@ export class ClickHouseStorage {
         metadata: typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata,
       }));
     } catch (error) {
-      log.error('[ClickHouse] Query fault events error:', error);
+      log.warn('[ClickHouse] Query fault events error:', error);
       return [];
     }
   }
@@ -723,7 +723,7 @@ export class ClickHouseStorage {
         criticalFaults: faultStats.critical_faults || 0,
       };
     } catch (error) {
-      log.error('[ClickHouse] Get device statistics error:', error);
+      log.warn('[ClickHouse] Get device statistics error:', error);
       return {
         totalReadings: 0,
         avgValue: 0,
@@ -812,7 +812,7 @@ export class ClickHouseStorage {
         replicationStatus = 'single-node';
       }
     } catch (error) {
-      log.error('[ClickHouse] Get cluster status error:', error);
+      log.warn('[ClickHouse] Get cluster status error:', error);
     }
 
     return {
@@ -980,7 +980,7 @@ export class ClickHouseStorage {
         await client.close();
         log.debug(`[ClickHouse] Closed connection to ${nodeKey}`);
       } catch (error) {
-        log.error(`[ClickHouse] Error closing connection to ${nodeKey}:`, error);
+        log.warn(`[ClickHouse] Error closing connection to ${nodeKey}:`, error);
       }
     }
     this.clients.clear();

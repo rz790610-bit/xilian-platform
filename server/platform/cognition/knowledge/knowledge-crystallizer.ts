@@ -135,7 +135,7 @@ export class KnowledgeCrystallizer {
           }
         }
       } catch (err) {
-        log.error({
+        log.warn({
           ruleType: rule.type,
           resultId: result.id,
           error: err instanceof Error ? err.message : String(err),

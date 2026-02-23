@@ -298,7 +298,7 @@ export const connectionService = {
         totalTables: Number(tableCountRows[0]?.cnt || 0),
       };
     } catch (error) {
-      log.error('[Workbench] Failed to get connection status:', error);
+      log.warn('[Workbench] Failed to get connection status:', error);
       return {
         connected: false, host: '-', port: 0, database: '-',
         version: '-', uptime: 0, charset: '-',
@@ -338,7 +338,7 @@ export const connectionService = {
         info: String(r.Info || '').substring(0, 200),
       }));
     } catch (error) {
-      log.error('[Workbench] Failed to get process list:', error);
+      log.warn('[Workbench] Failed to get process list:', error);
       return [];
     }
   },
@@ -399,7 +399,7 @@ export const tableService = {
         linkedModule: MODULE_TABLE_MAP[row.name] || null,
       }));
     } catch (error) {
-      log.error('[Workbench] Failed to list tables:', error);
+      log.warn('[Workbench] Failed to list tables:', error);
       return [];
     }
   },
@@ -436,7 +436,7 @@ export const tableService = {
         ordinalPosition: Number(row.ordinalPosition || 0),
       }));
     } catch (error) {
-      log.error('[Workbench] Failed to get columns:', error);
+      log.warn('[Workbench] Failed to get columns:', error);
       return [];
     }
   },
@@ -464,7 +464,7 @@ export const tableService = {
 
       return Array.from(indexMap.values());
     } catch (error) {
-      log.error('[Workbench] Failed to get indexes:', error);
+      log.warn('[Workbench] Failed to get indexes:', error);
       return [];
     }
   },
@@ -501,7 +501,7 @@ export const tableService = {
         onUpdate: String(row.onUpdate || 'RESTRICT'),
       }));
     } catch (error) {
-      log.error('[Workbench] Failed to get foreign keys:', error);
+      log.warn('[Workbench] Failed to get foreign keys:', error);
       return [];
     }
   },
@@ -514,7 +514,7 @@ export const tableService = {
       const rows = await execQuery(db, `SHOW CREATE TABLE \`${tableName.replace(/`/g, '')}\``);
       return String(rows[0]?.['Create Table'] || '');
     } catch (error) {
-      log.error('[Workbench] Failed to get CREATE TABLE:', error);
+      log.warn('[Workbench] Failed to get CREATE TABLE:', error);
       return '';
     }
   },
@@ -573,7 +573,7 @@ export const tableService = {
       log.debug(`[Workbench] Created table: ${tableName}`);
       return { success: true };
     } catch (error: any) {
-      log.error('[Workbench] Failed to create table:', error);
+      log.warn('[Workbench] Failed to create table:', error);
       return { success: false, error: error.message };
     }
   },
@@ -847,7 +847,7 @@ export const dataService = {
 
       return { rows: dataRows, total, columns };
     } catch (error) {
-      log.error('[Workbench] Failed to query rows:', error);
+      log.warn('[Workbench] Failed to query rows:', error);
       return { rows: [], total: 0, columns: [] };
     }
   },
@@ -968,7 +968,7 @@ export const dataService = {
 
       return '';
     } catch (error) {
-      log.error('[Workbench] Failed to export data:', error);
+      log.warn('[Workbench] Failed to export data:', error);
       return '';
     }
   },
@@ -1052,7 +1052,7 @@ export const moduleService = {
         .map(([module, stats]) => ({ module, ...stats }))
         .sort((a, b) => b.tables - a.tables);
     } catch (error) {
-      log.error('[Workbench] Failed to get module stats:', error);
+      log.warn('[Workbench] Failed to get module stats:', error);
       return [];
     }
   },

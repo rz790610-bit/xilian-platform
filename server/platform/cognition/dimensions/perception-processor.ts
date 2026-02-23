@@ -163,7 +163,7 @@ export class PerceptionProcessor implements DimensionProcessor<PerceptionOutput>
         },
       };
     } catch (err) {
-      log.error({
+      log.warn({
         stimulusId: stimulus.id,
         error: err instanceof Error ? err.message : String(err),
       }, 'Perception processing failed');

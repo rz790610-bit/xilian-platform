@@ -186,7 +186,7 @@ async function executePlatformTool(toolName: string, args: Record<string, any>):
     log.debug(`[Tool] ${toolName} executed in ${latency}ms`);
     return JSON.stringify(result);
   } catch (err: any) {
-    log.error(`[Tool] ${toolName} failed:`, err);
+    log.warn(`[Tool] ${toolName} failed:`, err);
     return JSON.stringify({ error: err.message });
   }
 }
@@ -718,7 +718,7 @@ export class GrokPlatformAgent {
         toolCallCount,
       };
     } catch (err: any) {
-      log.error('[PlatformAgent] Grok API failed, falling back to local:', err.message);
+      log.warn('[PlatformAgent] Grok API failed, falling back to local:', err.message);
       return {
         diagnosis: (await localDiagnose(userQuestion)) + `\n\n> ⚠️ Grok API 调用失败: ${err.message}，已降级为本地规则引擎`,
         mode: 'local',

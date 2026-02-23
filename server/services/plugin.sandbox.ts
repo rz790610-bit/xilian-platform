@@ -425,7 +425,7 @@ export function buildSandboxAPI(
   api.log = {
     info: (...args: unknown[]) => { const plog = createModuleLogger(`plugin:${pluginId}`); plog.info({}, args.map(String).join(' ')); },
     warn: (...args: unknown[]) => { const plog = createModuleLogger(`plugin:${pluginId}`); plog.warn({}, args.map(String).join(' ')); },
-    error: (...args: unknown[]) => { const plog = createModuleLogger(`plugin:${pluginId}`); plog.error({}, args.map(String).join(' ')); },
+    error: (...args: unknown[]) => { const plog = createModuleLogger(`plugin:${pluginId}`); plog.warn({}, args.map(String).join(' ')); },
     debug: (...args: unknown[]) => { const plog = createModuleLogger(`plugin:${pluginId}`); plog.debug({}, args.map(String).join(' ')); },
   };
 

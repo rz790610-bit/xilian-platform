@@ -137,7 +137,7 @@ class EventBus {
           this.emitter.emit(topic, event);
           this.emitter.emit('*', event);
         } catch (err) {
-          log.error('[EventBus] Redis 消息解析失败:', err);
+          log.warn('[EventBus] Redis 消息解析失败:', err);
         }
       });
 
@@ -145,7 +145,7 @@ class EventBus {
       log.debug('[EventBus] Redis Pub/Sub 跨进程模式已启用');
       return true;
     } catch (error) {
-      log.error('[EventBus] 启用 Redis Pub/Sub 失败:', error);
+      log.warn('[EventBus] 启用 Redis Pub/Sub 失败:', error);
       return false;
     }
   }
@@ -228,7 +228,7 @@ class EventBus {
       try {
         await redisClient.publish(`eventbus:${topic}`, JSON.stringify(event));
       } catch (err) {
-        log.error('[EventBus] Redis publish 失败:', err);
+        log.warn('[EventBus] Redis publish 失败:', err);
       }
     }
 
@@ -280,7 +280,7 @@ class EventBus {
         try {
           await handler(event as any);
         } catch (error) {
-          log.error(`[EventBus] Handler error for topic ${topic}:`, error);
+          log.warn(`[EventBus] Handler error for topic ${topic}:`, error);
         }
       }
     };
@@ -321,7 +321,7 @@ class EventBus {
         createdAt: event.timestamp,
       });
     } catch (error) {
-      log.error('[EventBus] Failed to persist event:', error);
+      log.warn('[EventBus] Failed to persist event:', error);
     }
   }
 
@@ -421,7 +421,7 @@ class EventBus {
         timestamp: r.createdAt,
       }));
     } catch (error) {
-      log.error('[EventBus] Query events failed:', error);
+      log.warn('[EventBus] Query events failed:', error);
       return [];
     }
   }
@@ -442,7 +442,7 @@ class EventBus {
         })
         .where(eq(eventLogs.eventId, eventId));
     } catch (error) {
-      log.error('[EventBus] Mark processed failed:', error);
+      log.warn('[EventBus] Mark processed failed:', error);
     }
   }
 
@@ -462,7 +462,7 @@ class EventBus {
       
       return (result as any).affectedRows || 0;
     } catch (error) {
-      log.error('[EventBus] Cleanup failed:', error);
+      log.warn('[EventBus] Cleanup failed:', error);
       return 0;
     }
   }

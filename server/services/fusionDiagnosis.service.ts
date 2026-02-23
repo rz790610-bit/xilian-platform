@@ -404,7 +404,7 @@ export class FusionDiagnosisExpert {
         expertResults.push(result);
         evidenceList.push(expert.getBeliefMass(data));
       } catch (err) {
-        log.error(`Expert ${expert.name} failed: ${err}`);
+        log.warn(`Expert ${expert.name} failed: ${err}`);
       }
     }
 

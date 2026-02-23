@@ -45,6 +45,15 @@ export const config = {
     host: env('HOST', '0.0.0.0'),
     logLevel: env('LOG_LEVEL', 'info') as 'trace' | 'debug' | 'info' | 'warn' | 'error',
     baseUrl: env('BASE_URL', 'http://localhost:3000'),
+    /** 应用 ID（原 env.ts 中的 appId） */
+    appId: env('VITE_APP_ID', ''),
+  },
+
+  /** OAuth / 身份认证（原 env.ts 中的 oAuthServerUrl/ownerOpenId/skipAuth） */
+  auth: {
+    oAuthServerUrl: env('OAUTH_SERVER_URL', ''),
+    ownerOpenId: env('OWNER_OPEN_ID', ''),
+    skipAuth: envBool('SKIP_AUTH', false),
   },
 
   /** MySQL 主数据库 */

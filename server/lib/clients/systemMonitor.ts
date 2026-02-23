@@ -62,7 +62,7 @@ export async function getSystemResources(): Promise<SystemResource> {
       },
     };
   } catch (error: any) {
-    log.error('[SystemMonitor] Failed to get system resources:', error);
+    log.warn('[SystemMonitor] Failed to get system resources:', error);
     
     // 返回基本信息（使用 Node.js 原生 API）
     const cpus = os.cpus();

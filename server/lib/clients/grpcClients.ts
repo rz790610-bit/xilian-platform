@@ -186,7 +186,7 @@ function callUnary<TReq, TRes>(
 
     (client as any)[method](request, metadata, { deadline }, (err: any, response: TRes) => {
       if (err) {
-        log.error(`gRPC call ${method} failed:`, err.message);
+        log.warn(`gRPC call ${method} failed:`, err.message);
         reject(err);
       } else {
         resolve(response);
@@ -368,7 +368,7 @@ export function closeAllGrpcConnections(): void {
       client.close();
       log.info(`gRPC connection closed: ${name}`);
     } catch (err: any) {
-      log.error(`Failed to close gRPC connection ${name}:`, err.message);
+      log.warn(`Failed to close gRPC connection ${name}:`, err.message);
     }
   });
   connections.clear();

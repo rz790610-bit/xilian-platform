@@ -432,7 +432,7 @@ export class CognitionUnit {
           error: err instanceof Error ? err.message : String(err),
         };
         results.set(processor.dimension, errorOutput);
-        log.error({
+        log.warn({
           unitId: this.id,
           dimension: processor.dimension,
           error: errorOutput.error,
@@ -641,7 +641,7 @@ export class CognitionUnit {
 
     this.completedAt = new Date();
 
-    log.error({
+    log.warn({
       unitId: this.id,
       error: errorMessage,
       isTimeout,

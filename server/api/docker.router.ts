@@ -40,7 +40,7 @@ async function runMigrations(url: string): Promise<{ success: boolean; error?: s
     await migrate(db, { migrationsFolder: './drizzle' });
     return { success: true };
   } catch (e: any) {
-    log.error('[bootstrap] Migration failed:', e.message);
+    log.warn('[bootstrap] Migration failed:', e.message);
     return { success: false, error: e.message };
   }
 }
@@ -99,7 +99,7 @@ function composeUp(serviceName: string, profile?: string): { success: boolean; d
     return { success: true, detail: `docker compose up -d ${serviceName} 成功` };
   } catch (e: any) {
     const stderr = e.stderr?.toString() || e.message;
-    log.error(`[composeUp] Failed: ${stderr}`);
+    log.warn(`[composeUp] Failed: ${stderr}`);
     return { success: false, detail: stderr.substring(0, 200) };
   }
 }
@@ -230,7 +230,7 @@ function getCoreServices(): ServiceBootstrapConfig[] {
         // P1-1: 迁移失败时立即返回 success:false，阻断后续服务启动
         // 原始问题: 迁移失败后仍继续启动并返回 success:true，后续服务因表结构缺失报错
         if (!migrate.success) {
-          log.error(`[bootstrap] MySQL migration failed: ${migrate.error}. Aborting post-init.`);
+          log.warn(`[bootstrap] MySQL migration failed: ${migrate.error}. Aborting post-init.`);
           return { success: false, detail: `迁移失败: ${migrate.error}。后续服务启动已阻断，请修复迁移问题后重试。` };
         }
         resetDb();

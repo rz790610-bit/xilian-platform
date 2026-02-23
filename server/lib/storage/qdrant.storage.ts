@@ -234,7 +234,7 @@ export class QdrantStorage {
         this.clients.push(client);
         log.debug(`[Qdrant] Connected to node ${node.host}:${node.port}`);
       } catch (error) {
-        log.error(`[Qdrant] Failed to connect to ${node.host}:${node.port}:`, error);
+        log.warn(`[Qdrant] Failed to connect to ${node.host}:${node.port}:`, error);
       }
     }
 
@@ -301,7 +301,7 @@ export class QdrantStorage {
           log.debug(`[Qdrant] Collection exists: ${config.name}`);
         }
       } catch (error) {
-        log.error(`[Qdrant] Error initializing collection ${config.name}:`, error);
+        log.warn(`[Qdrant] Error initializing collection ${config.name}:`, error);
       }
     }
   }
@@ -329,7 +329,7 @@ export class QdrantStorage {
 
       return { success: true, count: points.length };
     } catch (error) {
-      log.error('[Qdrant] Upsert points error:', error);
+      log.warn('[Qdrant] Upsert points error:', error);
       return { success: false, count: 0 };
     }
   }
@@ -366,7 +366,7 @@ export class QdrantStorage {
         payload: r.payload as Record<string, unknown>,
       }));
     } catch (error) {
-      log.error('[Qdrant] Search error:', error);
+      log.warn('[Qdrant] Search error:', error);
       return [];
     }
   }
@@ -404,7 +404,7 @@ export class QdrantStorage {
         }))
       );
     } catch (error) {
-      log.error('[Qdrant] Search batch error:', error);
+      log.warn('[Qdrant] Search batch error:', error);
       return [];
     }
   }
@@ -431,7 +431,7 @@ export class QdrantStorage {
         payload: r.payload as Record<string, unknown>,
       }));
     } catch (error) {
-      log.error('[Qdrant] Get points error:', error);
+      log.warn('[Qdrant] Get points error:', error);
       return [];
     }
   }
@@ -453,7 +453,7 @@ export class QdrantStorage {
 
       return true;
     } catch (error) {
-      log.error('[Qdrant] Delete points error:', error);
+      log.warn('[Qdrant] Delete points error:', error);
       return false;
     }
   }
@@ -479,7 +479,7 @@ export class QdrantStorage {
 
       return true;
     } catch (error) {
-      log.error('[Qdrant] Delete by filter error:', error);
+      log.warn('[Qdrant] Delete by filter error:', error);
       return false;
     }
   }
@@ -733,7 +733,7 @@ export class QdrantStorage {
         config: info.config as Record<string, unknown>,
       };
     } catch (error) {
-      log.error('[Qdrant] Get collection info error:', error);
+      log.warn('[Qdrant] Get collection info error:', error);
       return null;
     }
   }
@@ -765,7 +765,7 @@ export class QdrantStorage {
 
       return stats;
     } catch (error) {
-      log.error('[Qdrant] Get all collections stats error:', error);
+      log.warn('[Qdrant] Get all collections stats error:', error);
       return [];
     }
   }
@@ -823,7 +823,7 @@ export class QdrantStorage {
       const result = await client.createSnapshot(collectionName);
       return result?.name || null;
     } catch (error) {
-      log.error('[Qdrant] Create snapshot error:', error);
+      log.warn('[Qdrant] Create snapshot error:', error);
       return null;
     }
   }
@@ -843,7 +843,7 @@ export class QdrantStorage {
 
       return true;
     } catch (error) {
-      log.error('[Qdrant] Optimize collection error:', error);
+      log.warn('[Qdrant] Optimize collection error:', error);
       return false;
     }
   }

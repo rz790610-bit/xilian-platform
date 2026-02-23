@@ -33,7 +33,7 @@ export const kafkaRouter = router({
         health = await kafkaClient.healthCheck();
         statusMessage = health?.connected ? 'Kafka 集群运行正常' : 'Kafka 集群无法连接';
       } catch (error) {
-        log.error('[KafkaRouter] 获取集群状态失败:', error);
+        log.warn('[KafkaRouter] 获取集群状态失败:', error);
         statusMessage = 'Kafka 连接失败，请检查 Broker 配置';
       }
     } else {

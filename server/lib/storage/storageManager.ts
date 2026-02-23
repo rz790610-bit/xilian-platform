@@ -175,7 +175,7 @@ export class StorageManager {
       await initFn();
       log.debug(`[StorageManager] ${name} initialized successfully`);
     } catch (error) {
-      log.error(`[StorageManager] ${name} initialization failed:`, error);
+      log.warn(`[StorageManager] ${name} initialization failed:`, error);
       // 不抛出错误，允许其他服务继续初始化
     }
   }
@@ -210,7 +210,7 @@ export class StorageManager {
         );
       }
     } catch (error) {
-      log.error('[StorageManager] Health check failed:', error);
+      log.warn('[StorageManager] Health check failed:', error);
     }
   }
 
@@ -579,15 +579,15 @@ export class StorageManager {
     const closePromises: Promise<void>[] = [];
 
     if (this.config.redis.enabled) {
-      closePromises.push(this.redis.close().catch((err) => log.error({ err }, "Close failed")));
+      closePromises.push(this.redis.close().catch((err) => log.warn({ err }, "Close failed")));
     }
 
     if (this.config.neo4j.enabled) {
-      closePromises.push(this.neo4j.close().catch((err) => log.error({ err }, "Close failed")));
+      closePromises.push(this.neo4j.close().catch((err) => log.warn({ err }, "Close failed")));
     }
 
     if (this.config.qdrant.enabled) {
-      closePromises.push(this.qdrant.close().catch((err) => log.error({ err }, "Close failed")));
+      closePromises.push(this.qdrant.close().catch((err) => log.warn({ err }, "Close failed")));
     }
 
     // ClickHouse, PostgreSQL, MinIO 使用连接池，不需要显式关闭

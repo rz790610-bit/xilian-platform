@@ -73,7 +73,7 @@ class KafkaEventBus {
       this.isInitialized = true;
       log.debug('[KafkaEventBus] 事件总线初始化完成');
     } catch (error) {
-      log.error('[KafkaEventBus] 初始化失败:', error);
+      log.warn('[KafkaEventBus] 初始化失败:', error);
       // 如果 Kafka 不可用，使用降级模式
       log.debug('[KafkaEventBus] 将使用内存模式作为降级方案');
       this.isInitialized = true;
@@ -82,7 +82,7 @@ class KafkaEventBus {
     // 启动定时刷写
     this.dbFlushTimer = setInterval(() => {
       this.flushDbBuffer().catch((err) => {
-        log.error('[KafkaEventBus] 定时刷写失败:', err);
+        log.warn('[KafkaEventBus] 定时刷写失败:', err);
       });
     }, DB_BUFFER_FLUSH_INTERVAL_MS);
   }
@@ -130,7 +130,7 @@ class KafkaEventBus {
         };
         await kafkaClient.produce(topic, [message]);
       } catch (error) {
-        log.error('[KafkaEventBus] Kafka 发送失败，保存到数据库:', error);;
+        log.warn('[KafkaEventBus] Kafka 发送失败，保存到数据库:', error);;
       }
     }
 
@@ -218,7 +218,7 @@ class KafkaEventBus {
         }));
         await kafkaClient.produceBatch(batchMessages);
       } catch (error) {
-        log.error('[KafkaEventBus] Kafka 批量发送失败:', error);
+        log.warn('[KafkaEventBus] Kafka 批量发送失败:', error);
       }
     }
 
@@ -265,14 +265,14 @@ class KafkaEventBus {
                   .set({ processed: true, processedAt: new Date() })
                   .where(eq(eventLog.eventId, event.eventId || ''));
               } catch (error) {
-                log.error('[KafkaEventBus] 处理消息失败:', error);
+                log.warn('[KafkaEventBus] 处理消息失败:', error);
               }
             }
           }
         );
         subscription.consumerId = consumerId;
       } catch (error) {
-        log.error('[KafkaEventBus] 创建 Kafka 消费者失败:', error);
+        log.warn('[KafkaEventBus] 创建 Kafka 消费者失败:', error);
       }
     }
 
@@ -309,7 +309,7 @@ class KafkaEventBus {
         try {
           await subscription.handler(event);
         } catch (error) {
-          log.error(`[KafkaEventBus] 处理器 ${subscription.id} 执行失败:`, error);
+          log.warn(`[KafkaEventBus] 处理器 ${subscription.id} 执行失败:`, error);
         }
       }
     }
@@ -482,7 +482,7 @@ class KafkaEventBus {
     if (this.dbBuffer.length >= DB_BUFFER_ABSOLUTE_MAX) {
       this.dbBufferDropped++;
       if (this.dbBufferDropped % 500 === 1) {
-        log.error({ dropped: this.dbBufferDropped, bufferSize: this.dbBuffer.length },
+        log.warn({ dropped: this.dbBufferDropped, bufferSize: this.dbBuffer.length },
           '[KafkaEventBus] DB 缓冲区达到绝对上限，丢弃所有级别事件');
       }
       return;
@@ -504,7 +504,7 @@ class KafkaEventBus {
     // 如果缓冲区达到批量大小，立即触发刷写
     if (this.dbBuffer.length >= DB_BUFFER_FLUSH_SIZE) {
       this.flushDbBuffer().catch((err) => {
-        log.error('[KafkaEventBus] 批量刷写触发失败:', err);
+        log.warn('[KafkaEventBus] 批量刷写触发失败:', err);
       });
     }
   }
@@ -544,7 +544,7 @@ class KafkaEventBus {
           '[KafkaEventBus] DB 刷写失败，放回缓冲区重试');
       } else {
         // 超过重试次数，丢弃该批次
-        log.error({ droppedBatch: batch.length, error },
+        log.warn({ droppedBatch: batch.length, error },
           '[KafkaEventBus] DB 刷写重试超限，丢弃批次');
         this.dbFlushRetryCount = 0;
       }
@@ -586,13 +586,13 @@ class KafkaEventBus {
         }
         break;
       } catch (error) {
-        log.error({ attempt: i + 1, remaining: this.dbBuffer.length },
+        log.warn({ attempt: i + 1, remaining: this.dbBuffer.length },
           '[KafkaEventBus] 关闭时刷写缓冲区失败');
       }
     }
 
     if (this.dbBuffer.length > 0) {
-      log.error({ lost: this.dbBuffer.length },
+      log.warn({ lost: this.dbBuffer.length },
         '[KafkaEventBus] 关闭时仍有未刷写的事件记录');
     }
 

@@ -154,7 +154,7 @@ class AdaptiveSamplingService {
 
       log.debug('[AdaptiveSampling] Initialized default sampling configs');
     } catch (error) {
-      log.error('[AdaptiveSampling] Failed to initialize configs:', error);
+      log.warn('[AdaptiveSampling] Failed to initialize configs:', error);
     }
   }
 
@@ -192,7 +192,7 @@ class AdaptiveSamplingService {
         }
       }
     } catch (error) {
-      log.error('[AdaptiveSampling] Check failed:', error);
+      log.warn('[AdaptiveSampling] Check failed:', error);
     }
   }
 
@@ -343,7 +343,7 @@ class AdaptiveSamplingService {
         log.debug(`[AdaptiveSampling] Scaled up ${adjustments.length} sampling intervals (${reason})`);
       }
     } catch (error) {
-      log.error('[AdaptiveSampling] Scale up failed:', error);
+      log.warn('[AdaptiveSampling] Scale up failed:', error);
     }
   }
 
@@ -402,7 +402,7 @@ class AdaptiveSamplingService {
         log.debug(`[AdaptiveSampling] Recovered ${adjustments.length} sampling intervals`);
       }
     } catch (error) {
-      log.error('[AdaptiveSampling] Recovery failed:', error);
+      log.warn('[AdaptiveSampling] Recovery failed:', error);
     }
   }
 

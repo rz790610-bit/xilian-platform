@@ -357,6 +357,15 @@ async function startServer() {
       log.error('[Platform] Failed to load DataFlowTracer:', err.message);
     });
 
+    // B-07: Agent Registry 统一注册
+    import('./agent-registry.bootstrap').then(({ bootstrapAgentRegistry }) => {
+      bootstrapAgentRegistry().catch(err => {
+        log.warn('[AgentRegistry] Bootstrap failed (non-blocking):', err.message);
+      });
+    }).catch(err => {
+      log.warn('[AgentRegistry] Failed to load agent-registry.bootstrap:', err.message);
+    });
+
     // 同步内置算法到数据库
     import('../services/algorithm.service').then(({ algorithmService }) => {
       algorithmService.syncBuiltinAlgorithms().then((result) => {

@@ -257,7 +257,7 @@ class SagaOrchestrator {
                   .where(eq(sagaSteps.stepId, stepId));
               }
             } catch (retryError) {
-              log.error(`[SagaOrchestrator] Retry ${retryCount} failed:`, retryError);
+              log.warn(`[SagaOrchestrator] Retry ${retryCount} failed:`, retryError);
             }
           }
 
@@ -305,7 +305,7 @@ class SagaOrchestrator {
         totalSteps: definition.steps.length,
       };
     } catch (error) {
-      log.error(`[SagaOrchestrator] Saga ${sagaId} failed:`, error);
+      log.warn(`[SagaOrchestrator] Saga ${sagaId} failed:`, error);
 
       // 开始补偿
       const compensationResult = await this.compensate(sagaId, definition, context, input);
@@ -394,7 +394,7 @@ class SagaOrchestrator {
 
         log.debug(`[SagaOrchestrator] Compensated step: ${step.name}`);
       } catch (compError) {
-        log.error(`[SagaOrchestrator] Compensation failed for step ${step.name}:`, compError);
+        log.warn(`[SagaOrchestrator] Compensation failed for step ${step.name}:`, compError);
         failedSteps.push(step.name);
 
         if (db) {

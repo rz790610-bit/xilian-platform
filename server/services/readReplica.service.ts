@@ -232,7 +232,7 @@ class ReadReplicaService {
       } catch (error) {
         replica.isHealthy = false;
         replica.lastCheckedAt = new Date();
-        log.error(`[ReadReplica] Health check failed for ${id}:`, error);
+        log.warn(`[ReadReplica] Health check failed for ${id}:`, error);
       }
     }
   }

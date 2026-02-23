@@ -383,7 +383,7 @@ export class CanaryController {
         stage.trafficRatio,
       );
     } catch (err) {
-      log.error({
+      log.warn({
         sessionId: session.id,
         error: err instanceof Error ? err.message : String(err),
       }, 'Failed to set traffic split');
@@ -455,7 +455,7 @@ export class CanaryController {
         stageStartedAt,
       );
     } catch (err) {
-      log.error({
+      log.warn({
         sessionId: session.id,
         error: err instanceof Error ? err.message : String(err),
       }, 'Failed to collect traffic metrics');
@@ -572,7 +572,7 @@ export class CanaryController {
         session.championModelId,
       );
     } catch (err) {
-      log.error({
+      log.warn({
         sessionId: session.id,
         error: err instanceof Error ? err.message : String(err),
       }, 'Traffic rollback failed');
@@ -601,7 +601,7 @@ export class CanaryController {
 
     log.warn({ sessionId }, 'Canary global timeout');
     this.rollback(session, 'Global timeout exceeded').catch(err => {
-      log.error({
+      log.warn({
         sessionId,
         error: err instanceof Error ? err.message : String(err),
       }, 'Rollback after global timeout failed');

@@ -180,7 +180,7 @@ class DataFlowTracer {
       this.initialized = true;
       log.info(`[DataFlowTracer] Initialized — monitoring ${Object.keys(TOPICS).length} topics`);
     } catch (err: unknown) {
-      log.error('[DataFlowTracer] Initialization failed:', err instanceof Error ? err.message : String(err));
+      log.warn('[DataFlowTracer] Initialization failed:', err instanceof Error ? err.message : String(err));
     }
   }
 

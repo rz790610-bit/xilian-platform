@@ -62,7 +62,7 @@ async function getOllamaModels(): Promise<Array<{
     const data = await response.json();
     return data.models || [];
   } catch (error) {
-    log.error("[ModelService] Failed to get Ollama models:", error);
+    log.warn("[ModelService] Failed to get Ollama models:", error);
     return [];
   }
 }
@@ -92,7 +92,7 @@ async function getOllamaRunningModels(): Promise<Array<{
     const data = await response.json();
     return data.models || [];
   } catch (error) {
-    log.error("[ModelService] Failed to get Ollama running models:", error);
+    log.warn("[ModelService] Failed to get Ollama running models:", error);
     return [];
   }
 }

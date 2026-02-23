@@ -472,7 +472,7 @@ export class CognitionScheduler {
         }
       } else {
         // critical 队列满了，直接拒绝（不丢弃已有的）
-        log.error({ stimulusId: stimulus.id, queueSize: maxSize }, 'Critical queue full, rejecting');
+        log.warn({ stimulusId: stimulus.id, queueSize: maxSize }, 'Critical queue full, rejecting');
         this.stats.totalDropped++;
         return Promise.reject(new Error('Critical queue full'));
       }
@@ -633,7 +633,7 @@ export class CognitionScheduler {
       } else {
         // 超过最大重试次数
         this.stats.totalFailed++;
-        log.error({
+        log.warn({
           stimulusId: stimulus.id,
           retryCount: item.retryCount,
           error: error.message,

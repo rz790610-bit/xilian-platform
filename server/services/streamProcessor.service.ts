@@ -400,7 +400,7 @@ class StreamProcessor {
         recordedAt: new Date(),
       });
     } catch (error) {
-      log.error('[StreamProcessor] Failed to persist reading:', error);
+      log.warn('[StreamProcessor] Failed to persist reading:', error);
     }
   }
 
@@ -428,7 +428,7 @@ class StreamProcessor {
         createdAt: result.timestamp instanceof Date ? result.timestamp : new Date(result.timestamp || Date.now()),
       });
     } catch (error) {
-      log.error('[StreamProcessor] Failed to record anomaly:', error);
+      log.warn('[StreamProcessor] Failed to record anomaly:', error);
     }
   }
 
@@ -463,7 +463,7 @@ class StreamProcessor {
         recordedAt: new Date(),
       });
     } catch (error) {
-      log.error('[StreamProcessor] Failed to save aggregate:', error);
+      log.warn('[StreamProcessor] Failed to save aggregate:', error);
     }
   }
 
@@ -674,7 +674,7 @@ export const streamProcessorRouter = router({
           score: r.score ? r.score / 100 : null,
         }));
       } catch (error) {
-        log.error('[StreamProcessor] Failed to get anomalies:', error);
+        log.warn('[StreamProcessor] Failed to get anomalies:', error);
         return [];
       }
     }),
@@ -714,7 +714,7 @@ export const streamProcessorRouter = router({
 
         return { success: true };
       } catch (error) {
-        log.error('[StreamProcessor] Failed to update anomaly:', error);
+        log.warn('[StreamProcessor] Failed to update anomaly:', error);
         return { success: false };
       }
     }),

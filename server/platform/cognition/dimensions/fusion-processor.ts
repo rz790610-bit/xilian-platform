@@ -160,7 +160,7 @@ export class FusionProcessor implements DimensionProcessor<FusionOutput> {
         },
       };
     } catch (err) {
-      log.error({
+      log.warn({
         stimulusId: stimulus.id,
         error: err instanceof Error ? err.message : String(err),
       }, 'Fusion processing failed');

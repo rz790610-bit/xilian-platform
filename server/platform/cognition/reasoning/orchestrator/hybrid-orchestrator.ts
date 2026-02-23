@@ -533,7 +533,7 @@ export class HybridReasoningOrchestrator {
 
     } catch (err) {
       // 全局降级
-      log.error({
+      log.warn({
         stimulusId: stimulus.id,
         error: err instanceof Error ? err.message : String(err),
         elapsed: Date.now() - globalStart,

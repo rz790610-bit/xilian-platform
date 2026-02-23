@@ -215,7 +215,7 @@ export class MqttProtocolHandler implements ProtocolHandler {
       ];
       this.mqttClient.subscribe(topics, { qos: 1 }, (err: any) => {
         if (err) {
-          log.error('[MqttHandler] 订阅失败:', err);
+          log.warn('[MqttHandler] 订阅失败:', err);
         } else {
           log.info(`[MqttHandler] 已订阅: ${topics.join(', ')}`);
         }
@@ -224,7 +224,7 @@ export class MqttProtocolHandler implements ProtocolHandler {
 
     this.mqttClient.on('message', (topic: string, payload: Buffer) => {
       this.handleMqttMessage(topic, payload).catch(err => {
-        log.error('[MqttHandler] 消息处理异常:', err);
+        log.warn('[MqttHandler] 消息处理异常:', err);
       });
     });
 
@@ -272,7 +272,7 @@ export class MqttProtocolHandler implements ProtocolHandler {
 
       await this.onMessage(gatewayId, messages);
     } catch (error) {
-      log.error('[MqttHandler] 消息处理失败:', error);
+      log.warn('[MqttHandler] 消息处理失败:', error);
     }
   }
 
@@ -422,7 +422,7 @@ export class GatewayKafkaBridge {
         await handler.start(this.onMessagesReceived.bind(this));
         log.info(`[GatewayBridge] ${protocol} 处理器已启动`);
       } catch (error) {
-        log.error(`[GatewayBridge] ${protocol} 处理器启动失败:`, error);
+        log.warn(`[GatewayBridge] ${protocol} 处理器启动失败:`, error);
       }
     }
 
@@ -467,7 +467,7 @@ export class GatewayKafkaBridge {
       try {
         await handler.stop();
       } catch (error) {
-        log.error(`[GatewayBridge] ${protocol} 处理器停止失败:`, error);
+        log.warn(`[GatewayBridge] ${protocol} 处理器停止失败:`, error);
       }
     }
 
@@ -628,7 +628,7 @@ export class GatewayKafkaBridge {
         this.metrics.totalMessagesPublished += messages.length;
       } catch (error) {
         this.metrics.totalMessagesFailed += messages.length;
-        log.error(`[GatewayBridge] Kafka 写入失败 [${topic}]:`, error);
+        log.warn(`[GatewayBridge] Kafka 写入失败 [${topic}]:`, error);
 
         // 放回缓冲区
         if (this.buffer.length + messages.length <= this.config.maxBufferSize) {
@@ -674,7 +674,7 @@ export class GatewayKafkaBridge {
         timestamp: now.toString(),
       }]);
     } catch (error) {
-      log.error('[GatewayBridge] 心跳更新失败:', error);
+      log.warn('[GatewayBridge] 心跳更新失败:', error);
     }
   }
 

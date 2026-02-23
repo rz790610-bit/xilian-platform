@@ -220,7 +220,7 @@ export class Neo4jStorage {
       await this.initializeSchema();
       this.isInitialized = true;
     } catch (error) {
-      log.error('[Neo4j] Connection failed:', error);
+      log.warn('[Neo4j] Connection failed:', error);
       throw error;
     }
   }
@@ -322,7 +322,7 @@ export class Neo4jStorage {
       }
       return null;
     } catch (error) {
-      log.error('[Neo4j] Create equipment error:', error);
+      log.warn('[Neo4j] Create equipment error:', error);
       return null;
     } finally {
       await session.close();
@@ -372,7 +372,7 @@ export class Neo4jStorage {
       }
       return null;
     } catch (error) {
-      log.error('[Neo4j] Create fault error:', error);
+      log.warn('[Neo4j] Create fault error:', error);
       return null;
     } finally {
       await session.close();
@@ -418,7 +418,7 @@ export class Neo4jStorage {
       }
       return null;
     } catch (error) {
-      log.error('[Neo4j] Create solution error:', error);
+      log.warn('[Neo4j] Create solution error:', error);
       return null;
     } finally {
       await session.close();
@@ -442,7 +442,7 @@ export class Neo4jStorage {
       }
       return null;
     } catch (error) {
-      log.error('[Neo4j] Get node error:', error);
+      log.warn('[Neo4j] Get node error:', error);
       return null;
     } finally {
       await session.close();
@@ -469,7 +469,7 @@ export class Neo4jStorage {
 
       return true;
     } catch (error) {
-      log.error('[Neo4j] Update node error:', error);
+      log.warn('[Neo4j] Update node error:', error);
       return false;
     } finally {
       await session.close();
@@ -491,7 +491,7 @@ export class Neo4jStorage {
 
       return true;
     } catch (error) {
-      log.error('[Neo4j] Delete node error:', error);
+      log.warn('[Neo4j] Delete node error:', error);
       return false;
     } finally {
       await session.close();
@@ -531,7 +531,7 @@ export class Neo4jStorage {
 
       return true;
     } catch (error) {
-      log.error('[Neo4j] Create HAS_PART relation error:', error);
+      log.warn('[Neo4j] Create HAS_PART relation error:', error);
       return false;
     } finally {
       await session.close();
@@ -569,7 +569,7 @@ export class Neo4jStorage {
 
       return true;
     } catch (error) {
-      log.error('[Neo4j] Create CAUSES relation error:', error);
+      log.warn('[Neo4j] Create CAUSES relation error:', error);
       return false;
     } finally {
       await session.close();
@@ -607,7 +607,7 @@ export class Neo4jStorage {
 
       return true;
     } catch (error) {
-      log.error('[Neo4j] Create SIMILAR_TO relation error:', error);
+      log.warn('[Neo4j] Create SIMILAR_TO relation error:', error);
       return false;
     } finally {
       await session.close();
@@ -645,7 +645,7 @@ export class Neo4jStorage {
 
       return true;
     } catch (error) {
-      log.error('[Neo4j] Create RESOLVED_BY relation error:', error);
+      log.warn('[Neo4j] Create RESOLVED_BY relation error:', error);
       return false;
     } finally {
       await session.close();
@@ -684,7 +684,7 @@ export class Neo4jStorage {
 
       return true;
     } catch (error) {
-      log.error('[Neo4j] Create AFFECTS relation error:', error);
+      log.warn('[Neo4j] Create AFFECTS relation error:', error);
       return false;
     } finally {
       await session.close();
@@ -732,7 +732,7 @@ export class Neo4jStorage {
         size: record.get('size').toNumber(),
       }));
     } catch (error) {
-      log.error('[Neo4j] Detect communities error:', error);
+      log.warn('[Neo4j] Detect communities error:', error);
       return [];
     } finally {
       await session.close();
@@ -774,7 +774,7 @@ export class Neo4jStorage {
         label: record.get('label'),
       }));
     } catch (error) {
-      log.error('[Neo4j] Calculate PageRank error:', error);
+      log.warn('[Neo4j] Calculate PageRank error:', error);
       return [];
     } finally {
       await session.close();
@@ -809,7 +809,7 @@ export class Neo4jStorage {
         similarity: record.get('similarity'),
       }));
     } catch (error) {
-      log.error('[Neo4j] Find similar by embedding error:', error);
+      log.warn('[Neo4j] Find similar by embedding error:', error);
       return [];
     } finally {
       await session.close();
@@ -850,7 +850,7 @@ export class Neo4jStorage {
         };
       });
     } catch (error) {
-      log.error('[Neo4j] Find fault propagation path error:', error);
+      log.warn('[Neo4j] Find fault propagation path error:', error);
       return [];
     } finally {
       await session.close();
@@ -874,7 +874,7 @@ export class Neo4jStorage {
 
       return result.records.map((record: any) => this.mapFaultNode(record.get('f')));
     } catch (error) {
-      log.error('[Neo4j] Find equipment fault history error:', error);
+      log.warn('[Neo4j] Find equipment fault history error:', error);
       return [];
     } finally {
       await session.close();
@@ -897,7 +897,7 @@ export class Neo4jStorage {
 
       return result.records.map((record: any) => this.mapSolutionNode(record.get('s')));
     } catch (error) {
-      log.error('[Neo4j] Find fault solutions error:', error);
+      log.warn('[Neo4j] Find fault solutions error:', error);
       return [];
     } finally {
       await session.close();
@@ -922,7 +922,7 @@ export class Neo4jStorage {
 
       return result.records.map((record: any) => this.mapFaultNode(record.get('node')));
     } catch (error) {
-      log.error('[Neo4j] Search faults error:', error);
+      log.warn('[Neo4j] Search faults error:', error);
       return [];
     } finally {
       await session.close();
@@ -980,7 +980,7 @@ export class Neo4jStorage {
         totalRelationships,
       };
     } catch (error) {
-      log.error('[Neo4j] Get graph statistics error:', error);
+      log.warn('[Neo4j] Get graph statistics error:', error);
       return {
         nodeCount: {},
         relationshipCount: {},

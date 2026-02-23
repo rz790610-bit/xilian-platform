@@ -215,7 +215,7 @@ class MetricsCollector {
         res.set('Content-Type', register.contentType);
         res.end(await register.metrics());
       } catch (err) {
-        log.error('Failed to collect metrics:', String(err));
+        log.warn('Failed to collect metrics:', String(err));
         res.status(500).end('Error collecting metrics');
       }
     });

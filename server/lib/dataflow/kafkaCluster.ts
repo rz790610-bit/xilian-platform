@@ -151,7 +151,7 @@ export class KafkaClusterService {
       this.isInitialized = true;
       log.debug('[KafkaCluster] Kafka cluster connection established');
     } catch (error) {
-      log.error('[KafkaCluster] Initialization failed:', error);
+      log.warn('[KafkaCluster] Initialization failed:', error);
       throw error;
     }
   }
@@ -238,7 +238,7 @@ export class KafkaClusterService {
       log.debug(`[KafkaCluster] Topic ${config.name} created successfully`);
       return true;
     } catch (error) {
-      log.error(`[KafkaCluster] Failed to create topic ${config.name}:`, error);
+      log.warn(`[KafkaCluster] Failed to create topic ${config.name}:`, error);
       throw error;
     }
   }
@@ -257,7 +257,7 @@ export class KafkaClusterService {
       log.debug(`[KafkaCluster] Topic ${topicName} deleted successfully`);
       return true;
     } catch (error) {
-      log.error(`[KafkaCluster] Failed to delete topic ${topicName}:`, error);
+      log.warn(`[KafkaCluster] Failed to delete topic ${topicName}:`, error);
       throw error;
     }
   }
@@ -283,7 +283,7 @@ export class KafkaClusterService {
       log.debug(`[KafkaCluster] Topic ${topicName} config updated successfully`);
       return true;
     } catch (error) {
-      log.error(`[KafkaCluster] Failed to update topic ${topicName} config:`, error);
+      log.warn(`[KafkaCluster] Failed to update topic ${topicName} config:`, error);
       throw error;
     }
   }
@@ -510,7 +510,7 @@ export class KafkaClusterService {
         })),
       };
     } catch (error) {
-      log.error(`[KafkaCluster] Failed to get consumer group info:`, error);
+      log.warn(`[KafkaCluster] Failed to get consumer group info:`, error);
       return null;
     }
   }
@@ -676,7 +676,7 @@ export class KafkaClusterService {
           config: topicStats.config,
         });
       } catch (error) {
-        log.error(`[KafkaCluster] Failed to get stats for topic ${topic}:`, error);
+        log.warn(`[KafkaCluster] Failed to get stats for topic ${topic}:`, error);
       }
     }
 
@@ -988,7 +988,7 @@ export class KafkaArchiver {
       log.debug(`[KafkaArchiver] Archived ${messages.length} messages from ${topic} to ${filePath} (${(fileStats.size / 1024).toFixed(1)} KB)`);
       return archiveFile;
     } catch (error) {
-      log.error(`[KafkaArchiver] Archive failed for topic ${topic}:`, error);
+      log.warn(`[KafkaArchiver] Archive failed for topic ${topic}:`, error);
       return null;
     }
   }
@@ -1088,13 +1088,13 @@ export class KafkaArchiver {
       || (await this.listArchives()).find(r => r.id === archiveId);
 
     if (!record) {
-      log.error(`[KafkaArchiver] Archive not found: ${archiveId}`);
+      log.warn(`[KafkaArchiver] Archive not found: ${archiveId}`);
       return false;
     }
 
     try {
       if (!fs.existsSync(record.filePath)) {
-        log.error(`[KafkaArchiver] Archive file not found: ${record.filePath}`);
+        log.warn(`[KafkaArchiver] Archive file not found: ${record.filePath}`);
         return false;
       }
 
@@ -1122,14 +1122,14 @@ export class KafkaArchiver {
           await kafkaCluster.produce(record.topic, messages);
           log.debug(`[KafkaArchiver] Restored ${messages.length} messages to topic ${record.topic}`);
         } catch (kafkaErr) {
-          log.error(`[KafkaArchiver] Failed to produce restored messages:`, kafkaErr);
+          log.warn(`[KafkaArchiver] Failed to produce restored messages:`, kafkaErr);
           return false;
         }
       }
 
       return true;
     } catch (error) {
-      log.error(`[KafkaArchiver] Restore failed for ${archiveId}:`, error);
+      log.warn(`[KafkaArchiver] Restore failed for ${archiveId}:`, error);
       return false;
     }
   }
@@ -1199,7 +1199,7 @@ export class KafkaArchiver {
           try {
             await this.archive(topic);
           } catch (e) {
-            log.error(`[KafkaArchiver] Scheduled archive failed for ${topic}:`, e);
+            log.warn(`[KafkaArchiver] Scheduled archive failed for ${topic}:`, e);
           }
         }
       }, 3600000); // 每小时

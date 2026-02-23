@@ -101,7 +101,7 @@ export class PerceptionPersistenceService {
 
       return { config, version: row.version, id: row.id };
     } catch (err: any) {
-      log.error({ error: err.message }, 'Failed to load BPA config');
+      log.warn({ error: err.message }, 'Failed to load BPA config');
       return null;
     }
   }
@@ -151,7 +151,7 @@ export class PerceptionPersistenceService {
       log.info({ id: insertId, name, equipmentType }, 'BPA config saved to DB');
       return insertId;
     } catch (err: any) {
-      log.error({ error: err.message }, 'Failed to save BPA config');
+      log.warn({ error: err.message }, 'Failed to save BPA config');
       return null;
     }
   }
@@ -170,7 +170,7 @@ export class PerceptionPersistenceService {
       }
       return await query.orderBy(desc(bpaConfigs.updatedAt));
     } catch (err: any) {
-      log.error({ error: err.message }, 'Failed to list BPA configs');
+      log.warn({ error: err.message }, 'Failed to list BPA configs');
       return [];
     }
   }
@@ -210,7 +210,7 @@ export class PerceptionPersistenceService {
 
       return dims;
     } catch (err: any) {
-      log.error({ error: err.message }, 'Failed to load dimension definitions');
+      log.warn({ error: err.message }, 'Failed to load dimension definitions');
       return null;
     }
   }
@@ -253,7 +253,7 @@ export class PerceptionPersistenceService {
 
       return true;
     } catch (err: any) {
-      log.error({ error: err.message }, 'Failed to save dimension definitions');
+      log.warn({ error: err.message }, 'Failed to save dimension definitions');
       return false;
     }
   }
@@ -272,7 +272,7 @@ export class PerceptionPersistenceService {
       }
       return await query.orderBy(stateVectorDimensions.dimensionIndex);
     } catch (err: any) {
-      log.error({ error: err.message }, 'Failed to list dimension definitions');
+      log.warn({ error: err.message }, 'Failed to list dimension definitions');
       return [];
     }
   }
@@ -335,7 +335,7 @@ export class PerceptionPersistenceService {
 
       return entries.length;
     } catch (err: any) {
-      log.error({ error: err.message, count: entries.length }, 'Failed to archive state vector logs');
+      log.warn({ error: err.message, count: entries.length }, 'Failed to archive state vector logs');
       return 0;
     }
   }
@@ -358,7 +358,7 @@ export class PerceptionPersistenceService {
         .orderBy(desc(stateVectorLogs.synthesizedAt))
         .limit(limit);
     } catch (err: any) {
-      log.error({ error: err.message }, 'Failed to query state vector logs');
+      log.warn({ error: err.message }, 'Failed to query state vector logs');
       return [];
     }
   }

@@ -220,7 +220,7 @@ const executeRollbackStep: SagaStep<
 
         log.debug(`[RollbackSaga] Reverted device: ${deviceCode}`);
       } catch (error) {
-        log.error(`[RollbackSaga] Failed to revert device ${deviceCode}:`, error);
+        log.warn(`[RollbackSaga] Failed to revert device ${deviceCode}:`, error);
       }
     }
   },
@@ -342,7 +342,7 @@ export function registerRollbackSaga(): void {
       log.debug(`[RollbackSaga] Completed: ${output.succeeded}/${output.total} devices rolled back`);
     },
     onFailed: async (input, error) => {
-      log.error(`[RollbackSaga] Failed:`, error.message);
+      log.warn(`[RollbackSaga] Failed:`, error.message);
     },
   });
 

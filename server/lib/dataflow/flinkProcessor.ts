@@ -195,7 +195,7 @@ export class AnomalyDetector {
 
       log.debug('[AnomalyDetector] Anomaly detector started');
     } catch (error) {
-      log.error('[AnomalyDetector] Failed to start:', error);
+      log.warn('[AnomalyDetector] Failed to start:', error);
       this.isRunning = false;
       throw error;
     }
@@ -245,7 +245,7 @@ export class AnomalyDetector {
         await this.emitAnomaly(result);
       }
     } catch (error) {
-      log.error('[AnomalyDetector] Error processing message:', error);
+      log.warn('[AnomalyDetector] Error processing message:', error);
     }
   }
 
@@ -329,7 +329,7 @@ export class AnomalyDetector {
         value: JSON.stringify(result),
       }]);
     } catch (error) {
-      log.error('[AnomalyDetector] Failed to emit anomaly:', error);
+      log.warn('[AnomalyDetector] Failed to emit anomaly:', error);
     }
 
     // 通知处理器
@@ -337,7 +337,7 @@ export class AnomalyDetector {
       try {
         handler(result);
       } catch (error) {
-        log.error('[AnomalyDetector] Handler error:', error);
+        log.warn('[AnomalyDetector] Handler error:', error);
       }
     }
   }
@@ -440,7 +440,7 @@ export class MetricsAggregator {
 
       log.debug('[MetricsAggregator] Metrics aggregator started');
     } catch (error) {
-      log.error('[MetricsAggregator] Failed to start:', error);
+      log.warn('[MetricsAggregator] Failed to start:', error);
       this.isRunning = false;
       throw error;
     }
@@ -495,7 +495,7 @@ export class MetricsAggregator {
       this.window1m.add(key, reading, Number(reading.timestamp));
       this.window1h.add(key, reading, Number(reading.timestamp));
     } catch (error) {
-      log.error('[MetricsAggregator] Error processing message:', error);
+      log.warn('[MetricsAggregator] Error processing message:', error);
     }
   }
 
@@ -579,7 +579,7 @@ export class MetricsAggregator {
         value: JSON.stringify(result),
       }]);
     } catch (error) {
-      log.error('[MetricsAggregator] Failed to emit aggregation:', error);
+      log.warn('[MetricsAggregator] Failed to emit aggregation:', error);
     }
 
     // 通知处理器
@@ -587,7 +587,7 @@ export class MetricsAggregator {
       try {
         handler(result);
       } catch (error) {
-        log.error('[MetricsAggregator] Handler error:', error);
+        log.warn('[MetricsAggregator] Handler error:', error);
       }
     }
   }
@@ -674,7 +674,7 @@ export class KGBuilder {
 
       log.debug('[KGBuilder] KG builder started');
     } catch (error) {
-      log.error('[KGBuilder] Failed to start:', error);
+      log.warn('[KGBuilder] Failed to start:', error);
       this.isRunning = false;
       throw error;
     }
@@ -719,7 +719,7 @@ export class KGBuilder {
       const cdcEvent: CDCEvent = JSON.parse(message.value);
       await this.processCDCEvent(cdcEvent);
     } catch (error) {
-      log.error('[KGBuilder] Error processing message:', error);
+      log.warn('[KGBuilder] Error processing message:', error);
     }
   }
 
@@ -838,14 +838,14 @@ export class KGBuilder {
             try {
               handler(entity);
             } catch (error) {
-              log.error('[KGBuilder] Entity handler error:', error);
+              log.warn('[KGBuilder] Entity handler error:', error);
             }
           }
         }
 
         log.debug(`[KGBuilder] Flushed ${this.entityBuffer.length} entities`);
       } catch (error) {
-        log.error('[KGBuilder] Failed to flush entities:', error);
+        log.warn('[KGBuilder] Failed to flush entities:', error);
       }
     }
 
@@ -855,7 +855,7 @@ export class KGBuilder {
         try {
           handler(relation);
         } catch (error) {
-          log.error('[KGBuilder] Relation handler error:', error);
+          log.warn('[KGBuilder] Relation handler error:', error);
         }
       }
     }

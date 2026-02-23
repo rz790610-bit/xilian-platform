@@ -49,7 +49,7 @@ async function validateTableName(req: Request, res: Response, next: NextFunction
 
 /** 统一错误处理 */
 function handleError(res: Response, error: unknown, operation: string): void {
-  log.error(`[REST Bridge] ${operation} failed:`, error);
+  log.warn(`[REST Bridge] ${operation} failed:`, error);
   const message = error instanceof Error ? error.message : 'Unknown error';
   res.status(500).json({ error: message, code: 'INTERNAL_ERROR', operation });
 }

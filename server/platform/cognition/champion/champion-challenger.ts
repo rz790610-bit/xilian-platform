@@ -230,7 +230,7 @@ export class ChampionChallengerController {
 
     // 异步执行三阶段门控
     this.executeGates(challenge).catch(err => {
-      log.error({
+      log.warn({
         challengeId: challenge.id,
         error: err instanceof Error ? err.message : String(err),
       }, 'Challenge execution failed');
@@ -427,7 +427,7 @@ export class ChampionChallengerController {
       challenge.status = 'rejected';
       challenge.updatedAt = new Date();
 
-      log.error({
+      log.warn({
         challengeId: challenge.id,
         error: err instanceof Error ? err.message : String(err),
       }, 'Gate 2 evaluation error');

@@ -166,7 +166,7 @@ async function getRealKafkaMetrics(): Promise<KafkaMetrics | null> {
       redis: null,
     };
   } catch (error) {
-    log.error("[KafkaMetricsWS] Error fetching Kafka metrics:", error);
+    log.warn("[KafkaMetricsWS] Error fetching Kafka metrics:", error);
     return null;
   }
 }
@@ -243,7 +243,7 @@ async function collectAndBroadcastMetrics() {
       }
     });
   } catch (error) {
-    log.error("[KafkaMetricsWS] Error collecting metrics:", error);
+    log.warn("[KafkaMetricsWS] Error collecting metrics:", error);
   }
 }
 
@@ -306,7 +306,7 @@ export function initKafkaMetricsWebSocket(server: Server) {
     });
 
     ws.on("error", (error: Error) => {
-      log.error("[KafkaMetricsWS] WebSocket error:", error);
+      log.warn("[KafkaMetricsWS] WebSocket error:", error);
       clients.delete(ws);
     });
   });

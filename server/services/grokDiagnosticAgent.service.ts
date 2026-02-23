@@ -334,7 +334,7 @@ async function executeToolCall(
           lastMaintenance: device[0].updatedAt,
         };
       } catch (err) {
-        log.error('get_device_info failed:', err);
+        log.warn('get_device_info failed:', err);
         return { error: '查询设备信息失败', detail: String(err) };
       }
     }
@@ -402,7 +402,7 @@ async function executeToolCall(
           })),
         };
       } catch (err) {
-        log.error('get_sensor_history failed:', err);
+        log.warn('get_sensor_history failed:', err);
         return { error: '查询传感器数据失败', detail: String(err) };
       }
     }
@@ -445,7 +445,7 @@ async function executeToolCall(
           },
         };
       } catch (err) {
-        log.error('get_alert_history failed:', err);
+        log.warn('get_alert_history failed:', err);
         return { error: '查询告警历史失败', detail: String(err) };
       }
     }
@@ -610,7 +610,7 @@ async function executeToolCall(
           }
         }
       } catch (err) {
-        log.error('run_dsp_analysis failed:', err);
+        log.warn('run_dsp_analysis failed:', err);
         return { error: 'DSP 分析失败', detail: String(err) };
       }
     }
@@ -861,7 +861,7 @@ export async function diagnose(request: DiagnosticRequest): Promise<DiagnosticRe
         throw new Error('xAI API key 未配置且 Ollama 降级已禁用');
       }
     } catch (err) {
-      log.error(`Diagnostic API call failed (round ${round}):`, err);
+      log.warn(`Diagnostic API call failed (round ${round}):`, err);
 
       // xAI 失败时尝试 Ollama 降级
       if (provider === 'xai' && config.fallbackToOllama) {
@@ -869,7 +869,7 @@ export async function diagnose(request: DiagnosticRequest): Promise<DiagnosticRe
           provider = 'ollama';
           response = await callOllamaFallback(session.messages);
         } catch (ollamaErr) {
-          log.error('Ollama fallback also failed:', ollamaErr);
+          log.warn('Ollama fallback also failed:', ollamaErr);
           throw new Error(`诊断服务不可用: xAI (${err}) / Ollama (${ollamaErr})`);
         }
       } else {
@@ -952,7 +952,7 @@ export async function diagnose(request: DiagnosticRequest): Promise<DiagnosticRe
 
   // 异步写入数据库
   persistDiagnosticResult(result).catch(err => {
-    log.error('Failed to persist diagnostic result:', err);
+    log.warn('Failed to persist diagnostic result:', err);
   });
 
   session.toolCalls.push(...toolCallRecords);
@@ -1083,7 +1083,7 @@ async function persistDiagnosticResult(result: DiagnosticResult): Promise<void> 
 
     log.info(`Diagnostic result persisted for ${result.deviceCode}`);
   } catch (err) {
-    log.error('Failed to persist diagnostic result:', err);
+    log.warn('Failed to persist diagnostic result:', err);
   }
 }
 

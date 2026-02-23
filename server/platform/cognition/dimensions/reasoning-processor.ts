@@ -472,7 +472,7 @@ export class ReasoningProcessor implements DimensionProcessor<ReasoningOutput> {
       // 将 OrchestratorResult 转换为 ReasoningOutput
       return this.convertOrchestratorResult(result, startTime);
     } catch (err) {
-      log.error({
+      log.warn({
         stimulusId: stimulus.id,
         error: err instanceof Error ? err.message : String(err),
       }, 'Orchestrator failed, falling back to Champion');
@@ -563,7 +563,7 @@ export class ReasoningProcessor implements DimensionProcessor<ReasoningOutput> {
         },
       };
     } catch (err) {
-      log.error({
+      log.warn({
         stimulusId: stimulus.id,
         error: err instanceof Error ? err.message : String(err),
       }, 'Reasoning processing failed');

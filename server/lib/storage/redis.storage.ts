@@ -220,7 +220,7 @@ export class RedisStorage {
       this.isInitialized = true;
       log.debug('[Redis] Connection established');
     } catch (error) {
-      log.error('[Redis] Connection failed:', error);
+      log.warn('[Redis] Connection failed:', error);
       throw error;
     }
   }
@@ -239,7 +239,7 @@ export class RedisStorage {
           handlers.forEach(handler => handler(eventMessage));
         }
       } catch (error) {
-        log.error('[Redis] Error processing message:', error);
+        log.warn('[Redis] Error processing message:', error);
       }
     });
   }
@@ -283,7 +283,7 @@ export class RedisStorage {
       await client.setex(fullKey, expiry, serialized);
       return true;
     } catch (error) {
-      log.error('[Redis] Set error:', error);
+      log.warn('[Redis] Set error:', error);
       return false;
     }
   }
@@ -302,7 +302,7 @@ export class RedisStorage {
       }
       return null;
     } catch (error) {
-      log.error('[Redis] Get error:', error);
+      log.warn('[Redis] Get error:', error);
       return null;
     }
   }
@@ -318,7 +318,7 @@ export class RedisStorage {
       await client.del(fullKey);
       return true;
     } catch (error) {
-      log.error('[Redis] Delete error:', error);
+      log.warn('[Redis] Delete error:', error);
       return false;
     }
   }
@@ -336,7 +336,7 @@ export class RedisStorage {
       }
       return 0;
     } catch (error) {
-      log.error('[Redis] Delete pattern error:', error);
+      log.warn('[Redis] Delete pattern error:', error);
       return 0;
     }
   }
@@ -351,7 +351,7 @@ export class RedisStorage {
     try {
       return (await client.exists(fullKey)) === 1;
     } catch (error) {
-      log.error('[Redis] Exists error:', error);
+      log.warn('[Redis] Exists error:', error);
       return false;
     }
   }
@@ -366,7 +366,7 @@ export class RedisStorage {
     try {
       return (await client.expire(fullKey, ttl)) === 1;
     } catch (error) {
-      log.error('[Redis] Expire error:', error);
+      log.warn('[Redis] Expire error:', error);
       return false;
     }
   }
@@ -389,7 +389,7 @@ export class RedisStorage {
       await client.hset(fullKey, field, JSON.stringify(value));
       return true;
     } catch (error) {
-      log.error('[Redis] Hset error:', error);
+      log.warn('[Redis] Hset error:', error);
       return false;
     }
   }
@@ -408,7 +408,7 @@ export class RedisStorage {
       }
       return null;
     } catch (error) {
-      log.error('[Redis] Hget error:', error);
+      log.warn('[Redis] Hget error:', error);
       return null;
     }
   }
@@ -432,7 +432,7 @@ export class RedisStorage {
       }
       return parsed;
     } catch (error) {
-      log.error('[Redis] Hgetall error:', error);
+      log.warn('[Redis] Hgetall error:', error);
       return {};
     }
   }
@@ -454,7 +454,7 @@ export class RedisStorage {
       const lock = await this.redlock.acquire([`lock:${resource}`], ttl);
       return { lock, acquired: true };
     } catch (error) {
-      log.error('[Redis] Acquire lock error:', error);
+      log.warn('[Redis] Acquire lock error:', error);
       return { lock: null, acquired: false };
     }
   }
@@ -469,7 +469,7 @@ export class RedisStorage {
       await lock.release();
       return true;
     } catch (error) {
-      log.error('[Redis] Release lock error:', error);
+      log.warn('[Redis] Release lock error:', error);
       return false;
     }
   }
@@ -560,7 +560,7 @@ export class RedisStorage {
         resetAt: result[2],
       };
     } catch (error) {
-      log.error('[Redis] Rate limit check error:', error);
+      log.warn('[Redis] Rate limit check error:', error);
       // 出错时默认允许
       return { allowed: true, remaining: config.maxRequests, resetAt: now + config.windowMs };
     }
@@ -577,7 +577,7 @@ export class RedisStorage {
       await client.del(key);
       return true;
     } catch (error) {
-      log.error('[Redis] Reset rate limit error:', error);
+      log.warn('[Redis] Reset rate limit error:', error);
       return false;
     }
   }
@@ -599,7 +599,7 @@ export class RedisStorage {
       await client.publish(message.channel, JSON.stringify(fullMessage));
       return true;
     } catch (error) {
-      log.error('[Redis] Publish error:', error);
+      log.warn('[Redis] Publish error:', error);
       return false;
     }
   }
@@ -623,7 +623,7 @@ export class RedisStorage {
 
       return true;
     } catch (error) {
-      log.error('[Redis] Subscribe error:', error);
+      log.warn('[Redis] Subscribe error:', error);
       return false;
     }
   }
@@ -654,7 +654,7 @@ export class RedisStorage {
 
       return true;
     } catch (error) {
-      log.error('[Redis] Unsubscribe error:', error);
+      log.warn('[Redis] Unsubscribe error:', error);
       return false;
     }
   }
@@ -780,7 +780,7 @@ export class RedisStorage {
         namespaceStats,
       };
     } catch (error) {
-      log.error('[Redis] Get cache stats error:', error);
+      log.warn('[Redis] Get cache stats error:', error);
       return {
         totalKeys: 0,
         memoryUsage: 'unknown',

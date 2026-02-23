@@ -171,7 +171,7 @@ export class KnowledgeFeedbackLoop {
 
       return true;
     } catch (err) {
-      log.error({
+      log.warn({
         revisionId,
         error: err instanceof Error ? err.message : String(err),
       }, 'Rollback failed');
@@ -240,7 +240,7 @@ export class KnowledgeFeedbackLoop {
       this.emitter.on(eventType, (event: FeedbackEvent) => {
         // 异步执行，不阻塞
         handler(event).catch(err => {
-          log.error({
+          log.warn({
             eventType,
             sessionId: event.sessionId,
             error: err instanceof Error ? err.message : String(err),

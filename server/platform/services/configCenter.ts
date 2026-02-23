@@ -121,7 +121,7 @@ class ConfigCenter {
     // 校验
     const rule = this.validationRules.get(key);
     if (rule && !rule.validator(value)) {
-      log.error(`Config validation failed for "${key}": ${rule.errorMessage}`);
+      log.warn(`Config validation failed for "${key}": ${rule.errorMessage}`);
       return false;
     }
 
@@ -241,7 +241,7 @@ class ConfigCenter {
     // P2-CC1: rollback 添加审计日志
     const historyEntry = this.history.find(e => e.key === key && e.version === targetVersion);
     if (!historyEntry) {
-      log.error(`Cannot rollback "${key}" to version ${targetVersion}: not found in history`);
+      log.warn(`Cannot rollback "${key}" to version ${targetVersion}: not found in history`);
       return false;
     }
     const current = this.store.get(key);
@@ -395,7 +395,7 @@ class ConfigCenter {
         try {
           await listener(event);
         } catch (err) {
-          log.error(`Config change listener error for "${key}":`, String(err));
+          log.warn(`Config change listener error for "${key}":`, String(err));
         }
       }
     }
@@ -406,7 +406,7 @@ class ConfigCenter {
       try {
         await listener(event);
       } catch (err) {
-        log.error('Global config change listener error:', String(err));
+        log.warn('Global config change listener error:', String(err));
       }
     }
 
