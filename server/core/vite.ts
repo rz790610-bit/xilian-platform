@@ -34,8 +34,35 @@ function getProjectRoot(): string {
   return process.cwd();
 }
 
+/**
+ * 带超时的 Promise 包装器
+ */
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(`[Vite] ${label} timed out after ${ms}ms`));
+    }, ms);
+    promise.then(
+      (val) => { clearTimeout(timer); resolve(val); },
+      (err) => { clearTimeout(timer); reject(err); }
+    );
+  });
+}
+
+// ============================================================
+// Vite 开发服务器（Express 中间件模式）
+// ============================================================
+// 注意：此配置仅用于 `pnpm dev`（Express 中间件模式）。
+// `pnpm build` 使用项目根目录的 vite.config.ts（Vite CLI 模式）。
+// 两者的 resolve.alias 和 plugins 必须保持一致。
+// ============================================================
+
 export async function setupVite(app: Express, server: Server, port: number) {
+  const t0 = Date.now();
+  log.info('[Vite] Initializing dev server (middleware mode)...');
+
   // 动态 import，仅在开发模式下加载，避免生产环境缺少这些 dev 包导致崩溃
+  log.info('[Vite] Loading plugins...');
   const { createServer: createViteServer } = await import("vite");
   const react = (await import("@vitejs/plugin-react")).default;
   const tailwindcss = (await import("@tailwindcss/vite")).default;
@@ -50,8 +77,10 @@ export async function setupVite(app: Express, server: Server, port: number) {
   }
 
   const rootDir = getProjectRoot();
+  log.info(`[Vite] Project root: ${rootDir}`);
+  log.info('[Vite] Creating Vite server (dependency pre-bundling may take a moment on first run)...');
 
-  const vite = await createViteServer({
+  const vite = await withTimeout(createViteServer({
     plugins,
     resolve: {
       alias: {
@@ -67,6 +96,8 @@ export async function setupVite(app: Express, server: Server, port: number) {
       outDir: path.resolve(rootDir, "dist/public"),
       emptyOutDir: true,
     },
+    // ★ configFile: false — 不加载根目录的 vite.config.ts
+    // 根目录的 vite.config.ts 仅用于 `pnpm build`（Vite CLI 模式）
     configFile: false,
     server: {
       middlewareMode: true,
@@ -75,7 +106,7 @@ export async function setupVite(app: Express, server: Server, port: number) {
       allowedHosts: true as const,
     },
     appType: "custom",
-  });
+  }), 60_000, 'createViteServer()');
 
   app.use(vite.middlewares);
   app.use("*", async (req, res, next) => {
@@ -93,6 +124,9 @@ export async function setupVite(app: Express, server: Server, port: number) {
       next(e);
     }
   });
+
+  const dt = Date.now() - t0;
+  log.info(`[Vite] ✓ Dev server ready (${dt}ms)`);
 }
 
 export function serveStatic(app: Express) {

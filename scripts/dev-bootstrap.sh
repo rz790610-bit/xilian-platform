@@ -146,6 +146,11 @@ if [ -z "$REDIS_HOST" ]; then
     export REDIS_PORT=6379
 fi
 
+# 服务端口
+if [ -z "$PORT" ]; then
+    export PORT=3000
+fi
+
 # 日志级别
 if [ -z "$LOG_LEVEL" ]; then
     export LOG_LEVEL=info
@@ -207,6 +212,7 @@ if [ "$SKIP_AUTH" = "true" ]; then
 else
     echo -e "  认证:    ${YELLOW}需要配置${NC}"
 fi
+echo -e "  端口:    ${GREEN}${PORT:-3000}${NC}"
 echo -e "  日志:    ${LOG_LEVEL:-info}"
 echo -e "${CYAN}────────────────────────────────────────────${NC}"
 echo ""

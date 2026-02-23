@@ -1,3 +1,10 @@
+/**
+ * Vite CLI 配置文件
+ * 
+ * ★ 此文件仅用于 `pnpm build`（Vite CLI 模式）。
+ * ★ `pnpm dev` 使用 server/core/vite.ts 中的内联配置（configFile: false）。
+ * ★ 修改 resolve.alias 或 plugins 时，必须同步修改 server/core/vite.ts。
+ */
 import { jsxLocPlugin } from "@builder.io/vite-plugin-jsx-loc";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
@@ -36,7 +43,7 @@ export default defineConfig({
     // 生产环境由 Express 直接服务静态文件 + API，不需要代理
     proxy: {
       '/api': {
-        target: `http://localhost:${process.env.PORT || 3003}`,
+        target: `http://localhost:${process.env.PORT || 3000}`,
         changeOrigin: true,
         // WebSocket 支持（Kafka metrics WS 等）
         ws: true,

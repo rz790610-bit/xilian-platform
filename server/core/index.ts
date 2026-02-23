@@ -19,20 +19,29 @@ import { gracefulShutdown, registerBuiltinShutdownHooks } from "../platform/midd
 import { initOpenTelemetry, shutdownOpenTelemetry } from "../platform/middleware/opentelemetry";
 import { configCenter } from "../platform/services/configCenter";
 import { createModuleLogger } from './logger';
+import { config } from './config';
 const log = createModuleLogger('index');
+
+// ============================================================
+// 启动计时器
+// ============================================================
+const STARTUP_BEGIN = Date.now();
+
+function elapsed(): string {
+  return `${((Date.now() - STARTUP_BEGIN) / 1000).toFixed(1)}s`;
+}
 
 // ============================================================
 // 端口发现
 // ============================================================
 
-
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
-    const server = net.createServer();
-    server.listen(port, () => {
-      server.close(() => resolve(true));
+    const srv = net.createServer();
+    srv.listen(port, () => {
+      srv.close(() => resolve(true));
     });
-    server.on("error", () => resolve(false));
+    srv.on("error", () => resolve(false));
   });
 }
 
@@ -169,10 +178,39 @@ async function registerEventBusIntegration(): Promise<void> {
 }
 
 // ============================================================
+// 启动 Banner
+// ============================================================
+
+function printStartupBanner(port: number, startupTime: string): void {
+  const mode = process.env.NODE_ENV || 'development';
+  const version = config.app.version;
+  const url = `http://localhost:${port}/`;
+
+  // 使用 process.stdout.write 确保 banner 始终可见，不受日志级别限制
+  const CYAN = '\x1b[36m';
+  const GREEN = '\x1b[32m';
+  const YELLOW = '\x1b[33m';
+  const BOLD = '\x1b[1m';
+  const RESET = '\x1b[0m';
+
+  process.stdout.write(`
+${CYAN}═══════════════════════════════════════════════════${RESET}
+${CYAN}  ${BOLD}西联智能平台 (PortAI Nexus)${RESET} ${YELLOW}v${version}${RESET}
+${CYAN}───────────────────────────────────────────────────${RESET}
+  ${GREEN}➜${RESET}  Local:   ${BOLD}${url}${RESET}
+  ${GREEN}➜${RESET}  Mode:    ${mode}
+  ${GREEN}➜${RESET}  Startup: ${startupTime}
+${CYAN}═══════════════════════════════════════════════════${RESET}
+`);
+}
+
+// ============================================================
 // 主启动函数
 // ============================================================
 
 async function startServer() {
+  log.info(`[Startup] Initializing... (NODE_ENV=${process.env.NODE_ENV})`);
+
   // ── 阶段 0: 预初始化（在 Express 之前） ──
   // OTel 必须在 require express 之前初始化才能自动插桩 HTTP
   // 但由于我们使用 ESM import，这里是最早的可行时机
@@ -222,7 +260,7 @@ async function startServer() {
     const { restRouter } = await import('../services/database/restBridge');
     // API 限流应用于 REST 端点
     app.use('/api/rest', createApiLimiter(), restRouter);
-    log.debug('[REST Bridge] ✓ Auto-generated REST API registered at /api/rest');
+    log.info('[REST Bridge] ✓ REST API registered at /api/rest');
   } catch (err) {
     log.error('[REST Bridge] ✗ Failed to register REST API:', err);
   }
@@ -242,7 +280,7 @@ async function startServer() {
   const port = await findAvailablePort(preferredPort);
 
   if (port !== preferredPort) {
-    log.debug(`Port ${preferredPort} is busy, using port ${port} instead`);
+    log.warn(`[Startup] Port ${preferredPort} is occupied, using port ${port} instead`);
   }
 
   if (process.env.NODE_ENV === "development") {
@@ -269,14 +307,19 @@ async function startServer() {
 
   // ── 阶段 10: 启动监听 ──
   server.listen(port, () => {
-    log.debug(`Server running on http://localhost:${port}/`);
-    log.debug('[Platform] ✓ Security headers (helmet) enabled');
-    log.debug('[Platform] ✓ CORS middleware enabled');
-    log.debug('[Platform] ✓ Rate limiting enabled');
-    log.debug('[Platform] ✓ Prometheus metrics at /api/metrics');
-    log.debug('[Platform] ✓ Request ID middleware enabled');
-    log.debug('[Platform] ✓ Graceful shutdown handlers registered');
+    // ★ 关键修复：使用 info 级别 + banner，确保用户看到启动成功消息
+    const startupTime = elapsed();
+    printStartupBanner(port, startupTime);
+
+    log.info(`[Startup] Server listening on http://localhost:${port}/ (${startupTime})`);
+    log.info('[Platform] ✓ Security headers (helmet) enabled');
+    log.info('[Platform] ✓ CORS middleware enabled');
+    log.info('[Platform] ✓ Rate limiting enabled');
+    log.info('[Platform] ✓ Prometheus metrics at /api/metrics');
+    log.info('[Platform] ✓ Request ID middleware enabled');
+    log.info('[Platform] ✓ Graceful shutdown handlers registered');
     
+    // ── 后台服务初始化（不阻塞主启动流程） ──
     // 启动定时健康检查（每30秒检查一次）
     import('../jobs/healthCheck.job').then(({ startPeriodicHealthCheck }) => {
       startPeriodicHealthCheck(30000);
@@ -297,7 +340,7 @@ async function startServer() {
     // v3.1 初始化数据流追踪器（L2 自省层）
     import('../platform/services/dataFlowTracer').then(({ dataFlowTracer }) => {
       dataFlowTracer.initialize().then(() => {
-        log.debug('[Platform] ✓ DataFlowTracer initialized (L2 Self-Introspection)');
+        log.info('[Platform] ✓ DataFlowTracer initialized (L2 Self-Introspection)');
       }).catch(err => {
         log.error('[Platform] Failed to initialize DataFlowTracer:', err.message);
       });
@@ -308,7 +351,7 @@ async function startServer() {
     // 同步内置算法到数据库
     import('../services/algorithm.service').then(({ algorithmService }) => {
       algorithmService.syncBuiltinAlgorithms().then((result) => {
-        log.debug(`[Algorithm] ✓ Synced builtin algorithms: ${result.created} created, ${result.updated} updated, ${result.skipped} skipped`);
+        log.info(`[Algorithm] ✓ Synced builtin algorithms: ${result.created} created, ${result.updated} updated, ${result.skipped} skipped`);
       }).catch(err => {
         log.error('[Algorithm] Failed to sync builtin algorithms:', err.message);
       });
@@ -328,4 +371,7 @@ async function startServer() {
   });
 }
 
-startServer().catch((err) => log.error({ err }, "Server startup failed"));
+startServer().catch((err) => {
+  log.fatal({ err }, "Server startup failed — process will exit");
+  process.exit(1);
+});
