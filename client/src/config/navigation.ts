@@ -128,13 +128,11 @@ export const navigationConfig: NavItem[] = [
 
   // ━━━ 深度进化（v5.0） ━━━
   {
-    id: 'v5-guardrail',
+    id: 'v5-guardrail-console',
     label: '护栏控制台',
     icon: '🛡️',
+    path: '/v5/guardrail',
     section: '深度进化',
-    children: [
-      { id: 'v5-guardrail-console', label: '护栏控制台', icon: '🛡️', path: '/v5/guardrail' },
-    ]
   },
   {
     id: 'digital-twin',
