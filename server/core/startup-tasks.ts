@@ -185,7 +185,7 @@ export function buildStartupTasks(): StartupTask[] {
             await outboxPublisher.addEvent({
               eventType: 'DeviceUpdated',
               aggregateType: 'Device',
-              aggregateId: event.deviceId || 'unknown',
+              aggregateId: event.nodeId || 'unknown',
               payload: event.payload as Record<string, unknown>,
               metadata: { source: 'eventBus', correlationId: event.eventId },
             });

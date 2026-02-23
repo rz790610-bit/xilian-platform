@@ -53,7 +53,7 @@ export class ProfinetAdapter extends BaseAdapter {
         placeholder: '0x002A',
         description: 'PROFINET 厂商 ID（16进制，Siemens=0x002A）',
         group: '设备标识' },
-      { key: 'deviceId', label: 'Device ID', type: 'string', required: false,
+      { key: 'nodeId', label: 'Device ID', type: 'string', required: false,
         placeholder: '0x0101',
         description: 'PROFINET 设备 ID（16进制）',
         group: '设备标识' },

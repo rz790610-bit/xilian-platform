@@ -1095,7 +1095,7 @@ export default function AlgorithmDetail() {
                     <TableBody>
                       {bindingsQuery.data.map((binding: any) => (
                         <TableRow key={binding.id}>
-                          <TableCell className="font-mono text-sm">{binding.deviceId}</TableCell>
+                          <TableCell className="font-mono text-sm">{binding.nodeId}</TableCell>
                           <TableCell className="text-sm">{new Date(binding.createdAt).toLocaleString()}</TableCell>
                           <TableCell>
                             <Badge variant={binding.status === "active" ? "default" : "secondary"}>
@@ -1153,7 +1153,7 @@ export default function AlgorithmDetail() {
                             </Badge>
                           </TableCell>
                           <TableCell className="text-sm">{exec.durationMs ? `${exec.durationMs}ms` : "—"}</TableCell>
-                          <TableCell className="font-mono text-xs">{exec.deviceId || "—"}</TableCell>
+                          <TableCell className="font-mono text-xs">{exec.nodeId || "—"}</TableCell>
                           <TableCell className="text-sm">{new Date(exec.createdAt).toLocaleString()}</TableCell>
                         </TableRow>
                       ))}

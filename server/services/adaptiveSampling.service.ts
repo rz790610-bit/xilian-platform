@@ -24,7 +24,7 @@ export interface CapacityStatus {
 }
 
 export interface SamplingAdjustment {
-  nodeId: string; // was: deviceId
+  nodeId: string; // was: nodeId
   sensorType: string;
   previousRateMs: number;
   newRateMs: number;

@@ -141,7 +141,7 @@ const spec: OpenAPIV3_1.Document = {
         type: 'object',
         properties: {
           id: { type: 'string', format: 'uuid' },
-          deviceId: { type: 'string', format: 'uuid' },
+          nodeId: { type: 'string', format: 'uuid' },
           name: { type: 'string' },
           unit: { type: 'string' },
           dataType: { type: 'string', enum: ['vibration', 'temperature', 'pressure', 'current', 'speed'] },
@@ -231,7 +231,7 @@ const spec: OpenAPIV3_1.Document = {
           ruleId: { type: 'string' },
           severity: { type: 'string', enum: ['info', 'warning', 'critical'] },
           status: { type: 'string', enum: ['firing', 'resolved', 'acknowledged'] },
-          deviceId: { type: 'string', format: 'uuid' },
+          nodeId: { type: 'string', format: 'uuid' },
           message: { type: 'string' },
           firedAt: { type: 'string', format: 'date-time' },
           resolvedAt: { type: 'string', format: 'date-time', nullable: true }

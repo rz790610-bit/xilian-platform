@@ -36,7 +36,7 @@ export { PaginatedResult, QueryOptions };
 
 export interface DeviceRecord {
   id?: number;
-  deviceId: string;
+  nodeId: string;
   name: string;
   type: string;
   model?: string;
@@ -75,7 +75,7 @@ export interface ConversationRecord {
 
 export interface MaintenanceLogRecord {
   id?: number;
-  deviceId: string;
+  nodeId: string;
   maintenanceType: 'preventive' | 'corrective' | 'predictive' | 'emergency';
   description: string;
   technician?: string;
@@ -110,7 +110,7 @@ export interface SparePartRecord {
 export interface AlertRecord {
   id?: number;
   alertId: string;
-  deviceId: string;
+  nodeId: string;
   sensorId?: string;
   alertType: 'threshold' | 'anomaly' | 'offline' | 'error' | 'maintenance_due' | 'warranty_expiry' | 'custom';
   title: string;
@@ -131,7 +131,7 @@ export interface AlertRecord {
 
 export interface KpiRecord {
   id?: number;
-  deviceId: string;
+  nodeId: string;
   periodType: 'hourly' | 'daily' | 'weekly' | 'monthly';
   periodStart: Date;
   periodEnd: Date;
@@ -176,14 +176,14 @@ export class PostgresStorage {
 
     try {
       const result = await db.insert(assetNodes).values({
-        nodeId: device.deviceId,
-        code: device.deviceId,
+        nodeId: device.nodeId,
+        code: device.nodeId,
         name: device.name,
         level: 1,
         nodeType: device.type || 'other',
-        rootNodeId: device.deviceId,
+        rootNodeId: device.nodeId,
         status: (device.status as string) || 'unknown',
-        path: `/${device.deviceId}`,
+        path: `/${device.nodeId}`,
         serialNumber: device.serialNumber,
         location: device.location,
         installDate: device.installDate,
@@ -208,12 +208,12 @@ export class PostgresStorage {
   /**
    * 获取设备
    */
-  async getDevice(deviceId: string): Promise<DeviceRecord | null> {
+  async getDevice(nodeId: string): Promise<DeviceRecord | null> {
     const db = await getDb();
     if (!db) return null;
 
     try {
-      const result = await db.select().from(assetNodes).where(eq(assetNodes.nodeId, deviceId)).limit(1);
+      const result = await db.select().from(assetNodes).where(eq(assetNodes.nodeId, nodeId)).limit(1);
       return result[0] ? this.mapDeviceRecord(result[0]) : null;
     } catch (error) {
       log.warn('[PostgreSQL] Get device error:', error);
@@ -224,7 +224,7 @@ export class PostgresStorage {
   /**
    * 更新设备
    */
-  async updateDevice(deviceId: string, updates: Partial<DeviceRecord>): Promise<DeviceRecord | null> {
+  async updateDevice(nodeId: string, updates: Partial<DeviceRecord>): Promise<DeviceRecord | null> {
     const db = await getDb();
     if (!db) return null;
 
@@ -243,10 +243,10 @@ export class PostgresStorage {
 
       await db.update(assetNodes)
         .set(updateData)
-        .where(eq(assetNodes.nodeId, deviceId));
+        .where(eq(assetNodes.nodeId, nodeId));
 
       // 重新查询更新后的记录
-      const updated = await db.select().from(assetNodes).where(eq(assetNodes.nodeId, deviceId)).limit(1);
+      const updated = await db.select().from(assetNodes).where(eq(assetNodes.nodeId, nodeId)).limit(1);
       return updated[0] ? this.mapDeviceRecord(updated[0]) : null;
     } catch (error) {
       log.warn('[PostgreSQL] Update device error:', error);
@@ -257,12 +257,12 @@ export class PostgresStorage {
   /**
    * 删除设备
    */
-  async deleteDevice(deviceId: string): Promise<boolean> {
+  async deleteDevice(nodeId: string): Promise<boolean> {
     const db = await getDb();
     if (!db) return false;
 
     try {
-      await db.delete(assetNodes).where(eq(assetNodes.nodeId, deviceId));
+      await db.delete(assetNodes).where(eq(assetNodes.nodeId, nodeId));
       return true;
     } catch (error) {
       log.warn('[PostgreSQL] Delete device error:', error);
@@ -427,7 +427,7 @@ export class PostgresStorage {
     try {
       const result = await db.insert(deviceMaintenanceRecords).values({
         recordId: `MR-${Date.now()}`,
-        nodeId: log.deviceId,
+        nodeId: log.nodeId,
         maintenanceType: log.maintenanceType as any,
         title: log.description.substring(0, 200),
         description: log.description,
@@ -454,7 +454,7 @@ export class PostgresStorage {
    * 列出维护日志
    */
   async listMaintenanceLogs(options: QueryOptions & {
-    deviceId?: string;
+    nodeId?: string;
     maintenanceType?: string;
     startDate?: Date;
     endDate?: Date;
@@ -468,8 +468,8 @@ export class PostgresStorage {
       const page = Math.floor(offset / limit) + 1;
 
       const conditions = [];
-      if (options.deviceId) {
-        conditions.push(eq(deviceMaintenanceRecords.nodeId, options.deviceId));
+      if (options.nodeId) {
+        conditions.push(eq(deviceMaintenanceRecords.nodeId, options.nodeId));
       }
       if (options.maintenanceType) {
         conditions.push(eq(deviceMaintenanceRecords.maintenanceType, options.maintenanceType as any));
@@ -601,7 +601,7 @@ export class PostgresStorage {
     try {
       const result = await db.insert(deviceAlerts).values({
         alertId: alert.alertId,
-        nodeId: alert.deviceId,
+        nodeId: alert.nodeId,
         sensorId: alert.sensorId,
         alertType: alert.alertType as any,
         title: alert.title,
@@ -670,7 +670,7 @@ export class PostgresStorage {
    * 获取活跃告警
    */
   async getActiveAlerts(options: QueryOptions & {
-    deviceId?: string;
+    nodeId?: string;
     severity?: string;
   } = {}): Promise<PaginatedResult<AlertRecord>> {
     const db = await getDb();
@@ -682,8 +682,8 @@ export class PostgresStorage {
       const page = Math.floor(offset / limit) + 1;
 
       const conditions = [eq(deviceAlerts.status, 'active')];
-      if (options.deviceId) {
-        conditions.push(eq(deviceAlerts.nodeId, options.deviceId));
+      if (options.nodeId) {
+        conditions.push(eq(deviceAlerts.nodeId, options.nodeId));
       }
       if (options.severity) {
         conditions.push(eq(deviceAlerts.severity, options.severity as AlertRecord['severity']));
@@ -725,7 +725,7 @@ export class PostgresStorage {
 
     try {
       const result = await db.insert(deviceKpis).values({
-        nodeId: kpi.deviceId,
+        nodeId: kpi.nodeId,
         periodType: kpi.periodType,
         periodStart: kpi.periodStart,
         periodEnd: kpi.periodEnd,
@@ -759,7 +759,7 @@ export class PostgresStorage {
   /**
    * 获取设备 KPI
    */
-  async getDeviceKpis(deviceId: string, options: {
+  async getDeviceKpis(nodeId: string, options: {
     periodType?: string;
     startDate?: Date;
     endDate?: Date;
@@ -769,7 +769,7 @@ export class PostgresStorage {
     if (!db) return [];
 
     try {
-      const conditions = [eq(deviceKpis.nodeId, deviceId)];
+      const conditions = [eq(deviceKpis.nodeId, nodeId)];
       
       if (options.periodType) {
         conditions.push(eq(deviceKpis.periodType, options.periodType as KpiRecord['periodType']));
@@ -922,7 +922,7 @@ export class PostgresStorage {
   private mapDeviceRecord(row: any): DeviceRecord {
     return {
       id: row.id,
-      deviceId: row.deviceId,
+      nodeId: row.nodeId,
       name: row.name,
       type: row.type,
       model: row.model,
@@ -950,7 +950,7 @@ export class PostgresStorage {
   private mapMaintenanceLogRecord(row: any): MaintenanceLogRecord {
     return {
       id: row.id,
-      deviceId: row.deviceId,
+      nodeId: row.nodeId,
       maintenanceType: row.maintenanceType,
       description: row.description,
       technician: row.technician,
@@ -989,7 +989,7 @@ export class PostgresStorage {
     return {
       id: row.id,
       alertId: row.alertId,
-      deviceId: row.deviceId,
+      nodeId: row.nodeId,
       sensorId: row.sensorId,
       alertType: row.alertType,
       title: row.title,
@@ -1012,7 +1012,7 @@ export class PostgresStorage {
   private mapKpiRecord(row: any): KpiRecord {
     return {
       id: row.id,
-      deviceId: row.deviceId,
+      nodeId: row.nodeId,
       periodType: row.periodType,
       periodStart: row.periodStart,
       periodEnd: row.periodEnd,

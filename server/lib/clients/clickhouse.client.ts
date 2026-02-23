@@ -149,7 +149,7 @@ export async function insertSensorReadings(readings: SensorReading[]): Promise<v
   const rows = readings.map(r => {
     const ts = r.timestamp instanceof Date ? r.timestamp : new Date(r.timestamp);
     return {
-      device_id: r.deviceId,
+      device_id: r.nodeId,
       sensor_id: r.sensorId,
       metric_name: r.metricName || '',
       value: r.value,
@@ -249,9 +249,9 @@ export async function querySensorReadings(options: QueryOptions): Promise<Sensor
     params.endTime = et.toISOString().replace('T', ' ').replace('Z', '');
   }
   
-  if (options.deviceIds && options.deviceIds.length > 0) {
-    query += ` AND device_id IN ({deviceIds:Array(String)})`;
-    params.deviceIds = options.deviceIds;
+  if (options.nodeIds && options.nodeIds.length > 0) {
+    query += ` AND device_id IN ({nodeIds:Array(String)})`;
+    params.nodeIds = options.nodeIds;
   }
   
   if (options.sensorIds && options.sensorIds.length > 0) {
@@ -297,7 +297,7 @@ export async function querySensorReadings(options: QueryOptions): Promise<Sensor
   
   return rows.map(row => ({
     sensorId: row.sensor_id,
-    deviceId: row.device_id,
+    nodeId: row.device_id,
     metricName: row.metric_name,
     value: row.value,
     unit: row.unit,
@@ -345,9 +345,9 @@ export async function queryAggregatedData(options: ClickHouseAggregationOptions)
     params.endTime = et.toISOString().replace('T', ' ').replace('Z', '');
   }
   
-  if (options.deviceIds && options.deviceIds.length > 0) {
-    query += ` AND device_id IN ({deviceIds:Array(String)})`;
-    params.deviceIds = options.deviceIds;
+  if (options.nodeIds && options.nodeIds.length > 0) {
+    query += ` AND device_id IN ({nodeIds:Array(String)})`;
+    params.nodeIds = options.nodeIds;
   }
   
   if (options.sensorIds && options.sensorIds.length > 0) {
@@ -426,9 +426,9 @@ export async function queryAnomalies(options: QueryOptions & { severity?: string
     params.endTime = et.toISOString().replace('T', ' ').replace('Z', '');
   }
   
-  if (options.deviceIds && options.deviceIds.length > 0) {
-    query += ` AND device_id IN ({deviceIds:Array(String)})`;
-    params.deviceIds = options.deviceIds;
+  if (options.nodeIds && options.nodeIds.length > 0) {
+    query += ` AND device_id IN ({nodeIds:Array(String)})`;
+    params.nodeIds = options.nodeIds;
   }
   
   if (options.severity && options.severity.length > 0) {
@@ -487,7 +487,7 @@ export async function queryAnomalies(options: QueryOptions & { severity?: string
 /**
  * 获取设备数据统计
  */
-export async function getDeviceStats(deviceId: string, timeRange: { start: Date; end: Date }): Promise<{
+export async function getDeviceStats(nodeId: string, timeRange: { start: Date; end: Date }): Promise<{
   totalReadings: number;
   avgValue: number;
   minValue: number;
@@ -503,7 +503,7 @@ export async function getDeviceStats(deviceId: string, timeRange: { start: Date;
       min(value) as min_value,
       max(value) as max_value
     FROM sensor_readings
-    WHERE device_id = {deviceId:String}
+    WHERE device_id = {nodeId:String}
       AND timestamp >= {startTime:DateTime64(3)}
       AND timestamp <= {endTime:DateTime64(3)}
   `;
@@ -511,7 +511,7 @@ export async function getDeviceStats(deviceId: string, timeRange: { start: Date;
   const result = await ch.query({
     query,
     query_params: {
-      deviceId,
+      nodeId,
       startTime: timeRange.start.toISOString().replace('T', ' ').replace('Z', ''),
       endTime: timeRange.end.toISOString().replace('T', ' ').replace('Z', ''),
     },
@@ -525,7 +525,7 @@ export async function getDeviceStats(deviceId: string, timeRange: { start: Date;
   const anomalyQuery = `
     SELECT count() as anomaly_count
     FROM anomaly_detections
-    WHERE device_id = {deviceId:String}
+    WHERE device_id = {nodeId:String}
       AND timestamp >= {startTime:DateTime64(3)}
       AND timestamp <= {endTime:DateTime64(3)}
   `;
@@ -533,7 +533,7 @@ export async function getDeviceStats(deviceId: string, timeRange: { start: Date;
   const anomalyResult = await ch.query({
     query: anomalyQuery,
     query_params: {
-      deviceId,
+      nodeId,
       startTime: timeRange.start.toISOString().replace('T', ' ').replace('Z', ''),
       endTime: timeRange.end.toISOString().replace('T', ' ').replace('Z', ''),
     },

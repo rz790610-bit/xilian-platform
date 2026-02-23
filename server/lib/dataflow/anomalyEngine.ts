@@ -49,7 +49,7 @@ export interface AnomalyEngineConfig {
 export interface DataPoint {
   value: number;
   timestamp: number;
-  deviceId?: string;
+  nodeId?: string;
   sensorId?: string;
   metricName?: string;
   metadata?: Record<string, unknown>;
@@ -340,7 +340,7 @@ export class UnifiedAnomalyEngine {
 
   /**
    * 滑动窗口检测 — 自动管理窗口状态
-   * @param key  窗口键（通常是 deviceId:sensorId:metricName）
+   * @param key  窗口键（通常是 nodeId:sensorId:metricName）
    * @param point 数据点
    */
   detectWithWindow(

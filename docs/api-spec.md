@@ -39,8 +39,8 @@
   "code": 300001,
   "message": "参数错误",
   "error": {
-    "details": "字段 deviceId 不能为空",
-    "field": "deviceId"
+    "details": "字段 nodeId 不能为空",
+    "field": "nodeId"
   },
   "timestamp": 1706000000000,
   "requestId": "req_abc123_xyz789"

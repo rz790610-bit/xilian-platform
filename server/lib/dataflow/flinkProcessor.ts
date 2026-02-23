@@ -43,7 +43,7 @@ export interface CDCConfig {
 // ============ 数据结构 ============
 
 export interface AggregationResult {
-  deviceId: string;
+  nodeId: string;
   sensorId: string;
   metricName: string;
   windowStart: number;
@@ -234,7 +234,7 @@ export class AnomalyDetector {
 
     try {
       const reading: SensorReading = JSON.parse(message.value);
-      const key = `${reading.deviceId}:${reading.sensorId}:${reading.metricName}`;
+      const key = `${reading.nodeId}:${reading.sensorId}:${reading.metricName}`;
 
       // 添加到窗口
       this.windowState.add(key, reading, Number(reading.timestamp));
@@ -257,7 +257,7 @@ export class AnomalyDetector {
 
     const values = window.data.map(r => r.value);
     const result: AnomalyResult = {
-      deviceId: reading.deviceId,
+      nodeId: reading.nodeId,
       sensorId: reading.sensorId,
       metricName: reading.metricName,
       value: reading.value,
@@ -307,12 +307,12 @@ export class AnomalyDetector {
   }
 
   private async emitAnomaly(result: AnomalyResult): Promise<void> {
-    log.debug(`[AnomalyDetector] Anomaly detected: ${result.deviceId}/${result.sensorId} score=${result.score.toFixed(2)}`);
+    log.debug(`[AnomalyDetector] Anomaly detected: ${result.nodeId}/${result.sensorId} score=${result.score.toFixed(2)}`);
 
     // 发送到 Kafka
     try {
       await kafkaCluster.produce(XILIAN_TOPICS.ANOMALY_RESULTS.name, [{
-        key: `${result.deviceId}:${result.sensorId}`,
+        key: `${result.nodeId}:${result.sensorId}`,
         value: JSON.stringify(result),
       }]);
     } catch (error) {
@@ -349,7 +349,7 @@ export class AnomalyDetector {
    * 手动推送数据点（用于测试）
    */
   async pushReading(reading: SensorReading): Promise<AnomalyResult | null> {
-    const key = `${reading.deviceId}:${reading.sensorId}:${reading.metricName}`;
+    const key = `${reading.nodeId}:${reading.sensorId}:${reading.metricName}`;
     this.windowState.add(key, reading, Number(reading.timestamp));
     
     const result = this.detectAnomaly(key, reading);
@@ -476,7 +476,7 @@ export class MetricsAggregator {
 
     try {
       const reading: SensorReading = JSON.parse(message.value);
-      const key = `${reading.deviceId}:${reading.sensorId}:${reading.metricName}`;
+      const key = `${reading.nodeId}:${reading.sensorId}:${reading.metricName}`;
 
       // 添加到两个窗口
       this.window1m.add(key, reading, Number(reading.timestamp));
@@ -494,9 +494,9 @@ export class MetricsAggregator {
     for (const window of evicted) {
       if (window.data.length === 0) continue;
 
-      const [deviceId, sensorId, metricName] = window.key.split(':');
+      const [nodeId, sensorId, metricName] = window.key.split(':');
       const result = this.calculateAggregation(
-        deviceId,
+        nodeId,
         sensorId,
         metricName,
         window.data,
@@ -510,7 +510,7 @@ export class MetricsAggregator {
   }
 
   private calculateAggregation(
-    deviceId: string,
+    nodeId: string,
     sensorId: string,
     metricName: string,
     data: SensorReading[],
@@ -527,7 +527,7 @@ export class MetricsAggregator {
     const stdDev = Math.sqrt(variance);
 
     return {
-      deviceId,
+      nodeId,
       sensorId,
       metricName,
       windowStart,
@@ -562,7 +562,7 @@ export class MetricsAggregator {
 
     try {
       await kafkaCluster.produce(topic, [{
-        key: `${result.deviceId}:${result.sensorId}:${result.metricName}`,
+        key: `${result.nodeId}:${result.sensorId}:${result.metricName}`,
         value: JSON.stringify(result),
       }]);
     } catch (error) {
@@ -601,7 +601,7 @@ export class MetricsAggregator {
    * 手动推送数据点（用于测试）
    */
   pushReading(reading: SensorReading): void {
-    const key = `${reading.deviceId}:${reading.sensorId}:${reading.metricName}`;
+    const key = `${reading.nodeId}:${reading.sensorId}:${reading.metricName}`;
     this.window1m.add(key, reading, Number(reading.timestamp));
     this.window1h.add(key, reading, Number(reading.timestamp));
   }
@@ -758,9 +758,9 @@ export class KGBuilder {
     const relations: KGRelation[] = [];
 
     // 设备-组件关系
-    if (entity.type === 'Component' && data.deviceId) {
+    if (entity.type === 'Component' && data.nodeId) {
       relations.push({
-        sourceId: `Equipment:${data.deviceId}`,
+        sourceId: `Equipment:${data.nodeId}`,
         targetId: entity.id,
         type: 'HAS_PART',
         properties: {},
@@ -769,10 +769,10 @@ export class KGBuilder {
     }
 
     // 故障-设备关系
-    if (entity.type === 'Fault' && data.deviceId) {
+    if (entity.type === 'Fault' && data.nodeId) {
       relations.push({
         sourceId: entity.id,
-        targetId: `Equipment:${data.deviceId}`,
+        targetId: `Equipment:${data.nodeId}`,
         type: 'AFFECTS',
         properties: {},
         timestamp: entity.timestamp,

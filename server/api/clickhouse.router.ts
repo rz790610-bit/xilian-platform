@@ -40,7 +40,7 @@ export const clickhouseRouter = router({
     }))
     .mutation(async ({ input }) => {
       const readings: SensorReading[] = input.readings.map(r => ({
-        sensorId: r.sensor_id, deviceId: r.device_id, metricName: r.metric_name, value: r.value, unit: r.unit, quality: r.quality, metadata: r.metadata as Record<string, unknown>,
+        sensorId: r.sensor_id, nodeId: r.device_id, metricName: r.metric_name, value: r.value, unit: r.unit, quality: r.quality, metadata: r.metadata as Record<string, unknown>,
         timestamp: new Date(r.timestamp),
       }));
       await clickhouseClient.insertSensorReadings(readings);
@@ -72,7 +72,7 @@ export const clickhouseRouter = router({
     .input(z.object({
       startTime: z.string().transform(s => new Date(s)).optional(),
       endTime: z.string().transform(s => new Date(s)).optional(),
-      deviceIds: z.array(z.string()).optional(),
+      nodeIds: z.array(z.string()).optional(),
       sensorIds: z.array(z.string()).optional(),
       metricNames: z.array(z.string()).optional(),
       limit: z.number().min(1).max(10000).default(1000),
@@ -89,7 +89,7 @@ export const clickhouseRouter = router({
       interval: z.enum(['1m', '5m', '1h', '1d']),
       startTime: z.string().transform(s => new Date(s)).optional(),
       endTime: z.string().transform(s => new Date(s)).optional(),
-      deviceIds: z.array(z.string()).optional(),
+      nodeIds: z.array(z.string()).optional(),
       sensorIds: z.array(z.string()).optional(),
       limit: z.number().min(1).max(10000).default(1000),
       orderBy: z.enum(['asc', 'desc']).default('desc'),
@@ -103,7 +103,7 @@ export const clickhouseRouter = router({
     .input(z.object({
       startTime: z.string().transform(s => new Date(s)).optional(),
       endTime: z.string().transform(s => new Date(s)).optional(),
-      deviceIds: z.array(z.string()).optional(),
+      nodeIds: z.array(z.string()).optional(),
       severity: z.array(z.enum(['low', 'medium', 'high', 'critical'])).optional(),
       limit: z.number().min(1).max(10000).default(100),
     }))
@@ -114,12 +114,12 @@ export const clickhouseRouter = router({
   // 获取设备统计
   getDeviceStats: protectedProcedure
     .input(z.object({
-      deviceId: z.string(),
+      nodeId: z.string(),
       startTime: z.string().transform(s => new Date(s)),
       endTime: z.string().transform(s => new Date(s)),
     }))
     .query(async ({ input }) => {
-      return clickhouseClient.getDeviceStats(input.deviceId, {
+      return clickhouseClient.getDeviceStats(input.nodeId, {
         start: input.startTime,
         end: input.endTime,
       });

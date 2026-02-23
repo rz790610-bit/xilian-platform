@@ -197,14 +197,14 @@ export default function DeviceList() {
     createMutation.mutate({
       name,
       type: (type || 'other') as any,
-      deviceId: `DEV-${Date.now()}`,
+      nodeId: `DEV-${Date.now()}`,
       location: location || undefined,
     });
   };
 
   const handleDeleteDevice = (id: string) => {
     if (confirm('确定要删除该设备吗？')) {
-      deleteMutation.mutate({ deviceId: id });
+      deleteMutation.mutate({ nodeId: id });
     }
   };
 

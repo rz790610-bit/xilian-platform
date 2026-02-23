@@ -210,8 +210,8 @@ export class DeviceServiceClient {
   async createDevice(request: any): Promise<any> {
     return callUnary(await this.getClient(), 'createDevice', request);
   }
-  async getDevice(deviceId: string): Promise<any> {
-    return callUnary(await this.getClient(), 'getDevice', { deviceId });
+  async getDevice(nodeId: string): Promise<any> {
+    return callUnary(await this.getClient(), 'getDevice', { nodeId });
   }
 
   async listDevices(request: any): Promise<any> {
@@ -222,16 +222,16 @@ export class DeviceServiceClient {
     return callUnary(await this.getClient(), 'updateDevice', request);
   }
 
-  async deleteDevice(deviceId: string, force = false): Promise<void> {
-    await callUnary(await this.getClient(), 'deleteDevice', { deviceId, force });
+  async deleteDevice(nodeId: string, force = false): Promise<void> {
+    await callUnary(await this.getClient(), 'deleteDevice', { nodeId, force });
   }
 
-  async activateDevice(deviceId: string): Promise<any> {
-    return callUnary(await this.getClient(), 'activateDevice', { deviceId });
+  async activateDevice(nodeId: string): Promise<any> {
+    return callUnary(await this.getClient(), 'activateDevice', { nodeId });
   }
 
-  async deactivateDevice(deviceId: string): Promise<any> {
-    return callUnary(await this.getClient(), 'deactivateDevice', { deviceId });
+  async deactivateDevice(nodeId: string): Promise<any> {
+    return callUnary(await this.getClient(), 'deactivateDevice', { nodeId });
   }
 
   async createSensor(request: any): Promise<any> {
@@ -242,8 +242,8 @@ export class DeviceServiceClient {
     return callUnary(await this.getClient(), 'listSensors', request);
   }
 
-  async getDeviceHealth(deviceId: string): Promise<any> {
-    return callUnary(await this.getClient(), 'getDeviceHealth', { deviceId });
+  async getDeviceHealth(nodeId: string): Promise<any> {
+    return callUnary(await this.getClient(), 'getDeviceHealth', { nodeId });
   }
 }
 

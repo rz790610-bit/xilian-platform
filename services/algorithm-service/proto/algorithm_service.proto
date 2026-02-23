@@ -193,7 +193,7 @@ message ExecuteAlgorithmRequest {
   string algorithm_id = 1;
   AlgorithmInput input = 2;
   google.protobuf.Struct config = 3;
-  string device_id = 4;
+  string node_id = 4;
   string sensor_id = 5;
   int32 timeout_ms = 6;
   bool use_worker = 7;  // 强制使用 Worker 线程
@@ -252,7 +252,7 @@ message ExecuteCompositionRequest {
   string composition_id = 1;
   AlgorithmInput input = 2;
   google.protobuf.Struct global_config = 3;
-  string device_id = 4;
+  string node_id = 4;
 }
 
 message GetExecutionStatusRequest {
@@ -281,7 +281,7 @@ message ListExecutionHistoryRequest {
   int32 page = 1;
   int32 page_size = 2;
   string algorithm_id = 3;
-  string device_id = 4;
+  string node_id = 4;
   string status_filter = 5;
   google.protobuf.Timestamp start_time = 6;
   google.protobuf.Timestamp end_time = 7;
@@ -291,7 +291,7 @@ message ExecutionRecord {
   string execution_id = 1;
   string algorithm_id = 2;
   string algorithm_name = 3;
-  string device_id = 4;
+  string node_id = 4;
   string status = 5;
   int64 duration_ms = 6;
   int64 input_size = 7;
@@ -307,7 +307,7 @@ message ListExecutionHistoryResponse {
 // ── 设备绑定 ──
 message BindRequest {
   string algorithm_id = 1;
-  string device_id = 2;
+  string node_id = 2;
   google.protobuf.Struct config_override = 3;
   string schedule_cron = 4;
   bool auto_execute = 5;
@@ -316,7 +316,7 @@ message BindRequest {
 message BindingResponse {
   string binding_id = 1;
   string algorithm_id = 2;
-  string device_id = 3;
+  string node_id = 3;
   google.protobuf.Struct config = 4;
   bool active = 5;
 }
@@ -326,7 +326,7 @@ message UnbindRequest {
 }
 
 message ListBindingsRequest {
-  string device_id = 1;
+  string node_id = 1;
   string algorithm_id = 2;
   int32 page = 3;
   int32 page_size = 4;
@@ -338,7 +338,7 @@ message ListBindingsResponse {
 }
 
 message RecommendRequest {
-  string device_id = 1;
+  string node_id = 1;
   string device_type = 2;
   repeated string sensor_types = 3;
   int32 max_results = 4;

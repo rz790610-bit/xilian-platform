@@ -207,7 +207,7 @@ function AnomalyList({
   anomalies: Array<{
     id: string;
     timestamp: number;
-    deviceId: string;
+    nodeId: string;
     sensorId: string;
     metricName: string;
     value: number;
@@ -255,7 +255,7 @@ function AnomalyList({
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between">
                       <p className="font-medium text-sm truncate">
-                        {anomaly.deviceId} / {anomaly.sensorId}
+                        {anomaly.nodeId} / {anomaly.sensorId}
                       </p>
                       <Badge variant="outline" className="ml-2">
                         {anomaly.severity}

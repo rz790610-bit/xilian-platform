@@ -419,7 +419,7 @@ function extractResourceId(input: unknown): string {
   const obj = input as Record<string, unknown>;
   
   // 尝试常见的 ID 字段名
-  for (const key of ['id', 'resourceId', 'deviceId', 'sensorId', 'taskId', 'collectionId', 'name']) {
+  for (const key of ['id', 'resourceId', 'nodeId', 'sensorId', 'taskId', 'collectionId', 'name']) {
     if (obj[key] !== undefined && obj[key] !== null) {
       return String(obj[key]);
     }

@@ -315,14 +315,14 @@ export class TelemetryClickHouseSink {
    * 
    * 支持两种消息格式：
    * 1. V4 标准格式：{ device_code, mp_code, gateway_id, timestamp, value, ... }
-   * 2. 旧版兼容格式：{ deviceId, sensorId, value, timestamp, ... }
+   * 2. 旧版兼容格式：{ nodeId, sensorId, value, timestamp, ... }
    */
   private parseToRow(
     data: Record<string, any>,
     message: { topic: string; timestamp: string }
   ): TelemetryRow | null {
     // 提取设备编码（兼容新旧格式）
-    const deviceCode = data.device_code || data.deviceCode || data.deviceId;
+    const deviceCode = data.device_code || data.deviceCode || data.nodeId;
     const mpCode = data.mp_code || data.mpCode || data.sensorId;
 
     if (!deviceCode || !mpCode) {

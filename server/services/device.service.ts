@@ -14,10 +14,8 @@ import crypto from 'crypto';
  *   - nodeId: 设备树节点唯一标识 → asset_nodes.node_id
  *   - deviceCode: 设备编码 → asset_nodes.code（可由编码规则生成，≠ nodeId）
  *   - sensorId: 传感器唯一标识 → asset_sensors.sensor_id
- *   - deviceId: @deprecated 旧接口参数，内部映射为 nodeId
  *
- * 注意：本文件对外暴露的 API 仍使用 deviceId 参数名（前端兼容），
- * 但内部已明确区分 nodeId 和 deviceCode。
+ * 本文件对外暴露的 API 统一使用 nodeId 作为设备标识。
  */
 
 import { getDb } from '../lib/db';
@@ -34,8 +32,6 @@ import { streamProcessor } from './streamProcessor.service';
 // ============ 类型定义 ============
 
 export type DeviceInfo = {
-  /** @deprecated 旧字段，等同于 nodeId。新代码请使用 nodeId */
-  deviceId: string;
   /** 设备树节点ID（权威标识） */
   nodeId: string;
   /** 设备编码（可由编码规则生成） */
@@ -54,8 +50,6 @@ export type SensorInfo = {
   sensorId: string;
   /** 设备编码（关联 asset_nodes.code） */
   deviceCode: string;
-  /** @deprecated 旧字段，等同于 deviceCode。新代码请使用 deviceCode */
-  deviceId: string;
   name: string;
   type: string;
   unit?: string;
@@ -70,7 +64,7 @@ class DataSimulator {
   private isRunning: boolean = false;
   private simulationInterval: NodeJS.Timeout | null = null;
   private simulatedDevices: Map<string, {
-    deviceId: string;
+    nodeId: string;
     sensors: Array<{
       sensorId: string;
       type: string;
@@ -109,15 +103,15 @@ class DataSimulator {
   /**
    * 添加模拟设备
    */
-  addDevice(deviceId: string, sensors: Array<{
+  addDevice(nodeId: string, sensors: Array<{
     sensorId: string;
     type: string;
     baseValue: number;
     variance: number;
     trend?: number;
   }>): void {
-    this.simulatedDevices.set(deviceId, {
-      deviceId,
+    this.simulatedDevices.set(nodeId, {
+      nodeId,
       sensors: sensors.map(s => ({
         ...s,
         trend: s.trend || 0,
@@ -128,15 +122,15 @@ class DataSimulator {
   /**
    * 移除模拟设备
    */
-  removeDevice(deviceId: string): void {
-    this.simulatedDevices.delete(deviceId);
+  removeDevice(nodeId: string): void {
+    this.simulatedDevices.delete(nodeId);
   }
 
   /**
    * 生成模拟数据
    */
   private async generateSimulatedData(): Promise<void> {
-    for (const [deviceId, device] of Array.from(this.simulatedDevices.entries())) {
+    for (const [nodeId, device] of Array.from(this.simulatedDevices.entries())) {
       for (const sensor of device.sensors) {
         // 生成带有随机波动和趋势的数据
         const noise = (Math.random() - 0.5) * 2 * sensor.variance;
@@ -149,12 +143,12 @@ class DataSimulator {
           'reading',
           {
             sensorId: sensor.sensorId,
-            deviceId,
+            nodeId,
             value: Math.round(value * 100) / 100,
             timestamp: new Date().toISOString(),
             type: sensor.type,
           },
-          { source: 'simulator', sensorId: sensor.sensorId, nodeId: deviceId }
+          { source: 'simulator', sensorId: sensor.sensorId, nodeId }
         );
 
         // 添加到流处理器
@@ -165,8 +159,8 @@ class DataSimulator {
       await eventBus.publish(
         TOPICS.DEVICE_HEARTBEAT,
         'heartbeat',
-        { nodeId: deviceId, timestamp: new Date().toISOString() },
-        { source: 'simulator', nodeId: deviceId }
+        { nodeId, timestamp: new Date().toISOString() },
+        { source: 'simulator', nodeId }
       );
     }
   }
@@ -176,7 +170,7 @@ class DataSimulator {
    */
   async injectAnomaly(
     sensorId: string,
-    deviceId: string,
+    nodeId: string,
     anomalyValue: number
   ): Promise<void> {
     await eventBus.publish(
@@ -184,12 +178,12 @@ class DataSimulator {
       'reading',
       {
         sensorId,
-        deviceId,
+        nodeId,
         value: anomalyValue,
         timestamp: new Date().toISOString(),
         isAnomaly: true,
       },
-      { source: 'anomaly_injection', sensorId, nodeId: deviceId, severity: 'warning' }
+      { source: 'anomaly_injection', sensorId, nodeId, severity: 'warning' }
     );
 
     streamProcessor.addDataPoint(sensorId, anomalyValue);
@@ -225,7 +219,7 @@ class DeviceService {
    * 创建设备（写入 asset_nodes）
    */
   async createDevice(data: {
-    deviceId: string;
+    nodeId: string;
     name: string;
     type: string;
     model?: string;
@@ -239,8 +233,8 @@ class DeviceService {
       if (!db) return null;
 
       const now = new Date();
-      // ID 映射：deviceId → nodeId，deviceCode 默认等于 nodeId（编码规则启用后可不同）
-      const nodeId = data.deviceId;
+      // deviceCode 默认等于 nodeId（编码规则启用后可不同）
+      const nodeId = data.nodeId;
       const deviceCode = (data as any).deviceCode || nodeId;
       await db.insert(assetNodes).values({
         nodeId,
@@ -262,7 +256,6 @@ class DeviceService {
       });
 
       return {
-        deviceId: nodeId,
         nodeId,
         deviceCode,
         name: data.name,
@@ -316,7 +309,6 @@ class DeviceService {
       return results.map(d => {
         const attrs = d.attributes ? (typeof d.attributes === 'string' ? JSON.parse(d.attributes) : d.attributes) : {};
         return {
-          deviceId: d.nodeId,  // @deprecated 兼容旧接口
           nodeId: d.nodeId,
           deviceCode: d.code,
           name: d.name,
@@ -337,7 +329,7 @@ class DeviceService {
   /**
    * 获取设备详情（从 asset_nodes 查询）
    */
-  async getDevice(deviceId: string): Promise<DeviceInfo | null> {
+  async getDevice(nodeId: string): Promise<DeviceInfo | null> {
     try {
       const db = await getDb();
       if (!db) return null;
@@ -345,7 +337,7 @@ class DeviceService {
       const result = await db
         .select()
         .from(assetNodes)
-        .where(eq(assetNodes.nodeId, deviceId))
+        .where(eq(assetNodes.nodeId, nodeId))
         .limit(1);
 
       if (result.length === 0) return null;
@@ -362,7 +354,6 @@ class DeviceService {
       const attrs = d.attributes ? (typeof d.attributes === 'string' ? JSON.parse(d.attributes) : d.attributes) : {};
 
       return {
-        deviceId: d.nodeId,  // @deprecated 兼容旧接口
         nodeId: d.nodeId,
         deviceCode,
         name: d.name,
@@ -384,7 +375,7 @@ class DeviceService {
    * 更新设备状态（更新 asset_nodes）
    */
   async updateDeviceStatus(
-    deviceId: string,
+    nodeId: string,
     status: 'online' | 'offline' | 'maintenance' | 'error'
   ): Promise<boolean> {
     try {
@@ -398,14 +389,14 @@ class DeviceService {
           lastHeartbeat: status === 'online' ? new Date() : undefined,
           updatedAt: new Date(),
         })
-        .where(eq(assetNodes.nodeId, deviceId));
+        .where(eq(assetNodes.nodeId, nodeId));
 
       // 发布状态变更事件
       await eventBus.publish(
         TOPICS.DEVICE_STATUS,
         'status_change',
-        { nodeId: deviceId, status, timestamp: new Date().toISOString() },
-        { nodeId: deviceId, severity: status === 'error' ? 'error' : 'info' }
+        { nodeId, status, timestamp: new Date().toISOString() },
+        { nodeId, severity: status === 'error' ? 'error' : 'info' }
       );
 
       return true;
@@ -418,12 +409,12 @@ class DeviceService {
   /**
    * 删除设备（从 asset_nodes 删除）
    */
-  async deleteDevice(deviceId: string): Promise<boolean> {
+  async deleteDevice(nodeId: string): Promise<boolean> {
     try {
       const db = await getDb();
       if (!db) return false;
 
-      await db.delete(assetNodes).where(eq(assetNodes.nodeId, deviceId));
+      await db.delete(assetNodes).where(eq(assetNodes.nodeId, nodeId));
       return true;
     } catch (error) {
       log.warn('[DeviceService] Delete device failed:', error);
@@ -440,7 +431,7 @@ class SensorService {
    */
   async createSensor(data: {
     sensorId: string;
-    deviceId: string;
+    nodeId: string;
     name: string;
     type: string;
     unit?: string;
@@ -455,8 +446,8 @@ class SensorService {
       if (!db) return null;
 
       const now = new Date();
-      // ID 映射：deviceId → deviceCode（传感器通过 deviceCode 关联设备）
-      const deviceCode = (data as any).deviceCode || data.deviceId;
+      // 传感器通过 deviceCode 关联设备
+      const deviceCode = (data as any).deviceCode || data.nodeId;
       await db.insert(assetSensors).values({
         sensorId: data.sensorId,
         deviceCode,
@@ -478,7 +469,6 @@ class SensorService {
       return {
         sensorId: data.sensorId,
         deviceCode,
-        deviceId: data.deviceId,  // @deprecated 兼容旧接口
         name: data.name,
         type: data.type,
         unit: data.unit,
@@ -493,7 +483,7 @@ class SensorService {
   /**
    * 获取设备的传感器列表（从 asset_sensors 查询）
    */
-  async listSensors(deviceId?: string): Promise<SensorInfo[]> {
+  async listSensors(nodeId?: string): Promise<SensorInfo[]> {
     try {
       const db = await getDb();
       if (!db) return [];
@@ -503,8 +493,8 @@ class SensorService {
         .from(assetSensors)
         .orderBy(desc(assetSensors.updatedAt));
 
-      if (deviceId) {
-        query.where(eq(assetSensors.deviceCode, deviceId));
+      if (nodeId) {
+        query.where(eq(assetSensors.deviceCode, nodeId));
       }
 
       const results = await query;
@@ -512,7 +502,6 @@ class SensorService {
       return results.map(s => ({
         sensorId: s.sensorId,
         deviceCode: s.deviceCode,
-        deviceId: s.deviceCode,  // @deprecated 兼容旧接口
         name: s.name || '',
         type: s.physicalQuantity || '',
         unit: s.unit || undefined,
@@ -682,7 +671,7 @@ export const deviceRouter = router({
   // 设备管理
   createDevice: protectedProcedure
     .input(z.object({
-      deviceId: z.string(),
+      nodeId: z.string(),
       name: z.string(),
       type: z.enum(['agv', 'rtg', 'qc', 'asc', 'conveyor', 'pump', 'motor', 'sensor_hub', 'gateway', 'other']),
       model: z.string().optional(),
@@ -707,31 +696,31 @@ export const deviceRouter = router({
     }),
 
   getDevice: publicProcedure
-    .input(z.object({ deviceId: z.string() }))
+    .input(z.object({ nodeId: z.string() }))
     .query(async ({ input }) => {
-      return deviceService.getDevice(input.deviceId);
+      return deviceService.getDevice(input.nodeId);
     }),
 
   updateDeviceStatus: protectedProcedure
     .input(z.object({
-      deviceId: z.string(),
+      nodeId: z.string(),
       status: z.enum(['online', 'offline', 'maintenance', 'error']),
     }))
     .mutation(async ({ input }) => {
-      return deviceService.updateDeviceStatus(input.deviceId, input.status);
+      return deviceService.updateDeviceStatus(input.nodeId, input.status);
     }),
 
   deleteDevice: protectedProcedure
-    .input(z.object({ deviceId: z.string() }))
+    .input(z.object({ nodeId: z.string() }))
     .mutation(async ({ input }) => {
-      return deviceService.deleteDevice(input.deviceId);
+      return deviceService.deleteDevice(input.nodeId);
     }),
 
   // 传感器管理
   createSensor: protectedProcedure
     .input(z.object({
       sensorId: z.string(),
-      deviceId: z.string(),
+      nodeId: z.string(),
       name: z.string(),
       type: z.enum(['vibration', 'temperature', 'pressure', 'current', 'voltage', 'speed', 'position', 'humidity', 'flow', 'level', 'other']),
       unit: z.string().optional(),
@@ -746,9 +735,9 @@ export const deviceRouter = router({
     }),
 
   listSensors: publicProcedure
-    .input(z.object({ deviceId: z.string().optional() }).optional())
+    .input(z.object({ nodeId: z.string().optional() }).optional())
     .query(async ({ input }) => {
-      return sensorService.listSensors(input?.deviceId);
+      return sensorService.listSensors(input?.nodeId);
     }),
 
   getRecentReadings: publicProcedure
@@ -803,7 +792,7 @@ export const deviceRouter = router({
 
   addSimulatedDevice: protectedProcedure
     .input(z.object({
-      deviceId: z.string(),
+      nodeId: z.string(),
       sensors: z.array(z.object({
         sensorId: z.string(),
         type: z.string(),
@@ -813,25 +802,25 @@ export const deviceRouter = router({
       })),
     }))
     .mutation(async ({ input }) => {
-      dataSimulator.addDevice(input.deviceId, input.sensors);
+      dataSimulator.addDevice(input.nodeId, input.sensors);
       return { success: true };
     }),
 
   removeSimulatedDevice: protectedProcedure
-    .input(z.object({ deviceId: z.string() }))
+    .input(z.object({ nodeId: z.string() }))
     .mutation(async ({ input }) => {
-      dataSimulator.removeDevice(input.deviceId);
+      dataSimulator.removeDevice(input.nodeId);
       return { success: true };
     }),
 
   injectAnomaly: protectedProcedure
     .input(z.object({
       sensorId: z.string(),
-      deviceId: z.string(),
+      nodeId: z.string(),
       anomalyValue: z.number(),
     }))
     .mutation(async ({ input }) => {
-      await dataSimulator.injectAnomaly(input.sensorId, input.deviceId, input.anomalyValue);
+      await dataSimulator.injectAnomaly(input.sensorId, input.nodeId, input.anomalyValue);
       return { success: true };
     }),
 
@@ -840,9 +829,9 @@ export const deviceRouter = router({
     .mutation(async () => {
       // 创建示例设备
       const sampleDevices = [
-        { deviceId: 'agv_001', name: 'AGV小车-01', type: 'agv' as const, location: 'A区-1号线' },
-        { deviceId: 'rtg_001', name: 'RTG龙门吊-01', type: 'rtg' as const, location: 'B区-堆场' },
-        { deviceId: 'pump_001', name: '液压泵-01', type: 'pump' as const, location: 'C区-机房' },
+        { nodeId: 'agv_001', name: 'AGV小车-01', type: 'agv' as const, location: 'A区-1号线' },
+        { nodeId: 'rtg_001', name: 'RTG龙门吊-01', type: 'rtg' as const, location: 'B区-堆场' },
+        { nodeId: 'pump_001', name: '液压泵-01', type: 'pump' as const, location: 'C区-机房' },
       ];
 
       for (const device of sampleDevices) {
@@ -851,10 +840,10 @@ export const deviceRouter = router({
 
       // 创建示例传感器
       const sampleSensors = [
-        { sensorId: 'agv_001_vib', deviceId: 'agv_001', name: '振动传感器', type: 'vibration' as const, unit: 'mm/s' },
-        { sensorId: 'agv_001_temp', deviceId: 'agv_001', name: '温度传感器', type: 'temperature' as const, unit: '°C' },
-        { sensorId: 'rtg_001_current', deviceId: 'rtg_001', name: '电流传感器', type: 'current' as const, unit: 'A' },
-        { sensorId: 'pump_001_pressure', deviceId: 'pump_001', name: '压力传感器', type: 'pressure' as const, unit: 'MPa' },
+        { sensorId: 'agv_001_vib', nodeId: 'agv_001', name: '振动传感器', type: 'vibration' as const, unit: 'mm/s' },
+        { sensorId: 'agv_001_temp', nodeId: 'agv_001', name: '温度传感器', type: 'temperature' as const, unit: '°C' },
+        { sensorId: 'rtg_001_current', nodeId: 'rtg_001', name: '电流传感器', type: 'current' as const, unit: 'A' },
+        { sensorId: 'pump_001_pressure', nodeId: 'pump_001', name: '压力传感器', type: 'pressure' as const, unit: 'MPa' },
       ];
 
       for (const sensor of sampleSensors) {

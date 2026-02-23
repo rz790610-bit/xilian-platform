@@ -142,7 +142,7 @@ function Router() {
       </Route>
       
       {/* ━━━ 资产与数据 ━━━ */}
-      {/* P2-E2: @deprecated 旧路由重定向 — 迁移完成后应移除这些条目，并在前端添加 404 页面引导 */}
+      {/* 旧路由重定向 — 后续版本可移除 */}
       {/* 设备管理 → 统一到基础设置 */}
       <Route path="/device/list"><Redirect to="/basic/device" /></Route>
       <Route path="/device/maintenance"><Redirect to="/basic/device" /></Route>

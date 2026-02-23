@@ -22,8 +22,7 @@ export interface Event {
   nodeId?: string;
   /** 设备编码 */
   deviceCode?: string;
-  /** @deprecated 使用 nodeId 代替 */
-  deviceId?: string;
+  nodeId?: string;
   sensorId?: string;
   severity: 'info' | 'warning' | 'error' | 'critical';
   payload: Record<string, unknown>;
@@ -177,8 +176,7 @@ class EventBus {
       nodeId?: string;
       /** 设备编码 */
       deviceCode?: string;
-      /** @deprecated 使用 nodeId 代替 */
-      deviceId?: string;
+          nodeId?: string;
       sensorId?: string;
       severity?: 'info' | 'warning' | 'error' | 'critical';
     } = {}
@@ -188,7 +186,7 @@ class EventBus {
       topic,
       eventType,
       source: options.source || 'system',
-      nodeId: options.nodeId || options.deviceId,  // 优先 nodeId，兼容 deviceId
+      nodeId: options.nodeId || options.nodeId,  // 优先 nodeId，兼容 nodeId
       deviceCode: options.deviceCode,
       sensorId: options.sensorId,
       severity: options.severity || 'info',
@@ -246,8 +244,7 @@ class EventBus {
       source?: string;
       nodeId?: string;
       deviceCode?: string;
-      /** @deprecated 使用 nodeId 代替 */
-      deviceId?: string;
+          nodeId?: string;
       sensorId?: string;
       severity?: 'info' | 'warning' | 'error' | 'critical';
     };
@@ -363,8 +360,7 @@ class EventBus {
     topic?: string;
     /** 设备树节点ID */
     nodeId?: string;
-    /** @deprecated 使用 nodeId 代替 */
-    deviceId?: string;
+      nodeId?: string;
     sensorId?: string;
     severity?: string;
     startTime?: Date;
@@ -379,8 +375,8 @@ class EventBus {
       if (options.topic) {
         conditions.push(eq(eventLogs.topic, options.topic));
       }
-      if (options.nodeId || options.deviceId) {
-        conditions.push(eq(eventLogs.nodeId, (options.nodeId || options.deviceId)!));
+      if (options.nodeId || options.nodeId) {
+        conditions.push(eq(eventLogs.nodeId, (options.nodeId || options.nodeId)!));
       }
       if (options.sensorId) {
         conditions.push(eq(eventLogs.sensorId, options.sensorId));
@@ -414,7 +410,7 @@ class EventBus {
         eventType: r.eventType,
         source: r.source || undefined,
         nodeId: r.nodeId || undefined,
-        deviceId: r.nodeId || undefined,  // @deprecated 兼容旧接口
+        nodeId: r.nodeId || undefined,
         sensorId: r.sensorId || undefined,
         severity: r.severity,
         payload: (r.payload as Record<string, unknown>) || {},
@@ -546,7 +542,7 @@ export const eventBusRouter = router({
     .input(z.object({
       topic: z.string().optional(),
       nodeId: z.string().optional(),
-      deviceId: z.string().optional(), // @deprecated 兼容旧接口
+      nodeId: z.string().optional(),
       sensorId: z.string().optional(),
       severity: z.enum(['info', 'warning', 'error', 'critical']).optional(),
       startTime: z.string().optional(),

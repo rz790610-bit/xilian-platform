@@ -370,24 +370,24 @@ class RedisClientManager {
    * 缓存传感器数据
    */
   async cacheSensorData(
-    deviceId: string,
+    nodeId: string,
     sensorId: string,
     data: { value: number; timestamp: number; unit?: string },
     ttlSeconds: number = 300
   ): Promise<boolean> {
-    const key = `${CACHE_KEYS.SENSOR_DATA}${deviceId}:${sensorId}`;
+    const key = `${CACHE_KEYS.SENSOR_DATA}${nodeId}:${sensorId}`;
     return this.set(key, data, ttlSeconds);
   }
 
   /**
    * 获取传感器数据
    */
-  async getSensorData(deviceId: string, sensorId: string): Promise<{
+  async getSensorData(nodeId: string, sensorId: string): Promise<{
     value: number;
     timestamp: number;
     unit?: string;
   } | null> {
-    const key = `${CACHE_KEYS.SENSOR_DATA}${deviceId}:${sensorId}`;
+    const key = `${CACHE_KEYS.SENSOR_DATA}${nodeId}:${sensorId}`;
     return this.get(key, true);
   }
 
@@ -395,41 +395,41 @@ class RedisClientManager {
    * 缓存设备状态
    */
   async cacheDeviceStatus(
-    deviceId: string,
+    nodeId: string,
     status: { online: boolean; lastSeen: number; metadata?: object },
     ttlSeconds: number = 60
   ): Promise<boolean> {
-    const key = `${CACHE_KEYS.DEVICE_STATUS}${deviceId}`;
+    const key = `${CACHE_KEYS.DEVICE_STATUS}${nodeId}`;
     return this.set(key, status, ttlSeconds);
   }
 
   /**
    * 获取设备状态
    */
-  async getDeviceStatus(deviceId: string): Promise<{
+  async getDeviceStatus(nodeId: string): Promise<{
     online: boolean;
     lastSeen: number;
     metadata?: object;
   } | null> {
-    const key = `${CACHE_KEYS.DEVICE_STATUS}${deviceId}`;
+    const key = `${CACHE_KEYS.DEVICE_STATUS}${nodeId}`;
     return this.get(key, true);
   }
 
   /**
    * 批量获取设备状态
    */
-  async getMultipleDeviceStatus(deviceIds: string[]): Promise<Map<string, any>> {
+  async getMultipleDeviceStatus(nodeIds: string[]): Promise<Map<string, any>> {
     const result = new Map<string, any>();
     
-    if (!this.client || deviceIds.length === 0) {
+    if (!this.client || nodeIds.length === 0) {
       return result;
     }
 
     try {
-      const keys = deviceIds.map(id => `${CACHE_KEYS.DEVICE_STATUS}${id}`);
+      const keys = nodeIds.map(id => `${CACHE_KEYS.DEVICE_STATUS}${id}`);
       const values = await this.client.mget(...keys);
 
-      deviceIds.forEach((id, index) => {
+      nodeIds.forEach((id, index) => {
         const value = values[index];
         if (value) {
           try {

@@ -314,7 +314,7 @@ export const kafkaRouter = router({
    */
   queryAnomalies: publicProcedure
     .input(z.object({
-      deviceId: z.string().optional(),
+      nodeId: z.string().optional(),
       sensorId: z.string().optional(),
       severity: z.string().optional(),
       startTime: z.number().optional(),
@@ -330,7 +330,7 @@ export const kafkaRouter = router({
    */
   queryAggregations: publicProcedure
     .input(z.object({
-      deviceId: z.string().optional(),
+      nodeId: z.string().optional(),
       sensorId: z.string().optional(),
       metricName: z.string().optional(),
       startTime: z.number().optional(),
@@ -348,7 +348,7 @@ export const kafkaRouter = router({
    */
   pushTestDataPoint: protectedProcedure
     .input(z.object({
-      deviceId: z.string(),
+      nodeId: z.string(),
       sensorId: z.string(),
       value: z.number(),
       metricName: z.string().default('temperature'),
@@ -357,7 +357,7 @@ export const kafkaRouter = router({
       const result = await kafkaStreamProcessor.pushDataPoint({
         timestamp: Date.now(),
         value: input.value,
-        deviceId: input.deviceId,
+        nodeId: input.nodeId,
         sensorId: input.sensorId,
         metricName: input.metricName,
       });

@@ -33,7 +33,7 @@ export interface RollbackOutput {
   succeeded: number;
   failed: number;
   details: Array<{
-    deviceId: string;
+    nodeId: string;
     status: string;
     error?: string;
   }>;
@@ -252,8 +252,8 @@ const finalizeRollbackStep: SagaStep<
       succeeded: execute.succeeded.length,
       failed: execute.failed.length,
       details: [
-        ...execute.succeeded.map(d => ({ deviceId: d, status: 'success' })),
-        ...execute.failed.map(f => ({ deviceId: f.device, status: 'failed', error: f.error })),
+        ...execute.succeeded.map(d => ({ nodeId: d, status: 'success' })),
+        ...execute.failed.map(f => ({ nodeId: f.device, status: 'failed', error: f.error })),
       ],
     };
 

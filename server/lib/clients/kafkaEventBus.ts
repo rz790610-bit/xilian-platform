@@ -119,7 +119,7 @@ class KafkaEventBus {
     if (kafkaClient.getConnectionStatus()) {
       try {
         const message: KafkaMessage = {
-          key: String(fullEvent.metadata?.deviceId || eventId),
+          key: String(fullEvent.metadata?.nodeId || eventId),
           value: JSON.stringify(fullEvent),
           headers: {
             eventType: event.eventType || '',
@@ -142,7 +142,7 @@ class KafkaEventBus {
       severity: (event.severity || 'info') as 'info' | 'warning' | 'error' | 'critical',
       source: event.source || null,
       payload: fullEvent.data as Record<string, unknown>,
-      nodeId: (fullEvent.metadata?.deviceId as string) || null,
+      nodeId: (fullEvent.metadata?.nodeId as string) || null,
       sensorId: (fullEvent.metadata?.sensorId as string) || null,
       processed: false,
       createdAt: new Date(timestamp),
@@ -181,7 +181,7 @@ class KafkaEventBus {
         topicMessages.set(topic, []);
       }
       topicMessages.get(topic)!.push({
-        key: String(fullEvent.metadata?.deviceId || eventId),
+        key: String(fullEvent.metadata?.nodeId || eventId),
         value: JSON.stringify(fullEvent),
         headers: {
           eventType: event.eventType || '',
@@ -199,7 +199,7 @@ class KafkaEventBus {
         severity: (event.severity || 'info') as 'info' | 'warning' | 'error' | 'critical',
         source: event.source || null,
         payload: fullEvent.data as Record<string, unknown>,
-        nodeId: (fullEvent.metadata?.deviceId as string) || null,
+        nodeId: (fullEvent.metadata?.nodeId as string) || null,
         sensorId: (fullEvent.metadata?.sensorId as string) || null,
         processed: false,
         createdAt: new Date(timestamp),
@@ -340,7 +340,7 @@ class KafkaEventBus {
     topic?: string;
     eventType?: string;
     severity?: string;
-    deviceId?: string;
+    nodeId?: string;
     startTime?: number;
     endTime?: number;
     limit?: number;
@@ -359,8 +359,8 @@ class KafkaEventBus {
     if (options.severity) {
       conditions.push(eq(eventLog.severity, options.severity as 'info' | 'warning' | 'error' | 'critical'));
     }
-    if (options.deviceId) {
-      conditions.push(eq(eventLog.nodeId, options.deviceId));
+    if (options.nodeId) {
+      conditions.push(eq(eventLog.nodeId, options.nodeId));
     }
     if (options.startTime) {
       conditions.push(gte(eventLog.createdAt, new Date(options.startTime)));
@@ -635,7 +635,7 @@ export async function publishEvent(
 
 // 便捷发布传感器数据
 export async function publishSensorReading(
-  deviceId: string,
+  nodeId: string,
   sensorId: string,
   value: number,
   unit: string,
@@ -647,13 +647,13 @@ export async function publishSensorReading(
     severity: 'info',
     source: 'sensor',
     data: { value, unit },
-    metadata: { deviceId, sensorId, ...metadata },
+    metadata: { nodeId, sensorId, ...metadata },
   });
 }
 
 // 便捷发布异常告警
 export async function publishAnomalyAlert(
-  deviceId: string,
+  nodeId: string,
   sensorId: string,
   anomalyType: string,
   details: Record<string, any>,
@@ -665,6 +665,6 @@ export async function publishAnomalyAlert(
     severity,
     source: 'anomaly_detector',
     data: details,
-    metadata: { deviceId, sensorId },
+    metadata: { nodeId, sensorId },
   });
 }

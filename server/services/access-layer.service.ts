@@ -803,8 +803,8 @@ export async function seedDemoData() {
       dataFormat: "csv_stream",
       schemaInfo: {
         columns: [{ name: "value", type: "float64", unit: "MPa" }],
-        fileNamePattern: "{timestamp}_{mean}_工程值_{deviceId}_{channel}_N_{sampleRate}_{sampleCount}_{params}.csv",
-        deviceId: "1904000115",
+        fileNamePattern: "{timestamp}_{mean}_工程值_{nodeId}_{channel}_N_{sampleRate}_{sampleCount}_{params}.csv",
+        nodeId: "1904000115",
         channel: ch,
       },
       samplingConfig: {
@@ -891,8 +891,8 @@ export async function seedDemoData() {
       dataFormat: "csv_stream",
       schemaInfo: {
         columns: [{ name: "value", type: "float64", unit: "°C" }],
-        fileNamePattern: "{timestamp}_{value}_温度_{deviceId}_{channel}_N_{params}.csv",
-        deviceId: "1903000114",
+        fileNamePattern: "{timestamp}_{value}_温度_{nodeId}_{channel}_N_{params}.csv",
+        nodeId: "1903000114",
         channel: tc.ch,
       },
       samplingConfig: {

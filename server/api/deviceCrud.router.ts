@@ -31,7 +31,7 @@ const deviceMetadataSchema = z.object({
 }).optional();
 
 const createDeviceSchema = z.object({
-  deviceId: z.string().min(1).max(64),
+  nodeId: z.string().min(1).max(64),
   name: z.string().min(1).max(100),
   type: deviceTypeSchema,
   model: z.string().max(100).optional(),
@@ -114,10 +114,10 @@ export const deviceCrudRouter = router({
    */
   getById: publicProcedure
     .input(z.object({
-      deviceId: z.string(),
+      nodeId: z.string(),
     }))
     .query(async ({ input }) => {
-      return deviceCrudService.getById(input.deviceId);
+      return deviceCrudService.getById(input.nodeId);
     }),
 
   /**
@@ -140,11 +140,11 @@ export const deviceCrudRouter = router({
    */
   update: protectedProcedure
     .input(z.object({
-      deviceId: z.string(),
+      nodeId: z.string(),
       data: updateDeviceSchema,
     }))
     .mutation(async ({ input }) => {
-      const result = await deviceCrudService.update(input.deviceId, input.data as any);
+      const result = await deviceCrudService.update(input.nodeId, input.data as any);
       if (!result) {
         throw new Error('Failed to update device');
       }
@@ -156,11 +156,11 @@ export const deviceCrudRouter = router({
    */
   updateBatch: protectedProcedure
     .input(z.object({
-      deviceIds: z.array(z.string()).min(1).max(100),
+      nodeIds: z.array(z.string()).min(1).max(100),
       data: updateDeviceSchema,
     }))
     .mutation(async ({ input }) => {
-      return deviceCrudService.updateBatch(input.deviceIds, input.data as any);
+      return deviceCrudService.updateBatch(input.nodeIds, input.data as any);
     }),
 
   /**
@@ -168,10 +168,10 @@ export const deviceCrudRouter = router({
    */
   delete: protectedProcedure
     .input(z.object({
-      deviceId: z.string(),
+      nodeId: z.string(),
     }))
     .mutation(async ({ input }) => {
-      return deviceCrudService.delete(input.deviceId);
+      return deviceCrudService.delete(input.nodeId);
     }),
 
   /**
@@ -179,10 +179,10 @@ export const deviceCrudRouter = router({
    */
   deleteBatch: protectedProcedure
     .input(z.object({
-      deviceIds: z.array(z.string()).min(1).max(100),
+      nodeIds: z.array(z.string()).min(1).max(100),
     }))
     .mutation(async ({ input }) => {
-      return deviceCrudService.deleteBatch(input.deviceIds);
+      return deviceCrudService.deleteBatch(input.nodeIds);
     }),
 
   // ============ 状态管理 ============
@@ -192,11 +192,11 @@ export const deviceCrudRouter = router({
    */
   updateStatus: protectedProcedure
     .input(z.object({
-      deviceId: z.string(),
+      nodeId: z.string(),
       status: deviceStatusSchema,
     }))
     .mutation(async ({ input }) => {
-      return deviceCrudService.updateStatus(input.deviceId, input.status);
+      return deviceCrudService.updateStatus(input.nodeId, input.status);
     }),
 
   /**
@@ -204,11 +204,11 @@ export const deviceCrudRouter = router({
    */
   updateStatusBatch: protectedProcedure
     .input(z.object({
-      deviceIds: z.array(z.string()).min(1).max(100),
+      nodeIds: z.array(z.string()).min(1).max(100),
       status: deviceStatusSchema,
     }))
     .mutation(async ({ input }) => {
-      return deviceCrudService.updateStatusBatch(input.deviceIds, input.status);
+      return deviceCrudService.updateStatusBatch(input.nodeIds, input.status);
     }),
 
   // ============ 统计和健康检查 ============
@@ -226,10 +226,10 @@ export const deviceCrudRouter = router({
    */
   healthCheck: publicProcedure
     .input(z.object({
-      deviceId: z.string(),
+      nodeId: z.string(),
     }))
     .query(async ({ input }) => {
-      return deviceCrudService.healthCheck(input.deviceId);
+      return deviceCrudService.healthCheck(input.nodeId);
     }),
 
   /**
@@ -237,10 +237,10 @@ export const deviceCrudRouter = router({
    */
   healthCheckBatch: publicProcedure
     .input(z.object({
-      deviceIds: z.array(z.string()).min(1).max(50),
+      nodeIds: z.array(z.string()).min(1).max(50),
     }))
     .query(async ({ input }) => {
-      return deviceCrudService.healthCheckBatch(input.deviceIds);
+      return deviceCrudService.healthCheckBatch(input.nodeIds);
     }),
 
   // ============ 元数据 ============
@@ -373,11 +373,11 @@ export const deviceCrudRouter = router({
    */
   addTags: protectedProcedure
     .input(z.object({
-      deviceId: z.string(),
+      nodeId: z.string(),
       tags: z.array(z.string()).min(1).max(20),
     }))
     .mutation(async ({ input }) => {
-      const device = await deviceCrudService.getById(input.deviceId);
+      const device = await deviceCrudService.getById(input.nodeId);
       if (!device) {
         throw new Error('Device not found');
       }
@@ -385,7 +385,7 @@ export const deviceCrudRouter = router({
       const existingTags = device.metadata?.tags || [];
       const newTags = Array.from(new Set([...existingTags, ...input.tags]));
       
-      return deviceCrudService.update(input.deviceId, {
+      return deviceCrudService.update(input.nodeId, {
         metadata: {
           ...device.metadata,
           tags: newTags,
@@ -398,11 +398,11 @@ export const deviceCrudRouter = router({
    */
   removeTags: protectedProcedure
     .input(z.object({
-      deviceId: z.string(),
+      nodeId: z.string(),
       tags: z.array(z.string()).min(1),
     }))
     .mutation(async ({ input }) => {
-      const device = await deviceCrudService.getById(input.deviceId);
+      const device = await deviceCrudService.getById(input.nodeId);
       if (!device) {
         throw new Error('Device not found');
       }
@@ -410,7 +410,7 @@ export const deviceCrudRouter = router({
       const existingTags = device.metadata?.tags || [];
       const newTags = existingTags.filter(t => !input.tags.includes(t));
       
-      return deviceCrudService.update(input.deviceId, {
+      return deviceCrudService.update(input.nodeId, {
         metadata: {
           ...device.metadata,
           tags: newTags,

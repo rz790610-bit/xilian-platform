@@ -73,7 +73,7 @@ service DeviceService {
 
 // ── 通用 ──
 message DeviceIdRequest {
-  string device_id = 1;
+  string node_id = 1;
 }
 
 message HealthCheckResponse {
@@ -151,7 +151,7 @@ message CreateDeviceRequest {
 }
 
 message GetDeviceRequest {
-  string device_id = 1;
+  string node_id = 1;
 }
 
 message ListDevicesRequest {
@@ -173,7 +173,7 @@ message ListDevicesResponse {
 }
 
 message UpdateDeviceRequest {
-  string device_id = 1;
+  string node_id = 1;
   optional string name = 2;
   optional DeviceType type = 3;
   optional string location = 4;
@@ -182,12 +182,12 @@ message UpdateDeviceRequest {
 }
 
 message DeleteDeviceRequest {
-  string device_id = 1;
+  string node_id = 1;
   bool force = 2;  // 强制删除（包括关联传感器）
 }
 
 message MaintenanceModeRequest {
-  string device_id = 1;
+  string node_id = 1;
   bool enabled = 2;
   string reason = 3;
   google.protobuf.Timestamp scheduled_end = 4;
@@ -198,7 +198,7 @@ message BatchCreateDevicesRequest {
 }
 
 message BatchUpdateStatusRequest {
-  repeated string device_ids = 1;
+  repeated string node_ids = 1;
   DeviceStatus status = 2;
   string reason = 3;
 }
@@ -210,7 +210,7 @@ message BatchDeviceResponse {
 }
 
 message BatchError {
-  string device_id = 1;
+  string node_id = 1;
   string error_message = 2;
 }
 
@@ -234,7 +234,7 @@ enum SensorType {
 
 message Sensor {
   string id = 1;
-  string device_id = 2;
+  string node_id = 2;
   string name = 3;
   SensorType type = 4;
   string unit = 5;
@@ -251,7 +251,7 @@ message SensorResponse {
 }
 
 message CreateSensorRequest {
-  string device_id = 1;
+  string node_id = 1;
   string name = 2;
   SensorType type = 3;
   string unit = 4;
@@ -265,7 +265,7 @@ message GetSensorRequest {
 }
 
 message ListSensorsRequest {
-  string device_id = 1;
+  string node_id = 1;
   int32 page = 2;
   int32 page_size = 3;
   SensorType type_filter = 4;
@@ -296,7 +296,7 @@ message StreamSensorDataRequest {
 
 message SensorDataPoint {
   string sensor_id = 1;
-  string device_id = 2;
+  string node_id = 2;
   double value = 3;
   google.protobuf.Timestamp timestamp = 4;
   int32 quality = 5;  // 0-100 数据质量分
@@ -312,7 +312,7 @@ message IngestSummary {
 
 // ── 设备健康 ──
 message DeviceHealthResponse {
-  string device_id = 1;
+  string node_id = 1;
   double health_score = 2;  // 0-100
   string status = 3;
   repeated HealthMetric metrics = 4;
@@ -329,7 +329,7 @@ message HealthMetric {
 }
 
 message ListDeviceAlertsRequest {
-  string device_id = 1;
+  string node_id = 1;
   int32 page = 2;
   int32 page_size = 3;
   string severity_filter = 4;
@@ -337,7 +337,7 @@ message ListDeviceAlertsRequest {
 
 message DeviceAlert {
   string id = 1;
-  string device_id = 2;
+  string node_id = 2;
   string sensor_id = 3;
   string severity = 4;
   string message = 5;
@@ -356,7 +356,7 @@ message DeviceGroup {
   string id = 1;
   string name = 2;
   string description = 3;
-  repeated string device_ids = 4;
+  repeated string node_ids = 4;
   map<string, string> labels = 5;
   google.protobuf.Timestamp created_at = 6;
 }
@@ -368,7 +368,7 @@ message DeviceGroupResponse {
 message CreateDeviceGroupRequest {
   string name = 1;
   string description = 2;
-  repeated string device_ids = 3;
+  repeated string node_ids = 3;
   map<string, string> labels = 4;
 }
 
@@ -384,5 +384,5 @@ message ListDeviceGroupsResponse {
 
 message ModifyGroupMembersRequest {
   string group_id = 1;
-  repeated string device_ids = 2;
+  repeated string node_ids = 2;
 }

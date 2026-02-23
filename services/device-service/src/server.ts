@@ -175,20 +175,20 @@ const deviceServiceImpl = {
     callback: grpc.sendUnaryData<any>
   ) {
     try {
-      const { deviceId } = call.request;
+      const { nodeId } = call.request;
       const db = await getDb();
       if (!db) throw new Error('Database not available');
 
       const [device] = await db
         .select()
         .from(assetNodes)
-        .where(eq(assetNodes.nodeId, deviceId))
+        .where(eq(assetNodes.nodeId, nodeId))
         .limit(1);
 
       if (!device) {
         return callback({
           code: grpc.status.NOT_FOUND,
-          message: `Device ${deviceId} not found`,
+          message: `Device ${nodeId} not found`,
         });
       }
 
@@ -275,19 +275,19 @@ const deviceServiceImpl = {
 
       await db.update(assetNodes)
         .set(updates)
-        .where(eq(assetNodes.nodeId, req.deviceId));
+        .where(eq(assetNodes.nodeId, req.nodeId));
 
       const [updated] = await db.select().from(assetNodes)
-        .where(eq(assetNodes.nodeId, req.deviceId)).limit(1);
+        .where(eq(assetNodes.nodeId, req.nodeId)).limit(1);
 
       if (!updated) {
         return callback({
           code: grpc.status.NOT_FOUND,
-          message: `Device ${req.deviceId} not found`,
+          message: `Device ${req.nodeId} not found`,
         });
       }
 
-      log.info(`Device updated: ${req.deviceId}`);
+      log.info(`Device updated: ${req.nodeId}`);
       callback(null, { device: mapToDevice(updated) });
     } catch (err: any) {
       log.error('UpdateDevice failed:', err.message);
@@ -301,17 +301,17 @@ const deviceServiceImpl = {
     callback: grpc.sendUnaryData<any>
   ) {
     try {
-      const { deviceId, force } = call.request;
+      const { nodeId, force } = call.request;
       const db = await getDb();
       if (!db) throw new Error('Database not available');
 
       if (force) {
         // 级联删除传感器
-        await db.delete(assetSensors).where(eq(assetSensors.deviceCode, deviceId));
+        await db.delete(assetSensors).where(eq(assetSensors.deviceCode, nodeId));
       }
 
-      const result = await db.delete(assetNodes).where(eq(assetNodes.nodeId, deviceId));
-      log.info(`Device deleted: ${deviceId} (force=${force})`);
+      const result = await db.delete(assetNodes).where(eq(assetNodes.nodeId, nodeId));
+      log.info(`Device deleted: ${nodeId} (force=${force})`);
       callback(null, {});
     } catch (err: any) {
       log.error('DeleteDevice failed:', err.message);
@@ -325,16 +325,16 @@ const deviceServiceImpl = {
     callback: grpc.sendUnaryData<any>
   ) {
     try {
-      const { deviceId } = call.request;
+      const { nodeId } = call.request;
       const db = await getDb();
       if (!db) throw new Error('Database not available');
 
       await db.update(assetNodes)
         .set({ status: 'online' })
-        .where(eq(assetNodes.nodeId, deviceId));
+        .where(eq(assetNodes.nodeId, nodeId));
 
       const [device] = await db.select().from(assetNodes)
-        .where(eq(assetNodes.nodeId, deviceId)).limit(1);
+        .where(eq(assetNodes.nodeId, nodeId)).limit(1);
 
       callback(null, { device: mapToDevice(device) });
     } catch (err: any) {
@@ -348,16 +348,16 @@ const deviceServiceImpl = {
     callback: grpc.sendUnaryData<any>
   ) {
     try {
-      const { deviceId } = call.request;
+      const { nodeId } = call.request;
       const db = await getDb();
       if (!db) throw new Error('Database not available');
 
       await db.update(assetNodes)
         .set({ status: 'offline' })
-        .where(eq(assetNodes.nodeId, deviceId));
+        .where(eq(assetNodes.nodeId, nodeId));
 
       const [device] = await db.select().from(assetNodes)
-        .where(eq(assetNodes.nodeId, deviceId)).limit(1);
+        .where(eq(assetNodes.nodeId, nodeId)).limit(1);
 
       callback(null, { device: mapToDevice(device) });
     } catch (err: any) {
@@ -371,19 +371,19 @@ const deviceServiceImpl = {
     callback: grpc.sendUnaryData<any>
   ) {
     try {
-      const { deviceId, enabled, reason } = call.request;
+      const { nodeId, enabled, reason } = call.request;
       const db = await getDb();
       if (!db) throw new Error('Database not available');
 
       const newStatus = enabled ? 'maintenance' : 'online';
       await db.update(assetNodes)
         .set({ status: newStatus })
-        .where(eq(assetNodes.nodeId, deviceId));
+        .where(eq(assetNodes.nodeId, nodeId));
 
-      log.info(`Device ${deviceId} maintenance mode: ${enabled} (${reason})`);
+      log.info(`Device ${nodeId} maintenance mode: ${enabled} (${reason})`);
 
       const [device] = await db.select().from(assetNodes)
-        .where(eq(assetNodes.nodeId, deviceId)).limit(1);
+        .where(eq(assetNodes.nodeId, nodeId)).limit(1);
 
       callback(null, { device: mapToDevice(device) });
     } catch (err: any) {
@@ -429,7 +429,7 @@ const deviceServiceImpl = {
           successCount++;
         } catch (err: any) {
           failureCount++;
-          errors.push({ deviceId: dev.name, errorMessage: err.message });
+          errors.push({ nodeId: dev.name, errorMessage: err.message });
         }
       }
 
@@ -445,16 +445,16 @@ const deviceServiceImpl = {
     callback: grpc.sendUnaryData<any>
   ) {
     try {
-      const { deviceIds, status } = call.request;
+      const { nodeIds, status } = call.request;
       const db = await getDb();
       if (!db) throw new Error('Database not available');
 
       await db.update(assetNodes)
         .set({ status: status.toLowerCase() })
-        .where(inArray(assetNodes.nodeId, deviceIds));
+        .where(inArray(assetNodes.nodeId, nodeIds));
 
       callback(null, {
-        successCount: deviceIds.length,
+        successCount: nodeIds.length,
         failureCount: 0,
         errors: [],
       });
@@ -477,7 +477,7 @@ const deviceServiceImpl = {
 
       await db.insert(assetSensors).values({
         sensorId,
-        deviceCode: req.deviceId,
+        deviceCode: req.nodeId,
         name: req.name,
         physicalQuantity: (req.type || 'vibration').toLowerCase(),
         unit: req.unit || '',
@@ -492,7 +492,7 @@ const deviceServiceImpl = {
       callback(null, {
         sensor: {
           id: sensorId,
-          deviceId: req.deviceId,
+          nodeId: req.nodeId,
           name: req.name,
           type: (req.type || 'VIBRATION').toUpperCase(),
           unit: req.unit || '',
@@ -525,7 +525,7 @@ const deviceServiceImpl = {
       callback(null, {
         sensor: {
           id: sensor.sensorId,
-          deviceId: sensor.nodeId,
+          nodeId: sensor.nodeId,
           name: sensor.sensorName,
           type: (sensor.sensorType || 'VIBRATION').toUpperCase(),
           unit: sensor.unit || '',
@@ -549,7 +549,7 @@ const deviceServiceImpl = {
       if (!db) throw new Error('Database not available');
 
       const conditions: any[] = [];
-      if (req.deviceId) conditions.push(eq(assetSensors.deviceCode, req.deviceId));
+      if (req.nodeId) conditions.push(eq(assetSensors.deviceCode, req.nodeId));
       if (req.typeFilter && req.typeFilter !== 'SENSOR_TYPE_UNSPECIFIED') {
         conditions.push(eq(assetSensors.physicalQuantity, req.typeFilter.toLowerCase()));
       }
@@ -567,7 +567,7 @@ const deviceServiceImpl = {
       callback(null, {
         sensors: sensors.map(s => ({
           id: s.sensorId,
-          deviceId: s.nodeId,
+          nodeId: s.nodeId,
           name: s.sensorName,
           type: (s.sensorType || 'VIBRATION').toUpperCase(),
           unit: s.unit || '',
@@ -605,7 +605,7 @@ const deviceServiceImpl = {
       callback(null, {
         sensor: {
           id: updated.sensorId,
-          deviceId: updated.nodeId,
+          nodeId: updated.nodeId,
           name: updated.sensorName,
           type: (updated.sensorType || 'VIBRATION').toUpperCase(),
           unit: updated.unit || '',
@@ -668,7 +668,7 @@ const deviceServiceImpl = {
           
           call.write({
             sensorId: reading.sourceId,
-            deviceId: payload?.deviceId || '',
+            nodeId: payload?.nodeId || '',
             value: payload?.value || 0,
             timestamp: reading.timestamp
               ? { seconds: Math.floor(new Date(reading.timestamp).getTime() / 1000) }
@@ -723,7 +723,7 @@ const deviceServiceImpl = {
           sourceId: point.sensorId,
           eventType: 'sensor_reading',
           payload: JSON.stringify({
-            deviceId: point.deviceId,
+            nodeId: point.nodeId,
             value: point.value,
             quality: point.quality || 100,
             extraChannels: point.extraChannels || {},
@@ -779,22 +779,22 @@ const deviceServiceImpl = {
     callback: grpc.sendUnaryData<any>
   ) {
     try {
-      const { deviceId } = call.request;
+      const { nodeId } = call.request;
       const db = await getDb();
       if (!db) throw new Error('Database not available');
 
       const [device] = await db.select().from(assetNodes)
-        .where(eq(assetNodes.nodeId, deviceId)).limit(1);
+        .where(eq(assetNodes.nodeId, nodeId)).limit(1);
 
       if (!device) {
-        return callback({ code: grpc.status.NOT_FOUND, message: `Device ${deviceId} not found` });
+        return callback({ code: grpc.status.NOT_FOUND, message: `Device ${nodeId} not found` });
       }
 
       // 基于最近事件计算健康分
       const recentEvents = await db.select({ cnt: count() }).from(eventStore)
         .where(
           and(
-            eq(eventStore.sourceId, deviceId),
+            eq(eventStore.sourceId, nodeId),
             eq(eventStore.eventType, 'alert'),
             gte(eventStore.timestamp, new Date(Date.now() - 24 * 3600 * 1000))
           )
@@ -804,7 +804,7 @@ const deviceServiceImpl = {
       const healthScore = Math.max(0, 100 - (Number(alertCount) * 10));
 
       callback(null, {
-        deviceId,
+        nodeId,
         healthScore,
         status: healthScore >= 80 ? 'healthy' : healthScore >= 50 ? 'degraded' : 'critical',
         metrics: [],
@@ -829,7 +829,7 @@ const deviceServiceImpl = {
       const pageSize = Math.min(100, Math.max(1, req.pageSize || 20));
 
       const conditions: any[] = [
-        eq(eventStore.sourceId, req.deviceId),
+        eq(eventStore.sourceId, req.nodeId),
         eq(eventStore.eventType, 'alert'),
       ];
 
@@ -846,7 +846,7 @@ const deviceServiceImpl = {
           const payload = typeof a.payload === 'string' ? JSON.parse(a.payload) : a.payload;
           return {
             id: a.id?.toString() || '',
-            deviceId: a.sourceId,
+            nodeId: a.sourceId,
             sensorId: payload?.sensorId || '',
             severity: payload?.severity || 'warning',
             message: payload?.message || '',
@@ -871,7 +871,7 @@ const deviceServiceImpl = {
         id: `grp_${Date.now()}`,
         name: call.request.name,
         description: call.request.description || '',
-        deviceIds: call.request.deviceIds || [],
+        nodeIds: call.request.nodeIds || [],
         labels: call.request.labels || {},
         createdAt: { seconds: Math.floor(Date.now() / 1000) },
       },
@@ -892,7 +892,7 @@ const deviceServiceImpl = {
     callback(null, {
       group: {
         id: call.request.groupId,
-        deviceIds: call.request.deviceIds || [],
+        nodeIds: call.request.nodeIds || [],
       },
     });
   },
@@ -902,7 +902,7 @@ const deviceServiceImpl = {
     callback: grpc.sendUnaryData<any>
   ) {
     callback(null, {
-      group: { id: call.request.groupId, deviceIds: [] },
+      group: { id: call.request.groupId, nodeIds: [] },
     });
   },
 };

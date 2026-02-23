@@ -101,14 +101,14 @@ def collect_sensor_data(**context):
                 url = f"{XILIAN_API_URL}/api/trpc/sensorData.getLatest"
                 params = {
                     'input': json.dumps({
-                        'json': {'deviceId': device_id, 'limit': 100}
+                        'json': {'nodeId': device_id, 'limit': 100}
                     })
                 }
                 resp = requests.get(url, params=params, timeout=15)
                 resp.raise_for_status()
                 collected += 1
             except Exception as e:
-                errors.append({'deviceId': device_id, 'error': str(e)})
+                errors.append({'nodeId': device_id, 'error': str(e)})
                 logger.warning(f"Failed to collect data for device {device_id}: {e}")
 
         logger.info(f"Batch {batch_idx + 1}/{len(batches)} completed")
@@ -138,7 +138,7 @@ def run_feature_extraction(**context):
             url = f"{XILIAN_API_URL}/api/trpc/algorithm.executeForDevice"
             payload = {
                 'json': {
-                    'deviceId': device_id,
+                    'nodeId': device_id,
                     'algorithmCategory': 'feature_extraction',
                     'config': {
                         'windowSize': 1024,
@@ -151,13 +151,13 @@ def run_feature_extraction(**context):
             resp.raise_for_status()
             result = resp.json()
             results.append({
-                'deviceId': device_id,
+                'nodeId': device_id,
                 'features': result.get('result', {}).get('data', {}),
                 'status': 'success',
             })
         except Exception as e:
             results.append({
-                'deviceId': device_id,
+                'nodeId': device_id,
                 'status': 'error',
                 'error': str(e),
             })
@@ -186,7 +186,7 @@ def check_anomalies(**context):
             crest_factor = features.get('crest_factor', 0)
             if (isinstance(kurtosis, (int, float)) and kurtosis > 6) or \
                (isinstance(crest_factor, (int, float)) and crest_factor > 5):
-                anomalies.append(r['deviceId'])
+                anomalies.append(r['nodeId'])
 
     context['ti'].xcom_push(key='anomaly_devices', value=anomalies)
     logger.info(f"Anomaly detection: {len(anomalies)} devices flagged")
@@ -207,7 +207,7 @@ def send_anomaly_alerts(**context):
             url = f"{XILIAN_API_URL}/api/trpc/alert.create"
             payload = {
                 'json': {
-                    'deviceId': device_id,
+                    'nodeId': device_id,
                     'type': 'anomaly_detected',
                     'severity': 'warning',
                     'message': f'Anomaly detected in device {device_id} during scheduled feature extraction',
@@ -240,7 +240,7 @@ def write_to_clickhouse(**context):
             'json': {
                 'records': [
                     {
-                        'deviceId': r['deviceId'],
+                        'nodeId': r['nodeId'],
                         'timestamp': datetime.utcnow().isoformat(),
                         'features': r.get('features', {}),
                         'source': 'airflow_feature_extraction',

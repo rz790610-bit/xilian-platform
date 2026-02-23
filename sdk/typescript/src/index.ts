@@ -146,7 +146,7 @@ export interface Alert {
   ruleId: string;
   severity: 'info' | 'warning' | 'critical';
   status: 'firing' | 'resolved' | 'acknowledged';
-  deviceId: string;
+  nodeId: string;
   message: string;
   firedAt: string;
   resolvedAt: string | null;

@@ -13,7 +13,6 @@
  * ID 体系规范（v2.0）：
  *   - nodeId: 设备树节点唯一标识 → asset_nodes.node_id
  *   - deviceCode: 设备编码 → asset_nodes.code（可由编码规则生成，≠ nodeId）
- *   - deviceId: @deprecated 旧接口参数，内部映射为 nodeId
  */
 
 import { getDb } from '../lib/db';
@@ -64,8 +63,7 @@ export type DeviceStatus =
  */
 export interface DeviceFullInfo {
   id: number;
-  /** @deprecated 使用 nodeId 代替 */
-  deviceId: string;
+  nodeId: string;
   /** 设备树节点ID（权威标识） */
   nodeId: string;
   /** 设备编码（可由编码规则生成） */
@@ -98,7 +96,7 @@ export interface DeviceFullInfo {
  * 设备创建输入
  */
 export interface CreateDeviceInput {
-  deviceId: string;
+  nodeId: string;
   name: string;
   type: DeviceType;
   model?: string;
@@ -177,7 +175,7 @@ export interface PaginationParams {
 export interface BatchOperationResult {
   success: number;
   failed: number;
-  errors: Array<{ deviceId: string; error: string }>;
+  errors: Array<{ nodeId: string; error: string }>;
 }
 
 /**
@@ -197,7 +195,7 @@ export interface DeviceStatistics {
  * 设备健康检查结果
  */
 export interface DeviceHealthCheck {
-  deviceId: string;
+  nodeId: string;
   status: DeviceStatus;
   lastHeartbeat?: Date;
   heartbeatAge?: number; // 秒
@@ -228,15 +226,15 @@ export class DeviceCrudService {
       const existing = await db
         .select({ id: assetNodes.id })
         .from(assetNodes)
-        .where(eq(assetNodes.nodeId, input.deviceId))
+        .where(eq(assetNodes.nodeId, input.nodeId))
         .limit(1);
 
       if (existing.length > 0) {
-        throw new Error(`Device with ID ${input.deviceId} already exists`);
+        throw new Error(`Device with ID ${input.nodeId} already exists`);
       }
 
-      // ID 映射：deviceId → nodeId，deviceCode 默认等于 nodeId（编码规则启用后可不同）
-      const nodeId = input.deviceId;
+      // ID 映射：nodeId → nodeId，deviceCode 默认等于 nodeId（编码规则启用后可不同）
+      const nodeId = input.nodeId;
       const deviceCode = (input as any).deviceCode || nodeId;
       await db.insert(assetNodes).values({
         nodeId,
@@ -267,7 +265,7 @@ export class DeviceCrudService {
         { nodeId }
       );
 
-      return this.getById(input.deviceId);
+      return this.getById(input.nodeId);
     } catch (error) {
       log.warn('[DeviceCrudService] Create failed:', error);
       throw error;
@@ -291,7 +289,7 @@ export class DeviceCrudService {
       } catch (error) {
         result.failed++;
         result.errors.push({
-          deviceId: input.deviceId,
+          nodeId: input.nodeId,
           error: error instanceof Error ? error.message : 'Unknown error',
         });
       }
@@ -303,7 +301,7 @@ export class DeviceCrudService {
   /**
    * 获取设备详情
    */
-  async getById(deviceId: string): Promise<DeviceFullInfo | null> {
+  async getById(nodeId: string): Promise<DeviceFullInfo | null> {
     try {
       const db = await getDb();
       if (!db) return null;
@@ -311,7 +309,7 @@ export class DeviceCrudService {
       const result = await db
         .select()
         .from(assetNodes)
-        .where(eq(assetNodes.nodeId, deviceId))
+        .where(eq(assetNodes.nodeId, nodeId))
         .limit(1);
 
       if (result.length === 0) return null;
@@ -327,7 +325,6 @@ export class DeviceCrudService {
 
       return {
         id: d.id,
-        deviceId: d.nodeId,  // @deprecated 兼容旧接口
         nodeId: d.nodeId,
         deviceCode,
         name: d.name,
@@ -429,7 +426,6 @@ export class DeviceCrudService {
 
       const items: DeviceFullInfo[] = results.map(d => ({
         id: d.id,
-        deviceId: d.nodeId,  // @deprecated 兼容旧接口
         nodeId: d.nodeId,
         deviceCode: d.code,
         name: d.name,
@@ -547,15 +543,15 @@ export class DeviceCrudService {
   /**
    * 更新设备
    */
-  async update(deviceId: string, input: UpdateDeviceInput): Promise<DeviceFullInfo | null> {
+  async update(nodeId: string, input: UpdateDeviceInput): Promise<DeviceFullInfo | null> {
     try {
       const db = await getDb();
       if (!db) throw new Error('Database not available');
 
       // 检查设备是否存在
-      const existing = await this.getById(deviceId);
+      const existing = await this.getById(nodeId);
       if (!existing) {
-        throw new Error(`Device ${deviceId} not found`);
+        throw new Error(`Device ${nodeId} not found`);
       }
 
       const updateData: any = {
@@ -587,17 +583,17 @@ export class DeviceCrudService {
       await db
         .update(assetNodes)
         .set(updateData)
-        .where(eq(assetNodes.nodeId, deviceId));
+        .where(eq(assetNodes.nodeId, nodeId));
 
       // 发布设备更新事件
       await eventBus.publish(
         TOPICS.DEVICE_STATUS,
         'device_updated',
-        { nodeId: deviceId, updates: Object.keys(input) },
-        { nodeId: deviceId }
+        { nodeId: nodeId, updates: Object.keys(input) },
+        { nodeId: nodeId }
       );
 
-      return this.getById(deviceId);
+      return this.getById(nodeId);
     } catch (error) {
       log.warn('[DeviceCrudService] Update failed:', error);
       throw error;
@@ -608,7 +604,7 @@ export class DeviceCrudService {
    * 批量更新设备
    */
   async updateBatch(
-    deviceIds: string[],
+    nodeIds: string[],
     input: UpdateDeviceInput
   ): Promise<BatchOperationResult> {
     const result: BatchOperationResult = {
@@ -617,14 +613,14 @@ export class DeviceCrudService {
       errors: [],
     };
 
-    for (const deviceId of deviceIds) {
+    for (const nodeId of nodeIds) {
       try {
-        await this.update(deviceId, input);
+        await this.update(nodeId, input);
         result.success++;
       } catch (error) {
         result.failed++;
         result.errors.push({
-          deviceId,
+          nodeId,
           error: error instanceof Error ? error.message : 'Unknown error',
         });
       }
@@ -636,30 +632,30 @@ export class DeviceCrudService {
   /**
    * 删除设备
    */
-  async delete(deviceId: string): Promise<boolean> {
+  async delete(nodeId: string): Promise<boolean> {
     try {
       const db = await getDb();
       if (!db) throw new Error('Database not available');
 
       // 检查设备是否存在
-      const existing = await this.getById(deviceId);
+      const existing = await this.getById(nodeId);
       if (!existing) {
-        throw new Error(`Device ${deviceId} not found`);
+        throw new Error(`Device ${nodeId} not found`);
       }
 
       // 删除关联的传感器 — 使用 deviceCode(=code) 关联
-      const deviceCode = existing.deviceCode || existing.deviceId;
+      const deviceCode = existing.deviceCode || existing.nodeId;
       await db.delete(assetSensors).where(eq(assetSensors.deviceCode, deviceCode));
 
       // 删除设备
-      await db.delete(assetNodes).where(eq(assetNodes.nodeId, deviceId));
+      await db.delete(assetNodes).where(eq(assetNodes.nodeId, nodeId));
 
       // 发布设备删除事件
       await eventBus.publish(
         TOPICS.DEVICE_STATUS,
         'device_deleted',
-        { nodeId: deviceId },
-        { nodeId: deviceId }
+        { nodeId: nodeId },
+        { nodeId: nodeId }
       );
 
       return true;
@@ -672,21 +668,21 @@ export class DeviceCrudService {
   /**
    * 批量删除设备
    */
-  async deleteBatch(deviceIds: string[]): Promise<BatchOperationResult> {
+  async deleteBatch(nodeIds: string[]): Promise<BatchOperationResult> {
     const result: BatchOperationResult = {
       success: 0,
       failed: 0,
       errors: [],
     };
 
-    for (const deviceId of deviceIds) {
+    for (const nodeId of nodeIds) {
       try {
-        await this.delete(deviceId);
+        await this.delete(nodeId);
         result.success++;
       } catch (error) {
         result.failed++;
         result.errors.push({
-          deviceId,
+          nodeId,
           error: error instanceof Error ? error.message : 'Unknown error',
         });
       }
@@ -698,7 +694,7 @@ export class DeviceCrudService {
   /**
    * 更新设备状态
    */
-  async updateStatus(deviceId: string, status: DeviceStatus): Promise<boolean> {
+  async updateStatus(nodeId: string, status: DeviceStatus): Promise<boolean> {
     try {
       const db = await getDb();
       if (!db) throw new Error('Database not available');
@@ -715,14 +711,14 @@ export class DeviceCrudService {
       await db
         .update(assetNodes)
         .set(updateData)
-        .where(eq(assetNodes.nodeId, deviceId));
+        .where(eq(assetNodes.nodeId, nodeId));
 
       // 发布状态变更事件
       await eventBus.publish(
         TOPICS.DEVICE_STATUS,
         'status_change',
-        { nodeId: deviceId, status, timestamp: new Date().toISOString() },
-        { nodeId: deviceId, severity: status === 'error' ? 'error' : 'info' }
+        { nodeId: nodeId, status, timestamp: new Date().toISOString() },
+        { nodeId: nodeId, severity: status === 'error' ? 'error' : 'info' }
       );
 
       return true;
@@ -736,7 +732,7 @@ export class DeviceCrudService {
    * 批量更新设备状态
    */
   async updateStatusBatch(
-    deviceIds: string[],
+    nodeIds: string[],
     status: DeviceStatus
   ): Promise<BatchOperationResult> {
     const result: BatchOperationResult = {
@@ -745,14 +741,14 @@ export class DeviceCrudService {
       errors: [],
     };
 
-    for (const deviceId of deviceIds) {
+    for (const nodeId of nodeIds) {
       try {
-        await this.updateStatus(deviceId, status);
+        await this.updateStatus(nodeId, status);
         result.success++;
       } catch (error) {
         result.failed++;
         result.errors.push({
-          deviceId,
+          nodeId,
           error: error instanceof Error ? error.message : 'Unknown error',
         });
       }
@@ -890,12 +886,12 @@ export class DeviceCrudService {
   /**
    * 设备健康检查
    */
-  async healthCheck(deviceId: string): Promise<DeviceHealthCheck | null> {
+  async healthCheck(nodeId: string): Promise<DeviceHealthCheck | null> {
     try {
       const db = await getDb();
       if (!db) return null;
 
-      const device = await this.getById(deviceId);
+      const device = await this.getById(nodeId);
       if (!device) return null;
 
       // 获取传感器状态
@@ -905,7 +901,7 @@ export class DeviceCrudService {
           count: count(),
         })
         .from(assetSensors)
-        .where(eq(assetSensors.deviceCode, device.deviceCode || deviceId))
+        .where(eq(assetSensors.deviceCode, device.deviceCode || nodeId))
         .groupBy(assetSensors.status);
 
       const sensorStatus = {
@@ -971,7 +967,7 @@ export class DeviceCrudService {
       healthScore = Math.max(0, Math.min(100, healthScore));
 
       return {
-        deviceId,
+        nodeId,
         status: device.status,
         lastHeartbeat: device.lastHeartbeat,
         heartbeatAge,
@@ -988,11 +984,11 @@ export class DeviceCrudService {
   /**
    * 批量健康检查
    */
-  async healthCheckBatch(deviceIds: string[]): Promise<DeviceHealthCheck[]> {
+  async healthCheckBatch(nodeIds: string[]): Promise<DeviceHealthCheck[]> {
     const results: DeviceHealthCheck[] = [];
     
-    for (const deviceId of deviceIds) {
-      const check = await this.healthCheck(deviceId);
+    for (const nodeId of nodeIds) {
+      const check = await this.healthCheck(nodeId);
       if (check) {
         results.push(check);
       }

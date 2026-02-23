@@ -22,7 +22,7 @@ export const sensorCrudRouter = router({
    */
   list: publicProcedure
     .input(z.object({
-      deviceId: z.string().optional(),
+      nodeId: z.string().optional(),
       type: z.union([sensorTypeSchema, z.array(sensorTypeSchema)]).optional(),
       status: z.union([sensorStatusSchema, z.array(sensorStatusSchema)]).optional(),
       search: z.string().optional(),
@@ -33,11 +33,11 @@ export const sensorCrudRouter = router({
       const db = await getDb();
       if (!db) return { items: [], total: 0, page: 1, pageSize: 20 };
 
-      const params: { deviceId?: string; type?: string | string[]; status?: string | string[]; search?: string; page?: number; pageSize?: number } = input || {};
+      const params: { nodeId?: string; type?: string | string[]; status?: string | string[]; search?: string; page?: number; pageSize?: number } = input || {};
       const conditions: any[] = [];
 
-      if (params.deviceId) {
-        conditions.push(eq(assetSensors.deviceCode, params.deviceId));
+      if (params.nodeId) {
+        conditions.push(eq(assetSensors.deviceCode, params.nodeId));
       }
       if (params.type) {
         const types = Array.isArray(params.type) ? params.type : [params.type];
@@ -98,7 +98,7 @@ export const sensorCrudRouter = router({
   create: protectedProcedure
     .input(z.object({
       sensorId: z.string().min(1).max(64),
-      deviceId: z.string().min(1).max(64),
+      nodeId: z.string().min(1).max(64),
       name: z.string().min(1).max(100),
       type: sensorTypeSchema,
       unit: z.string().max(20).optional(),
@@ -114,7 +114,7 @@ export const sensorCrudRouter = router({
 
       await db.insert(assetSensors).values({
         sensorId: input.sensorId,
-        deviceCode: input.deviceId,
+        deviceCode: input.nodeId,
         mpId: input.sensorId,
         name: input.name,
         physicalQuantity: input.type,
@@ -184,12 +184,12 @@ export const sensorCrudRouter = router({
    * 获取传感器统计
    */
   getStatistics: publicProcedure
-    .input(z.object({ deviceId: z.string().optional() }).optional())
+    .input(z.object({ nodeId: z.string().optional() }).optional())
     .query(async ({ input }) => {
       const db = await getDb();
       if (!db) return { total: 0, byType: {}, byStatus: {} };
 
-      const where = input?.deviceId ? eq(assetSensors.deviceCode, input.deviceId) : undefined;
+      const where = input?.nodeId ? eq(assetSensors.deviceCode, input.nodeId) : undefined;
 
       const [totalResult, byStatusResult, byTypeResult] = await Promise.all([
         db.select({ count: count() }).from(assetSensors).where(where),

@@ -384,12 +384,12 @@ export const CacheKeys = {
   deviceStats: (id: string) => `device:stats:${id}`,
   
   // 传感器相关
-  sensor: (deviceId: string, sensorId: string) => `sensor:${deviceId}:${sensorId}`,
+  sensor: (nodeId: string, sensorId: string) => `sensor:${nodeId}:${sensorId}`,
   sensorReadings: (sensorId: string, start: number, end: number) => 
     `sensor:readings:${sensorId}:${start}:${end}`,
   
   // 聚合数据
-  aggregation: (deviceId: string, window: string) => `agg:${deviceId}:${window}`,
+  aggregation: (nodeId: string, window: string) => `agg:${nodeId}:${window}`,
   
   // 用户相关
   user: (id: string) => `user:${id}`,
@@ -406,16 +406,16 @@ export const CacheKeys = {
  */
 export const CacheInvalidation = {
   // 设备更新时失效相关缓存
-  onDeviceUpdate: async (cache: MultiLevelCache, deviceId: string) => {
-    await cache.delete(CacheKeys.device(deviceId));
-    await cache.delete(CacheKeys.deviceStats(deviceId));
+  onDeviceUpdate: async (cache: MultiLevelCache, nodeId: string) => {
+    await cache.delete(CacheKeys.device(nodeId));
+    await cache.delete(CacheKeys.deviceStats(nodeId));
     await cache.deletePattern(`devices:list:*`);
   },
 
   // 传感器数据更新时失效相关缓存
-  onSensorDataUpdate: async (cache: MultiLevelCache, deviceId: string, sensorId: string) => {
+  onSensorDataUpdate: async (cache: MultiLevelCache, nodeId: string, sensorId: string) => {
     await cache.deletePattern(`sensor:readings:${sensorId}:*`);
-    await cache.deletePattern(`agg:${deviceId}:*`);
+    await cache.deletePattern(`agg:${nodeId}:*`);
   },
 
   // 用户更新时失效相关缓存

@@ -369,9 +369,9 @@ export default function DataStream() {
                         </span>
                       </div>
                       <p className="text-sm font-medium">{event.eventType}</p>
-                      {event.deviceId && (
+                      {event.nodeId && (
                         <p className="text-xs text-muted-foreground">
-                          设备: {event.deviceId} {event.sensorId && `| 传感器: ${event.sensorId}`}
+                          设备: {event.nodeId} {event.sensorId && `| 传感器: ${event.sensorId}`}
                         </p>
                       )}
                     </div>
@@ -472,10 +472,10 @@ export default function DataStream() {
                 <Button
                   onClick={() => {
                     const sensorId = (document.getElementById('anomaly-sensor') as HTMLInputElement)?.value;
-                    const deviceId = (document.getElementById('anomaly-device') as HTMLInputElement)?.value;
+                    const nodeId = (document.getElementById('anomaly-device') as HTMLInputElement)?.value;
                     const value = Number((document.getElementById('anomaly-value') as HTMLInputElement)?.value);
-                    if (sensorId && deviceId && !isNaN(value)) {
-                      injectAnomaly.mutate({ sensorId, deviceId, anomalyValue: value });
+                    if (sensorId && nodeId && !isNaN(value)) {
+                      injectAnomaly.mutate({ sensorId, nodeId, anomalyValue: value });
                     }
                   }}
                 >
@@ -499,14 +499,14 @@ export default function DataStream() {
                   <div className="space-y-2">
                     {devices.data?.map((device: any) => (
                       <div
-                        key={device.deviceId}
+                        key={device.nodeId}
                         className="p-3 border rounded-lg hover:bg-muted/50 transition-colors"
                       >
                         <div className="flex items-center justify-between">
                           <div>
                             <h4 className="font-medium">{device.name}</h4>
                             <p className="text-sm text-muted-foreground">
-                              {device.deviceId} | {device.type}
+                              {device.nodeId} | {device.type}
                             </p>
                           </div>
                           <Badge variant={device.status === 'online' ? 'default' : 'secondary'}>
@@ -624,9 +624,9 @@ export default function DataStream() {
                 <div>
                   <h4 className="font-medium mb-2">模拟设备列表</h4>
                   <div className="flex flex-wrap gap-2">
-                    {(simulatorStatus.data.devices || []).map((deviceId: string) => (
-                      <Badge key={deviceId} variant="outline">
-                        {deviceId}
+                    {(simulatorStatus.data.devices || []).map((nodeId: string) => (
+                      <Badge key={nodeId} variant="outline">
+                        {nodeId}
                       </Badge>
                     ))}
                   </div>

@@ -39,8 +39,7 @@ interface DataPoint {
   value: number;
   /** 设备编码，关联 asset_nodes.code */
   deviceCode: string;
-  /** @deprecated 使用 deviceCode 代替 */
-  deviceId?: string;
+  nodeId?: string;
   sensorId: string;
   metricName: string;
 }
@@ -63,8 +62,7 @@ interface AnomalyResult {
   timestamp: number;
   /** 设备编码，关联 asset_nodes.code */
   deviceCode: string;
-  /** @deprecated 使用 deviceCode 代替 */
-  deviceId?: string;
+  nodeId?: string;
   /** 设备树节点ID（用于写入 anomaly_detections 表） */
   nodeId?: string;
   sensorId: string;
@@ -75,8 +73,7 @@ interface AnomalyResult {
 interface AggregationResult {
   /** 设备编码 */
   deviceCode: string;
-  /** @deprecated */
-  deviceId?: string;
+  nodeId?: string;
   sensorId: string;
   metricName: string;
   windowStart: number;
@@ -124,7 +121,7 @@ export class KafkaStreamProcessor {
     log.debug('[KafkaStreamProcessor] 启动流处理器...');
     this.isRunning = true;
 
-    // 订阅遥测数据主题 — 使用新 Topic（TELEMETRY 已 @deprecated）
+    // 订阅遥测数据主题 — 使用新 Topic（TELEMETRY 已迁移）
     await kafkaClient.subscribe(
       'stream-processor-group',
       [KAFKA_TOPICS.TELEMETRY_FEATURE],
@@ -189,8 +186,8 @@ export class KafkaStreamProcessor {
       const dataPoint: DataPoint = {
         timestamp: data.timestamp || Date.now(),
         value: data.value,
-        // 兼容旧数据源：优先 deviceCode，回退 deviceId
-        deviceCode: data.deviceCode || data.deviceId,
+        // 兼容旧数据源：优先 deviceCode，回退 nodeId
+        deviceCode: data.deviceCode || data.nodeId,
         sensorId: data.sensorId,
         metricName: data.metricName || 'default',
       };
@@ -529,8 +526,7 @@ export class KafkaStreamProcessor {
   async queryAnomalies(options: {
     /** 设备树节点ID（优先） */
     nodeId?: string;
-    /** @deprecated 使用 nodeId 代替 */
-    deviceId?: string;
+    nodeId?: string;
     sensorId?: string;
     severity?: string;
     startTime?: number;
@@ -541,8 +537,8 @@ export class KafkaStreamProcessor {
     if (!database) return [];
 
     const conditions = [];
-    if (options.nodeId || options.deviceId) {
-      conditions.push(eq(anomalyDetections.nodeId, (options.nodeId || options.deviceId)!));
+    if (options.nodeId || options.nodeId) {
+      conditions.push(eq(anomalyDetections.nodeId, (options.nodeId || options.nodeId)!));
     }
     if (options.sensorId) {
       conditions.push(eq(anomalyDetections.sensorId, options.sensorId));
@@ -572,8 +568,7 @@ export class KafkaStreamProcessor {
   async queryAggregations(options: {
     /** 设备编码（优先） */
     deviceCode?: string;
-    /** @deprecated 使用 deviceCode 代替 */
-    deviceId?: string;
+      nodeId?: string;
     sensorId?: string;
     metricName?: string;
     startTime?: number;
@@ -606,7 +601,7 @@ export class KafkaStreamProcessor {
       .orderBy(desc(eventStore.occurredAt))
       .limit(options.limit || 100);
 
-    // 解析 payload 并过滤 deviceId / metricName
+    // 解析 payload 并过滤 nodeId / metricName
     return results
       .map(r => {
         const payload = typeof r.payload === 'string' ? JSON.parse(r.payload as string) : r.payload;
@@ -618,7 +613,7 @@ export class KafkaStreamProcessor {
         };
       })
       .filter(r => {
-        const matchCode = options.deviceCode || options.deviceId;
+        const matchCode = options.deviceCode || options.nodeId;
         if (matchCode && r.deviceCode !== matchCode && r.nodeId !== matchCode) return false;
         if (options.metricName && r.metricName !== options.metricName) return false;
         return true;

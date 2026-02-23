@@ -94,8 +94,8 @@ export class MqttAdapter extends BaseAdapter {
         description: '需要订阅的主题列表（支持通配符 +/#）。示例: ["sensors/+/temperature", "alarms/#"]',
         group: '主题配置' },
       { key: 'publishTopic', label: '发布主题', type: 'string', required: false,
-        placeholder: 'commands/{deviceId}/set',
-        description: '下行指令的发布主题模板（{deviceId} 会被替换为实际设备 ID）',
+        placeholder: 'commands/{nodeId}/set',
+        description: '下行指令的发布主题模板（{nodeId} 会被替换为实际设备 ID）',
         group: '主题配置' },
       // ─── 消息格式 ───
       { key: 'payloadFormat', label: '消息格式', type: 'select', required: false, defaultValue: 'json', options: [

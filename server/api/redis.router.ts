@@ -251,10 +251,10 @@ export const redisRouter = router({
    */
   getDeviceStatus: publicProcedure
     .input(z.object({
-      deviceId: z.string(),
+      nodeId: z.string(),
     }))
     .query(async ({ input }) => {
-      return redisClient.getDeviceStatus(input.deviceId);
+      return redisClient.getDeviceStatus(input.nodeId);
     }),
 
   /**
@@ -262,10 +262,10 @@ export const redisRouter = router({
    */
   getMultipleDeviceStatus: publicProcedure
     .input(z.object({
-      deviceIds: z.array(z.string()),
+      nodeIds: z.array(z.string()),
     }))
     .query(async ({ input }) => {
-      const statusMap = await redisClient.getMultipleDeviceStatus(input.deviceIds);
+      const statusMap = await redisClient.getMultipleDeviceStatus(input.nodeIds);
       return Object.fromEntries(statusMap);
     }),
 
@@ -274,12 +274,12 @@ export const redisRouter = router({
    */
   updateDeviceStatus: protectedProcedure
     .input(z.object({
-      deviceId: z.string(),
+      nodeId: z.string(),
       online: z.boolean(),
       metadata: z.record(z.string(), z.unknown()).optional(),
     }))
     .mutation(async ({ input }) => {
-      const success = await redisClient.cacheDeviceStatus(input.deviceId, {
+      const success = await redisClient.cacheDeviceStatus(input.nodeId, {
         online: input.online,
         lastSeen: Date.now(),
         metadata: input.metadata,

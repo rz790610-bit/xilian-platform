@@ -624,7 +624,7 @@ export class ConditionNormalizerEngine {
     }
 
     // 也包含任何额外的数值字段（排除已存在的和非特征字段）
-    const excludeKeys = new Set(['plcCode', 'timestamp', 'id', 'deviceId', 'deviceCode']);
+    const excludeKeys = new Set(['plcCode', 'timestamp', 'id', 'nodeId', 'deviceCode']);
     for (const [key, value] of Object.entries(dataSlice)) {
       if (typeof value === 'number' && !excludeKeys.has(key) && !(key in features)) {
         features[key] = value;

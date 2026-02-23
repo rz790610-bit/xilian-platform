@@ -116,7 +116,7 @@ export default function AdaptiveSampling() {
                   {status?.lastAdjustments?.map((adj: any, i: number) => (
                     <div key={i} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
                       <div>
-                        <div className="font-medium text-sm">{adj.deviceId || '全局'} - {adj.sensorType || ''}</div>
+                        <div className="font-medium text-sm">{adj.nodeId || '全局'} - {adj.sensorType || ''}</div>
                         <div className="text-xs text-muted-foreground">
                           {adj.oldRateMs}ms → {adj.newRateMs}ms
                         </div>

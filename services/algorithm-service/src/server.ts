@@ -335,7 +335,7 @@ const algorithmServiceImpl = {
         db.insert(algorithmExecutions).values({
           executionId,
           algoCode: req.algorithmId,
-          deviceCode: req.deviceId || null,
+          deviceCode: req.nodeId || null,
           status: 'success',
           durationMs,
           recordsProcessed: input.data.length,
@@ -462,7 +462,7 @@ const algorithmServiceImpl = {
 
       const conditions: any[] = [];
       if (req.algorithmId) conditions.push(eq(algorithmExecutions.algoCode, req.algorithmId));
-      if (req.deviceId) conditions.push(eq(algorithmExecutions.deviceCode, req.deviceId));
+      if (req.nodeId) conditions.push(eq(algorithmExecutions.deviceCode, req.nodeId));
       if (req.statusFilter) conditions.push(eq(algorithmExecutions.status, req.statusFilter));
 
       const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
@@ -479,7 +479,7 @@ const algorithmServiceImpl = {
           executionId: r.executionId,
           algorithmId: r.algorithmId,
           algorithmName: '',
-          deviceId: r.deviceId || '',
+          nodeId: r.nodeId || '',
           status: r.status,
           durationMs: (r.durationMs || 0).toString(),
           inputSize: (r.inputSize || 0).toString(),
@@ -508,7 +508,7 @@ const algorithmServiceImpl = {
       const bindingId = `bind_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
       await db.insert(algorithmDeviceBindings).values({
-        deviceCode: req.deviceId,
+        deviceCode: req.nodeId,
         algoCode: req.algorithmId,
         bindingType: 'algorithm',
         configOverrides: req.configOverride || {},
@@ -517,12 +517,12 @@ const algorithmServiceImpl = {
         active: true,
       });
 
-      log.info(`Algorithm ${req.algorithmId} bound to device ${req.deviceId}`);
+      log.info(`Algorithm ${req.algorithmId} bound to device ${req.nodeId}`);
 
       callback(null, {
         bindingId,
         algorithmId: req.algorithmId,
-        deviceId: req.deviceId,
+        nodeId: req.nodeId,
         config: req.configOverride || {},
         active: true,
       });
@@ -559,7 +559,7 @@ const algorithmServiceImpl = {
       if (!db) throw new Error('Database not available');
 
       const conditions: any[] = [];
-      if (req.deviceId) conditions.push(eq(algorithmDeviceBindings.deviceCode, req.deviceId));
+      if (req.nodeId) conditions.push(eq(algorithmDeviceBindings.deviceCode, req.nodeId));
       if (req.algorithmId) conditions.push(eq(algorithmDeviceBindings.algoCode, req.algorithmId));
 
       const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
@@ -571,7 +571,7 @@ const algorithmServiceImpl = {
         bindings: bindings.map(b => ({
           bindingId: b.id,
           algorithmId: b.algorithmId,
-          deviceId: b.deviceId,
+          nodeId: b.nodeId,
           config: typeof b.configOverride === 'string' ? JSON.parse(b.configOverride) : b.configOverride,
           active: b.active,
         })),

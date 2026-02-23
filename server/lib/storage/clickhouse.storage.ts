@@ -118,7 +118,7 @@ export interface TimeRange {
 }
 
 export interface QueryFilter {
-  deviceIds?: string[];
+  nodeIds?: string[];
   sensorIds?: string[];
   metricNames?: string[];
   qualities?: string[];
@@ -578,9 +578,9 @@ export class ClickHouseStorage {
 
     const params: Record<string, unknown> = {};
 
-    if (filter.deviceIds && filter.deviceIds.length > 0) {
-      query += ` AND device_id IN ({deviceIds:Array(String)})`;
-      params.deviceIds = filter.deviceIds;
+    if (filter.nodeIds && filter.nodeIds.length > 0) {
+      query += ` AND device_id IN ({nodeIds:Array(String)})`;
+      params.nodeIds = filter.nodeIds;
     }
 
     if (filter.severities && filter.severities.length > 0) {
@@ -650,7 +650,7 @@ export class ClickHouseStorage {
   /**
    * 获取设备统计信息
    */
-  async getDeviceStatistics(deviceId: string, timeRange: TimeRange): Promise<{
+  async getDeviceStatistics(nodeId: string, timeRange: TimeRange): Promise<{
     totalReadings: number;
     avgValue: number;
     minValue: number;
@@ -671,7 +671,7 @@ export class ClickHouseStorage {
           max(value) as max_value,
           stddevPop(value) as std_dev
         FROM ${this.config.database}.sensor_readings_raw
-        WHERE device_id = {deviceId:String}
+        WHERE device_id = {nodeId:String}
           AND timestamp >= {startTime:DateTime64(3)}
           AND timestamp <= {endTime:DateTime64(3)}
       `;
@@ -679,7 +679,7 @@ export class ClickHouseStorage {
       const sensorResult = await client.query({
         query: sensorQuery,
         query_params: {
-          deviceId,
+          nodeId,
           startTime: this.formatDateTime(timeRange.start),
           endTime: this.formatDateTime(timeRange.end),
         },
@@ -695,7 +695,7 @@ export class ClickHouseStorage {
           count() as fault_count,
           countIf(severity = 'critical') as critical_faults
         FROM ${this.config.database}.fault_events
-        WHERE device_id = {deviceId:String}
+        WHERE device_id = {nodeId:String}
           AND start_time >= {startTime:DateTime64(3)}
           AND start_time <= {endTime:DateTime64(3)}
       `;
@@ -703,7 +703,7 @@ export class ClickHouseStorage {
       const faultResult = await client.query({
         query: faultQuery,
         query_params: {
-          deviceId,
+          nodeId,
           startTime: this.formatDateTime(timeRange.start),
           endTime: this.formatDateTime(timeRange.end),
         },
@@ -876,9 +876,9 @@ export class ClickHouseStorage {
     let query = baseQuery + ' WHERE 1=1';
     const params: Record<string, unknown> = {};
 
-    if (filter.deviceIds && filter.deviceIds.length > 0) {
-      query += ` AND device_id IN ({deviceIds:Array(String)})`;
-      params.deviceIds = filter.deviceIds;
+    if (filter.nodeIds && filter.nodeIds.length > 0) {
+      query += ` AND device_id IN ({nodeIds:Array(String)})`;
+      params.nodeIds = filter.nodeIds;
     }
 
     if (filter.sensorIds && filter.sensorIds.length > 0) {
@@ -921,9 +921,9 @@ export class ClickHouseStorage {
     let query = baseQuery + ' WHERE 1=1';
     const params: Record<string, unknown> = {};
 
-    if (filter.deviceIds && filter.deviceIds.length > 0) {
-      query += ` AND device_id IN ({deviceIds:Array(String)})`;
-      params.deviceIds = filter.deviceIds;
+    if (filter.nodeIds && filter.nodeIds.length > 0) {
+      query += ` AND device_id IN ({nodeIds:Array(String)})`;
+      params.nodeIds = filter.nodeIds;
     }
 
     if (filter.sensorIds && filter.sensorIds.length > 0) {

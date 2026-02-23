@@ -4,7 +4,7 @@
  * 
  * 使用方式：
  *   import { NotFoundError, ValidationError, ConnectionError } from '../core/errors';
- *   throw new NotFoundError('device', deviceId);
+ *   throw new NotFoundError('device', nodeId);
  *   throw new ValidationError('Invalid port number', { field: 'port', value: -1 });
  *   throw new ConnectionError('mqtt', 'Connection refused', { host, port });
  */

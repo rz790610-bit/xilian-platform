@@ -249,13 +249,13 @@ class StreamProcessor {
     const payload = event.payload as {
       sensorId: string;
       deviceCode?: string;
-      deviceId?: string;  // @deprecated 兼容旧数据源
+      nodeId?: string;
       value: number;
       timestamp?: string;
     };
     const { sensorId, value, timestamp } = payload;
-    // 优先 deviceCode，回退 deviceId
-    const deviceCode = payload.deviceCode || payload.deviceId;
+    // 优先 deviceCode，回退 nodeId
+    const deviceCode = payload.deviceCode || payload.nodeId;
 
     if (!sensorId || !deviceCode || value === undefined) return;
 
@@ -304,7 +304,7 @@ class StreamProcessor {
         await this.recordAnomaly({
           sensorId,
           deviceCode: deviceCode || 'unknown',
-          deviceId: deviceCode || 'unknown', // @deprecated 向后兼容
+          nodeId: deviceCode || 'unknown',
           isAnomaly: true,
           algorithm: 'zscore',
           currentValue: latestValue,
@@ -322,7 +322,7 @@ class StreamProcessor {
           {
             sensorId,
             deviceCode,
-            deviceId: deviceCode, // @deprecated 向后兼容，下游消费者应迁移到 deviceCode
+            nodeId: deviceCode,，下游消费者应迁移到 deviceCode
             value: latestValue,
             expectedValue: stats.mean,
             deviation: zScoreResult.deviation,
@@ -415,7 +415,7 @@ class StreamProcessor {
       await db.insert(anomalyDetections).values({
         detectionId: `anom_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
         sensorId: result.sensorId || '',
-        nodeId: result.nodeId || result.deviceId || '',
+        nodeId: result.nodeId || result.nodeId || '',
         algorithmType: (result.algorithm || 'zscore') as 'zscore' | 'iqr' | 'mad' | 'isolation_forest' | 'custom',
         windowSize: 60,
         threshold: 300, // 3.0 * 100
@@ -449,7 +449,7 @@ class StreamProcessor {
         aggregateVersion: Date.now(),
         payload: JSON.stringify({
           sensorId: result.sensorId,
-          deviceCode: result.deviceCode || result.deviceId,  // 优先 deviceCode，回退 deviceId（兼容旧调用方）
+          deviceCode: result.deviceCode || result.nodeId,  // 优先 deviceCode，回退 nodeId（兼容旧调用方）
           period: result.period,
           periodStart: result.periodStart?.toISOString(),
           avg: result.avg,
@@ -523,7 +523,7 @@ class StreamProcessor {
 
     return {
       sensorId,
-      deviceId: deviceCode || 'unknown',
+      nodeId: deviceCode || 'unknown',
       isAnomaly: true,
       algorithm,
       currentValue: latestValue,
@@ -623,11 +623,11 @@ export const streamProcessorRouter = router({
         'reading',
         {
           sensorId: input.sensorId,
-          deviceId: 'test_device',
+          nodeId: 'test_device',
           value: input.value,
           timestamp: new Date().toISOString(),
         },
-        { source: 'test', sensorId: input.sensorId, deviceId: undefined }
+        { source: 'test', sensorId: input.sensorId, nodeId: undefined }
       );
       
       return { success: true };
