@@ -124,7 +124,7 @@ xilian-platform-deploy.*
 .gitkeep
 .manus-logs/
 client/public/__manus__/
-.github/workflows/
+# .github/workflows/ — B-06: 恢复 CI workflow 追踪
 __pycache__/
 *.pyc
 
