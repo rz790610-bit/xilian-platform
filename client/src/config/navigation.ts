@@ -136,7 +136,7 @@ export const navigationConfig: NavItem[] = [
   },
   {
     id: 'digital-twin',
-    label: '数字孞生',
+    label: '数字孪生',
     icon: '🔮',
     children: [
       { id: 'twin-status', label: '设备状态', icon: '📊', path: '/digital-twin' },
