@@ -41,21 +41,30 @@ export function PhysicsVerifierContent() {
     refetchInterval: 30000, retry: 2
   });
 
-  const formulas = (formulasQuery.data as unknown as PhysicsFormula[]) ?? [];
+  // 后端返回 { formulas: [...] }，需要正确解构
+  const rawData = formulasQuery.data as unknown as { formulas?: PhysicsFormula[] } | PhysicsFormula[] | undefined;
+  const formulas = useMemo(() => {
+    if (!rawData) return [];
+    if (Array.isArray(rawData)) return rawData;
+    if (rawData && typeof rawData === 'object' && 'formulas' in rawData) return rawData.formulas ?? [];
+    return [];
+  }, [rawData]);
 
   const filteredFormulas = useMemo(() => {
+    if (!formulas || formulas.length === 0) return [];
     if (domainFilter === 'all') return formulas;
     return formulas.filter(f => f.domain === domainFilter);
   }, [formulas, domainFilter]);
 
   const domains = useMemo(() => {
+    if (!formulas || formulas.length === 0) return ['all'];
     const set = new Set(formulas.map(f => f.domain));
     return ['all', ...Array.from(set)];
   }, [formulas]);
 
   // 统计
-  const totalEnabled = formulas.filter(f => f.enabled).length;
-  const domainCount = new Set(formulas.map(f => f.domain)).size;
+  const totalEnabled = formulas?.filter(f => f.enabled).length ?? 0;
+  const domainCount = formulas?.length ? new Set(formulas.map(f => f.domain)).size : 0;
 
   return (
     <div className="space-y-3">
@@ -64,7 +73,7 @@ export function PhysicsVerifierContent() {
         <StatCard value={formulas.length} label="物理公式总数" icon="📐" />
         <StatCard value={totalEnabled} label="已启用" icon="✅" />
         <StatCard value={domainCount} label="覆盖域" icon="🔬" />
-        <StatCard value={formulas.reduce((sum, f) => sum + f.variables.length, 0)} label="总变量数" icon="📊" />
+        <StatCard value={formulas?.reduce((sum, f) => sum + (f.variables?.length ?? 0), 0) ?? 0} label="总变量数" icon="📊" />
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -145,7 +154,7 @@ export function PhysicsVerifierContent() {
         <TabsContent value="constraints">
           <PageCard title="物理约束范围" icon="⚖️">
             <div className="space-y-2">
-              {formulas.filter(f => f.constraints && f.constraints.length > 0).slice(0, 10).map(formula => (
+              {(formulas ?? []).filter(f => f.constraints && f.constraints.length > 0).slice(0, 10).map(formula => (
                 <div key={formula.id} className="p-2 rounded bg-muted/30 border border-border/30">
                   <div className="flex items-center gap-2 mb-1">
                     <span className="text-xs font-medium">{formula.name}</span>
@@ -163,7 +172,7 @@ export function PhysicsVerifierContent() {
                   </div>
                 </div>
               ))}
-              {formulas.filter(f => f.constraints?.length > 0).length === 0 && (
+              {(formulas ?? []).filter(f => f.constraints?.length > 0).length === 0 && (
                 <div className="text-center py-4 text-muted-foreground text-[10px]">暂无约束配置</div>
               )}
             </div>

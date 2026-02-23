@@ -77,6 +77,7 @@ export async function loadPlugins(options?: { jsxLoc?: boolean }) {
 export const ALLOWED_HOSTS = [
   "localhost",
   "127.0.0.1",
+  ".manus.computer",
 ];
 
 /**
