@@ -37,11 +37,11 @@ export function PhysicsVerifierContent() {
   const [domainFilter, setDomainFilter] = useState('all');
 
   // 物理公式列表
-  const formulasQuery = trpc.evoCognition.listFormulas.useQuery(undefined, {
+  const formulasQuery = trpc.evoCognition.physics.listFormulas.useQuery(undefined, {
     refetchInterval: 30000, retry: 2
   });
 
-  const formulas = (formulasQuery.data as PhysicsFormula[]) ?? [];
+  const formulas = (formulasQuery.data as unknown as PhysicsFormula[]) ?? [];
 
   const filteredFormulas = useMemo(() => {
     if (domainFilter === 'all') return formulas;

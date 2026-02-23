@@ -13,13 +13,12 @@ import { nanoid } from 'nanoid';
 import type { Agent } from '@/types';
 import * as ollama from '@/services/ollama';
 import * as qdrant from '@/services/qdrant';
-import { 
-import { createLogger } from '@/lib/logger';
-const log = createLogger('Agents');
-
+import {
   Send, Loader2, Bot, User, Wifi, WifiOff, RefreshCw, 
   Wrench, Zap, Settings2, FileText, Trash2
 } from 'lucide-react';
+import { createLogger } from '@/lib/logger';
+const log = createLogger('Agents');
 
 // 智能体系统提示词配置
 const AGENT_SYSTEM_PROMPTS: Record<string, string> = {

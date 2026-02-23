@@ -37,6 +37,7 @@ const pipelineConfigSchema = z.object({
   schedule: z.object({
     type: z.enum(['interval', 'cron']),
     value: z.union([z.string(), z.number()]),
+    timezone: z.string().optional(),
   }).optional(),
   batchSize: z.number().optional(),
   retryPolicy: z.object({

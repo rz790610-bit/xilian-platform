@@ -726,10 +726,9 @@ export class PluginSandbox extends EventEmitter {
 
       const script = new vm.Script(wrappedCode, {
         filename: `plugin://${this.manifest.id}/${this.manifest.main}`,
-        timeout: 10000, // 初始化超时 10 秒
       });
 
-      script.runInContext(this.vmContext);
+      script.runInContext(this.vmContext, { timeout: 10000 });
 
       this.state = 'running';
       this.emit('sandbox:ready', { pluginId: this.manifest.id });
@@ -806,10 +805,9 @@ export class PluginSandbox extends EventEmitter {
 
       const script = new vm.Script(callCode, {
         filename: `plugin://${this.manifest.id}/exec/${request.method}`,
-        timeout: timeout,
       });
 
-      let result = script.runInContext(this.vmContext);
+      let result = script.runInContext(this.vmContext, { timeout });
 
       // 处理 Promise
       if (result && typeof result === 'object' && typeof result.then === 'function') {

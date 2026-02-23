@@ -33,7 +33,7 @@ const requireUser = t.middleware(async opts => {
 });
 
 // 审计日志 middleware（拦截所有 mutation，异步写入 audit_logs 表）
-const auditLog = t.middleware(createAuditLogMiddleware());
+const auditLog = t.middleware(createAuditLogMiddleware() as any);
 
 export const protectedProcedure = t.procedure.use(tracing).use(requireUser).use(auditLog);
 

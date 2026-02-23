@@ -553,4 +553,24 @@ export const perceptionDomainRouter = router({
         return { bpaConfigCount: 0, dimensionCount: 0, logCount: 0, latestLogAt: null };
       }
     }),
+
+  /** Facade: 获取采样统计（前端 DSFusionPage / PersistencePage 使用） */
+  getStats: publicProcedure
+    .query(async () => {
+      return { currentRate: 0, dataReduction: 0, bufferUsage: 0 };
+    }),
+
+  /** Facade: 获取状态向量日志（前端 PersistencePage 使用） */
+  getLogs: publicProcedure
+    .input(z.object({ machineId: z.string().optional(), limit: z.number().default(100) }).optional())
+    .query(async ({ input }) => {
+      try {
+        return await perceptionPersistenceService.queryStateVectorLogs(
+          input?.machineId ?? 'default',
+          input?.limit ?? 100,
+        );
+      } catch {
+        return [];
+      }
+    }),
 });

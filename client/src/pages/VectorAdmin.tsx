@@ -19,14 +19,13 @@ import {
 import { trpc } from '@/lib/trpc';
 import * as qdrant from '@/services/qdrant';
 import {
-import { createLogger } from '@/lib/logger';
-const log = createLogger('VectorAdmin');
-
   vectorsToProjectedPoints,
   clusterProjectedPoints,
   type ReductionMethod,
   type ClusterResult
 } from '@/services/dimensionReduction';
+import { createLogger } from '@/lib/logger';
+const log = createLogger('VectorAdmin');
 
 // 向量点信息（用于可视化）
 interface VectorPoint {

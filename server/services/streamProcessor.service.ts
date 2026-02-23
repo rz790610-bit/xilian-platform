@@ -322,7 +322,7 @@ class StreamProcessor {
           {
             sensorId,
             deviceCode,
-            nodeId: deviceCode,，下游消费者应迁移到 deviceCode
+            nodeId: deviceCode,
             value: latestValue,
             expectedValue: stats.mean,
             deviation: zScoreResult.deviation,
@@ -449,7 +449,7 @@ class StreamProcessor {
         aggregateVersion: Date.now(),
         payload: JSON.stringify({
           sensorId: result.sensorId,
-          deviceCode: result.deviceCode || result.nodeId,  // 优先 deviceCode，回退 nodeId（兼容旧调用方）
+          deviceCode: result.deviceCode || '',
           period: result.period,
           periodStart: result.periodStart?.toISOString(),
           avg: result.avg,

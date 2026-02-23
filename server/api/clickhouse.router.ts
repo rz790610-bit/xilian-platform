@@ -40,7 +40,7 @@ export const clickhouseRouter = router({
     }))
     .mutation(async ({ input }) => {
       const readings: SensorReading[] = input.readings.map(r => ({
-        sensorId: r.sensor_id, nodeId: r.device_id, metricName: r.metric_name, value: r.value, unit: r.unit, quality: r.quality, metadata: r.metadata as Record<string, unknown>,
+        sensorId: r.sensor_id, deviceCode: r.device_id, metricName: r.metric_name, value: r.value, unit: r.unit, quality: r.quality, metadata: r.metadata as Record<string, unknown>,
         timestamp: new Date(r.timestamp),
       }));
       await clickhouseClient.insertSensorReadings(readings);

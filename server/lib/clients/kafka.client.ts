@@ -152,7 +152,7 @@ class KafkaClientManager {
         timestamp: msg.timestamp,
         partition: msg.partition,
       }));
-      await this.producer.send({
+      await this.producer!.send({
         topic,
         messages: kafkaMessages,
         compression: CompressionTypes.GZIP,

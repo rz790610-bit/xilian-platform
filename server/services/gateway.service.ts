@@ -22,11 +22,6 @@ import { router, publicProcedure } from '../core/trpc';
 const KONG_ADMIN_URL = process.env.KONG_ADMIN_URL || 'http://kong:8001';
 const KONG_STATUS_URL = process.env.KONG_STATUS_URL || 'http://kong:8100';
 
-const log = {
-  info: (...args: any[]) => log.info({}, args.join(' ')),
-  warn: (...args: any[]) => log.warn({}, args.join(' ')),
-  error: (...args: any[]) => log.warn({}, args.join(' ')),
-};
 
 // ── Kong Admin API 请求封装 ──
 async function kongRequest<T = any>(
@@ -100,7 +95,7 @@ const serviceCreateSchema = z.object({
 
 const pluginCreateSchema = z.object({
   name: z.string().min(1),
-  config: z.record(z.any()).default({}),
+  config: z.record(z.string(), z.any()).default({}),
   enabled: z.boolean().default(true),
   service: z.object({ id: z.string() }).optional().nullable(),
   route: z.object({ id: z.string() }).optional().nullable(),
@@ -111,7 +106,7 @@ const upstreamCreateSchema = z.object({
   name: z.string().min(1),
   algorithm: z.enum(['round-robin', 'consistent-hashing', 'least-connections', 'latency']).default('round-robin'),
   hash_on: z.string().default('none'),
-  healthchecks: z.record(z.any()).optional(),
+  healthchecks: z.record(z.string(), z.any()).optional(),
 });
 
 const targetCreateSchema = z.object({
@@ -410,7 +405,7 @@ export const gatewayRouter = router({
     .input(targetCreateSchema)
     .mutation(async ({ input }) => {
       const { upstreamId, ...data } = input;
-      log.info('添加目标节点:', data.target, '→', upstreamId);
+      log.info(`添加目标节点: ${data.target} → ${upstreamId}`);
       return kongRequest<any>(`/upstreams/${upstreamId}/targets`, {
         method: 'POST',
         body: JSON.stringify(data),

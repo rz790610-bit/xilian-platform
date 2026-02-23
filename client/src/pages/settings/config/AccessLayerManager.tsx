@@ -39,7 +39,7 @@ import {
 import type {
   ProtocolType, ConnectorInfo, EndpointInfo, BindingInfo,
   ProtocolConfigField, ConnectorStatus,
-} from '../../../../shared/accessLayerTypes';
+} from '../../../../../shared/accessLayerTypes';
 
 // ============ 状态颜色映射 ============
 const STATUS_COLORS: Record<string, string> = {
@@ -99,7 +99,7 @@ function DynamicFormField({
             <SelectValue placeholder={field.placeholder || '请选择'} />
           </SelectTrigger>
           <SelectContent>
-            {field.options.map(opt => (
+            {field.options?.map((opt: { label: string; value: string }) => (
               <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
             ))}
           </SelectContent>
@@ -677,8 +677,8 @@ function EndpointDialog({
 
         {/* 端点列表 */}
         <div className="space-y-2">
-          {(endpoints as EndpointInfo[]).length > 0 ? (
-            (endpoints as EndpointInfo[]).map(ep => (
+          {(endpoints as unknown as EndpointInfo[]).length > 0 ? (
+            (endpoints as unknown as EndpointInfo[]).map(ep => (
               <div key={ep.endpointId} className="group/ep flex items-center justify-between p-3 rounded-lg border border-zinc-700/50 bg-zinc-800/20 hover:border-zinc-600 transition-all">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
@@ -727,7 +727,7 @@ function EndpointDialog({
         </div>
 
         <div className="text-xs text-zinc-500 text-right">
-          共 {(endpoints as EndpointInfo[]).length} 个端点
+          共 {(endpoints as unknown as EndpointInfo[]).length} 个端点
         </div>
       </DialogContent>
     </Dialog>

@@ -85,7 +85,7 @@ class DataSimulator {
       await this.generateSimulatedData();
     }, intervalMs);
 
-    log.debug('[DataSimulator] Started with interval:', intervalMs, 'ms');
+    log.debug(`[DataSimulator] Started with interval: ${intervalMs}ms`);
   }
 
   /**

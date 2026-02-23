@@ -59,6 +59,16 @@ export const KAFKA_TOPICS = {
   /** 归档通知 */
   ARCHIVE_NOTIFICATIONS: 'xilian.archive-notifications',
 
+  // ===== 兼容别名（outbox.publisher / kafkaEventBus 使用） =====
+  /** 传感器读数（映射到 SENSOR_DATA） */
+  SENSOR_READINGS: 'xilian.sensor-data',
+  /** 异常告警（映射到 EVENT_ALERT） */
+  ANOMALY_ALERTS: 'event.alert',
+  /** 工作流事件 */
+  WORKFLOW_EVENTS: 'xilian.workflow-events',
+  /** 设备事件 */
+  DEVICE_EVENTS: 'xilian.device-events',
+
 } as const;
 
 // ============ Topic 集群配置（分区、副本、保留策略） ============

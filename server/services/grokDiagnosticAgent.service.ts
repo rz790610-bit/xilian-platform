@@ -396,8 +396,8 @@ async function executeToolCall(
           timeRange: `${hours}h`,
           stats,
           recentSamples: data.slice(0, 20).map(d => ({
-            timestamp: d.timestamp,
-            value: d.value,
+            timestamp: d.lastReadingAt,
+            value: d.lastValue,
             unit: d.unit,
           })),
         };
@@ -418,7 +418,7 @@ async function executeToolCall(
           .from(alertRules)
           .where(
             and(
-              eq(alertRules.deviceCode, deviceCode),
+              eq(alertRules.deviceType, deviceCode),
               gte(alertRules.createdAt, since)
             )
           )
@@ -431,11 +431,11 @@ async function executeToolCall(
           totalAlerts: alerts.length,
           alerts: alerts.map(a => ({
             id: a.id,
-            type: a.ruleType,
+            type: a.measurementType,
             severity: a.severity,
             message: a.description,
             createdAt: a.createdAt,
-            status: a.enabled ? 'active' : 'resolved',
+            status: a.isActive ? 'active' : 'resolved',
           })),
           summary: {
             critical: alerts.filter(a => a.severity === 'critical').length,
@@ -536,14 +536,14 @@ async function executeToolCall(
 
         switch (analysisType) {
           case 'fft': {
-            const spectrum = dsp.amplitudeSpectrum(values);
             const sampleRate = 1000; // 假设 1kHz 采样率
+            const spectrum = dsp.amplitudeSpectrum(values, sampleRate);
             const peakFreqs: Array<{ freq: number; amplitude: number }> = [];
-            for (let i = 1; i < spectrum.length - 1; i++) {
-              if (spectrum[i] > spectrum[i - 1] && spectrum[i] > spectrum[i + 1] && spectrum[i] > 0.1) {
+            for (let i = 1; i < spectrum.amplitudes.length - 1; i++) {
+              if (spectrum.amplitudes[i] > spectrum.amplitudes[i - 1] && spectrum.amplitudes[i] > spectrum.amplitudes[i + 1] && spectrum.amplitudes[i] > 0.1) {
                 peakFreqs.push({
-                  freq: (i * sampleRate) / (2 * spectrum.length),
-                  amplitude: spectrum[i],
+                  freq: spectrum.frequencies[i],
+                  amplitude: spectrum.amplitudes[i],
                 });
               }
             }
@@ -552,7 +552,7 @@ async function executeToolCall(
               type: 'fft',
               sampleCount: values.length,
               dominantFrequencies: peakFreqs.slice(0, 10),
-              totalEnergy: spectrum.reduce((a, b) => a + b * b, 0),
+              totalEnergy: spectrum.amplitudes.reduce((a: number, b: number) => a + b * b, 0),
             };
           }
 
@@ -605,7 +605,11 @@ async function executeToolCall(
           }
 
           default: {
-            const stats = dsp.statisticalFeatures(values);
+            // 基本统计特征（dsp 模块无 statisticalFeatures，手动计算）
+            const mean = values.reduce((a, b) => a + b, 0) / values.length;
+            const std = Math.sqrt(values.reduce((s, v) => s + (v - mean) ** 2, 0) / values.length);
+            const rms = Math.sqrt(values.reduce((s, v) => s + v * v, 0) / values.length);
+            const stats = { mean, std, rms, min: Math.min(...values), max: Math.max(...values), count: values.length };
             return { type: 'envelope', stats };
           }
         }

@@ -88,7 +88,7 @@ export async function bootstrapAgentRegistry(): Promise<void> {
               durationMs: tc.durationMs || 0,
             })),
             durationMs: Date.now() - startMs,
-            tokenUsage: result.tokenUsage,
+            tokenUsage: { prompt: 0, completion: result.modelInfo?.tokensUsed ?? 0, total: result.modelInfo?.tokensUsed ?? 0 },
           };
         } catch (err: any) {
           return {
@@ -105,7 +105,7 @@ export async function bootstrapAgentRegistry(): Promise<void> {
         try {
           const status = diagnosticModule.getAgentStatus();
           if (!status.enabled) return 'unavailable';
-          return status.apiReachable ? 'healthy' : 'degraded';
+          return status.enabled ? 'healthy' : 'degraded';
         } catch {
           return 'unavailable';
         }

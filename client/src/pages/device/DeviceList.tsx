@@ -137,17 +137,12 @@ export default function DeviceList() {
   const pageSize = 20;
 
   // ============ tRPC 数据获取 ============
-  const deviceQuery = trpc.deviceCrud.list.useQuery(
+  const deviceQuery = trpc.device.listDevices.useQuery(
     {
-      filter: {
-        type: typeFilter !== 'all' ? typeFilter as any : undefined,
-        status: statusFilter !== 'all' ? statusFilter as any : undefined,
-        search: searchTerm || undefined,
-      },
-      pagination: {
-        page,
-        pageSize,
-      },
+      type: typeFilter !== 'all' ? typeFilter : undefined,
+      status: statusFilter !== 'all' ? statusFilter : undefined,
+      limit: pageSize,
+      offset: (page - 1) * pageSize,
     },
     {
       retry: 1,
@@ -158,23 +153,23 @@ export default function DeviceList() {
   // stats 通过 list 结果计算，无独立 stats 端点
   const statsQuery = { data: null as any, refetch: () => deviceQuery.refetch() };
 
-  const createMutation = trpc.deviceCrud.create.useMutation({
+  const createMutation = trpc.device.createDevice.useMutation({
     onSuccess: () => {
       toast.success('设备添加成功');
       setIsAddDialogOpen(false);
       deviceQuery.refetch();
       statsQuery.refetch();
     },
-    onError: (err) => toast.error(`添加失败: ${err.message}`),
+    onError: (err: any) => toast.error(`添加失败: ${err.message}`),
   });
 
-  const deleteMutation = trpc.deviceCrud.delete.useMutation({
+  const deleteMutation = trpc.device.deleteDevice.useMutation({
     onSuccess: () => {
       toast.success('设备已删除');
       deviceQuery.refetch();
       statsQuery.refetch();
     },
-    onError: (err) => toast.error(`删除失败: ${err.message}`),
+    onError: (err: any) => toast.error(`删除失败: ${err.message}`),
   });
 
   // ============ 数据处理 ============

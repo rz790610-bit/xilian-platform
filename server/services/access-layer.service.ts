@@ -675,7 +675,7 @@ export async function batchHealthCheck(): Promise<{ total: number; healthy: numb
   if (!db) throw new Error("Database not available");
   await ensureAccessLayerTables(db);
 
-  const allConnectors = await db.select().from(dataConnectors).all();
+  const allConnectors = await db.select().from(dataConnectors);
   const results: Array<{ connectorId: string; name: string; status: string; message: string; latencyMs: number }> = [];
   let healthy = 0;
   let unhealthy = 0;

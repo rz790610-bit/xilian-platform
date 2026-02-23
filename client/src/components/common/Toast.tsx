@@ -119,7 +119,15 @@ export function useToast() {
     throw new Error('useToast must be used within ToastProvider');
   }
   
+  // shadcn 兼容的 toast 函数：支持 toast({ title, variant, description }) 调用方式
+  const toastFn = (opts: { title: string; variant?: string; description?: string }) => {
+    const type: ToastType = opts.variant === 'destructive' ? 'error' : 'success';
+    const msg = opts.description ? `${opts.title}: ${opts.description}` : opts.title;
+    context.addToast(type, msg);
+  };
+
   return {
+    toast: toastFn,
     success: (message: string) => context.addToast('success', message),
     error: (message: string) => context.addToast('error', message),
     warning: (message: string) => context.addToast('warning', message),

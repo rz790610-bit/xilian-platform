@@ -73,7 +73,8 @@ export interface ConnectorWithEndpoints extends ConnectorInfo {
 
 // ============ Endpoint 类型 ============
 
-export type ResourceType = 'topic' | 'table' | 'collection' | 'bucket' | 'register' | 'node' | 'api_path' | 'api' | 'measurement' | 'stream' | 'key' | 'graph';
+export type ResourceType = 'topic' | 'table' | 'collection' | 'bucket' | 'register' | 'node' | 'api_path' | 'api' | 'measurement' | 'stream' | 'key' | 'graph'
+  | 'slave' | 'pdo-entry' | 'sdo' | 'tag' | 'cip-object' | 'assembly' | 'io-data' | 'diagnostic';
 export type DataFormat = 'json' | 'csv' | 'parquet' | 'binary' | 'protobuf' | 'line_protocol' | 'msgpack' | 'xml' | 'text';
 
 export interface SamplingConfig {

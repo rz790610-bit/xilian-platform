@@ -119,6 +119,7 @@ const predictInput = z.object({
   horizonMinutes: z.number().int().min(1).max(1440).default(60),
   includeUncertainty: z.boolean().default(true),
   monteCarloRuns: z.number().int().min(10).max(500).default(50),
+  method: z.enum(['sobol_qmc', 'random', 'latin_hypercube']).default('sobol_qmc').optional(),
 });
 const aiGenerateInput = z.object({
   equipmentId: equipmentIdSchema,
@@ -703,7 +704,7 @@ const worldmodelRouter = router({
       if (input.includeUncertainty && input.monteCarloRuns) {
         worldModelMetrics.recordMonteCarloSamples(input.method ?? 'sobol_qmc', input.monteCarloRuns);
       }
-      if (validationResult && !validationResult.isValid) {
+      if (validationResult && !validationResult.valid) {
         worldModelMetrics.incrementPhysicsValidationFailures('prediction');
       }
 
@@ -1346,7 +1347,7 @@ export const pipelineDomainRouter = router({
   invokeGrokTool: protectedProcedure
     .input(z.object({
       toolName: z.string(),
-      input: z.record(z.unknown()),
+      input: z.record(z.string(), z.unknown()),
       context: z.object({
         sessionId: z.string().optional(),
         machineId: z.string().optional(),
@@ -1379,19 +1380,14 @@ export const pipelineDomainRouter = router({
       const db = await getDb();
       if (!db) return [];
       try {
-        const rows = await db.execute({
-          sql: `SELECT id, user_id, action, resource_type, resource_id, payload, created_at
-                FROM audit_logs
-                ${input.action ? 'WHERE action = ?' : ''}
-                ${input.resourceType ? (input.action ? 'AND' : 'WHERE') + ' resource_type = ?' : ''}
-                ORDER BY created_at DESC LIMIT ?`,
-          params: [
-            ...(input.action ? [input.action] : []),
-            ...(input.resourceType ? [input.resourceType] : []),
-            input.limit,
-          ],
-        });
-        return rows.rows ?? [];
+        const conditions: string[] = [];
+        const params: unknown[] = [];
+        if (input.action) { conditions.push('action = ?'); params.push(input.action); }
+        if (input.resourceType) { conditions.push('resource_type = ?'); params.push(input.resourceType); }
+        const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+        const query = sql.raw(`SELECT id, user_id, action, resource_type, resource_id, payload, created_at FROM audit_logs ${whereClause} ORDER BY created_at DESC LIMIT ${Number(input.limit)}`);
+        const rows = await db.execute(query);
+        return Array.isArray(rows) ? rows : (rows as any)[0] ?? [];
       } catch {
         return [];
       }

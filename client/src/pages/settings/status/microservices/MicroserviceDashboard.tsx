@@ -493,7 +493,7 @@ function CircuitBreakerTab() {
 // Prometheus 指标 Tab
 // ============================================================
 function PrometheusMetricsTab() {
-  const [timeRange, setTimeRange] = useState<string>('1h');
+  const [timeRange, setTimeRange] = useState<'15m' | '1h' | '6h' | '24h' | '7d'>('1h');
   const [serviceFilter, setServiceFilter] = useState<string>('all');
 
   const { data: metricsData, isLoading, refetch } = trpc.microservice.getPrometheusMetrics.useQuery(
@@ -557,7 +557,7 @@ function PrometheusMetricsTab() {
       {/* 筛选栏 */}
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <Select value={timeRange} onValueChange={setTimeRange}>
+          <Select value={timeRange} onValueChange={v => setTimeRange(v as typeof timeRange)}>
             <SelectTrigger className="w-28 h-8 text-xs">
               <SelectValue />
             </SelectTrigger>

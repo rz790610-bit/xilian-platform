@@ -22,7 +22,6 @@ export interface Event {
   nodeId?: string;
   /** 设备编码 */
   deviceCode?: string;
-  nodeId?: string;
   sensorId?: string;
   severity: 'info' | 'warning' | 'error' | 'critical';
   payload: Record<string, unknown>;
@@ -176,7 +175,6 @@ class EventBus {
       nodeId?: string;
       /** 设备编码 */
       deviceCode?: string;
-          nodeId?: string;
       sensorId?: string;
       severity?: 'info' | 'warning' | 'error' | 'critical';
     } = {}
@@ -244,7 +242,6 @@ class EventBus {
       source?: string;
       nodeId?: string;
       deviceCode?: string;
-          nodeId?: string;
       sensorId?: string;
       severity?: 'info' | 'warning' | 'error' | 'critical';
     };
@@ -360,7 +357,6 @@ class EventBus {
     topic?: string;
     /** 设备树节点ID */
     nodeId?: string;
-      nodeId?: string;
     sensorId?: string;
     severity?: string;
     startTime?: Date;
@@ -409,7 +405,6 @@ class EventBus {
         topic: r.topic,
         eventType: r.eventType,
         source: r.source || undefined,
-        nodeId: r.nodeId || undefined,
         nodeId: r.nodeId || undefined,
         sensorId: r.sensorId || undefined,
         severity: r.severity,
@@ -541,7 +536,6 @@ export const eventBusRouter = router({
   queryEvents: publicProcedure
     .input(z.object({
       topic: z.string().optional(),
-      nodeId: z.string().optional(),
       nodeId: z.string().optional(),
       sensorId: z.string().optional(),
       severity: z.enum(['info', 'warning', 'error', 'critical']).optional(),

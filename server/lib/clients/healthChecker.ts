@@ -264,19 +264,18 @@ export async function checkService(serviceName: string): Promise<ServiceHealth |
  * P1-HC-1: 添加 URL 校验，防止注入恶意地址
  */
 export function addServiceConfig(config: HealthCheckConfig): void {
-  // 校验 URL 格式
+  // 校验地址格式
   try {
-    const parsed = new URL(config.url);
-    if (!['http:', 'https:'].includes(parsed.protocol)) {
-      throw new Error(`Invalid protocol: ${parsed.protocol}`);
-    }
+    const protocol = config.port === 443 ? 'https' : 'http';
+    const url = `${protocol}://${config.host}:${config.port}${config.path || '/'}`;
+    const parsed = new URL(url);
     // 阻止内网地址注入（可根据实际需求调整）
     const hostname = parsed.hostname;
     if (hostname === '169.254.169.254' || hostname === 'metadata.google.internal') {
       throw new Error('Cloud metadata endpoint is not allowed');
     }
   } catch (e) {
-    throw new Error(`Invalid service URL for ${config.name}: ${(e as Error).message}`);
+    throw new Error(`Invalid service config for ${config.name}: ${(e as Error).message}`);
   }
 
   const existingIndex = SERVICE_CONFIGS.findIndex(c => c.name === config.name);

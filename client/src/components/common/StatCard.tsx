@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils';
 interface StatCardProps {
   value: number | string;
   label: string;
-  icon: string;
+  icon: React.ReactNode;
   trend?: {
     value: number;
     isPositive: boolean;

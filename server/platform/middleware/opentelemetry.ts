@@ -186,11 +186,11 @@ export async function initOpenTelemetry(): Promise<void> {
             '@opentelemetry/instrumentation-fs': { enabled: false },
             '@opentelemetry/instrumentation-dns': { enabled: false },
             '@opentelemetry/instrumentation-http': {
-              ignoreIncomingPaths: ['/healthz', '/healthz/ready', '/api/metrics'],
+              ignoreIncomingRequestHook: (_req: any) => false, // TODO: configure properly // ignoreIncomingPaths: ['/healthz', '/healthz/ready', '/api/metrics'],
             },
             '@opentelemetry/instrumentation-express': { enabled: true },
             '@opentelemetry/instrumentation-mysql2': { enabled: true },
-            '@opentelemetry/instrumentation-redis-4': { enabled: true },
+            // '@opentelemetry/instrumentation-redis-4': { enabled: true },
           }),
         ];
         log.info('OTel auto-instrumentation enabled');
@@ -203,7 +203,7 @@ export async function initOpenTelemetry(): Promise<void> {
     }
 
     sdkInstance = new NodeSDK(sdkConfig);
-    sdkInstance.start();
+    (sdkInstance as any).start();
 
     // 获取 tracer 实例
     const { trace } = await import('@opentelemetry/api');

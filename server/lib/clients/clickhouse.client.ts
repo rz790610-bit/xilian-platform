@@ -149,7 +149,7 @@ export async function insertSensorReadings(readings: SensorReading[]): Promise<v
   const rows = readings.map(r => {
     const ts = r.timestamp instanceof Date ? r.timestamp : new Date(r.timestamp);
     return {
-      device_id: r.nodeId,
+      device_id: r.deviceCode,
       sensor_id: r.sensorId,
       metric_name: r.metricName || '',
       value: r.value,
@@ -249,9 +249,9 @@ export async function querySensorReadings(options: QueryOptions): Promise<Sensor
     params.endTime = et.toISOString().replace('T', ' ').replace('Z', '');
   }
   
-  if (options.nodeIds && options.nodeIds.length > 0) {
-    query += ` AND device_id IN ({nodeIds:Array(String)})`;
-    params.nodeIds = options.nodeIds;
+  if (options.deviceCodes && options.deviceCodes.length > 0) {
+    query += ` AND device_id IN ({deviceCodes:Array(String)})`;
+    params.deviceCodes = options.deviceCodes;
   }
   
   if (options.sensorIds && options.sensorIds.length > 0) {
@@ -297,7 +297,7 @@ export async function querySensorReadings(options: QueryOptions): Promise<Sensor
   
   return rows.map(row => ({
     sensorId: row.sensor_id,
-    nodeId: row.device_id,
+    deviceCode: row.device_id,
     metricName: row.metric_name,
     value: row.value,
     unit: row.unit,
@@ -345,9 +345,9 @@ export async function queryAggregatedData(options: ClickHouseAggregationOptions)
     params.endTime = et.toISOString().replace('T', ' ').replace('Z', '');
   }
   
-  if (options.nodeIds && options.nodeIds.length > 0) {
-    query += ` AND device_id IN ({nodeIds:Array(String)})`;
-    params.nodeIds = options.nodeIds;
+  if (options.deviceCodes && options.deviceCodes.length > 0) {
+    query += ` AND device_id IN ({deviceCodes:Array(String)})`;
+    params.deviceCodes = options.deviceCodes;
   }
   
   if (options.sensorIds && options.sensorIds.length > 0) {
@@ -426,9 +426,9 @@ export async function queryAnomalies(options: QueryOptions & { severity?: string
     params.endTime = et.toISOString().replace('T', ' ').replace('Z', '');
   }
   
-  if (options.nodeIds && options.nodeIds.length > 0) {
-    query += ` AND device_id IN ({nodeIds:Array(String)})`;
-    params.nodeIds = options.nodeIds;
+  if (options.deviceCodes && options.deviceCodes.length > 0) {
+    query += ` AND device_id IN ({deviceCodes:Array(String)})`;
+    params.deviceCodes = options.deviceCodes;
   }
   
   if (options.severity && options.severity.length > 0) {

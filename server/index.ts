@@ -33,7 +33,7 @@ async function startServer() {
     res.sendFile(path.join(staticPath, "index.html"));
   });
 
-  const port = config.server.port;
+  const port = config.app.port;
 
   server.listen(port, () => {
     log.debug(`Server running on http://localhost:${port}/`);

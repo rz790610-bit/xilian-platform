@@ -200,7 +200,7 @@ export class EnhancedDataPipelineService {
    */
   async listDAGs(): Promise<DataPipeline[]> {
     const dags = await airflowClient.listDAGs();
-    return dags.map((dag) => this.convertDAGToPipeline(dag));
+    return dags.map((dag: any) => this.convertDAGToPipeline(dag));
   }
 
   /**
@@ -234,7 +234,7 @@ export class EnhancedDataPipelineService {
    */
   async getDAGRuns(dagId: string, limit: number = 20): Promise<PipelineRun[]> {
     const runs = await airflowClient.listDAGRuns(dagId, limit);
-    return runs.map((run) => this.convertDAGRunToPipelineRun(dagId, run));
+    return runs.map((run: any) => this.convertDAGRunToPipelineRun(dagId, run));
   }
 
   /**
@@ -250,7 +250,7 @@ export class EnhancedDataPipelineService {
    */
   async getTaskInstances(dagId: string, dagRunId: string): Promise<PipelineTask[]> {
     const instances = await airflowClient.listTaskInstances(dagId, dagRunId);
-    return instances.map((instance) => this.convertTaskInstanceToPipelineTask(dagId, instance));
+    return instances.map((instance: any) => this.convertTaskInstanceToPipelineTask(dagId, instance));
   }
 
   /**
@@ -413,7 +413,7 @@ export class EnhancedDataPipelineService {
     // 从每个 DAG 获取最近运行
     for (const dag of dags.slice(0, 5)) {
       const runs = await airflowClient.listDAGRuns(dag.dag_id, 5);
-      allRuns.push(...runs.map((run) => this.convertDAGRunToPipelineRun(dag.dag_id, run)));
+      allRuns.push(...runs.map((run: any) => this.convertDAGRunToPipelineRun(dag.dag_id, run)));
     }
 
     // 按时间排序并限制数量

@@ -63,7 +63,6 @@ export type DeviceStatus =
  */
 export interface DeviceFullInfo {
   id: number;
-  nodeId: string;
   /** 设备树节点ID（权威标识） */
   nodeId: string;
   /** 设备编码（可由编码规则生成） */

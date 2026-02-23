@@ -234,7 +234,7 @@ export class AnomalyDetector {
 
     try {
       const reading: SensorReading = JSON.parse(message.value);
-      const key = `${reading.nodeId}:${reading.sensorId}:${reading.metricName}`;
+      const key = `${reading.deviceCode}:${reading.sensorId}:${reading.metricName}`;
 
       // 添加到窗口
       this.windowState.add(key, reading, Number(reading.timestamp));
@@ -257,7 +257,7 @@ export class AnomalyDetector {
 
     const values = window.data.map(r => r.value);
     const result: AnomalyResult = {
-      nodeId: reading.nodeId,
+      nodeId: reading.deviceCode,
       sensorId: reading.sensorId,
       metricName: reading.metricName,
       value: reading.value,
@@ -349,7 +349,7 @@ export class AnomalyDetector {
    * 手动推送数据点（用于测试）
    */
   async pushReading(reading: SensorReading): Promise<AnomalyResult | null> {
-    const key = `${reading.nodeId}:${reading.sensorId}:${reading.metricName}`;
+    const key = `${reading.deviceCode}:${reading.sensorId}:${reading.metricName}`;
     this.windowState.add(key, reading, Number(reading.timestamp));
     
     const result = this.detectAnomaly(key, reading);
@@ -476,7 +476,7 @@ export class MetricsAggregator {
 
     try {
       const reading: SensorReading = JSON.parse(message.value);
-      const key = `${reading.nodeId}:${reading.sensorId}:${reading.metricName}`;
+      const key = `${reading.deviceCode}:${reading.sensorId}:${reading.metricName}`;
 
       // 添加到两个窗口
       this.window1m.add(key, reading, Number(reading.timestamp));
@@ -601,7 +601,7 @@ export class MetricsAggregator {
    * 手动推送数据点（用于测试）
    */
   pushReading(reading: SensorReading): void {
-    const key = `${reading.nodeId}:${reading.sensorId}:${reading.metricName}`;
+    const key = `${reading.deviceCode}:${reading.sensorId}:${reading.metricName}`;
     this.window1m.add(key, reading, Number(reading.timestamp));
     this.window1h.add(key, reading, Number(reading.timestamp));
   }

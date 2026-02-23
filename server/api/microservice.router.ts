@@ -250,10 +250,10 @@ export const microserviceRouter = router({
     }))
     .mutation(async ({ input }) => {
       if (input.action === 'open') {
-        const ok = circuitBreakerRegistry.forceOpen(input.name);
+        const ok = circuitBreakerRegistry.forceOpen(input.name, 'admin');
         return { success: ok, message: ok ? `断路器 ${input.name} 已强制打开` : `断路器 ${input.name} 不存在` };
       } else {
-        const ok = circuitBreakerRegistry.forceClose(input.name);
+        const ok = circuitBreakerRegistry.forceClose(input.name, 'admin');
         return { success: ok, message: ok ? `断路器 ${input.name} 已强制关闭` : `断路器 ${input.name} 不存在` };
       }
     }),

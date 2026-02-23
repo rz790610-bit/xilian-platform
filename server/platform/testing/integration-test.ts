@@ -88,45 +88,44 @@ export async function runIntegrationTests(): Promise<void> {
   // ─────────────────────────────────────────────────────────────────────────
 
   runner.test('Schema Registry: 注册和验证事件', async () => {
-    // 验证 Schema Registry 能正确注册和校验事件
-    const { EventSchemaRegistry } = await import('../contracts/event-schema-registry');
-    const registry = EventSchemaRegistry.getInstance();
+    // eventSchemaRegistry 是模块级单例实例
+    const { eventSchemaRegistry } = await import('../contracts/event-schema-registry');
 
-    // 注册内置 schemas
+    // registerBuiltinSchemas() 不接受参数，内部使用模块级 eventSchemaRegistry
     const { registerBuiltinSchemas } = await import('../contracts/builtin-schemas');
-    registerBuiltinSchemas(registry);
+    registerBuiltinSchemas();
 
-    const schemas = registry.listSchemas();
-    assert(schemas.length > 0, 'Should have registered schemas');
+    // listEvents 而非 listSchemas
+    const events = eventSchemaRegistry.listEvents();
+    assert(events.length > 0, 'Should have registered events');
   });
 
   runner.test('Physics Formulas: 风载力矩计算', async () => {
     const { PhysicsEngine } = await import('../contracts/physics-formulas');
-    const formulas = new PhysicsEngine();
+    const engine = new PhysicsEngine();
 
-    const result = formulas.windLoadMoment({ airDensity: 1.225, windSpeed: 10, area: 120, height: 45 });
-    assert(result > 0, 'Wind load moment should be positive');
-    // M = 0.5 * 1.225 * 100 * 120 * 22.5 = 165,375 N·m
-    assertApprox(result, 165375, 1000, 'Wind load moment calculation');
+    // compute(formulaId, variables) → PhysicsFormulaResult
+    const res = engine.compute('wind_load_moment', { rho: 1.225, v: 10, A: 120, h: 45 });
+    assert(res.result > 0, 'Wind load moment should be positive');
+    assertApprox(res.result, 165375, 1000, 'Wind load moment calculation');
   });
 
   runner.test('Physics Formulas: 疲劳增量计算', async () => {
     const { PhysicsEngine } = await import('../contracts/physics-formulas');
-    const formulas = new PhysicsEngine();
+    const engine = new PhysicsEngine();
 
-    const result = formulas.fatigueStressIncrement({ stressConcentrationFactor: 2.5, moment: 100000, sectionModulus: 0.05 });
-    assert(result > 0, 'Fatigue increment should be positive');
-    // Δσ = 2.5 * 100000 / 0.05 = 5,000,000 Pa = 5 MPa
-    assertApprox(result, 5000000, 100, 'Fatigue increment calculation');
+    const res = engine.compute('fatigue_increment', { k: 2.5, M: 100000, W: 0.05 });
+    assert(res.result > 0, 'Fatigue increment should be positive');
+    assertApprox(res.result, 5000000, 100, 'Fatigue increment calculation');
   });
 
   runner.test('Physics Formulas: 腐蚀速率计算', async () => {
     const { PhysicsEngine } = await import('../contracts/physics-formulas');
-    const formulas = new PhysicsEngine();
+    const engine = new PhysicsEngine();
 
-    const result = formulas.corrosionRate({ rateConstant: 0.5, chlorideConcentration: 0.8, humidity: 0.1 });
-    assert(result > 0, 'Corrosion rate should be positive');
-    assertApprox(result, 0.04, 0.01, 'Corrosion rate calculation');
+    const res = engine.compute('corrosion_rate', { k: 0.5, cl: 0.8, humidity: 0.1 });
+    assert(res.result > 0, 'Corrosion rate should be positive');
+    assertApprox(res.result, 0.04, 0.01, 'Corrosion rate calculation');
   });
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -135,76 +134,118 @@ export async function runIntegrationTests(): Promise<void> {
 
   runner.test('RingBuffer: 写入和读取', async () => {
     const { RingBuffer } = await import('../perception/collection/ring-buffer');
-    const buffer = new RingBuffer(1024);
+    const buffer = new RingBuffer({ bufferSize: 8192 });
 
     buffer.write(42.0);
     buffer.write(43.0);
     buffer.write(44.0);
 
-    const data = buffer.readAll();
-    assert(data.length === 3, 'Should have 3 values');
+    assert(buffer.size === 3, 'Should have 3 values');
+    // readBatch 批量读取
+    const data = buffer.readBatch(3);
+    assert(data.length === 3, 'Should read 3 values');
     assertApprox(data[0], 42.0, 0.001, 'First value');
     assertApprox(data[2], 44.0, 0.001, 'Third value');
   });
 
   runner.test('RingBuffer: 环形覆盖', async () => {
     const { RingBuffer } = await import('../perception/collection/ring-buffer');
-    const buffer = new RingBuffer(4); // 只能存 4 个值
+    // bufferSize=32, itemSize=8 → capacity=4
+    const buffer = new RingBuffer({ bufferSize: 32, itemSize: 8 });
 
     for (let i = 0; i < 10; i++) {
       buffer.write(i);
     }
 
-    const data = buffer.readAll();
-    assert(data.length === 4, 'Should have 4 values after overflow');
+    // 环形覆盖后，size 应为 capacity=4
+    assert(buffer.size === 4, 'Should have 4 values after overflow');
   });
 
-  runner.test('AdaptiveSampler: 工况自适应', async () => {
-    const { AdaptiveSampler } = await import('../perception/collection/adaptive-sampler');
-    const sampler = new AdaptiveSampler();
+  runner.test('AdaptiveSamplingEngine: 工况自适应', async () => {
+    // 实际导出名是 AdaptiveSamplingEngine，不是 AdaptiveSampler
+    const { AdaptiveSamplingEngine } = await import('../perception/collection/adaptive-sampler');
+    const engine = new AdaptiveSamplingEngine();
 
-    // 联动阶段应该高频
-    const config1 = sampler.getConfig('interlocking');
-    assert(config1.sampleRate >= 1000, 'Interlocking should be high frequency');
+    // 获取所有预配置的采样策略
+    const profiles = engine.getAllProfiles();
+    assert(profiles.length > 0, 'Should have default profiles');
 
-    // 空载阶段应该低频
-    const config2 = sampler.getConfig('idle');
-    assert(config2.sampleRate <= 100, 'Idle should be low frequency');
+    // 切换到 hoisting 阶段（高频）
+    engine.switchPhase('hoisting');
+    const hoistingProfile = engine.getCurrentProfile();
+    assert(hoistingProfile !== undefined, 'Should have hoisting profile');
+    assert(hoistingProfile!.baseSamplingRate >= 100, 'Hoisting should have high base rate');
+
+    // 切换到 idle 阶段（低频）
+    engine.switchPhase('idle');
+    const idleProfile = engine.getCurrentProfile();
+    assert(idleProfile !== undefined, 'Should have idle profile');
+    assert(idleProfile!.baseSamplingRate <= 10, 'Idle should have low base rate');
   });
 
   runner.test('DS Fusion: 证据融合', async () => {
     const { DSFusionEngine } = await import('../perception/fusion/ds-fusion-engine');
-    const engine = new DSFusionEngine();
+    // constructor 需要 hypotheses: string[]
+    const engine = new DSFusionEngine(['normal', 'abnormal', 'uncertain']);
 
-    const result = engine.fuse([
-      { sourceId: 'vibration', masses: { normal: 0.3, abnormal: 0.6, uncertain: 0.1 } },
-      { sourceId: 'temperature', masses: { normal: 0.2, abnormal: 0.7, uncertain: 0.1 } },
-    ]);
+    // BPA 接口要求 masses 是 Map<string, number>
+    const bpa1 = {
+      masses: new Map([['normal', 0.3], ['abnormal', 0.6], ['uncertain', 0.1]]),
+      sourceName: 'vibration',
+      weight: 1.0,
+      reliability: 0.9,
+      timestamp: Date.now(),
+    };
+    const bpa2 = {
+      masses: new Map([['normal', 0.2], ['abnormal', 0.7], ['uncertain', 0.1]]),
+      sourceName: 'temperature',
+      weight: 1.0,
+      reliability: 0.9,
+      timestamp: Date.now(),
+    };
 
-    assert(result.fusedMass['abnormal'] > 0.5, 'Fused abnormal mass should be high');
-    assert(result.conflict < 1, 'Conflict should be < 1');
+    const result = engine.fuse([bpa1, bpa2]);
+
+    // FusionResult 有 fusedBPA (Map) 和 conflictFactor (number)
+    const abnormalBelief = result.fusedBPA.get('abnormal') || 0;
+    assert(abnormalBelief > 0.5, 'Fused abnormal mass should be high');
+    assert(result.conflictFactor < 1, 'Conflict factor should be < 1');
   });
 
   runner.test('StateVectorEncoder: 编码', async () => {
     const { StateVectorEncoder } = await import('../perception/encoding/state-vector-encoder');
     const encoder = new StateVectorEncoder();
 
+    // EncoderInput 需要完整的结构化输入
     const vector = encoder.encode({
-      vibrationRms: 2.5,
-      motorCurrent: 70,
-      windSpeed: 8,
-      bearingTemp: 55,
-      loadWeight: 30,
-      loadEccentricity: 0.2,
+      machineId: 'test_crane_01',
       cyclePhase: 'hoisting',
-      motorRpm: 1200,
-      humidity: 0.7,
-      chlorideConc: 0.3,
-      structuralStress: 80,
+      conditionProfileId: 0,
+      sensorFeatures: {},
+      environmentalData: {
+        windSpeed: 8,
+        humidity: 0.7,
+        chlorideConcentration: 0.3,
+      },
+      operationalData: {
+        motorCurrent: 70,
+        loadWeight: 30,
+        loadEccentricity: 0.2,
+        motorRpm: 1200,
+      },
+      cumulativeData: {
+        fatigueAccumPercent: 25,
+        corrosionIndex: 0.15,
+        totalCycles: 50000,
+        lastMaintenanceTime: Date.now() - 86400000,
+      },
     });
 
-    assert(vector.length === 21, 'State vector should have 21 dimensions');
-    assert(vector.every(v => !isNaN(v)), 'All values should be numbers');
+    // UnifiedStateVector 是对象，用 toNumericArray 转为数组
+    assert(vector.machineId === 'test_crane_01', 'Machine ID should match');
+    const numericArray = encoder.toNumericArray(vector);
+    assert(numericArray.length === 21, 'Numeric array should have 21 dimensions');
+    assert(numericArray.every((v: number) => !isNaN(v)), 'All values should be numbers');
   });
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -215,46 +256,53 @@ export async function runIntegrationTests(): Promise<void> {
     const { WorldModel } = await import('../cognition/worldmodel/world-model');
     const model = new WorldModel();
 
-    const prediction = model.predict({
-      currentState: { windSpeed: 10, fatigueAccum: 30, bearingTemp: 50 },
-      horizonSteps: 5,
-      timeStepSeconds: 60,
-    });
+    // predict(currentState: StateVector, horizon?: number)
+    // StateVector = { timestamp: number, values: Record<string, number> }
+    const prediction = model.predict(
+      { timestamp: Date.now(), values: { windSpeed: 10, fatigueAccum: 30, bearingTemp: 50 } },
+      5
+    );
 
-    assert(prediction.trajectory.length === 5, 'Should predict 5 steps');
-    assert(prediction.confidence > 0, 'Confidence should be positive');
+    assert(prediction.trajectory.length === 6, 'Should have 6 trajectory points (initial + 5 steps)');
+    // PredictionResult 有 confidences 数组，不是 confidence 单值
+    assert(prediction.confidences.length > 0, 'Should have confidence values');
+    assert(prediction.confidences[0] > 0, 'First confidence should be positive');
   });
 
   runner.test('WorldModel: 反事实推理', async () => {
     const { WorldModel } = await import('../cognition/worldmodel/world-model');
     const model = new WorldModel();
 
-    const result = model.counterfactual({
-      baseState: { windSpeed: 12, fatigueAccum: 40 },
-      intervention: { windSpeed: 6 },
-      horizonSteps: 3,
-    });
+    // counterfactual(currentState: StateVector, parameterChanges: Record<string, number>, horizon?: number)
+    const result = model.counterfactual(
+      { timestamp: Date.now(), values: { windSpeed: 12, fatigueAccum: 40 } },
+      { windSpeed: 6 },
+      3
+    );
 
-    assert(result.baseTrajectory.length === 3, 'Base trajectory should have 3 steps');
-    assert(result.counterfactualTrajectory.length === 3, 'CF trajectory should have 3 steps');
+    // CounterfactualResult 有 baseline 和 counterfactual (PredictionResult)
+    assert(result.baseline.trajectory.length >= 3, 'Baseline trajectory should have >= 3 points');
+    assert(result.counterfactual.trajectory.length >= 3, 'CF trajectory should have >= 3 points');
   });
 
   runner.test('FusionDiagnosis: 四维诊断', async () => {
     const { FusionDiagnosisService } = await import('../cognition/diagnosis/fusion-diagnosis.service');
     const service = new FusionDiagnosisService();
 
-    const report = await service.diagnose({
-      machineId: 'test_crane_01',
-      stateVector: new Array(21).fill(0.5),
-      rawData: {
+    // diagnose(machineId: string, stateValues: Record<string, number>, cyclePhase: string)
+    const report = await service.diagnose(
+      'test_crane_01',
+      {
         vibrationRms: 2.5, motorCurrent: 70, windSpeed: 8,
         bearingTemp: 55, loadWeight: 30, loadEccentricity: 0.2,
       },
-    });
+      'hoisting'
+    );
 
-    assert(report.safetyScore >= 0 && report.safetyScore <= 1, 'Safety score in [0,1]');
-    assert(report.healthScore >= 0 && report.healthScore <= 1, 'Health score in [0,1]');
-    assert(report.efficiencyScore >= 0 && report.efficiencyScore <= 1, 'Efficiency score in [0,1]');
+    // DiagnosisReport 有 safety.score, health.score, efficiency.score
+    assert(report.safety.score >= 0 && report.safety.score <= 1, 'Safety score in [0,1]');
+    assert(report.health.score >= 0 && report.health.score <= 1, 'Health score in [0,1]');
+    assert(report.efficiency.score >= 0 && report.efficiency.score <= 1, 'Efficiency score in [0,1]');
     assert(report.recommendations.length > 0, 'Should have recommendations');
   });
 
@@ -264,39 +312,42 @@ export async function runIntegrationTests(): Promise<void> {
 
   runner.test('GuardrailEngine: 安全规则触发', async () => {
     const { GuardrailEngine } = await import('../cognition/safety/guardrail-engine');
+    const { FusionDiagnosisService } = await import('../cognition/diagnosis/fusion-diagnosis.service');
+
+    // GuardrailEngine constructor 自动加载默认规则，不需要 loadDefaultRules()
     const engine = new GuardrailEngine();
-    engine.loadDefaultRules();
+    const diagService = new FusionDiagnosisService();
 
-    const result = engine.evaluate({
-      windSpeed: 15, // 超过 13m/s 阈值
-      loadEccentricity: 0.1,
-      fatigueAccum: 20,
-      bearingTemp: 40,
-      safetyScore: 0.4,
-      healthScore: 0.8,
-      efficiencyScore: 0.7,
-    });
+    // 先生成一个高风速的诊断报告
+    const report = await diagService.diagnose(
+      'test_crane_01',
+      { windSpeed: 15, loadEccentricity: 0.1, fatigueAccum: 20, bearingTemp: 40 },
+      'hoisting'
+    );
 
-    assert(result.violations.length > 0, 'Should have violations for high wind');
-    assert(result.violations.some(v => v.category === 'safety'), 'Should have safety violation');
+    // evaluate(machineId: string, report: DiagnosisReport) → GuardrailTriggerEvent[]
+    const triggered = engine.evaluate('test_crane_01', report);
+
+    assert(triggered.length > 0, 'Should have triggered events for high wind');
+    assert(triggered.some(t => t.category === 'safety'), 'Should have safety trigger');
   });
 
   runner.test('GuardrailEngine: 正常运行无违规', async () => {
     const { GuardrailEngine } = await import('../cognition/safety/guardrail-engine');
+    const { FusionDiagnosisService } = await import('../cognition/diagnosis/fusion-diagnosis.service');
+
     const engine = new GuardrailEngine();
-    engine.loadDefaultRules();
+    const diagService = new FusionDiagnosisService();
 
-    const result = engine.evaluate({
-      windSpeed: 5,
-      loadEccentricity: 0.1,
-      fatigueAccum: 20,
-      bearingTemp: 40,
-      safetyScore: 0.95,
-      healthScore: 0.9,
-      efficiencyScore: 0.85,
-    });
+    const report = await diagService.diagnose(
+      'test_crane_01',
+      { windSpeed: 5, loadEccentricity: 0.1, fatigueAccum: 10, bearingTemp: 40 },
+      'idle'
+    );
 
-    assert(result.violations.length === 0, 'Should have no violations in normal conditions');
+    const triggered = engine.evaluate('test_crane_01', report);
+
+    assert(triggered.length === 0, 'Should have no triggers in normal conditions');
   });
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -377,34 +428,55 @@ export async function runIntegrationTests(): Promise<void> {
     const { ShadowEvaluator } = await import('../evolution/shadow/shadow-evaluator');
     const evaluator = new ShadowEvaluator();
 
-    const result = await evaluator.evaluate({
-      modelId: 'test_model',
-      historicalData: Array.from({ length: 100 }, (_, i) => ({
-        timestamp: Date.now() - (100 - i) * 60000,
-        actual: Math.random(),
-        features: { x: Math.random() },
-      })),
-      predictionFn: async (features: Record<string, number>) => features['x'] * 0.8 + 0.1,
-    });
+    // evaluate(challenger: ModelCandidate, champion: ModelCandidate | null, dataset: EvaluationDataPoint[])
+    const challenger = {
+      modelId: 'test_model_v2',
+      modelVersion: '2.0',
+      modelType: 'prediction' as const,
+      description: 'Test challenger model',
+      parameters: {},
+      createdAt: Date.now(),
+      predict: async (input: Record<string, number>) => ({ predicted: (input['x'] || 0) * 0.8 + 0.1 }),
+    };
 
-    assert(result.metrics.mae >= 0, 'MAE should be non-negative');
-    assert(result.sampleCount === 100, 'Should evaluate 100 samples');
+    const dataset = Array.from({ length: 100 }, (_, i) => ({
+      timestamp: Date.now() - (100 - i) * 60000,
+      input: { x: Math.random() },
+      actualOutput: { predicted: Math.random() },
+    }));
+
+    const report = await evaluator.evaluate(challenger, null, dataset);
+
+    // ShadowEvaluationReport 有 challengerMetrics.accuracy.mae 等
+    assert(report.challengerMetrics.accuracy.mae >= 0, 'MAE should be non-negative');
+    assert(report.verdict !== undefined, 'Should have a verdict');
   });
 
   runner.test('KnowledgeCrystallizer: 模式发现', async () => {
     const { KnowledgeCrystallizer } = await import('../evolution/crystallization/knowledge-crystallizer');
     const crystallizer = new KnowledgeCrystallizer();
 
-    const patterns = await crystallizer.discover({
-      data: Array.from({ length: 50 }, () => ({
+    // discoverPatterns(history: DiagnosisHistoryEntry[])
+    const history = Array.from({ length: 50 }, (_, i) => ({
+      reportId: `report_${i}`,
+      machineId: 'crane_01',
+      timestamp: Date.now() - (50 - i) * 3600000,
+      cyclePhase: 'hoisting',
+      safetyScore: 0.7 + Math.random() * 0.2,
+      healthScore: 0.6 + Math.random() * 0.3,
+      efficiencyScore: 0.5 + Math.random() * 0.3,
+      overallScore: 70 + Math.random() * 20,
+      riskLevel: 'caution',
+      keyMetrics: {
         windSpeed: 8 + Math.random() * 4,
         fatigueIncrement: 0.3 + Math.random() * 0.2,
-        timestamp: Date.now(),
-      })),
-      minSupport: 0.3,
-      minConfidence: 0.5,
-    });
+        bearingTemp: 50 + Math.random() * 15,
+        loadEccentricity: 0.1 + Math.random() * 0.3,
+      },
+      recommendations: [{ priority: 'P2', action: '关注风速变化' }],
+    }));
 
+    const patterns = crystallizer.discoverPatterns(history);
     assert(Array.isArray(patterns), 'Should return array of patterns');
   });
 

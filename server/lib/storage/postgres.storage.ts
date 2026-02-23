@@ -420,23 +420,23 @@ export class PostgresStorage {
   /**
    * 创建维护日志
    */
-  async createMaintenanceLog(log: MaintenanceLogRecord): Promise<MaintenanceLogRecord | null> {
+  async createMaintenanceLog(record: MaintenanceLogRecord): Promise<MaintenanceLogRecord | null> {
     const db = await getDb();
     if (!db) return null;
 
     try {
       const result = await db.insert(deviceMaintenanceRecords).values({
         recordId: `MR-${Date.now()}`,
-        nodeId: log.nodeId,
-        maintenanceType: log.maintenanceType as any,
-        title: log.description.substring(0, 200),
-        description: log.description,
-        performedBy: log.technician,
-        startedAt: log.startTime,
-        completedAt: log.endTime,
-        cost: log.cost,
-        status: log.result === 'success' ? 'completed' : (log.result === 'failed' ? 'cancelled' : 'in_progress') as any,
-        findings: log.notes,
+        nodeId: record.nodeId,
+        maintenanceType: record.maintenanceType as any,
+        title: record.description.substring(0, 200),
+        description: record.description,
+        performedBy: record.technician,
+        startedAt: record.startTime,
+        completedAt: record.endTime,
+        cost: record.cost,
+        status: record.result === 'success' ? 'completed' : (record.result === 'failed' ? 'cancelled' : 'in_progress') as any,
+        findings: record.notes,
       }).$returningId();
 
       if (result[0]) {

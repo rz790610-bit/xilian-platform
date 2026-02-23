@@ -62,7 +62,6 @@ interface AnomalyResult {
   timestamp: number;
   /** 设备编码，关联 asset_nodes.code */
   deviceCode: string;
-  nodeId?: string;
   /** 设备树节点ID（用于写入 anomaly_detections 表） */
   nodeId?: string;
   sensorId: string;
@@ -341,7 +340,7 @@ export class KafkaStreamProcessor {
 
     // 发送异常事件到 Kafka
     try {
-      await kafkaClient.produce(KAFKA_TOPICS.ANOMALIES, [{
+      await kafkaClient.produce(KAFKA_TOPICS.ANOMALY_RESULTS, [{
         key: `${result.deviceCode}:${result.sensorId}`,
         value: JSON.stringify({
           type: 'ANOMALY_DETECTED',
@@ -435,7 +434,7 @@ export class KafkaStreamProcessor {
 
       // 发送聚合事件到 Kafka
       try {
-        await kafkaClient.produce(KAFKA_TOPICS.AGGREGATIONS, [{
+        await kafkaClient.produce(KAFKA_TOPICS.AGGREGATIONS_1M, [{
           key: key,
           value: JSON.stringify(aggregation),
           timestamp: Date.now().toString(),
@@ -525,7 +524,6 @@ export class KafkaStreamProcessor {
    */
   async queryAnomalies(options: {
     /** 设备树节点ID（优先） */
-    nodeId?: string;
     nodeId?: string;
     sensorId?: string;
     severity?: string;

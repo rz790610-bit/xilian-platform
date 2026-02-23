@@ -99,7 +99,7 @@ export function useAutoSave<T>(
 ): { lastSaved: Date | null; isSaving: boolean } {
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const timeoutRef = useRef<ReturnType<typeof setTimeout>>();
+  const timeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   useEffect(() => {
     setIsSaving(true);

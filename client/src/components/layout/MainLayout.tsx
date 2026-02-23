@@ -3,9 +3,10 @@ import { useAppStore } from '@/stores/appStore';
 import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
 
-interface MainLayoutProps {
+export interface MainLayoutProps {
   children: React.ReactNode;
   title?: string;
+  subtitle?: string;
 }
 
 export function MainLayout({ children, title }: MainLayoutProps) {

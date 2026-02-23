@@ -155,31 +155,31 @@ class Logger {
     });
   }
 
-  trace(data: Record<string, unknown> | string, message?: string): void {
+  trace(data: Record<string, unknown> | string, message?: string | unknown): void {
     this.log('trace', data, message);
   }
 
-  debug(data: Record<string, unknown> | string, message?: string): void {
+  debug(data: Record<string, unknown> | string, message?: string | unknown): void {
     this.log('debug', data, message);
   }
 
-  info(data: Record<string, unknown> | string, message?: string): void {
+  info(data: Record<string, unknown> | string, message?: string | unknown): void {
     this.log('info', data, message);
   }
 
-  warn(data: Record<string, unknown> | string, message?: string): void {
+  warn(data: Record<string, unknown> | string, message?: string | unknown): void {
     this.log('warn', data, message);
   }
 
-  error(data: Record<string, unknown> | string, message?: string): void {
+  error(data: Record<string, unknown> | string, message?: string | unknown): void {
     this.log('error', data, message);
   }
 
-  fatal(data: Record<string, unknown> | string, message?: string): void {
+  fatal(data: Record<string, unknown> | string, message?: string | unknown): void {
     this.log('fatal', data, message);
   }
 
-  private log(level: LogLevel, data: Record<string, unknown> | string, message?: string): void {
+  private log(level: LogLevel, data: Record<string, unknown> | string, message?: string | unknown): void {
     if (LOG_LEVELS[level] < this.effectiveLevel) return;
 
     const timestamp = new Date().toISOString();
@@ -188,8 +188,12 @@ class Logger {
 
     if (typeof data === 'string') {
       msg = data;
+      // 当第二参数是非字符串值（如 Error 对象），将其附加到 extra
+      if (message !== undefined && typeof message !== 'string') {
+        extra = { err: message instanceof Error ? { message: message.message, stack: message.stack } : message };
+      }
     } else {
-      msg = message || '';
+      msg = typeof message === 'string' ? message : (message !== undefined ? String(message) : '');
       extra = data;
     }
 

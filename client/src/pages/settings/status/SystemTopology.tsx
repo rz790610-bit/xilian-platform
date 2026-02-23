@@ -12,14 +12,13 @@ import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
 import { trpc } from '@/lib/trpc';
 import { useToast } from '@/components/common/Toast';
-import { 
-import { createLogger } from '@/lib/logger';
-const log = createLogger('SystemTopology');
-
+import {
   Plus, Trash2, RefreshCw, Save, Download, Upload, 
   ZoomIn, ZoomOut, Maximize2, Move, Link2, Unlink,
   Settings2, Activity, Server, Database, Cpu, Network
 } from 'lucide-react';
+import { createLogger } from '@/lib/logger';
+const log = createLogger('SystemTopology');
 
 // 节点类型定义
 interface TopoNode {

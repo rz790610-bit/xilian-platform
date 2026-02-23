@@ -64,7 +64,7 @@ export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
       _pool = createPool();
-      _db = createTracedDb(drizzle(_pool));
+      _db = createTracedDb(drizzle(_pool)) as any;
       startPoolHealthCheck(_pool);
       log.info({
         connectionLimit: parseInt(process.env.DB_POOL_MAX || '50', 10),

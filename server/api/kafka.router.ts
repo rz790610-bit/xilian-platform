@@ -357,7 +357,7 @@ export const kafkaRouter = router({
       const result = await kafkaStreamProcessor.pushDataPoint({
         timestamp: Date.now(),
         value: input.value,
-        nodeId: input.nodeId,
+        deviceCode: input.nodeId, // nodeId as deviceCode
         sensorId: input.sensorId,
         metricName: input.metricName,
       });

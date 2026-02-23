@@ -10,9 +10,9 @@
  *
  * 支持的操作：
  *   - fft / ifft / stft
- *   - amplitudeSpectrum / powerSpectrum
- *   - filter (lowpass/highpass/bandpass/bandstop)
- *   - hilbertTransform / envelopeAnalysis
+ *   - amplitudeSpectrum / powerSpectralDensity
+ *   - filter (butterworth lowpass/highpass/bandpass + applyFilter)
+ *   - hilbertTransform / envelope
  *   - crossCorrelation / autocorrelation
  *   - 统计函数 (rms, crestFactor, kurtosis, etc.)
  *   - evaluateVibrationSeverity
@@ -40,11 +40,13 @@ operations.set('fft', (p) => {
 });
 
 operations.set('ifft', (p) => {
-  return dsp.ifft(p.real, p.imag);
+  // ifft 接受 Complex[] 单参数
+  return dsp.ifft(p.spectrum);
 });
 
 operations.set('stft', (p) => {
-  return dsp.stft(p.signal, p.windowSize, p.hopSize, p.sampleRate);
+  // stft(signal, sampleRate, windowSize?, hopSize?)
+  return dsp.stft(p.signal, p.sampleRate, p.windowSize, p.hopSize);
 });
 
 operations.set('amplitudeSpectrum', (p) => {
@@ -52,7 +54,8 @@ operations.set('amplitudeSpectrum', (p) => {
 });
 
 operations.set('powerSpectrum', (p) => {
-  return dsp.powerSpectrum(p.signal, p.sampleRate);
+  // 实际函数名是 powerSpectralDensity
+  return dsp.powerSpectralDensity(p.signal, p.sampleRate);
 });
 
 // --- 窗函数 ---
@@ -63,36 +66,51 @@ operations.set('flatTopWindow', (p) => dsp.flatTopWindow(p.length));
 operations.set('kaiserWindow', (p) => dsp.kaiserWindow(p.length, p.beta));
 
 // --- 滤波器 ---
+// dsp 模块提供 butterworthLowpass/butterworthHighpass/butterworthBandpass → FilterCoefficients
+// 然后通过 applyFilter(signal, coeffs) 或 filtfilt(signal, coeffs) 应用
 operations.set('filter', (p) => {
-  const { signal, sampleRate, type, cutoff, cutoffLow, cutoffHigh, order } = p;
+  const { signal, sampleRate, type, cutoff, cutoffLow, cutoffHigh, order = 4 } = p;
+  let coeffs: dsp.FilterCoefficients;
   switch (type) {
     case 'lowpass':
-      return dsp.lowpassFilter(signal, cutoff, sampleRate, order);
+      coeffs = dsp.butterworthLowpass(order, cutoff, sampleRate);
+      break;
     case 'highpass':
-      return dsp.highpassFilter(signal, cutoff, sampleRate, order);
+      coeffs = dsp.butterworthHighpass(order, cutoff, sampleRate);
+      break;
     case 'bandpass':
-      return dsp.bandpassFilter(signal, cutoffLow, cutoffHigh, sampleRate, order);
+      coeffs = dsp.butterworthBandpass(order, cutoffLow, cutoffHigh, sampleRate);
+      break;
     case 'bandstop':
-      return dsp.bandstopFilter(signal, cutoffLow, cutoffHigh, sampleRate, order);
+      // 带阻 = 原始信号 - 带通
+      coeffs = dsp.butterworthBandpass(order, cutoffLow, cutoffHigh, sampleRate);
+      const bandpassed = dsp.filtfilt(signal, coeffs);
+      return signal.map((v: number, i: number) => v - bandpassed[i]);
     default:
       throw new Error(`Unknown filter type: ${type}`);
   }
+  return dsp.filtfilt(signal, coeffs);
 });
 
 operations.set('lowpassFilter', (p) => {
-  return dsp.lowpassFilter(p.signal, p.cutoff, p.sampleRate, p.order);
+  const coeffs = dsp.butterworthLowpass(p.order || 4, p.cutoff, p.sampleRate);
+  return dsp.filtfilt(p.signal, coeffs);
 });
 
 operations.set('highpassFilter', (p) => {
-  return dsp.highpassFilter(p.signal, p.cutoff, p.sampleRate, p.order);
+  const coeffs = dsp.butterworthHighpass(p.order || 4, p.cutoff, p.sampleRate);
+  return dsp.filtfilt(p.signal, coeffs);
 });
 
 operations.set('bandpassFilter', (p) => {
-  return dsp.bandpassFilter(p.signal, p.cutoffLow, p.cutoffHigh, p.sampleRate, p.order);
+  const coeffs = dsp.butterworthBandpass(p.order || 4, p.cutoffLow, p.cutoffHigh, p.sampleRate);
+  return dsp.filtfilt(p.signal, coeffs);
 });
 
 operations.set('bandstopFilter', (p) => {
-  return dsp.bandstopFilter(p.signal, p.cutoffLow, p.cutoffHigh, p.sampleRate, p.order);
+  const coeffs = dsp.butterworthBandpass(p.order || 4, p.cutoffLow, p.cutoffHigh, p.sampleRate);
+  const bandpassed = dsp.filtfilt(p.signal, coeffs);
+  return p.signal.map((v: number, i: number) => v - bandpassed[i]);
 });
 
 // --- 包络分析 ---
@@ -101,7 +119,8 @@ operations.set('hilbertTransform', (p) => {
 });
 
 operations.set('envelopeAnalysis', (p) => {
-  return dsp.envelopeAnalysis(p.signal, p.sampleRate);
+  // 实际函数名是 envelope
+  return dsp.envelope(p.signal);
 });
 
 // --- 相关性 ---

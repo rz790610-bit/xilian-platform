@@ -261,7 +261,12 @@ export const infrastructureRouter = router({
         networks: (await infrastructureService.getNetworks()).length,
       };
     } catch {
-      return await infrastructureService.getInfrastructureSummary();
+      // 降级：返回与 try 分支相同的结构，避免联合类型问题
+      return {
+        docker: { connected: false, containers: 0, running: 0, images: 0, volumes: 0 },
+        secrets: { total: 0, configured: 0, categories: 0 },
+        networks: 0,
+      };
     }
   }),
 });

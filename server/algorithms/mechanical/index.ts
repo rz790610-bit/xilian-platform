@@ -1034,7 +1034,7 @@ function envButterworthBandpass(
     envReverse(forward);
     const backward = envApplyBiquad(forward, nb0, nb1, nb2, na1, na2);
     envReverse(backward);
-    data = backward;
+    data = backward as Float64Array<ArrayBuffer>;
   }
   return data;
 }
@@ -1339,7 +1339,7 @@ export class EnvelopeDemodAnalyzer implements IAlgorithmExecutor {
         step: stepCounter.v++,
         operation: 'bearing_frequencies',
         finding: `BPFO=${faultFreqs.BPFO.toFixed(2)}Hz, BPFI=${faultFreqs.BPFI.toFixed(2)}Hz, BSF=${faultFreqs.BSF.toFixed(2)}Hz, FTF=${faultFreqs.FTF.toFixed(2)}Hz`,
-        evidence: faultFreqs,
+        evidence: faultFreqs as unknown as Record<string, unknown>,
         durationMs: 0,
       });
     }
@@ -1645,13 +1645,12 @@ export class EnvelopeDemodAnalyzer implements IAlgorithmExecutor {
       ...(kurtogramTop5.length > 0 ? [{
         type: 'bar' as const,
         title: '峨度图 Top5 频带',
-        xAxis: { label: '频带', unit: 'Hz' },
+        xAxis: { label: '频带', unit: 'Hz', data: kurtogramTop5.map(b => `${b.fLow.toFixed(0)}-${b.fHigh.toFixed(0)}Hz`) },
         yAxis: { label: '峨度值' },
         series: [{
           name: '峨度',
           data: kurtogramTop5.map(b => b.kurtosis),
           color: '#8b5cf6',
-          labels: kurtogramTop5.map(b => `${b.fLow.toFixed(0)}-${b.fHigh.toFixed(0)}Hz`),
         }],
       }] : []),
     ]);

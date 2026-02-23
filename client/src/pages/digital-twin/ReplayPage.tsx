@@ -291,7 +291,7 @@ export default function ReplayPage({ equipmentId }: { equipmentId: string }) {
     if (healthTimeline.length === 0) return {};
     return {
       playhead: {
-        type: 'line',
+        type: 'line' as const,
         xMin: playback.currentFrame,
         xMax: playback.currentFrame,
         borderColor: 'rgba(34, 197, 94, 0.9)',
@@ -425,7 +425,7 @@ export default function ReplayPage({ equipmentId }: { equipmentId: string }) {
                     legend: { display: false },
                     tooltip: { mode: 'index', intersect: false },
                     annotation: {
-                      annotations: { ...eventAnnotations, ...playheadAnnotation },
+                      annotations: { ...eventAnnotations, ...playheadAnnotation } as any,
                     },
                   },
                   scales: {
@@ -464,7 +464,7 @@ export default function ReplayPage({ equipmentId }: { equipmentId: string }) {
                           legend: { display: true, labels: { font: { size: 8 } } },
                           tooltip: { mode: 'index', intersect: false },
                           annotation: {
-                            annotations: playheadAnnotation,
+                            annotations: playheadAnnotation as any,
                           },
                         },
                         scales: {

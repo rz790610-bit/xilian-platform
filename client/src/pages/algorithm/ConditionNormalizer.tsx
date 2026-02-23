@@ -14,11 +14,10 @@
 import { useState, useCallback, useMemo } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import {
-import { createLogger } from '@/lib/logger';
-const log = createLogger('ConditionNormalizer');
-
   ConfigSection, ConfigSlider, ConfigInput, ConfigSelect, ConfigKV, ConfigActions, ApiDocBlock, ConfigRangeInput,
 } from '@/components/common/AlgorithmConfigPanel';
+import { createLogger } from '@/lib/logger';
+const log = createLogger('ConditionNormalizer');
 
 // ============================================================================
 // 类型定义
