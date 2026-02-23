@@ -703,5 +703,97 @@ export const knowledgeRouter = router({
   qdrantStatus: publicProcedure.query(async () => {
     const connected = await checkQdrantConnection();
     return { connected, url: QDRANT_URL };
+  }),
+
+  // RAG 多集合语义检索（跨集合搜索 + 按相似度排序）
+  ragSearch: publicProcedure
+    .input(z.object({
+      query: z.string(),
+      collectionIds: z.array(z.number()).optional(),
+      limit: z.number().default(3)
+    }))
+    .query(async ({ input }) => {
+      const collections = input.collectionIds
+        ? await Promise.all(input.collectionIds.map(id => getKbCollections().then(cols => cols.find(c => c.id === id))))
+        : await getKbCollections();
+
+      const validCollections = collections.filter(Boolean) as Array<{ id: number; name: string }>;
+      const allResults: Array<{ id: number; title: string; content: string; score: number; collectionName: string }> = [];
+
+      const queryVector = simpleEmbed(input.query);
+
+      for (const col of validCollections) {
+        try {
+          const qdrantResults = await searchQdrant(`kb_${col.id}`, queryVector, input.limit);
+          for (const r of qdrantResults) {
+            allResults.push({
+              id: r.id,
+              title: String(r.payload.title || ''),
+              content: String(r.payload.content || ''),
+              score: r.score,
+              collectionName: col.name
+            });
+          }
+        } catch (error) {
+          log.warn(`RAG search collection ${col.name} failed:`, error);
+        }
+      }
+
+      // 按相似度排序并取 top N
+      allResults.sort((a, b) => b.score - a.score);
+      const topResults = allResults.slice(0, input.limit);
+
+      // 格式化为上下文字符串
+      const context = topResults.map((r, i) =>
+        `【参考资料 ${i + 1}】${r.title}\n${r.content}\n---`
+      ).join('\n\n');
+
+      return { context, results: topResults };
+    }),
+
+  // 获取向量点（用于向量可视化管理）
+  getVectorPoints: publicProcedure
+    .input(z.object({
+      collectionName: z.string(),
+      limit: z.number().default(100)
+    }))
+    .query(async ({ input }) => {
+      try {
+        // 通过 Qdrant REST API 滚动获取点
+        const response = await fetch(`${QDRANT_URL}/collections/${input.collectionName}/points/scroll`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            limit: input.limit,
+            with_payload: true,
+            with_vector: true
+          })
+        });
+
+        if (!response.ok) return [];
+        const data = await response.json();
+        const points = data.result?.points || [];
+
+        return points.map((p: any) => ({
+          id: String(p.id),
+          vector: p.vector || [],
+          payload: p.payload || {}
+        }));
+      } catch (error) {
+        log.warn('Get vector points failed:', error);
+        return [];
+      }
+    }),
+
+  // 获取 Qdrant 集合列表（原生 Qdrant 集合名，用于向量管理）
+  qdrantCollections: publicProcedure.query(async () => {
+    try {
+      const response = await fetch(`${QDRANT_URL}/collections`);
+      if (!response.ok) return [];
+      const data = await response.json();
+      return (data.result?.collections || []).map((c: any) => ({ name: c.name }));
+    } catch {
+      return [];
+    }
   })
 });

@@ -17,7 +17,7 @@ import {
   ChevronRight, Download, Copy, CircleDot, AlertCircle
 } from 'lucide-react';
 import { trpc } from '@/lib/trpc';
-import * as qdrant from '@/services/qdrant';
+// qdrant 直连已迁移到 tRPC knowledge router
 import {
   vectorsToProjectedPoints,
   clusterProjectedPoints,
@@ -136,14 +136,15 @@ export default function VectorAdmin() {
     '泵故障': '#22c55e', 'default': '#3b82f6'
   };
 
-  // ━━━ 向量可视化（保留 Qdrant 直连，因后端不返回向量数据）━━━
+  // ━━━ 向量可视化（通过 tRPC knowledge.getVectorPoints）━━━
+  const utils = trpc.useUtils();
   const loadVectors = async (collectionName: string, method: ReductionMethod = reductionMethod) => {
     if (!collectionName) return;
     setLoadingVectors(true);
     setComputing(true);
     try {
-      const points = await qdrant.getAllVectorPoints(collectionName, 100);
-      const vectorPoints: VectorPoint[] = points.map((p, idx) => ({
+      const points = await utils.knowledge.getVectorPoints.fetch({ collectionName, limit: 100 });
+      const vectorPoints: VectorPoint[] = points.map((p: { id: string; vector: number[]; payload: Record<string, any> }, idx: number) => ({
         id: p.id || `point-${idx}`,
         vector: p.vector || [],
         payload: p.payload as Record<string, any>
@@ -153,7 +154,7 @@ export default function VectorAdmin() {
       let projected: ProjectedPoint[] = [];
       if (vectorPoints.length > 0 && vectorPoints[0].vector.length > 0) {
         projected = vectorsToProjectedPoints(
-          points.map(p => ({ id: p.id, vector: p.vector, payload: p.payload as Record<string, any> })),
+          points.map((p: { id: string; vector: number[]; payload: Record<string, any> }) => ({ id: p.id, vector: p.vector, payload: p.payload as Record<string, any> })),
           { method }
         );
         setProjectedPoints(projected);

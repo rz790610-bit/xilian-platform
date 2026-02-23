@@ -17,7 +17,7 @@ import {
   Paperclip, X, File, Database, FolderOpen
 } from 'lucide-react';
 import * as ollama from '@/services/ollama';
-import * as qdrant from '@/services/qdrant';
+// qdrant 直连已迁移到 tRPC knowledge router
 import { trpc } from '@/lib/trpc';
 import { parseDocument } from '@/services/documentParser';
 
@@ -130,6 +130,7 @@ const MODE_CONFIG = {
 
 export default function AIChat() {
   const toast = useToast();
+  const utils = trpc.useUtils();
   
   // 基础状态
   const [messages, setMessages] = useState<Message[]>([]);
@@ -236,14 +237,14 @@ export default function AIChat() {
   const checkQdrantStatus = async () => {
     setQdrantStatus('checking');
     try {
-      const isOnline = await qdrant.checkQdrantStatus();
-      if (isOnline) {
+      const result = await utils.knowledge.qdrantStatus.fetch();
+      if (result.connected) {
         setQdrantStatus('online');
-        const collectionsInfo = await qdrant.getCollections();
-        const collections = (collectionsInfo || []).map(c => c.name);
-        setKnowledgeCollections(collections);
-        if (collections.length > 0 && !collections.includes(selectedCollection)) {
-          setSelectedCollection(collections[0]);
+        const collections = await utils.knowledge.listCollections.fetch();
+        const collectionNames = (collections || []).map(c => c.name);
+        setKnowledgeCollections(collectionNames);
+        if (collectionNames.length > 0 && !collectionNames.includes(selectedCollection)) {
+          setSelectedCollection(collectionNames[0]);
         }
       } else {
         setQdrantStatus('offline');
@@ -253,19 +254,15 @@ export default function AIChat() {
     }
   };
 
-  // RAG 检索
+  // RAG 检索（通过 tRPC knowledge.ragSearch）
   const searchKnowledge = async (query: string): Promise<string> => {
     if (qdrantStatus !== 'online' || !ragEnabled) return '';
     
     try {
-      const results = await qdrant.searchKnowledge(selectedCollection, query, 3);
-      if (results.length === 0) return '';
+      const result = await utils.knowledge.ragSearch.fetch({ query, limit: 3 });
+      if (!result.context) return '';
       
-      const context = (results || []).map((r: qdrant.SearchResult, i: number) => 
-        `[知识${i + 1}] ${r.payload.title || ''}:\n${r.payload.content}`
-      ).join('\n\n');
-      
-      return `\n\n【相关知识库内容】\n${context}\n\n请基于以上知识回答用户问题：`;
+      return `\n\n【相关知识库内容】\n${result.context}\n\n请基于以上知识回答用户问题：`;
     } catch {
       return '';
     }
@@ -397,21 +394,20 @@ export default function AIChat() {
       // 生成文档标题（取前50个字符）
       const title = content.substring(0, 50).replace(/\n/g, ' ').trim() + (content.length > 50 ? '...' : '');
       
-      // 添加到 Qdrant（使用默认的 nomic-embed-text 嵌入）
-      await qdrant.addKnowledgePoint(
-        selectedCollection,
-        {
-          id: nanoid(),
-          title,
-          content: content.substring(0, 10000),
-          category: 'document',
-          source: 'ai-chat-upload',
-          tags: [],
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        },
-        true // 使用 nomic-embed-text 嵌入
-      );
+      // 通过 tRPC 添加到知识库
+      // 先获取 selectedCollection 对应的 collectionId
+      const collections = await utils.knowledge.listCollections.fetch();
+      const targetCol = collections.find(c => c.name === selectedCollection);
+      if (!targetCol) throw new Error('未找到目标集合');
+      
+      await utils.client.knowledge.add.mutate({
+        collectionId: targetCol.id,
+        title,
+        content: content.substring(0, 10000),
+        category: 'document',
+        source: 'ai-chat-upload',
+        tags: []
+      });
       
       toast.success('已保存到知识库');
       setSaveToKnowledge(false); // 重置复选框

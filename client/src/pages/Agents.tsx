@@ -12,7 +12,7 @@ import { cn } from '@/lib/utils';
 import { nanoid } from 'nanoid';
 import type { Agent } from '@/types';
 import * as ollama from '@/services/ollama';
-import * as qdrant from '@/services/qdrant';
+import { trpc } from '@/lib/trpc';
 import {
   Send, Loader2, Bot, User, Wifi, WifiOff, RefreshCw, 
   Wrench, Zap, Settings2, FileText, Trash2
@@ -157,6 +157,7 @@ interface OllamaModelInfo {
 }
 
 export default function Agents() {
+  const utils = trpc.useUtils();
   const { agents, currentAgent, selectAgent } = useAppStore();
   const toast = useToast();
   
@@ -180,8 +181,8 @@ export default function Agents() {
   const checkQdrantStatus = async () => {
     setQdrantStatus('checking');
     try {
-      const isOnline = await qdrant.checkQdrantStatus();
-      setQdrantStatus(isOnline ? 'online' : 'offline');
+      const result = await utils.knowledge.qdrantStatus.fetch();
+      setQdrantStatus(result.connected ? 'online' : 'offline');
     } catch {
       setQdrantStatus('offline');
     }
@@ -283,7 +284,8 @@ export default function Agents() {
       let ragContext = '';
       if (enableRAG && qdrantStatus === 'online') {
         try {
-          ragContext = await qdrant.ragSearch(userMessage.content);
+          const ragResult = await utils.knowledge.ragSearch.fetch({ query: userMessage.content, limit: 3 });
+          ragContext = ragResult.context;
           if (ragContext) {
             systemContent += `\n\n---\n以下是与用户问题相关的参考资料，请结合这些信息进行诊断分析：\n\n${ragContext}`;
           }
