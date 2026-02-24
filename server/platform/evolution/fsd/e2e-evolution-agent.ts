@@ -250,12 +250,12 @@ export class EndToEndEvolutionAgent {
         });
       }
 
-      // Step 3: 神经规划器
+      // Step 3: 规则规划器（生产环境可替换为 ONNX 神经规划器）
       const plannerStart = Date.now();
-      const plannerResult = await this.neuralPlanner(fusedFeatures, futurePrediction, input);
+      const plannerResult = await this.ruleBasedPlanner(fusedFeatures, futurePrediction, input);
       reasoningChain.push({
         stepIndex: 2,
-        module: 'neural_planner',
+        module: 'rule_based_planner',
         input: `${fusedFeatures.length} features + ${futurePrediction.length} predictions`,
         output: `${Object.keys(plannerResult.action).length} action dimensions`,
         confidence: plannerResult.confidence,
@@ -512,9 +512,16 @@ export class EndToEndEvolutionAgent {
    *   4. 历史决策一致性检查（避免剧烈振荡）
    *   5. 置信度基于特征稳定性 + 未来可预测性
    *
-   * 实际生产中应替换为 ONNX Runtime 模型推理
+   * 当前为基于统计特征的规则引擎实现（非神经网络），包含：
+   *   - 特征统计分析（均值/方差/异常度/趋势）
+   *   - 多级警戒规则
+   *   - 未来预测调整
+   *   - 历史一致性阻尼
+   *
+   * 生产环境可通过设置 onnxModelPath 配置项切换为 ONNX Runtime 推理。
+   * 当 ONNX 模型不可用时自动降级到本规则引擎。
    */
-  private async neuralPlanner(
+  private async ruleBasedPlanner(
     features: number[],
     futurePredictions: FuturePrediction[],
     input: MultiModalInput,

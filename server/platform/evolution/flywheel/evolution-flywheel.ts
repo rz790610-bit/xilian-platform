@@ -43,8 +43,12 @@ import {
   evolutionCycles,
   evolutionStepLogs,
   evolutionFlywheelSchedules,
+  shadowEvalRecords,
+  shadowEvalMetrics,
+  evolutionInterventions,
+  edgeCases,
 } from '../../../../drizzle/evolution-schema';
-import { eq, desc, gte, and } from 'drizzle-orm';
+import { eq, desc, gte, lte, and, sql, count } from 'drizzle-orm';
 import { EventBus } from '../../events/event-bus';
 import { createModuleLogger } from '../../../core/logger';
 
@@ -719,6 +723,47 @@ export class EvolutionFlywheel {
    * 支持格式：minute hour dayOfMonth month dayOfWeek
    * 例如："0 3 * * 1" = 每周一凌晨 3 点
    */
+  /**
+   * 解析 cron 字段，支持以下语法：
+   *   - `*`      → 所有值
+   *   - `5`      → 固定值
+   *   - `1,3,5`  → 枚举
+   *   - `1-5`    → 范围
+   *   - `*\/2`    → 步进（从 min 开始，每隔 2）
+   *   - `1-10/3` → 范围+步进
+   */
+  private parseCronField(field: string, min: number, max: number): number[] {
+    const values = new Set<number>();
+
+    for (const part of field.split(',')) {
+      const trimmed = part.trim();
+      const stepMatch = trimmed.match(/^(.+)\/([0-9]+)$/);
+      const step = stepMatch ? parseInt(stepMatch[2]) : 1;
+      const base = stepMatch ? stepMatch[1] : trimmed;
+
+      if (base === '*') {
+        for (let i = min; i <= max; i += step) values.add(i);
+      } else if (base.includes('-')) {
+        const [startStr, endStr] = base.split('-');
+        const start = Math.max(min, parseInt(startStr));
+        const end = Math.min(max, parseInt(endStr));
+        for (let i = start; i <= end; i += step) values.add(i);
+      } else {
+        const val = parseInt(base);
+        if (!isNaN(val) && val >= min && val <= max) values.add(val);
+      }
+    }
+
+    return Array.from(values).sort((a, b) => a - b);
+  }
+
+  /**
+   * 计算下一次触发时间。
+   * 支持标准 5 字段 cron：minute hour dayOfMonth month dayOfWeek
+   * 包含范围、步进、枚举语法。
+   *
+   * 算法：从 now+1分钟 开始，最多扫描 366 天，找到第一个匹配的时间点。
+   */
   private computeNextTrigger(cronExpression: string): Date {
     const now = new Date();
     const parts = cronExpression.trim().split(/\s+/);
@@ -729,48 +774,80 @@ export class EvolutionFlywheel {
     }
 
     const [minuteStr, hourStr, dayOfMonthStr, monthStr, dayOfWeekStr] = parts;
-    const minute = minuteStr === '*' ? 0 : parseInt(minuteStr) || 0;
-    const hour = hourStr === '*' ? 0 : parseInt(hourStr) || 0;
-    const dayOfWeek = dayOfWeekStr === '*' ? -1 : parseInt(dayOfWeekStr);
-    const dayOfMonth = dayOfMonthStr === '*' ? -1 : parseInt(dayOfMonthStr);
-    const month = monthStr === '*' ? -1 : parseInt(monthStr) - 1; // JS month 0-indexed
+    const minutes = this.parseCronField(minuteStr, 0, 59);
+    const hours = this.parseCronField(hourStr, 0, 23);
+    const daysOfMonth = this.parseCronField(dayOfMonthStr, 1, 31);
+    const months = this.parseCronField(monthStr, 1, 12);
+    const daysOfWeek = this.parseCronField(dayOfWeekStr, 0, 6);
 
+    const isDomWild = dayOfMonthStr === '*';
+    const isDowWild = dayOfWeekStr === '*';
+
+    // 从下一分钟开始扫描
     const candidate = new Date(now);
     candidate.setSeconds(0, 0);
-    candidate.setMinutes(minute);
-    candidate.setHours(hour);
+    candidate.setMinutes(candidate.getMinutes() + 1);
 
-    // 按周调度（dayOfWeek 指定）
-    if (dayOfWeek >= 0 && dayOfMonth < 0) {
-      // 找到下一个匹配的星期几
-      const currentDay = candidate.getDay();
-      let daysAhead = dayOfWeek - currentDay;
-      if (daysAhead < 0) daysAhead += 7;
-      if (daysAhead === 0 && candidate <= now) daysAhead = 7;
-      candidate.setDate(candidate.getDate() + daysAhead);
-      return candidate;
-    }
+    // 最多扫描 366 天
+    const maxScanMs = 366 * 24 * 3600000;
+    const deadline = now.getTime() + maxScanMs;
 
-    // 按月调度（dayOfMonth 指定）
-    if (dayOfMonth > 0) {
-      candidate.setDate(dayOfMonth);
-      if (month >= 0) candidate.setMonth(month);
-      if (candidate <= now) {
-        // 下个月或下一年
-        if (month >= 0) {
-          candidate.setFullYear(candidate.getFullYear() + 1);
-        } else {
-          candidate.setMonth(candidate.getMonth() + 1);
-        }
+    while (candidate.getTime() < deadline) {
+      const cMonth = candidate.getMonth() + 1; // 1-indexed
+      const cDom = candidate.getDate();
+      const cDow = candidate.getDay();
+      const cHour = candidate.getHours();
+      const cMinute = candidate.getMinutes();
+
+      // 检查月份
+      if (!months.includes(cMonth)) {
+        // 跳到下一个匹配月份的第 1 天 00:00
+        candidate.setDate(1);
+        candidate.setHours(0, 0, 0, 0);
+        candidate.setMonth(candidate.getMonth() + 1);
+        continue;
       }
+
+      // 检查日期（dayOfMonth 和 dayOfWeek 的关系）
+      // 标准 cron 语义：如果两者都不是 *，则取并集（OR）
+      let dayMatch = false;
+      if (isDomWild && isDowWild) {
+        dayMatch = true;
+      } else if (isDomWild) {
+        dayMatch = daysOfWeek.includes(cDow);
+      } else if (isDowWild) {
+        dayMatch = daysOfMonth.includes(cDom);
+      } else {
+        dayMatch = daysOfMonth.includes(cDom) || daysOfWeek.includes(cDow);
+      }
+
+      if (!dayMatch) {
+        // 跳到明天 00:00
+        candidate.setDate(candidate.getDate() + 1);
+        candidate.setHours(0, 0, 0, 0);
+        continue;
+      }
+
+      // 检查小时
+      if (!hours.includes(cHour)) {
+        // 跳到下一个小时
+        candidate.setMinutes(0);
+        candidate.setHours(candidate.getHours() + 1);
+        continue;
+      }
+
+      // 检查分钟
+      if (!minutes.includes(cMinute)) {
+        candidate.setMinutes(candidate.getMinutes() + 1);
+        continue;
+      }
+
+      // 所有字段匹配
       return candidate;
     }
 
-    // 每天调度
-    if (candidate <= now) {
-      candidate.setDate(candidate.getDate() + 1);
-    }
-    return candidate;
+    // 未找到匹配，默认 7 天后
+    return new Date(now.getTime() + 7 * 24 * 3600000);
   }
 
   async createSchedule(params: {
@@ -809,27 +886,96 @@ export class EvolutionFlywheel {
     scheduleId: number,
     config: Record<string, unknown>,
   ): Promise<void> {
-    log.info(`调度执行飞轮周期: scheduleId=${scheduleId}`);
-
+      log.info(`调度执行飞轮周期: scheduleId=${scheduleId}`);
     try {
-      // 从配置中提取诊断历史和评估数据集
-      // 实际生产中这些数据从 DB 加载
-      const diagnosisHistory: DiagnosisHistoryEntry[] = [];
-      const evaluationDataset: EvaluationDataPoint[] = [];
-
-      // 尝试从 DB 加载最近的诊断历史
       const db = await getDb();
-      if (db) {
-        try {
-          // 从诊断记录表加载最近 1000 条记录作为输入
-          // 这里使用空数组作为默认值，实际生产中应从相关业务表加载
-          log.info(`调度执行: 使用空诊断历史和评估数据集（待业务层对接）`);
-        } catch (err) {
-          log.warn('加载调度数据失败，使用空数据集', err);
-        }
+      if (!db) throw new Error('数据库连接不可用');
+
+      // ── 从业务表加载真实数据 ─────────────────────────────────
+      // 1. 从 shadow_eval_records + shadow_eval_metrics 加载最近的影子评估结果
+      //    转换为 DiagnosisHistoryEntry 格式
+      const recentEvals = await db.select()
+        .from(shadowEvalRecords)
+        .where(eq(shadowEvalRecords.status, 'completed'))
+        .orderBy(desc(shadowEvalRecords.completedAt))
+        .limit(200);
+
+      const recentMetrics = recentEvals.length > 0
+        ? await db.select()
+            .from(shadowEvalMetrics)
+            .where(sql`${shadowEvalMetrics.recordId} IN (${sql.join(recentEvals.map(e => sql`${e.id}`), sql`, `)})`)
+            .limit(1000)
+        : [];
+
+      // 2. 从 evolution_interventions 加载最近干预记录（作为边缘案例输入）
+      const recentInterventions = await db.select()
+        .from(evolutionInterventions)
+        .where(eq(evolutionInterventions.isIntervention, 1))
+        .orderBy(desc(evolutionInterventions.createdAt))
+        .limit(500);
+
+      // 3. 转换为 DiagnosisHistoryEntry 格式
+      const diagnosisHistory: DiagnosisHistoryEntry[] = recentEvals.map((eval_) => {
+        const metrics = recentMetrics.filter(m => m.recordId === eval_.id);
+        const avgAccuracy = metrics.length > 0
+          ? metrics.reduce((sum, m) => sum + (m.challengerValue ?? 0), 0) / metrics.length
+          : 0;
+        const avgBaseline = metrics.length > 0
+          ? metrics.reduce((sum, m) => sum + (m.baselineValue ?? 0), 0) / metrics.length
+          : 0;
+        return {
+          reportId: `eval_${eval_.id}`,
+          machineId: eval_.baselineModelId,
+          timestamp: eval_.completedAt?.getTime() ?? Date.now(),
+          cyclePhase: 'shadow_evaluation',
+          safetyScore: Math.min(avgAccuracy / avgBaseline, 1) * 100,
+          healthScore: avgAccuracy * 100,
+          efficiencyScore: avgBaseline > 0 ? (avgAccuracy / avgBaseline) * 100 : 50,
+          overallScore: avgAccuracy * 100,
+          riskLevel: avgAccuracy < 0.7 ? 'high' : avgAccuracy < 0.85 ? 'medium' : 'low',
+          keyMetrics: {
+            accuracy: avgAccuracy,
+            baseline: avgBaseline,
+            improvement: avgAccuracy - avgBaseline,
+            interventionCount: recentInterventions.filter(
+              i => i.modelId === eval_.challengerModelId
+            ).length,
+          },
+          recommendations: avgAccuracy < avgBaseline
+            ? [{ priority: 'high', action: `模型 ${eval_.challengerModelId} 表现低于基线，建议回退` }]
+            : [{ priority: 'low', action: `模型 ${eval_.challengerModelId} 表现良好，可推进部署` }],
+        };
+      });
+
+      // 4. 转换为 EvaluationDataPoint 格式（从干预记录中提取）
+      const evaluationDataset: EvaluationDataPoint[] = recentInterventions.map(intervention => ({
+        timestamp: intervention.createdAt?.getTime() ?? Date.now(),
+        input: (intervention.requestData as Record<string, number>) ?? {},
+        actualOutput: (intervention.humanDecision as Record<string, number>) ?? {},
+        metadata: {
+          interventionType: intervention.interventionType,
+          divergenceScore: intervention.divergenceScore,
+          shadowDecision: intervention.shadowDecision,
+          modelId: intervention.modelId,
+        },
+      }));
+
+      // 5. 空数据检测 — 记录 SKIP 状态并告警，而非静默通过
+      if (diagnosisHistory.length === 0 && evaluationDataset.length === 0) {
+        log.warn(`调度执行: scheduleId=${scheduleId} 无可用数据（影子评估记录=0, 干预记录=0），跳过本周期`);
+        this.eventBus.emit({
+          type: 'flywheel.cycle.skipped',
+          source: 'evolution-flywheel',
+          data: { scheduleId, reason: 'no_data', timestamp: Date.now() },
+        });
+        await db.update(evolutionFlywheelSchedules)
+          .set({ lastFailureAt: new Date() })
+          .where(eq(evolutionFlywheelSchedules.id, scheduleId));
+        return;
       }
 
-      const report = await this.executeCycle(diagnosisHistory, evaluationDataset);
+      log.info(`调度执行: 加载了 ${diagnosisHistory.length} 条诊断历史 + ${evaluationDataset.length} 条评估数据`);
+      const report = await this.executeCycle(diagnosisHistory, evaluationDataset);;
 
       log.info(`调度执行完成: scheduleId=${scheduleId}, status=${report.status}, cycle=#${report.cycleNumber}`);
 

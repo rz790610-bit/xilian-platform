@@ -363,13 +363,13 @@ export class ShadowFleetManager {
 
   private async acquireConcurrencySlot(): Promise<boolean> {
     try {
-      const current = await this.redis.incr('shadow:active_count');
+      // 使用 RedisClient.incrementCounter 原子计数（内置 TTL 防泄漏）
+      const current = await this.redis.incrementCounter('shadow:active_count', 60);
       if (current > this.config.maxConcurrentShadows) {
-        await this.redis.decr('shadow:active_count');
+        // 超出限制，立即递减回退
+        await this.redis.decrementCounter('shadow:active_count');
         return false;
       }
-      // 设置 TTL 防止泄漏（60 秒自动过期）
-      await this.redis.expire('shadow:active_count', 60);
       return true;
     } catch {
       // Redis 不可用时降级到本地计数器
@@ -384,9 +384,8 @@ export class ShadowFleetManager {
 
   private async releaseConcurrencySlot(): Promise<void> {
     try {
-      const val = await this.redis.decr('shadow:active_count');
-      // 防止计数器变为负数
-      if (val < 0) await this.redis.set('shadow:active_count', '0');
+      // 使用 decrementCounter 原子递减（内置负数保护）
+      await this.redis.decrementCounter('shadow:active_count');
     } catch {
       this.activeShadows = Math.max(0, this.activeShadows - 1);
     }

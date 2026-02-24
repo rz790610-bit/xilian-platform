@@ -257,3 +257,108 @@ export function numericallyEqual(
   }
   return true;
 }
+
+// ============================================================
+// 对象展平与深度结构比较
+// ============================================================
+
+/**
+ * 将嵌套对象中的所有数值字段递归提取为一维向量。
+ * 非数值字段被忽略，遍历顺序按键名排序以保证一致性。
+ */
+export function flattenToVector(obj: Record<string, any>, maxDepth: number = 10): number[] {
+  const result: number[] = [];
+
+  function recurse(current: any, depth: number): void {
+    if (depth > maxDepth) return;
+    if (current === null || current === undefined) return;
+
+    if (typeof current === 'number' && isFinite(current)) {
+      result.push(current);
+      return;
+    }
+
+    if (typeof current === 'object' && !Array.isArray(current)) {
+      const keys = Object.keys(current).sort();
+      for (const key of keys) {
+        recurse(current[key], depth + 1);
+      }
+      return;
+    }
+
+    if (Array.isArray(current)) {
+      for (const item of current) {
+        recurse(item, depth + 1);
+      }
+    }
+  }
+
+  recurse(obj, 0);
+  return result;
+}
+
+/**
+ * 深度结构比较两个值是否相等。
+ * 支持嵌套对象、数组、基本类型，键顺序无关。
+ * 数值比较支持浮点容差。
+ *
+ * @param a 第一个值
+ * @param b 第二个值
+ * @param tolerance 数值比较容差（默认 0，即严格相等）
+ * @param maxDepth 最大递归深度（防止循环引用）
+ */
+export function deepStructuralEqual(
+  a: any,
+  b: any,
+  tolerance: number = 0,
+  maxDepth: number = 20,
+): boolean {
+  function compare(x: any, y: any, depth: number): boolean {
+    if (depth > maxDepth) return false;
+
+    // 严格相等（含 null、undefined、string、boolean）
+    if (x === y) return true;
+
+    // 类型不同
+    if (typeof x !== typeof y) return false;
+
+    // null 检查
+    if (x === null || y === null) return false;
+    if (x === undefined || y === undefined) return false;
+
+    // 数值比较（含浮点容差）
+    if (typeof x === 'number' && typeof y === 'number') {
+      if (isNaN(x) && isNaN(y)) return true;
+      if (!isFinite(x) || !isFinite(y)) return x === y;
+      return Math.abs(x - y) <= tolerance;
+    }
+
+    // 数组比较
+    if (Array.isArray(x) && Array.isArray(y)) {
+      if (x.length !== y.length) return false;
+      for (let i = 0; i < x.length; i++) {
+        if (!compare(x[i], y[i], depth + 1)) return false;
+      }
+      return true;
+    }
+
+    // 一个是数组另一个不是
+    if (Array.isArray(x) !== Array.isArray(y)) return false;
+
+    // 对象比较（键顺序无关）
+    if (typeof x === 'object') {
+      const keysX = Object.keys(x).sort();
+      const keysY = Object.keys(y).sort();
+      if (keysX.length !== keysY.length) return false;
+      for (let i = 0; i < keysX.length; i++) {
+        if (keysX[i] !== keysY[i]) return false;
+        if (!compare(x[keysX[i]], y[keysY[i]], depth + 1)) return false;
+      }
+      return true;
+    }
+
+    return false;
+  }
+
+  return compare(a, b, 0);
+}

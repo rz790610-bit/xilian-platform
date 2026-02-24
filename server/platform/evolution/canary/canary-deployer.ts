@@ -638,6 +638,18 @@ export class CanaryDeployer {
   }
 
   async performHealthCheck(deploymentId: number): Promise<HealthCheckResult> {
+    if (this.isShuttingDown) {
+      return { passed: true, metrics: {}, timestamp: Date.now() };
+    }
+    this.activeChecks.add(deploymentId);
+    try {
+      return await this._performHealthCheckInner(deploymentId);
+    } finally {
+      this.activeChecks.delete(deploymentId);
+    }
+  }
+
+  private async _performHealthCheckInner(deploymentId: number): Promise<HealthCheckResult> {
     const db = await getDb();
     if (!db) throw new Error('数据库不可用');
 
@@ -988,15 +1000,43 @@ export class CanaryDeployer {
   }
 
   /**
-   * 销毁：清理所有定时器
+   * 优雅停止：
+   *   1. 停止所有定时器（不再触发新的检查）
+   *   2. 等待正在执行的检查完成（最多等待 drainTimeoutMs）
+   *   3. 清理内存状态
    */
-  destroy(): void {
+  private isShuttingDown = false;
+  private activeChecks = new Set<number>();
+
+  async destroy(drainTimeoutMs = 10000): Promise<void> {
+    this.isShuttingDown = true;
+    log.info('金丝雀部署器开始优雅停止...');
+
+    // Step 1: 停止所有定时器
     this.checkIntervals.forEach((interval) => clearInterval(interval));
     this.checkIntervals.clear();
     this.advanceTimers.forEach((timer) => clearInterval(timer));
     this.advanceTimers.clear();
+
+    // Step 2: 等待正在执行的检查完成
+    if (this.activeChecks.size > 0) {
+      log.info(`等待 ${this.activeChecks.size} 个正在执行的检查完成...`);
+      const drainStart = Date.now();
+      while (this.activeChecks.size > 0 && Date.now() - drainStart < drainTimeoutMs) {
+        await new Promise(resolve => setTimeout(resolve, 200));
+      }
+      if (this.activeChecks.size > 0) {
+        log.warn(`优雅停止超时，仍有 ${this.activeChecks.size} 个检查未完成，强制清理`);
+      }
+    }
+
+    // Step 3: 清理内存状态
     this.runtimeMetrics.clear();
     this.consecutiveFailures.clear();
     this.trafficCache.clear();
+    this.activeChecks.clear();
+    this.isShuttingDown = false;
+
+    log.info('金丝雀部署器已优雅停止');
   }
 }

@@ -365,6 +365,27 @@ class RedisClientManager {
     }
   }
 
+  /**
+   * 原子递减计数器（与 incrementCounter 配对使用）
+   */
+  async decrementCounter(key: string): Promise<number> {
+    if (!this.client) return 0;
+
+    try {
+      const fullKey = `${CACHE_KEYS.RATE_LIMIT}counter:${key}`;
+      const count = await this.client.decr(fullKey);
+      // 防止计数器变为负数
+      if (count < 0) {
+        await this.client.set(fullKey, '0');
+        return 0;
+      }
+      return count;
+    } catch (error) {
+      log.warn('[Redis] Decrement error:', error);
+      return 0;
+    }
+  }
+
   // ============ 实时数据缓存 ============
 
   /**
