@@ -1645,3 +1645,196 @@ export const crystalMigrations = mysqlTable('crystal_migrations', {
 ]);
 export type CrystalMigration = typeof crystalMigrations.$inferSelect;
 export type InsertCrystalMigration = typeof crystalMigrations.$inferInsert;
+
+// ============================================================================
+// ⑦ 进化闭环 v2.0 新增表（7 张）
+// ============================================================================
+
+/**
+ * 飞轮步骤日志 — 每步执行详情追溯
+ */
+export const evolutionStepLogs = mysqlTable('evolution_step_logs', {
+  id: bigint('id', { mode: 'number' }).autoincrement().primaryKey(),
+  cycleId: bigint('cycle_id', { mode: 'number' }).notNull(),
+  stepNumber: tinyint('step_number').notNull(),
+  stepName: varchar('step_name', { length: 50 }).notNull(),
+  status: mysqlEnum('status', ['pending', 'running', 'completed', 'failed', 'skipped']).notNull().default('pending'),
+  startedAt: timestamp('started_at', { fsp: 3 }),
+  completedAt: timestamp('completed_at', { fsp: 3 }),
+  durationMs: int('duration_ms'),
+  inputSummary: json('input_summary').$type<Record<string, unknown>>(),
+  outputSummary: json('output_summary').$type<Record<string, unknown>>(),
+  metrics: json('metrics').$type<Record<string, number>>(),
+  errorMessage: text('error_message'),
+  createdAt: timestamp('created_at', { fsp: 3 }).defaultNow().notNull(),
+}, (table) => [
+  index('idx_esl_cycle').on(table.cycleId),
+  index('idx_esl_step').on(table.stepNumber),
+  index('idx_esl_status').on(table.status),
+]);
+export type EvolutionStepLog = typeof evolutionStepLogs.$inferSelect;
+export type InsertEvolutionStepLog = typeof evolutionStepLogs.$inferInsert;
+
+/**
+ * 金丝雀部署阶段记录 — 5 阶段渐进部署追溯
+ */
+export const canaryDeploymentStages = mysqlTable('canary_deployment_stages', {
+  id: bigint('id', { mode: 'number' }).autoincrement().primaryKey(),
+  deploymentId: bigint('deployment_id', { mode: 'number' }).notNull(),
+  stageIndex: tinyint('stage_index').notNull(),
+  stageName: varchar('stage_name', { length: 20 }).notNull(),
+  trafficPercent: double('traffic_percent').notNull(),
+  rollbackThresholdPct: double('rollback_threshold_pct').notNull(),
+  durationHours: int('duration_hours').notNull(),
+  status: mysqlEnum('status', ['pending', 'active', 'completed', 'rolled_back', 'skipped']).notNull().default('pending'),
+  startedAt: timestamp('started_at', { fsp: 3 }),
+  completedAt: timestamp('completed_at', { fsp: 3 }),
+  metricsSnapshot: json('metrics_snapshot').$type<Record<string, number>>(),
+  rollbackReason: text('rollback_reason'),
+  createdAt: timestamp('created_at', { fsp: 3 }).defaultNow().notNull(),
+}, (table) => [
+  index('idx_cds_deployment').on(table.deploymentId),
+  index('idx_cds_stage').on(table.stageName),
+  index('idx_cds_status').on(table.status),
+]);
+export type CanaryDeploymentStage = typeof canaryDeploymentStages.$inferSelect;
+export type InsertCanaryDeploymentStage = typeof canaryDeploymentStages.$inferInsert;
+
+/**
+ * 金丝雀健康检查记录 — 支持连续失败自动回滚
+ */
+export const canaryHealthChecks = mysqlTable('canary_health_checks', {
+  id: bigint('id', { mode: 'number' }).autoincrement().primaryKey(),
+  deploymentId: bigint('deployment_id', { mode: 'number' }).notNull(),
+  stageId: bigint('stage_id', { mode: 'number' }),
+  checkType: mysqlEnum('check_type', ['periodic', 'manual', 'threshold_breach']).notNull().default('periodic'),
+  championMetrics: json('champion_metrics').$type<Record<string, number>>().notNull(),
+  challengerMetrics: json('challenger_metrics').$type<Record<string, number>>().notNull(),
+  passed: tinyint('passed').notNull().default(1),
+  failureReason: text('failure_reason'),
+  consecutiveFails: int('consecutive_fails').notNull().default(0),
+  checkedAt: timestamp('checked_at', { fsp: 3 }).defaultNow().notNull(),
+}, (table) => [
+  index('idx_chc_deployment').on(table.deploymentId),
+  index('idx_chc_stage').on(table.stageId),
+  index('idx_chc_passed').on(table.passed),
+  index('idx_chc_time').on(table.checkedAt),
+]);
+export type CanaryHealthCheck = typeof canaryHealthChecks.$inferSelect;
+export type InsertCanaryHealthCheck = typeof canaryHealthChecks.$inferInsert;
+
+/**
+ * FSD 干预记录 — Shadow Fleet 全流量镜像分歧采集
+ */
+export const evolutionInterventions = mysqlTable('evolution_interventions', {
+  id: bigint('id', { mode: 'number' }).autoincrement().primaryKey(),
+  sessionId: varchar('session_id', { length: 64 }).notNull(),
+  modelId: varchar('model_id', { length: 100 }).notNull(),
+  divergenceScore: double('divergence_score').notNull(),
+  isIntervention: tinyint('is_intervention').notNull().default(0),
+  interventionType: mysqlEnum('intervention_type', ['decision_diverge', 'threshold_breach', 'safety_override', 'manual']).notNull().default('decision_diverge'),
+  requestData: json('request_data').$type<Record<string, unknown>>().notNull(),
+  humanDecision: json('human_decision').$type<Record<string, unknown>>().notNull(),
+  shadowDecision: json('shadow_decision').$type<Record<string, unknown>>().notNull(),
+  contextSnapshot: json('context_snapshot').$type<Record<string, unknown>>(),
+  autoLabel: json('auto_label').$type<Record<string, unknown>>(),
+  labelConfidence: double('label_confidence'),
+  difficultyScore: double('difficulty_score'),
+  videoClipUrl: varchar('video_clip_url', { length: 500 }),
+  createdAt: timestamp('created_at', { fsp: 3 }).defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex('uq_ei_session').on(table.sessionId),
+  index('idx_ei_model').on(table.modelId),
+  index('idx_ei_intervention').on(table.isIntervention),
+  index('idx_ei_type').on(table.interventionType),
+  index('idx_ei_divergence').on(table.divergenceScore),
+  index('idx_ei_difficulty').on(table.difficultyScore),
+  index('idx_ei_time').on(table.createdAt),
+]);
+export type EvolutionIntervention = typeof evolutionInterventions.$inferSelect;
+export type InsertEvolutionIntervention = typeof evolutionInterventions.$inferInsert;
+
+/**
+ * 高保真仿真场景库 — 自动从干预记录生成
+ */
+export const evolutionSimulations = mysqlTable('evolution_simulations', {
+  id: bigint('id', { mode: 'number' }).autoincrement().primaryKey(),
+  scenarioId: varchar('scenario_id', { length: 64 }).notNull(),
+  sourceInterventionId: bigint('source_intervention_id', { mode: 'number' }),
+  scenarioType: mysqlEnum('scenario_type', ['regression', 'stress', 'edge_case', 'adversarial', 'replay']).notNull().default('regression'),
+  inputData: json('input_data').$type<Record<string, unknown>>().notNull(),
+  expectedOutput: json('expected_output').$type<Record<string, unknown>>().notNull(),
+  variations: json('variations').$type<Array<Record<string, unknown>>>(),
+  variationCount: int('variation_count').notNull().default(0),
+  fidelityScore: double('fidelity_score'),
+  difficulty: mysqlEnum('difficulty', ['easy', 'medium', 'hard', 'extreme']).notNull().default('medium'),
+  tags: json('tags').$type<string[]>(),
+  lastRunModelId: varchar('last_run_model_id', { length: 100 }),
+  lastRunPassed: tinyint('last_run_passed'),
+  lastRunAt: timestamp('last_run_at', { fsp: 3 }),
+  runCount: int('run_count').notNull().default(0),
+  passCount: int('pass_count').notNull().default(0),
+  createdAt: timestamp('created_at', { fsp: 3 }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { fsp: 3 }).defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex('uq_es_scenario').on(table.scenarioId),
+  index('idx_es_source').on(table.sourceInterventionId),
+  index('idx_es_type').on(table.scenarioType),
+  index('idx_es_difficulty').on(table.difficulty),
+  index('idx_es_fidelity').on(table.fidelityScore),
+]);
+export type EvolutionSimulation = typeof evolutionSimulations.$inferSelect;
+export type InsertEvolutionSimulation = typeof evolutionSimulations.$inferInsert;
+
+/**
+ * 视频/多模态轨迹 — FSD 干预回放 + KG 节点
+ */
+export const evolutionVideoTrajectories = mysqlTable('evolution_video_trajectories', {
+  id: bigint('id', { mode: 'number' }).autoincrement().primaryKey(),
+  trajectoryId: varchar('trajectory_id', { length: 64 }).notNull(),
+  interventionId: bigint('intervention_id', { mode: 'number' }),
+  sessionId: varchar('session_id', { length: 64 }),
+  videoUrl: varchar('video_url', { length: 500 }).notNull(),
+  durationMs: int('duration_ms').notNull(),
+  frameCount: int('frame_count'),
+  embeddingVector: json('embedding_vector').$type<number[]>(),
+  temporalRelations: json('temporal_relations').$type<Array<{ from: string; to: string; relation: string }>>(),
+  keyFrames: json('key_frames').$type<Array<{ timestamp: number; description: string; thumbnailUrl: string }>>(),
+  sensorData: json('sensor_data').$type<Record<string, unknown>>(),
+  annotations: json('annotations').$type<Record<string, unknown>>(),
+  kgNodeId: varchar('kg_node_id', { length: 100 }),
+  createdAt: timestamp('created_at', { fsp: 3 }).defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex('uq_evt_trajectory').on(table.trajectoryId),
+  index('idx_evt_intervention').on(table.interventionId),
+  index('idx_evt_session').on(table.sessionId),
+  index('idx_evt_kg').on(table.kgNodeId),
+  index('idx_evt_time').on(table.createdAt),
+]);
+export type EvolutionVideoTrajectory = typeof evolutionVideoTrajectories.$inferSelect;
+export type InsertEvolutionVideoTrajectory = typeof evolutionVideoTrajectories.$inferInsert;
+
+/**
+ * 飞轮调度配置 — 定时自动触发进化周期
+ */
+export const evolutionFlywheelSchedules = mysqlTable('evolution_flywheel_schedules', {
+  id: bigint('id', { mode: 'number' }).autoincrement().primaryKey(),
+  name: varchar('name', { length: 100 }).notNull(),
+  cronExpression: varchar('cron_expression', { length: 100 }).notNull(),
+  enabled: tinyint('enabled').notNull().default(1),
+  config: json('config').$type<Record<string, unknown>>().notNull(),
+  maxConcurrent: int('max_concurrent').notNull().default(1),
+  minIntervalHours: int('min_interval_hours').notNull().default(24),
+  lastTriggeredAt: timestamp('last_triggered_at', { fsp: 3 }),
+  nextTriggerAt: timestamp('next_trigger_at', { fsp: 3 }),
+  totalRuns: int('total_runs').notNull().default(0),
+  consecutiveFails: int('consecutive_fails').notNull().default(0),
+  maxConsecutiveFails: int('max_consecutive_fails').notNull().default(3),
+  createdAt: timestamp('created_at', { fsp: 3 }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { fsp: 3 }).defaultNow().notNull(),
+}, (table) => [
+  index('idx_efs_enabled').on(table.enabled),
+  index('idx_efs_next').on(table.nextTriggerAt),
+]);
+export type EvolutionFlywheelSchedule = typeof evolutionFlywheelSchedules.$inferSelect;
+export type InsertEvolutionFlywheelSchedule = typeof evolutionFlywheelSchedules.$inferInsert;

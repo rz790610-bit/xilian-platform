@@ -9,3 +9,5 @@ export * from './auto-codegen';
 export * from './canary';
 export * from './closed-loop';
 export * from './metrics';
+export * from './simulation';
+export * from './fsd';
