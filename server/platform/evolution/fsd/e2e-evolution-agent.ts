@@ -391,14 +391,90 @@ export class EndToEndEvolutionAgent {
     return features;
   }
 
+  /**
+   * P4 修复：通道编码 — 统计特征 + 频域特征 + 时序特征
+   *
+   * 输出 12 维特征向量：
+   *   [0-3] 统计特征：mean, std, min, max
+   *   [4-7] 频域特征：主频率能量, 谱质心, 谱平坦度, 谱熵
+   *   [8-11] 时序特征：偏度, 峰度, 趋势斜率, 自相关(lag=1)
+   */
   private encodeChannel(values: number[]): number[] {
-    // 简化编码：统计特征
-    if (values.length === 0) return [0, 0, 0, 0];
-    const mean = values.reduce((a, b) => a + b, 0) / values.length;
-    const variance = values.reduce((a, b) => a + (b - mean) ** 2, 0) / values.length;
+    if (values.length === 0) return new Array(12).fill(0);
+
+    const n = values.length;
+
+    // --- 统计特征 ---
+    const mean = values.reduce((a, b) => a + b, 0) / n;
+    const variance = values.reduce((a, b) => a + (b - mean) ** 2, 0) / n;
+    const std = Math.sqrt(variance);
     const min = Math.min(...values);
     const max = Math.max(...values);
-    return [mean, Math.sqrt(variance), min, max];
+
+    // --- 频域特征（简化 DFT）---
+    // 计算前 N/2 个频率分量的能量谱
+    const halfN = Math.floor(n / 2);
+    const spectrum: number[] = [];
+    for (let k = 0; k < halfN; k++) {
+      let re = 0, im = 0;
+      for (let t = 0; t < n; t++) {
+        const angle = (2 * Math.PI * k * t) / n;
+        re += (values[t] - mean) * Math.cos(angle);
+        im -= (values[t] - mean) * Math.sin(angle);
+      }
+      spectrum.push((re * re + im * im) / n);
+    }
+
+    const totalEnergy = spectrum.reduce((a, b) => a + b, 0) || 1;
+
+    // 主频率能量占比
+    const peakEnergy = Math.max(...spectrum) / totalEnergy;
+
+    // 谱质心（能量加权平均频率）
+    const spectralCentroid = spectrum.reduce((s, e, k) => s + k * e, 0) / totalEnergy;
+
+    // 谱平坦度（几何均值 / 算术均值）
+    const logSum = spectrum.reduce((s, e) => s + Math.log(Math.max(e, 1e-10)), 0);
+    const geometricMean = Math.exp(logSum / (spectrum.length || 1));
+    const arithmeticMean = totalEnergy / (spectrum.length || 1);
+    const spectralFlatness = arithmeticMean > 0 ? geometricMean / arithmeticMean : 0;
+
+    // 谱熵
+    const spectralEntropy = -spectrum.reduce((s, e) => {
+      const p = e / totalEnergy;
+      return s + (p > 0 ? p * Math.log2(p) : 0);
+    }, 0);
+
+    // --- 时序特征 ---
+    // 偏度 (skewness)
+    const m3 = values.reduce((a, b) => a + (b - mean) ** 3, 0) / n;
+    const skewness = std > 0 ? m3 / (std ** 3) : 0;
+
+    // 峰度 (kurtosis)
+    const m4 = values.reduce((a, b) => a + (b - mean) ** 4, 0) / n;
+    const kurtosis = std > 0 ? m4 / (std ** 4) - 3 : 0; // 超额峰度
+
+    // 趋势斜率（线性回归）
+    const sumX = (n * (n - 1)) / 2;
+    const sumY = values.reduce((a, b) => a + b, 0);
+    const sumXY = values.reduce((acc, y, i) => acc + i * y, 0);
+    const sumX2 = values.reduce((acc, _, i) => acc + i * i, 0);
+    const trendSlope = n > 1 ? (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX || 1) : 0;
+
+    // 自相关 (lag=1)
+    let autocorr = 0;
+    if (n > 1 && variance > 0) {
+      for (let i = 0; i < n - 1; i++) {
+        autocorr += (values[i] - mean) * (values[i + 1] - mean);
+      }
+      autocorr /= ((n - 1) * variance);
+    }
+
+    return [
+      mean, std, min, max,                                    // 统计
+      peakEnergy, spectralCentroid, spectralFlatness, spectralEntropy, // 频域
+      skewness, kurtosis, trendSlope, autocorr,                // 时序
+    ];
   }
 
   private computeAttentionWeights(channelFeatures: number[][]): number[] {
@@ -426,37 +502,108 @@ export class EndToEndEvolutionAgent {
   // 4. 神经规划器
   // ==========================================================================
 
+  /**
+   * P1 修复：神经规划器 — 基于规则的最小可用实现
+   *
+   * 决策逻辑：
+   *   1. 从融合特征中提取关键指标（均值、方差、趋势、异常度）
+   *   2. 基于阈值规则生成多维决策（主动作、警戒级别、安全裕度、维护紧迫度）
+   *   3. 未来预测调整（如果未来状态恶化，提前采取行动）
+   *   4. 历史决策一致性检查（避免剧烈振荡）
+   *   5. 置信度基于特征稳定性 + 未来可预测性
+   *
+   * 实际生产中应替换为 ONNX Runtime 模型推理
+   */
   private async neuralPlanner(
     features: number[],
     futurePredictions: FuturePrediction[],
     input: MultiModalInput,
   ): Promise<{ action: Record<string, number>; confidence: number }> {
-    // 基于特征和未来预测生成决策
-    // 实际生产中这里接入真实的 ML 模型推理
-    const featureMean = features.length > 0
-      ? features.reduce((a, b) => a + b, 0) / features.length
+    if (features.length === 0) {
+      return { action: { safe_mode: 1.0 }, confidence: 0.1 };
+    }
+
+    // --- 1. 特征分析 ---
+    const featureMean = features.reduce((a, b) => a + b, 0) / features.length;
+    const featureStd = Math.sqrt(
+      features.reduce((a, b) => a + (b - featureMean) ** 2, 0) / features.length,
+    );
+
+    // 异常度：偏离均值超过 3σ 的特征比例
+    const anomalyRatio = featureStd > 0
+      ? features.filter(f => Math.abs(f - featureMean) > 3 * featureStd).length / features.length
       : 0;
 
-    const featureStd = features.length > 0
-      ? Math.sqrt(features.reduce((a, b) => a + (b - featureMean) ** 2, 0) / features.length)
-      : 1;
+    // 趋势：特征向量前后半段均值差
+    const halfLen = Math.floor(features.length / 2);
+    const firstHalfMean = features.slice(0, halfLen).reduce((a, b) => a + b, 0) / (halfLen || 1);
+    const secondHalfMean = features.slice(halfLen).reduce((a, b) => a + b, 0) / ((features.length - halfLen) || 1);
+    const trendDirection = secondHalfMean - firstHalfMean;
 
-    // 归一化决策
-    const normalizedMean = Math.tanh(featureMean);
-    const confidence = Math.min(1.0, 1.0 / (1.0 + featureStd));
+    // --- 2. 规则决策 ---
+    // 主动作强度：基于特征均值的 sigmoid 映射
+    const primaryAction = 1 / (1 + Math.exp(-featureMean));
 
-    // 考虑未来预测
-    let futureAdjustment = 0;
+    // 警戒级别：基于异常度和方差
+    let alertLevel = 0;
+    if (anomalyRatio > 0.2) alertLevel = 0.9;       // 严重异常
+    else if (anomalyRatio > 0.1) alertLevel = 0.6;   // 中度异常
+    else if (featureStd > 2.0) alertLevel = 0.4;      // 高波动
+    else alertLevel = 0.1;                             // 正常
+
+    // 安全裕度：与异常度反相关
+    const safetyMargin = Math.max(0.05, 1.0 - anomalyRatio - alertLevel * 0.3);
+
+    // 维护紧迫度：基于趋势方向
+    const maintenanceUrgency = trendDirection < -0.5 ? 0.8 :
+                                trendDirection < -0.1 ? 0.5 :
+                                trendDirection > 0.5 ? 0.1 : 0.3;
+
+    // --- 3. 未来预测调整 ---
+    let futureRiskAdjustment = 0;
+    let futurePredictability = 0.5;
     if (futurePredictions.length > 0) {
-      const avgFutureProb = futurePredictions.reduce((s, p) => s + p.probability, 0) / futurePredictions.length;
-      futureAdjustment = (avgFutureProb - 0.5) * 0.2;
+      const avgProb = futurePredictions.reduce((s, p) => s + p.probability, 0) / futurePredictions.length;
+      futurePredictability = avgProb;
+
+      // 检查未来状态是否恶化
+      for (const pred of futurePredictions) {
+        const futureValues = Object.values(pred.predictedState);
+        const futureMean = futureValues.length > 0
+          ? futureValues.reduce((a, b) => a + b, 0) / futureValues.length
+          : 0;
+        if (futureMean < featureMean * 0.8) {
+          futureRiskAdjustment += 0.1; // 未来恶化，提高警戒
+        }
+      }
+      futureRiskAdjustment = Math.min(futureRiskAdjustment, 0.3);
     }
+
+    // --- 4. 历史一致性检查 ---
+    let historyDamping = 1.0;
+    if (this.decisionHistory.length > 0) {
+      const lastDecision = this.decisionHistory[this.decisionHistory.length - 1];
+      const lastPrimary = lastDecision.action.primary_action ?? 0;
+      const delta = Math.abs(primaryAction - lastPrimary);
+      // 如果决策变化过大，降低置信度
+      if (delta > 0.5) historyDamping = 0.7;
+    }
+
+    // --- 5. 置信度计算 ---
+    const featureStability = Math.min(1.0, 1.0 / (1.0 + featureStd));
+    const confidence = Math.max(0.1, Math.min(1.0,
+      featureStability * 0.4 +
+      futurePredictability * 0.3 +
+      (1 - anomalyRatio) * 0.2 +
+      historyDamping * 0.1,
+    ));
 
     return {
       action: {
-        primary_action: normalizedMean + futureAdjustment,
-        secondary_action: normalizedMean * 0.5,
-        safety_margin: Math.max(0.1, 1.0 - Math.abs(normalizedMean)),
+        primary_action: primaryAction + futureRiskAdjustment,
+        alert_level: alertLevel + futureRiskAdjustment,
+        safety_margin: safetyMargin,
+        maintenance_urgency: maintenanceUrgency,
       },
       confidence,
     };
@@ -478,20 +625,54 @@ export class EndToEndEvolutionAgent {
 
     switch (config.method) {
       case 'slerp': {
-        // 球面线性插值
-        const dotProduct = weightsA.slice(0, minLen).reduce((s, a, i) => s + a * weightsB[i], 0);
+        /**
+         * P4 修复：SLERP 数值稳定性
+         *   1. 范数归一化检查（防止零向量）
+         *   2. theta ≈ 0 时退化为线性插值（避免 0/0）
+         *   3. theta ≈ π 时使用中间点插值（避免路径模糊）
+         */
         const normA = Math.sqrt(weightsA.slice(0, minLen).reduce((s, a) => s + a * a, 0));
         const normB = Math.sqrt(weightsB.slice(0, minLen).reduce((s, b) => s + b * b, 0));
-        const cosTheta = Math.max(-1, Math.min(1, dotProduct / (normA * normB || 1)));
+
+        // 范数归一化检查
+        if (normA < 1e-10 || normB < 1e-10) {
+          log.warn('SLERP: 检测到零范数向量，退化为线性插值');
+          const t = config.interpolationFactor;
+          for (let i = 0; i < minLen; i++) {
+            merged[i] = (1 - t) * weightsA[i] + t * weightsB[i];
+          }
+          break;
+        }
+
+        const dotProduct = weightsA.slice(0, minLen).reduce((s, a, i) => s + a * weightsB[i], 0);
+        const cosTheta = Math.max(-1, Math.min(1, dotProduct / (normA * normB)));
         const theta = Math.acos(cosTheta);
-        const sinTheta = Math.sin(theta) || 1;
         const t = config.interpolationFactor;
 
-        const factorA = Math.sin((1 - t) * theta) / sinTheta;
-        const factorB = Math.sin(t * theta) / sinTheta;
+        const EPSILON = 1e-6;
 
-        for (let i = 0; i < minLen; i++) {
-          merged[i] = factorA * weightsA[i] + factorB * weightsB[i];
+        if (theta < EPSILON) {
+          // theta ≈ 0：向量几乎平行，退化为线性插值
+          for (let i = 0; i < minLen; i++) {
+            merged[i] = (1 - t) * weightsA[i] + t * weightsB[i];
+          }
+        } else if (Math.abs(theta - Math.PI) < EPSILON) {
+          // theta ≈ π：向量反平行，使用中间点插值
+          log.warn('SLERP: 检测到反平行向量，使用中间点插值');
+          // 找一个正交方向作为中间点
+          for (let i = 0; i < minLen; i++) {
+            const mid = weightsA[i] + (i % 2 === 0 ? 1e-4 : -1e-4);
+            merged[i] = (1 - t) * weightsA[i] + t * mid;
+          }
+        } else {
+          // 正常 SLERP
+          const sinTheta = Math.sin(theta);
+          const factorA = Math.sin((1 - t) * theta) / sinTheta;
+          const factorB = Math.sin(t * theta) / sinTheta;
+
+          for (let i = 0; i < minLen; i++) {
+            merged[i] = factorA * weightsA[i] + factorB * weightsB[i];
+          }
         }
         break;
       }

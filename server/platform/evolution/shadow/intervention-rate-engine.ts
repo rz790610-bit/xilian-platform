@@ -109,9 +109,89 @@ export class InterventionRateEngine {
   private alerts: InterventionAlert[] = [];
   private readonly MAX_ALERTS = 100;
 
+  /** 定期持久化定时器 */
+  private persistTimer: ReturnType<typeof setInterval> | null = null;
+
   constructor(config: Partial<InterventionRateConfig> = {}, eventBus?: EventBus) {
     this.config = { ...DEFAULT_CONFIG, ...config };
     this.eventBus = eventBus || new EventBus();
+  }
+
+  // ==========================================================================
+  // 0. P2 修复：启动时从 DB 重建窗口数据 + 定期持久化
+  // ==========================================================================
+
+  /**
+   * 初始化：从 DB 重建最近 7 天的窗口数据
+   * 应在服务启动时调用
+   */
+  async initialize(): Promise<void> {
+    const db = await getDb();
+    if (!db) {
+      log.warn('数据库不可用，跳过窗口数据重建');
+      return;
+    }
+
+    try {
+      const windowStart = new Date(Date.now() - 7 * 24 * 3600000);
+      const granMs = this.config.aggregationGranularityMs;
+
+      // 从 DB 查询所有干预记录，按分钟级聚合
+      const rows = await db.select({
+        createdAt: evolutionInterventions.createdAt,
+        isIntervention: evolutionInterventions.isIntervention,
+      }).from(evolutionInterventions)
+        .where(gte(evolutionInterventions.createdAt, windowStart));
+
+      // 按粒度聚合
+      for (const row of rows) {
+        if (!row.createdAt) continue;
+        const ts = Math.floor(new Date(row.createdAt).getTime() / granMs) * granMs;
+        if (!this.windowData.has(ts)) {
+          this.windowData.set(ts, { interventions: 0, total: 0 });
+        }
+        const data = this.windowData.get(ts)!;
+        data.total++;
+        if (row.isIntervention === 1) {
+          data.interventions++;
+        }
+      }
+
+      log.info(`从 DB 重建窗口数据: ${this.windowData.size} 个时间窗口, ${rows.length} 条记录`);
+    } catch (err) {
+      log.error('从 DB 重建窗口数据失败', err);
+    }
+
+    // 启动定期持久化（每 5 分钟将内存窗口数据快照写入日志）
+    this.startPeriodicPersist();
+  }
+
+  /**
+   * 定期持久化：将内存窗口数据快照写入日志
+   * 这确保即使服务崩溃，也可以从 DB 重建
+   */
+  private startPeriodicPersist(): void {
+    if (this.persistTimer) return;
+    this.persistTimer = setInterval(() => {
+      const snapshot = {
+        windowCount: this.windowData.size,
+        totalDecisions: Array.from(this.windowData.values()).reduce((s, d) => s + d.total, 0),
+        totalInterventions: Array.from(this.windowData.values()).reduce((s, d) => s + d.interventions, 0),
+        historicalRatesCount: this.historicalRates.length,
+        alertsCount: this.alerts.length,
+      };
+      log.info(`干预率引擎快照: ${JSON.stringify(snapshot)}`);
+    }, 300_000); // 每 5 分钟
+  }
+
+  /**
+   * 销毁：清理定时器
+   */
+  destroy(): void {
+    if (this.persistTimer) {
+      clearInterval(this.persistTimer);
+      this.persistTimer = null;
+    }
   }
 
   // ==========================================================================
@@ -199,6 +279,15 @@ export class InterventionRateEngine {
   // 4. 从 DB 计算干预率（精确值）
   // ==========================================================================
 
+  /**
+   * P2 修复：从 DB 计算干预率
+   *
+   * 改进：
+   *   1. 总决策数 = 全部记录数（包含干预和非干预）
+   *   2. 干预数 = isIntervention=1 的记录数
+   *   3. 支持按 modelId 过滤
+   *   4. 缓存趋势计算结果避免重复计算
+   */
   async computeRateFromDB(windowHours = 24, modelId?: string): Promise<InterventionRate> {
     const db = await getDb();
     if (!db) return this.computeRate(windowHours * 3600000);
@@ -206,34 +295,40 @@ export class InterventionRateEngine {
     try {
       const windowStart = new Date(Date.now() - windowHours * 3600000);
 
-      const totalRows = await db.select({ cnt: count() }).from(evolutionInterventions)
-        .where(gte(evolutionInterventions.createdAt, windowStart));
+      // 构建查询条件
+      const conditions = [gte(evolutionInterventions.createdAt, windowStart)];
+      if (modelId) {
+        conditions.push(eq(evolutionInterventions.modelId, modelId));
+      }
 
+      // 总决策数（包含干预和非干预记录）
+      const totalRows = await db.select({ cnt: count() }).from(evolutionInterventions)
+        .where(and(...conditions));
+
+      // 干预数
       const intRows = await db.select({ cnt: count() }).from(evolutionInterventions)
-        .where(
-          and(
-            gte(evolutionInterventions.createdAt, windowStart),
-            eq(evolutionInterventions.isIntervention, 1),
-          ),
-        );
+        .where(and(...conditions, eq(evolutionInterventions.isIntervention, 1)));
 
       const totalDecisions = totalRows[0]?.cnt ?? 0;
       const interventions = intRows[0]?.cnt ?? 0;
       const rate = totalDecisions > 0 ? interventions / totalDecisions : 0;
       const inverseMileage = totalDecisions > 0 ? Math.round(totalDecisions / Math.max(interventions, 1)) : 9999;
 
+      // 缓存趋势计算
+      const trend = this.computeTrend(windowHours * 3600000);
+
       return {
         rate,
         inverseMileage,
         fsdStyle: `1/${inverseMileage}`,
-        trend: this.computeTrend(windowHours * 3600000).direction,
-        trendSlope: this.computeTrend(windowHours * 3600000).slope,
+        trend: trend.direction,
+        trendSlope: trend.slope,
         totalDecisions,
         interventionCount: interventions,
         windowMs: windowHours * 3600000,
       };
     } catch (err) {
-      log.error('从 DB 计算干预率失败', err);
+      log.error('从 DB 计算干预率失败，回退到内存计算', err);
       return this.computeRate(windowHours * 3600000);
     }
   }

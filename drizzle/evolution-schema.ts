@@ -1838,3 +1838,65 @@ export const evolutionFlywheelSchedules = mysqlTable('evolution_flywheel_schedul
 ]);
 export type EvolutionFlywheelSchedule = typeof evolutionFlywheelSchedules.$inferSelect;
 export type InsertEvolutionFlywheelSchedule = typeof evolutionFlywheelSchedules.$inferInsert;
+
+// ============================================================================
+// v3.0 生产级扩展 — 审计日志 + Dojo 训练任务
+// ============================================================================
+
+/**
+ * evolution_audit_logs — 进化事件审计日志
+ * EventBus 订阅端持久化，记录所有进化事件用于追溯和合规
+ */
+export const evolutionAuditLogs = mysqlTable('evolution_audit_logs', {
+  id: bigint('id', { mode: 'number' }).autoincrement().primaryKey(),
+  eventType: varchar('event_type', { length: 128 }).notNull(),
+  eventSource: varchar('event_source', { length: 128 }).notNull(),
+  eventData: json('event_data').$type<Record<string, unknown>>(),
+  sessionId: varchar('session_id', { length: 128 }),
+  modelId: varchar('model_id', { length: 128 }),
+  severity: mysqlEnum('severity', ['info', 'warn', 'error', 'critical']).default('info'),
+  createdAt: timestamp('created_at', { fsp: 3 }).defaultNow().notNull(),
+}, (table) => [
+  index('idx_eal_type').on(table.eventType),
+  index('idx_eal_source').on(table.eventSource),
+  index('idx_eal_time').on(table.createdAt),
+  index('idx_eal_session').on(table.sessionId),
+]);
+export type EvolutionAuditLog = typeof evolutionAuditLogs.$inferSelect;
+export type InsertEvolutionAuditLog = typeof evolutionAuditLogs.$inferInsert;
+
+/**
+ * dojo_training_jobs — Dojo 训练任务持久化
+ * 替代纯内存任务队列，支持重启恢复和状态追踪
+ */
+export const dojoTrainingJobs = mysqlTable('dojo_training_jobs', {
+  id: bigint('id', { mode: 'number' }).autoincrement().primaryKey(),
+  jobId: varchar('job_id', { length: 128 }).notNull(),
+  name: varchar('name', { length: 256 }).notNull(),
+  modelId: varchar('model_id', { length: 128 }).notNull(),
+  status: mysqlEnum('status', ['pending', 'scheduled', 'running', 'completed', 'failed', 'cancelled']).default('pending'),
+  priority: int('priority').default(5),
+  gpuCount: int('gpu_count').default(8),
+  useSpot: tinyint('use_spot').default(1),
+  estimatedDurationMs: bigint('estimated_duration_ms', { mode: 'number' }),
+  scheduledAt: timestamp('scheduled_at', { fsp: 3 }),
+  startedAt: timestamp('started_at', { fsp: 3 }),
+  completedAt: timestamp('completed_at', { fsp: 3 }),
+  carbonWindow: json('carbon_window').$type<Record<string, unknown>>(),
+  config: json('config').$type<Record<string, unknown>>(),
+  result: json('result').$type<Record<string, unknown>>(),
+  errorMessage: text('error_message'),
+  retryCount: int('retry_count').default(0),
+  idempotencyKey: varchar('idempotency_key', { length: 128 }),
+  createdAt: timestamp('created_at', { fsp: 3 }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { fsp: 3 }).defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex('uq_dtj_job').on(table.jobId),
+  uniqueIndex('uq_dtj_idempotency').on(table.idempotencyKey),
+  index('idx_dtj_status').on(table.status),
+  index('idx_dtj_model').on(table.modelId),
+  index('idx_dtj_scheduled').on(table.scheduledAt),
+  index('idx_dtj_priority').on(table.priority),
+]);
+export type DojoTrainingJob = typeof dojoTrainingJobs.$inferSelect;
+export type InsertDojoTrainingJob = typeof dojoTrainingJobs.$inferInsert;

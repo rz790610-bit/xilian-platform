@@ -65,6 +65,16 @@ export interface FleetPlannerConfig {
   minAccuracyThreshold: number;
   /** 最高干预率门槛 */
   maxInterventionThreshold: number;
+  /** P3 新增：稳定性评分 — uptime 满分天数 */
+  stabilityUptimeFullScoreDays: number;
+  /** P3 新增：稳定性评分 — uptime 权重 */
+  stabilityUptimeWeight: number;
+  /** P3 新增：稳定性评分 — latency 权重 */
+  stabilityLatencyWeight: number;
+  /** P3 新增：延迟阈值 (ms) — 优秀 / 良好 / 可接受 */
+  latencyThresholds: { excellent: number; good: number; acceptable: number };
+  /** P3 新增：是否启用自适应权重（基于历史趋势） */
+  enableAdaptiveWeights: boolean;
 }
 
 // ============================================================================
@@ -78,6 +88,11 @@ const DEFAULT_CONFIG: FleetPlannerConfig = {
   stabilityWeight: 0.15,
   minAccuracyThreshold: 0.85,
   maxInterventionThreshold: 0.02,
+  stabilityUptimeFullScoreDays: 7,
+  stabilityUptimeWeight: 0.6,
+  stabilityLatencyWeight: 0.4,
+  latencyThresholds: { excellent: 100, good: 500, acceptable: 1000 },
+  enableAdaptiveWeights: false,
 };
 
 // ============================================================================
@@ -184,13 +199,23 @@ export class FleetNeuralPlanner {
   // 2. 稳定性评分
   // ==========================================================================
 
+  /**
+   * P3 修复：稳定性评分完全可配置化
+   * - uptime 满分天数从配置读取（而非硬编码 7 天）
+   * - 延迟阈值从配置读取（而非硬编码 100/500/1000）
+   * - 权重从配置读取
+   */
   private computeStabilityScore(metrics: FleetStatus): number {
-    // 基于运行时间和延迟稳定性
-    const uptimeScore = Math.min(metrics.uptime / (7 * 24 * 3600000), 1.0); // 7 天满分
-    const latencyScore = metrics.latencyP99 < 100 ? 1.0 :
-      metrics.latencyP99 < 500 ? 0.8 :
-      metrics.latencyP99 < 1000 ? 0.5 : 0.2;
-    return uptimeScore * 0.6 + latencyScore * 0.4;
+    const fullScoreMs = this.config.stabilityUptimeFullScoreDays * 24 * 3600000;
+    const uptimeScore = Math.min(metrics.uptime / fullScoreMs, 1.0);
+
+    const { excellent, good, acceptable } = this.config.latencyThresholds;
+    const latencyScore = metrics.latencyP99 < excellent ? 1.0 :
+      metrics.latencyP99 < good ? 0.8 :
+      metrics.latencyP99 < acceptable ? 0.5 : 0.2;
+
+    return uptimeScore * this.config.stabilityUptimeWeight +
+           latencyScore * this.config.stabilityLatencyWeight;
   }
 
   // ==========================================================================

@@ -23,6 +23,7 @@ import { evolutionSimulations, evolutionInterventions } from '../../../../drizzl
 import { eq, desc, count } from 'drizzle-orm';
 import { EventBus } from '../../events/event-bus';
 import { createModuleLogger } from '../../../core/logger';
+import { klDivergence, jsDivergence } from '../../../lib/math/stats';
 
 const log = createModuleLogger('simulation-engine');
 
@@ -395,6 +396,9 @@ export class HighFidelitySimulationEngine {
   // 6. 输出差异计算
   // ==========================================================================
 
+  /**
+   * P1 修复：输出差异计算 — 结构化字段逐一比较（替代 JSON.stringify）
+   */
   private computeOutputDivergence(
     actual: Record<string, unknown>,
     expected: Record<string, unknown>,
@@ -408,17 +412,64 @@ export class HighFidelitySimulationEngine {
     for (const key of allKeys) {
       const aVal = actual[key];
       const eVal = expected[key];
-
-      if (typeof aVal === 'number' && typeof eVal === 'number') {
-        const maxAbs = Math.max(Math.abs(aVal), Math.abs(eVal), 1);
-        totalDiff += Math.abs(aVal - eVal) / maxAbs;
-      } else if (JSON.stringify(aVal) !== JSON.stringify(eVal)) {
-        totalDiff += 1.0;
-      }
+      totalDiff += this.computeFieldDiff(aVal, eVal);
       keyCount++;
     }
 
     return keyCount > 0 ? totalDiff / keyCount : 0;
+  }
+
+  private computeFieldDiff(a: unknown, b: unknown): number {
+    if (a === undefined && b === undefined) return 0;
+    if (a === undefined || b === undefined) return 1.0;
+    if (a === null && b === null) return 0;
+    if (a === null || b === null) return 1.0;
+
+    // 数值比较（相对误差 + 绝对容差）
+    if (typeof a === 'number' && typeof b === 'number') {
+      const absDiff = Math.abs(a - b);
+      if (absDiff < 1e-8) return 0;
+      const maxAbs = Math.max(Math.abs(a), Math.abs(b), 1);
+      const relDiff = absDiff / maxAbs;
+      return Math.min(relDiff, 1.0);
+    }
+
+    // 字符串比较
+    if (typeof a === 'string' && typeof b === 'string') {
+      return a === b ? 0 : 1.0;
+    }
+
+    // 布尔比较
+    if (typeof a === 'boolean' && typeof b === 'boolean') {
+      return a === b ? 0 : 1.0;
+    }
+
+    // 数组比较
+    if (Array.isArray(a) && Array.isArray(b)) {
+      const maxLen = Math.max(a.length, b.length);
+      if (maxLen === 0) return 0;
+      let sum = 0;
+      for (let i = 0; i < maxLen; i++) {
+        sum += this.computeFieldDiff(a[i], b[i]);
+      }
+      return sum / maxLen;
+    }
+
+    // 对象递归比较
+    if (typeof a === 'object' && typeof b === 'object') {
+      const aObj = a as Record<string, unknown>;
+      const bObj = b as Record<string, unknown>;
+      const keys = new Set([...Object.keys(aObj), ...Object.keys(bObj)]);
+      if (keys.size === 0) return 0;
+      let sum = 0;
+      for (const k of keys) {
+        sum += this.computeFieldDiff(aObj[k], bObj[k]);
+      }
+      return sum / keys.size;
+    }
+
+    // 类型不匹配
+    return 1.0;
   }
 
   // ==========================================================================
@@ -432,13 +483,83 @@ export class HighFidelitySimulationEngine {
     return 'easy';
   }
 
-  private async computeFidelity(inputData: Record<string, unknown>): Promise<number> {
-    // 保真度评分：基于输入数据的完整性和合理性
-    const keys = Object.keys(inputData);
-    const hasNumericValues = Object.values(inputData).some(v => typeof v === 'number');
-    const completeness = Math.min(keys.length / 10, 1.0); // 假设 10 个维度为完整
-    const validity = hasNumericValues ? 0.9 : 0.5;
-    return completeness * 0.6 + validity * 0.4;
+  /**
+   * P1 修复：保真度评分 — 基于输入数据的多维度评估
+   *
+   * 评分维度：
+   *   1. 完整性 (30%): 输入字段数量 / 期望字段数量
+   *   2. 数值覆盖率 (25%): 数值型字段占比
+   *   3. 值域合理性 (25%): 数值字段是否在合理范围内（无 NaN/Infinity）
+   *   4. 结构深度 (20%): 嵌套对象的深度（越深越接近真实数据）
+   *
+   * 如果有历史分布数据，额外使用 JS 散度评估与历史分布的偏离程度
+   */
+  private async computeFidelity(
+    inputData: Record<string, unknown>,
+    historicalDistribution?: number[],
+  ): Promise<number> {
+    const entries = Object.entries(inputData);
+    const totalFields = entries.length;
+
+    if (totalFields === 0) return 0;
+
+    // 1. 完整性评分
+    const completeness = Math.min(totalFields / 10, 1.0);
+
+    // 2. 数值覆盖率
+    const numericFields = entries.filter(([_, v]) => typeof v === 'number');
+    const numericCoverage = numericFields.length / totalFields;
+
+    // 3. 值域合理性
+    let validNumericCount = 0;
+    for (const [_, value] of numericFields) {
+      const v = value as number;
+      if (Number.isFinite(v) && !Number.isNaN(v)) {
+        validNumericCount++;
+      }
+    }
+    const valueValidity = numericFields.length > 0
+      ? validNumericCount / numericFields.length
+      : 0.5;
+
+    // 4. 结构深度
+    const depth = this.measureDepth(inputData);
+    const depthScore = Math.min(depth / 3, 1.0); // 深度 3 为满分
+
+    // 基础保真度
+    let fidelity = completeness * 0.30 + numericCoverage * 0.25 + valueValidity * 0.25 + depthScore * 0.20;
+
+    // 5. 如果有历史分布，使用 JS 散度调整
+    if (historicalDistribution && numericFields.length > 0) {
+      const currentDist = numericFields.map(([_, v]) => Math.abs(v as number));
+      // 归一化为概率分布
+      const sumCurrent = currentDist.reduce((a, b) => a + b, 0) || 1;
+      const sumHistorical = historicalDistribution.reduce((a, b) => a + b, 0) || 1;
+      const pCurrent = currentDist.map(v => v / sumCurrent);
+      const pHistorical = historicalDistribution.map(v => v / sumHistorical);
+
+      // 确保长度一致
+      const minLen = Math.min(pCurrent.length, pHistorical.length);
+      if (minLen > 0) {
+        const jsDiv = jsDivergence(pCurrent.slice(0, minLen), pHistorical.slice(0, minLen));
+        // JS 散度越小，保真度越高
+        const distributionFidelity = Math.max(0, 1 - jsDiv * 2);
+        fidelity = fidelity * 0.7 + distributionFidelity * 0.3;
+      }
+    }
+
+    return Math.max(0, Math.min(1, fidelity));
+  }
+
+  private measureDepth(obj: unknown, currentDepth = 0): number {
+    if (typeof obj !== 'object' || obj === null || Array.isArray(obj)) {
+      return currentDepth;
+    }
+    let maxDepth = currentDepth;
+    for (const value of Object.values(obj)) {
+      maxDepth = Math.max(maxDepth, this.measureDepth(value, currentDepth + 1));
+    }
+    return maxDepth;
   }
 
   private async persistScenario(scenario: SimScenario): Promise<void> {

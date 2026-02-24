@@ -13,10 +13,11 @@
  */
 
 import { getDb } from '../../../lib/db';
-import { evolutionFlywheelSchedules } from '../../../../drizzle/evolution-schema';
-import { eq, desc } from 'drizzle-orm';
+import { dojoTrainingJobs } from '../../../../drizzle/evolution-schema';
+import { eq, desc, inArray } from 'drizzle-orm';
 import { EventBus } from '../../events/event-bus';
 import { createModuleLogger } from '../../../core/logger';
+import { CarbonAwareClient } from '../../../lib/clients/carbon-aware.client';
 
 const log = createModuleLogger('dojo-scheduler');
 
@@ -142,9 +143,83 @@ export class DojoTrainingScheduler {
   private completedJobs: ScheduledJob[] = [];
   private readonly MAX_COMPLETED = 200;
 
+  private carbonClient: CarbonAwareClient;
+
   constructor(config: Partial<SchedulerConfig> = {}, eventBus?: EventBus) {
     this.config = { ...DEFAULT_CONFIG, ...config };
     this.eventBus = eventBus || new EventBus();
+    this.carbonClient = new CarbonAwareClient();
+  }
+
+  // ==========================================================================
+  // 0. P2 修复：启动时从 DB 恢复任务队列
+  // ==========================================================================
+
+  /**
+   * 初始化：从 DB 恢复未完成的任务
+   * 应在服务启动时调用
+   */
+  async initialize(): Promise<void> {
+    const db = await getDb();
+    if (!db) {
+      log.warn('数据库不可用，跳过任务队列恢复');
+      return;
+    }
+
+    try {
+      // 恢复 pending 和 scheduled 状态的任务到队列
+      const pendingRows = await db.select().from(dojoTrainingJobs)
+        .where(inArray(dojoTrainingJobs.status, ['pending', 'scheduled']))
+        .orderBy(dojoTrainingJobs.priority, dojoTrainingJobs.createdAt);
+
+      for (const row of pendingRows) {
+        const job: TrainingJob = {
+          id: row.jobId,
+          name: row.name,
+          modelId: row.modelId,
+          jobType: (row.config as any)?.jobType ?? 'fine_tune',
+          dataType: (row.config as any)?.dataType ?? 'mixed',
+          estimatedDurationMs: row.estimatedDurationMs ?? 3600000,
+          datasetSizeMB: (row.config as any)?.datasetSizeMB ?? 0,
+          priority: (row.priority ?? 5) as TrainingJob['priority'],
+          resources: (row.config as any)?.resources ?? { gpus: 8, cpuCores: 32, memoryGB: 128, storageGB: 500, preferSpot: true },
+          config: (row.config as any)?.trainConfig ?? {},
+          submittedAt: row.createdAt.getTime(),
+          submittedBy: (row.config as any)?.submittedBy ?? 'system',
+        };
+
+        const scheduledJob: ScheduledJob = {
+          job,
+          scheduledAt: row.scheduledAt?.getTime() ?? Date.now(),
+          estimatedStartAt: row.scheduledAt?.getTime() ?? Date.now(),
+          estimatedEndAt: (row.scheduledAt?.getTime() ?? Date.now()) + (row.estimatedDurationMs ?? 3600000),
+          carbonIntensity: (row.carbonWindow as any)?.carbonIntensity ?? 200,
+          costEstimate: (row.config as any)?.costEstimate ?? { onDemandCost: 0, spotCost: 0, selectedCost: 0, useSpot: true, currency: 'USD' },
+          resourceAllocation: (row.config as any)?.resourceAllocation ?? { gpus: 8, gpuType: 'A100-40GB', cpuCores: 32, memoryGB: 128, storageGB: 500, isSpot: true, region: 'default' },
+          status: row.status as ScheduledJob['status'],
+        };
+
+        this.insertIntoQueue(scheduledJob);
+      }
+
+      // 恢复 running 状态的任务（标记为需要重新检查）
+      const runningRows = await db.select().from(dojoTrainingJobs)
+        .where(eq(dojoTrainingJobs.status, 'running'));
+
+      if (runningRows.length > 0) {
+        log.warn(`发现 ${runningRows.length} 个运行中的任务，可能需要重新检查状态`);
+        // 将崩溃时运行中的任务重新放入队列
+        for (const row of runningRows) {
+          await db.update(dojoTrainingJobs)
+            .set({ status: 'pending', retryCount: (row.retryCount ?? 0) + 1 })
+            .where(eq(dojoTrainingJobs.id, row.id));
+        }
+      }
+
+      log.info(`从 DB 恢复任务队列: ${pendingRows.length} 个待执行, ${runningRows.length} 个重新排队`);
+    } catch (err) {
+      log.error('从 DB 恢复任务队列失败', err);
+    }
   }
 
   // ==========================================================================
@@ -209,28 +284,55 @@ export class DojoTrainingScheduler {
   // 2. Carbon-Aware 窗口查找
   // ==========================================================================
 
+  /**
+   * P2 修复：接入 CarbonAwareClient 获取真实碳强度数据
+   * 降级策略：API 不可用时使用基于太阳能的确定性估算
+   */
   private async findLowCarbonWindow(durationMs: number): Promise<CarbonWindow> {
-    // 模拟 Carbon-aware 调度
-    // 实际生产中接入 WattTime / Electricity Maps API
     const now = Date.now();
     const windows: CarbonWindow[] = [];
 
-    // 生成未来 48 小时的碳强度预测
-    for (let hour = 0; hour < 48; hour++) {
-      const start = now + hour * 3600000;
-      // 模拟日间碳强度较低（太阳能）
-      const hourOfDay = new Date(start).getUTCHours();
-      const isSolar = hourOfDay >= 8 && hourOfDay <= 18;
-      const baseIntensity = isSolar ? 100 : 300;
-      const noise = (Math.random() - 0.5) * 50;
+    try {
+      // 尝试从 CarbonAwareClient 获取真实数据
+      const forecast = await this.carbonClient.getForecast('us-west-2', 48);
 
-      windows.push({
-        start,
-        end: start + durationMs,
-        carbonIntensity: baseIntensity + noise,
-        region: 'us-west-2',
-        renewable: isSolar ? 0.6 : 0.2,
-      });
+      if (forecast && forecast.length > 0) {
+        for (const entry of forecast) {
+          windows.push({
+            start: entry.timestamp,
+            end: entry.timestamp + durationMs,
+            carbonIntensity: entry.carbonIntensity,
+            region: entry.region,
+            renewable: entry.renewablePercentage,
+          });
+        }
+        log.info(`从 CarbonAwareClient 获取 ${forecast.length} 个碳强度预测窗口`);
+      }
+    } catch (err) {
+      log.warn('CarbonAwareClient 不可用，使用确定性估算', err);
+    }
+
+    // 降级：基于太阳能的确定性估算（无随机数）
+    if (windows.length === 0) {
+      for (let hour = 0; hour < 48; hour++) {
+        const start = now + hour * 3600000;
+        const hourOfDay = new Date(start).getUTCHours();
+        // 确定性太阳能模型：日间 8-18 点碳强度低
+        const isSolar = hourOfDay >= 8 && hourOfDay <= 18;
+        const solarFactor = isSolar
+          ? Math.sin(Math.PI * (hourOfDay - 8) / 10) // 午间峰值
+          : 0;
+        const carbonIntensity = 300 - solarFactor * 200; // 100-300 gCO2/kWh
+        const renewable = 0.2 + solarFactor * 0.5;       // 20%-70%
+
+        windows.push({
+          start,
+          end: start + durationMs,
+          carbonIntensity,
+          region: 'default',
+          renewable,
+        });
+      }
     }
 
     // 选择碳强度最低的窗口
@@ -326,6 +428,9 @@ export class DojoTrainingScheduler {
     nextJob.status = 'running';
     this.runningJobs.set(nextJob.job.id, nextJob);
 
+    // P2 修复：同步状态到 DB
+    await this.updateJobStatus(nextJob.job.id, 'running');
+
     await this.eventBus.publish({
       type: 'dojo.job.started',
       source: 'dojo-training-scheduler',
@@ -336,13 +441,16 @@ export class DojoTrainingScheduler {
     return nextJob;
   }
 
-  async completeJob(jobId: string, success: boolean): Promise<void> {
+  async completeJob(jobId: string, success: boolean, result?: Record<string, unknown>): Promise<void> {
     const job = this.runningJobs.get(jobId);
     if (!job) return;
 
     job.status = success ? 'completed' : 'failed';
     this.runningJobs.delete(jobId);
     this.completedJobs.push(job);
+
+    // P2 修复：同步状态到 DB
+    await this.updateJobStatus(jobId, job.status, result ? { result } : undefined);
 
     if (this.completedJobs.length > this.MAX_COMPLETED) {
       this.completedJobs = this.completedJobs.slice(-this.MAX_COMPLETED);
@@ -412,27 +520,69 @@ export class DojoTrainingScheduler {
   // 7. 持久化
   // ==========================================================================
 
+  /**
+   * P2 修复：使用 dojoTrainingJobs 表持久化（替代 evolutionFlywheelSchedules）
+   * 支持幂等 key 防止重复插入
+   */
   private async persistSchedule(scheduledJob: ScheduledJob): Promise<void> {
     const db = await getDb();
     if (!db) return;
 
     try {
-      await db.insert(evolutionFlywheelSchedules).values({
-        scheduleId: scheduledJob.job.id,
-        scheduleType: 'training',
-        cronExpression: null,
-        intervalMs: scheduledJob.job.estimatedDurationMs,
-        nextRunAt: new Date(scheduledJob.estimatedStartAt),
+      await db.insert(dojoTrainingJobs).values({
+        jobId: scheduledJob.job.id,
+        name: scheduledJob.job.name,
+        modelId: scheduledJob.job.modelId,
+        status: scheduledJob.status === 'queued' ? 'pending' : scheduledJob.status as any,
+        priority: scheduledJob.job.priority,
+        gpuCount: scheduledJob.resourceAllocation.gpus,
+        useSpot: scheduledJob.resourceAllocation.isSpot ? 1 : 0,
+        estimatedDurationMs: scheduledJob.job.estimatedDurationMs,
+        scheduledAt: new Date(scheduledJob.estimatedStartAt),
+        carbonWindow: {
+          carbonIntensity: scheduledJob.carbonIntensity,
+          region: scheduledJob.resourceAllocation.region,
+        },
         config: {
-          job: scheduledJob.job,
+          jobType: scheduledJob.job.jobType,
+          dataType: scheduledJob.job.dataType,
+          datasetSizeMB: scheduledJob.job.datasetSizeMB,
+          resources: scheduledJob.job.resources,
+          trainConfig: scheduledJob.job.config,
           costEstimate: scheduledJob.costEstimate,
           resourceAllocation: scheduledJob.resourceAllocation,
-          carbonIntensity: scheduledJob.carbonIntensity,
+          submittedBy: scheduledJob.job.submittedBy,
         },
-        status: 'active',
+        idempotencyKey: `dojo_${scheduledJob.job.id}`,
       });
-    } catch (err) {
+    } catch (err: any) {
+      // 幂等检查：如果是唯一索引冲突，说明已存在
+      if (err?.code === 'ER_DUP_ENTRY') {
+        log.info(`训练任务已存在（幂等）: ${scheduledJob.job.id}`);
+        return;
+      }
       log.error('持久化训练调度失败', err);
+    }
+  }
+
+  /**
+   * P2 修复：任务状态变更时同步到 DB
+   */
+  private async updateJobStatus(jobId: string, status: string, extra?: Record<string, unknown>): Promise<void> {
+    const db = await getDb();
+    if (!db) return;
+
+    try {
+      const updates: Record<string, unknown> = { status, updatedAt: new Date() };
+      if (status === 'running') updates.startedAt = new Date();
+      if (status === 'completed' || status === 'failed') updates.completedAt = new Date();
+      if (extra) Object.assign(updates, extra);
+
+      await db.update(dojoTrainingJobs)
+        .set(updates as any)
+        .where(eq(dojoTrainingJobs.jobId, jobId));
+    } catch (err) {
+      log.error(`更新任务状态失败: ${jobId}`, err);
     }
   }
 

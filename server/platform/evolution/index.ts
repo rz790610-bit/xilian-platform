@@ -11,3 +11,4 @@ export * from './closed-loop';
 export * from './metrics';
 export * from './simulation';
 export * from './fsd';
+export * from './audit';

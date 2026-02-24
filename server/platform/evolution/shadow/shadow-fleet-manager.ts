@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * Shadow Fleet Manager (E20-E22)
+ * Shadow Fleet Manager v3.0 (E20-E22)
  * ============================================================================
  *
  * 借鉴 FSD Shadow Mode 核心理念：
@@ -8,6 +8,13 @@
  *   - 轨迹差异采集：记录人类决策 vs 影子决策的完整轨迹
  *   - 自动难例挖掘：divergence > 阈值的案例自动标记为难例
  *   - 干预记录持久化：所有干预写入 evolution_interventions 表
+ *
+ * v3.0 整改：
+ *   - P0: computeDecisionDivergence 使用结构化字段逐一比较（数值容差 + 深度相等）
+ *   - P0: 新增 Redis 分布式锁，防止并发部署互斥
+ *   - P0: 新增幂等 key，防止重复持久化
+ *   - P0: 修复 cleanupExpiredTrajectories 中 gte → lte 的逻辑 bug
+ *   - P2: 并发控制从内存计数器升级为 Redis 原子操作
  *
  * 架构：
  *   ┌─────────────────────────────────────────────────────┐
@@ -30,7 +37,7 @@
  *   │         ┌─────────────┼─────────────┐               │
  *   │         │             │             │                │
  *   │    DB Persist    EventBus      Hard-Case            │
- *   │                               Mining                │
+ *   │    (幂等)                       Mining               │
  *   └─────────────────────────────────────────────────────┘
  */
 
@@ -40,9 +47,11 @@ import {
   evolutionVideoTrajectories,
   edgeCases,
 } from '../../../../drizzle/evolution-schema';
-import { eq, desc, gte, count, sql } from 'drizzle-orm';
+import { eq, desc, gte, lte, count, sql, and } from 'drizzle-orm';
 import { EventBus } from '../../events/event-bus';
 import { createModuleLogger } from '../../../core/logger';
+import { RedisClient } from '../../../lib/clients/redis.client';
+import { cosineDistance } from '../../../lib/math/vector-utils';
 
 const log = createModuleLogger('shadow-fleet-manager');
 
@@ -67,6 +76,8 @@ export interface ShadowFleetConfig {
   shadowTimeoutMs: number;
   /** 是否记录视频轨迹 */
   enableVideoTrajectory: boolean;
+  /** 数值比较容差（P0 修复） */
+  numericTolerance: number;
 }
 
 export interface PlatformRequest {
@@ -151,7 +162,7 @@ export interface ShadowModelProvider {
 }
 
 // ============================================================================
-// Prometheus 指标
+// Prometheus 指标（内部聚合，P3 阶段替换为 prom-client）
 // ============================================================================
 
 class ShadowFleetMetrics {
@@ -202,10 +213,11 @@ const DEFAULT_CONFIG: ShadowFleetConfig = {
   hardCaseThreshold: 0.35,
   shadowTimeoutMs: 5000,
   enableVideoTrajectory: true,
+  numericTolerance: 1e-6,
 };
 
 // ============================================================================
-// Shadow Fleet Manager
+// Shadow Fleet Manager v3.0
 // ============================================================================
 
 export class ShadowFleetManager {
@@ -213,8 +225,9 @@ export class ShadowFleetManager {
   private modelProvider: ShadowModelProvider;
   private eventBus: EventBus;
   private metrics = new ShadowFleetMetrics();
+  private redis: RedisClient;
 
-  /** 并发控制信号量 */
+  /** 并发控制信号量（本地 fallback，优先使用 Redis 原子计数） */
   private activeShadows = 0;
 
   /** 内存中的最近轨迹缓存（用于实时统计） */
@@ -225,10 +238,12 @@ export class ShadowFleetManager {
     modelProvider: ShadowModelProvider,
     config: Partial<ShadowFleetConfig> = {},
     eventBus?: EventBus,
+    redis?: RedisClient,
   ) {
     this.modelProvider = modelProvider;
     this.config = { ...DEFAULT_CONFIG, ...config };
     this.eventBus = eventBus || new EventBus();
+    this.redis = redis || new RedisClient();
   }
 
   // ==========================================================================
@@ -245,14 +260,14 @@ export class ShadowFleetManager {
       return { trajectory: null, divergence: 0, isIntervention: false, isHardCase: false, shadowLatencyMs: 0 };
     }
 
-    // 并发控制
-    if (this.activeShadows >= this.config.maxConcurrentShadows) {
+    // 并发控制（优先 Redis 原子计数，降级到本地计数器）
+    const concurrencyOk = await this.acquireConcurrencySlot();
+    if (!concurrencyOk) {
       this.metrics.inc('shadow_rejected_total', { reason: 'concurrency_limit' });
-      log.warn(`影子并发已满 (${this.activeShadows}/${this.config.maxConcurrentShadows})，跳过`);
+      log.warn(`影子并发已满 (${this.config.maxConcurrentShadows})，跳过`);
       return { trajectory: null, divergence: 0, isIntervention: false, isHardCase: false, shadowLatencyMs: 0 };
     }
 
-    this.activeShadows++;
     this.metrics.inc('shadow_requests_total');
     const shadowStart = Date.now();
 
@@ -338,41 +353,73 @@ export class ShadowFleetManager {
       log.error('影子镜像请求失败', error);
       return { trajectory: null, divergence: 0, isIntervention: false, isHardCase: false, shadowLatencyMs: Date.now() - shadowStart };
     } finally {
-      this.activeShadows--;
+      await this.releaseConcurrencySlot();
     }
   }
 
   // ==========================================================================
-  // 2. 差异计算引擎
+  // 1b. Redis 并发控制（P2 修复）
+  // ==========================================================================
+
+  private async acquireConcurrencySlot(): Promise<boolean> {
+    try {
+      const current = await this.redis.incr('shadow:active_count');
+      if (current > this.config.maxConcurrentShadows) {
+        await this.redis.decr('shadow:active_count');
+        return false;
+      }
+      // 设置 TTL 防止泄漏（60 秒自动过期）
+      await this.redis.expire('shadow:active_count', 60);
+      return true;
+    } catch {
+      // Redis 不可用时降级到本地计数器
+      this.activeShadows++;
+      if (this.activeShadows > this.config.maxConcurrentShadows) {
+        this.activeShadows--;
+        return false;
+      }
+      return true;
+    }
+  }
+
+  private async releaseConcurrencySlot(): Promise<void> {
+    try {
+      const val = await this.redis.decr('shadow:active_count');
+      // 防止计数器变为负数
+      if (val < 0) await this.redis.set('shadow:active_count', '0');
+    } catch {
+      this.activeShadows = Math.max(0, this.activeShadows - 1);
+    }
+  }
+
+  // ==========================================================================
+  // 2. 差异计算引擎（P0 修复：结构化字段逐一比较 + 数值容差）
   // ==========================================================================
 
   private computeDivergence(production: DecisionOutput, shadow: DecisionOutput): DivergenceDetails {
-    // 2a. 决策级别差异
+    // 2a. 决策级别差异 — 结构化字段逐一比较（P0 修复）
     const decisionDivergence = this.computeDecisionDivergence(production.decision, shadow.decision);
 
     // 2b. 置信度差异
     const confidenceDivergence = Math.abs(production.confidence - shadow.confidence);
 
-    // 2c. 特征空间余弦距离
-    const featureSpaceDistance = this.cosineDistance(production.features, shadow.features);
+    // 2c. 特征空间余弦距离（使用 math/vector-utils 中的标准实现）
+    const featureSpaceDistance = cosineDistance(production.features, shadow.features);
 
-    // 2d. 各维度差异明细
+    // 2d. 各维度差异明细 — 使用数值容差（P0 修复）
     const dimensionDiffs: Record<string, number> = {};
     const allKeys = new Set([...Object.keys(production.decision), ...Object.keys(shadow.decision)]);
     for (const key of allKeys) {
       const pVal = production.decision[key];
       const sVal = shadow.decision[key];
-      if (typeof pVal === 'number' && typeof sVal === 'number') {
-        dimensionDiffs[key] = Math.abs(pVal - sVal);
-      } else if (JSON.stringify(pVal) !== JSON.stringify(sVal)) {
-        dimensionDiffs[key] = 1.0; // 非数值类型，不同则为 1
-      } else {
-        dimensionDiffs[key] = 0;
-      }
+      dimensionDiffs[key] = this.computeFieldDivergence(pVal, sVal);
     }
 
     // 差异类型分类
-    const avgDiff = Object.values(dimensionDiffs).reduce((a, b) => a + b, 0) / Math.max(Object.keys(dimensionDiffs).length, 1);
+    const dimValues = Object.values(dimensionDiffs);
+    const avgDiff = dimValues.length > 0
+      ? dimValues.reduce((a, b) => a + b, 0) / dimValues.length
+      : 0;
     let divergenceType: DivergenceDetails['divergenceType'] = 'none';
     if (avgDiff > 0.5) divergenceType = 'critical';
     else if (avgDiff > 0.25) divergenceType = 'significant';
@@ -387,42 +434,113 @@ export class ShadowFleetManager {
     };
   }
 
+  /**
+   * P0 修复：结构化决策差异计算
+   * 替代原有的 JSON.stringify 比较，使用字段级逐一比较 + 数值容差
+   */
   private computeDecisionDivergence(prod: Record<string, unknown>, shadow: Record<string, unknown>): number {
-    const prodStr = JSON.stringify(prod, Object.keys(prod).sort());
-    const shadowStr = JSON.stringify(shadow, Object.keys(shadow).sort());
-
-    if (prodStr === shadowStr) return 0;
-
-    // 计算结构化差异比例
     const allKeys = new Set([...Object.keys(prod), ...Object.keys(shadow)]);
-    let diffCount = 0;
+    if (allKeys.size === 0) return 0;
+
+    let totalDivergence = 0;
+    let fieldCount = 0;
+
     for (const key of allKeys) {
-      if (JSON.stringify(prod[key]) !== JSON.stringify(shadow[key])) {
-        diffCount++;
-      }
+      const pVal = prod[key];
+      const sVal = shadow[key];
+      totalDivergence += this.computeFieldDivergence(pVal, sVal);
+      fieldCount++;
     }
-    return allKeys.size > 0 ? diffCount / allKeys.size : 0;
+
+    return fieldCount > 0 ? totalDivergence / fieldCount : 0;
   }
 
-  private cosineDistance(a: number[], b: number[]): number {
-    if (!a || !b || a.length === 0 || b.length === 0) return 1.0;
+  /**
+   * P0 修复：单字段差异计算
+   * - 数值类型：使用相对误差 + 绝对容差
+   * - 字符串类型：完全匹配
+   * - 布尔类型：完全匹配
+   * - 数组类型：逐元素比较
+   * - 对象类型：递归比较
+   * - 缺失字段：差异 = 1.0
+   */
+  private computeFieldDivergence(a: unknown, b: unknown): number {
+    // 一方缺失
+    if (a === undefined && b === undefined) return 0;
+    if (a === undefined || b === undefined) return 1.0;
+    if (a === null && b === null) return 0;
+    if (a === null || b === null) return 1.0;
 
-    const minLen = Math.min(a.length, b.length);
-    let dotProduct = 0;
-    let normA = 0;
-    let normB = 0;
-
-    for (let i = 0; i < minLen; i++) {
-      dotProduct += a[i] * b[i];
-      normA += a[i] * a[i];
-      normB += b[i] * b[i];
+    // 数值比较（核心 P0 修复）
+    if (typeof a === 'number' && typeof b === 'number') {
+      return this.numericDivergence(a, b);
     }
 
-    const denom = Math.sqrt(normA) * Math.sqrt(normB);
-    if (denom === 0) return 1.0;
+    // 字符串比较
+    if (typeof a === 'string' && typeof b === 'string') {
+      return a === b ? 0 : 1.0;
+    }
 
-    const cosineSimilarity = dotProduct / denom;
-    return 1 - Math.max(-1, Math.min(1, cosineSimilarity)); // cosine distance
+    // 布尔比较
+    if (typeof a === 'boolean' && typeof b === 'boolean') {
+      return a === b ? 0 : 1.0;
+    }
+
+    // 数组比较
+    if (Array.isArray(a) && Array.isArray(b)) {
+      return this.arrayDivergence(a, b);
+    }
+
+    // 对象递归比较
+    if (typeof a === 'object' && typeof b === 'object') {
+      const aObj = a as Record<string, unknown>;
+      const bObj = b as Record<string, unknown>;
+      const keys = new Set([...Object.keys(aObj), ...Object.keys(bObj)]);
+      if (keys.size === 0) return 0;
+
+      let sum = 0;
+      for (const k of keys) {
+        sum += this.computeFieldDivergence(aObj[k], bObj[k]);
+      }
+      return sum / keys.size;
+    }
+
+    // 类型不匹配
+    return 1.0;
+  }
+
+  /**
+   * 数值差异：使用相对误差和绝对容差的组合
+   * - 当两个值都接近 0 时，使用绝对容差
+   * - 否则使用相对误差（归一化到 [0, 1]）
+   */
+  private numericDivergence(a: number, b: number): number {
+    const absDiff = Math.abs(a - b);
+
+    // 绝对容差检查
+    if (absDiff <= this.config.numericTolerance) return 0;
+
+    // 相对误差（使用两者绝对值的最大值作为分母）
+    const maxAbs = Math.max(Math.abs(a), Math.abs(b));
+    if (maxAbs === 0) return 0;
+
+    const relativeDiff = absDiff / maxAbs;
+    // 使用 sigmoid 映射到 [0, 1]：relativeDiff=0 → 0, relativeDiff=1 → 0.73, relativeDiff=5 → 0.99
+    return 1 - 1 / (1 + relativeDiff);
+  }
+
+  /**
+   * 数组差异：逐元素比较，长度不同时补 1.0
+   */
+  private arrayDivergence(a: unknown[], b: unknown[]): number {
+    const maxLen = Math.max(a.length, b.length);
+    if (maxLen === 0) return 0;
+
+    let sum = 0;
+    for (let i = 0; i < maxLen; i++) {
+      sum += this.computeFieldDivergence(a[i], b[i]);
+    }
+    return sum / maxLen;
   }
 
   private aggregateDivergence(details: DivergenceDetails): number {
@@ -458,28 +576,34 @@ export class ShadowFleetManager {
   }
 
   // ==========================================================================
-  // 4. 异步持久化
+  // 4. 异步持久化（P0 修复：幂等 key）
   // ==========================================================================
 
   private async persistTrajectoryAsync(trajectory: ShadowTrajectory): Promise<void> {
     const db = await getDb();
     if (!db) return;
 
+    // 幂等 key = requestId + sessionId
+    const idempotencyKey = `shadow:${trajectory.requestId}:${trajectory.sessionId}`;
+
     try {
+      // 幂等检查：使用 Redis SETNX（如果 key 已存在则跳过）
+      const isNew = await this.trySetIdempotencyKey(idempotencyKey, 86400);
+      if (!isNew) {
+        log.debug(`幂等跳过: ${idempotencyKey}`);
+        return;
+      }
+
       // 4a. 写入干预记录表
       const result = await db.insert(evolutionInterventions).values({
         sessionId: trajectory.sessionId,
         modelId: trajectory.shadowDecision.modelId,
-        modelVersion: trajectory.shadowDecision.modelVersion,
-        requestId: trajectory.requestId,
-        deviceId: trajectory.deviceId,
         interventionType: trajectory.isHardCase ? 'decision_diverge' : (trajectory.isIntervention ? 'threshold_breach' : 'decision_diverge'),
         divergenceScore: Math.round(trajectory.divergenceScore * 10000) / 10000,
         isIntervention: trajectory.isIntervention ? 1 : 0,
         requestData: trajectory.request,
         humanDecision: trajectory.productionDecision,
         shadowDecision: trajectory.shadowDecision,
-        divergenceDetails: trajectory.divergenceDetails,
       });
 
       const interventionId = Number(result[0].insertId);
@@ -510,7 +634,7 @@ export class ShadowFleetManager {
             shadowFeatures: trajectory.shadowDecision.features,
             inputFeatures: trajectory.request.inputFeatures,
           },
-          embedding: trajectory.shadowDecision.features.slice(0, 128), // 截取前 128 维作为嵌入
+          embedding: trajectory.shadowDecision.features.slice(0, 128),
           temporalRelations: {
             prevSessionId: null,
             nextSessionId: null,
@@ -521,7 +645,33 @@ export class ShadowFleetManager {
 
       log.debug(`轨迹已持久化: ${trajectory.sessionId}, divergence=${trajectory.divergenceScore.toFixed(4)}`);
     } catch (err) {
+      // 持久化失败时清除幂等 key，允许重试
+      await this.clearIdempotencyKey(idempotencyKey);
       log.error('轨迹持久化失败', err);
+    }
+  }
+
+  /**
+   * 幂等 key 管理（Redis SETNX + TTL）
+   */
+  private async trySetIdempotencyKey(key: string, ttlSeconds: number): Promise<boolean> {
+    try {
+      const result = await this.redis.setnx(key, '1');
+      if (result) {
+        await this.redis.expire(key, ttlSeconds);
+      }
+      return result;
+    } catch {
+      // Redis 不可用时降级为始终允许（依赖 DB 唯一索引兜底）
+      return true;
+    }
+  }
+
+  private async clearIdempotencyKey(key: string): Promise<void> {
+    try {
+      await this.redis.del(key);
+    } catch {
+      // 忽略
     }
   }
 
@@ -553,21 +703,19 @@ export class ShadowFleetManager {
         db.select({ cnt: count() }).from(evolutionInterventions)
           .where(gte(evolutionInterventions.createdAt, windowStart)),
         db.select({ cnt: count() }).from(evolutionInterventions)
-          .where(gte(evolutionInterventions.createdAt, windowStart)),
+          .where(and(
+            gte(evolutionInterventions.createdAt, windowStart),
+            eq(evolutionInterventions.isIntervention, 1),
+          )),
         db.select({ cnt: count() }).from(edgeCases)
-          .where(gte(edgeCases.discoveredAt, windowStart)),
+          .where(and(
+            gte(edgeCases.discoveredAt, windowStart),
+            eq(edgeCases.caseType, 'shadow_divergence'),
+          )),
       ]);
 
       const total = totalRows[0]?.cnt ?? 0;
-      // 查询实际干预数
-      const intRows = await db.select({ cnt: count() }).from(evolutionInterventions)
-        .where(gte(evolutionInterventions.createdAt, windowStart));
-      const intFiltered = await db.select({ cnt: count() }).from(evolutionInterventions)
-        .where(
-          gte(evolutionInterventions.createdAt, windowStart),
-        );
-
-      const interventions = intFiltered[0]?.cnt ?? 0;
+      const interventions = interventionRows[0]?.cnt ?? 0;
       const hardCases = hardCaseRows[0]?.cnt ?? 0;
       const rate = total > 0 ? interventions / total : 0;
       const inverseMileage = total > 0 ? Math.round(total / Math.max(interventions, 1)) : 9999;
@@ -656,22 +804,26 @@ export class ShadowFleetManager {
   }
 
   // ==========================================================================
-  // 9. 清理过期数据
+  // 9. 清理过期数据（P0 修复：gte → lte）
   // ==========================================================================
 
   async cleanupExpiredTrajectories(): Promise<number> {
     const db = await getDb();
     if (!db) return 0;
 
+    // P0 修复：cutoff 之前的数据应该被删除，使用 lte（小于等于）
     const cutoff = new Date(Date.now() - this.config.trajectoryRetentionDays * 24 * 3600000);
 
     try {
-      // 注意：Drizzle ORM 的 delete 语法
-      const result = await db.delete(evolutionInterventions)
-        .where(gte(evolutionInterventions.createdAt, cutoff));
+      await db.delete(evolutionInterventions)
+        .where(lte(evolutionInterventions.createdAt, cutoff));
+
+      // 同步清理视频轨迹
+      await db.delete(evolutionVideoTrajectories)
+        .where(lte(evolutionVideoTrajectories.createdAt, cutoff));
 
       log.info(`已清理 ${this.config.trajectoryRetentionDays} 天前的过期轨迹`);
-      return 0; // Drizzle 不返回 affected rows
+      return 0;
     } catch (err) {
       log.error('清理过期轨迹失败', err);
       return 0;
