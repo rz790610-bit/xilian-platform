@@ -2045,3 +2045,188 @@ export const evolutionAlerts = mysqlTable('evolution_alerts', {
 ]);
 export type EvolutionAlert = typeof evolutionAlerts.$inferSelect;
 export type InsertEvolutionAlert = typeof evolutionAlerts.$inferInsert;
+
+
+// ============================================================================
+// Phase 4: 自愈与自优化闭环 — 6 张新表
+// ============================================================================
+
+/** 自愈策略配置 */
+export const evolutionSelfHealingPolicies = mysqlTable('evolution_self_healing_policies', {
+  id: int('id').primaryKey().autoincrement(),
+  name: varchar('name', { length: 256 }).notNull(),
+  description: text('description'),
+  policyType: mysqlEnum('policy_type', ['auto_rollback', 'param_tuning', 'codegen', 'circuit_breaker']).notNull(),
+  triggerCondition: json('trigger_condition').$type<{
+    metricName: string;
+    operator: 'gt' | 'gte' | 'lt' | 'lte' | 'eq' | 'neq';
+    threshold: number;
+    durationSeconds: number;
+    engineModule?: string;
+  }>().notNull(),
+  action: json('action').$type<{ type: string; params: Record<string, unknown> }>().notNull(),
+  engineModule: varchar('engine_module', { length: 128 }),
+  enabled: tinyint('enabled').default(1).notNull(),
+  priority: int('priority').default(0).notNull(),
+  cooldownSeconds: int('cooldown_seconds').default(600).notNull(),
+  maxConsecutiveExecutions: int('max_consecutive_executions').default(3).notNull(),
+  totalExecutions: int('total_executions').default(0).notNull(),
+  lastExecutedAt: timestamp('last_executed_at', { fsp: 3 }),
+  createdAt: timestamp('created_at', { fsp: 3 }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { fsp: 3 }).defaultNow().notNull(),
+}, (table) => [
+  index('idx_shp_type').on(table.policyType),
+  index('idx_shp_module').on(table.engineModule),
+  index('idx_shp_enabled').on(table.enabled),
+]);
+export type EvolutionSelfHealingPolicy = typeof evolutionSelfHealingPolicies.$inferSelect;
+export type InsertEvolutionSelfHealingPolicy = typeof evolutionSelfHealingPolicies.$inferInsert;
+
+/** 自愈执行日志 */
+export const evolutionSelfHealingLogs = mysqlTable('evolution_self_healing_logs', {
+  id: int('id').primaryKey().autoincrement(),
+  policyId: int('policy_id').notNull(),
+  policyName: varchar('policy_name', { length: 256 }).notNull(),
+  policyType: mysqlEnum('policy_type', ['auto_rollback', 'param_tuning', 'codegen', 'circuit_breaker']).notNull(),
+  triggerReason: text('trigger_reason').notNull(),
+  triggerMetricValue: double('trigger_metric_value'),
+  status: mysqlEnum('status', ['pending', 'executing', 'success', 'failed', 'skipped']).default('pending').notNull(),
+  result: json('result').$type<Record<string, unknown>>(),
+  affectedModules: json('affected_modules').$type<string[]>(),
+  beforeSnapshot: json('before_snapshot').$type<Record<string, unknown>>(),
+  afterSnapshot: json('after_snapshot').$type<Record<string, unknown>>(),
+  durationMs: int('duration_ms'),
+  errorMessage: text('error_message'),
+  executedAt: timestamp('executed_at', { fsp: 3 }).defaultNow().notNull(),
+  completedAt: timestamp('completed_at', { fsp: 3 }),
+}, (table) => [
+  index('idx_shl_policy').on(table.policyId),
+  index('idx_shl_type').on(table.policyType),
+  index('idx_shl_status').on(table.status),
+  index('idx_shl_executed').on(table.executedAt),
+]);
+export type EvolutionSelfHealingLog = typeof evolutionSelfHealingLogs.$inferSelect;
+export type InsertEvolutionSelfHealingLog = typeof evolutionSelfHealingLogs.$inferInsert;
+
+/** 全链路回滚记录 */
+export const evolutionRollbackRecords = mysqlTable('evolution_rollback_records', {
+  id: int('id').primaryKey().autoincrement(),
+  rollbackType: mysqlEnum('rollback_type', ['deployment', 'model', 'config', 'full_chain']).notNull(),
+  trigger: mysqlEnum('trigger_mode', ['auto', 'manual', 'policy']).default('manual').notNull(),
+  policyId: int('policy_id'),
+  deploymentId: int('deployment_id'),
+  modelVersion: varchar('model_version', { length: 128 }),
+  reason: text('reason').notNull(),
+  fromState: json('from_state').$type<Record<string, unknown>>().notNull(),
+  toState: json('to_state').$type<Record<string, unknown>>().notNull(),
+  affectedModules: json('affected_modules').$type<string[]>(),
+  status: mysqlEnum('status', ['pending', 'executing', 'completed', 'failed', 'cancelled']).default('pending').notNull(),
+  durationMs: int('duration_ms'),
+  verificationResult: json('verification_result').$type<{
+    passed: boolean;
+    checks: Array<{ name: string; passed: boolean; message: string }>;
+  }>(),
+  executedBy: varchar('executed_by', { length: 128 }),
+  createdAt: timestamp('created_at', { fsp: 3 }).defaultNow().notNull(),
+  completedAt: timestamp('completed_at', { fsp: 3 }),
+}, (table) => [
+  index('idx_rr_type').on(table.rollbackType),
+  index('idx_rr_trigger').on(table.trigger),
+  index('idx_rr_status').on(table.status),
+  index('idx_rr_created').on(table.createdAt),
+]);
+export type EvolutionRollbackRecord = typeof evolutionRollbackRecords.$inferSelect;
+export type InsertEvolutionRollbackRecord = typeof evolutionRollbackRecords.$inferInsert;
+
+/** 参数自调优任务 */
+export const evolutionParamTuningJobs = mysqlTable('evolution_param_tuning_jobs', {
+  id: int('id').primaryKey().autoincrement(),
+  name: varchar('name', { length: 256 }).notNull(),
+  engineModule: varchar('engine_module', { length: 128 }).notNull(),
+  searchStrategy: mysqlEnum('search_strategy', ['bayesian', 'grid', 'random', 'evolutionary']).default('bayesian').notNull(),
+  objectiveMetric: varchar('objective_metric', { length: 256 }).notNull(),
+  objectiveDirection: mysqlEnum('objective_direction', ['maximize', 'minimize']).default('maximize').notNull(),
+  searchSpace: json('search_space').$type<Array<{
+    name: string; type: 'float' | 'int' | 'categorical';
+    min?: number; max?: number; step?: number; choices?: (string | number)[];
+  }>>().notNull(),
+  constraints: json('constraints').$type<Array<{
+    metric: string; operator: 'gt' | 'gte' | 'lt' | 'lte'; value: number;
+  }>>(),
+  maxTrials: int('max_trials').default(50).notNull(),
+  completedTrials: int('completed_trials').default(0).notNull(),
+  bestTrialId: int('best_trial_id'),
+  bestObjectiveValue: double('best_objective_value'),
+  status: mysqlEnum('status', ['pending', 'running', 'completed', 'failed', 'cancelled']).default('pending').notNull(),
+  triggerMode: mysqlEnum('trigger_mode', ['auto', 'manual', 'scheduled']).default('manual').notNull(),
+  autoApply: tinyint('auto_apply').default(0).notNull(),
+  applied: tinyint('applied').default(0).notNull(),
+  appliedAt: timestamp('applied_at', { fsp: 3 }),
+  createdAt: timestamp('created_at', { fsp: 3 }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { fsp: 3 }).defaultNow().notNull(),
+  completedAt: timestamp('completed_at', { fsp: 3 }),
+}, (table) => [
+  index('idx_ptj_module').on(table.engineModule),
+  index('idx_ptj_strategy').on(table.searchStrategy),
+  index('idx_ptj_status').on(table.status),
+  index('idx_ptj_created').on(table.createdAt),
+]);
+export type EvolutionParamTuningJob = typeof evolutionParamTuningJobs.$inferSelect;
+export type InsertEvolutionParamTuningJob = typeof evolutionParamTuningJobs.$inferInsert;
+
+/** 参数调优试验记录 */
+export const evolutionParamTuningTrials = mysqlTable('evolution_param_tuning_trials', {
+  id: int('id').primaryKey().autoincrement(),
+  jobId: int('job_id').notNull(),
+  trialNumber: int('trial_number').notNull(),
+  parameters: json('parameters').$type<Record<string, number | string>>().notNull(),
+  objectiveValue: double('objective_value'),
+  metrics: json('metrics').$type<Record<string, number>>(),
+  constraintsSatisfied: tinyint('constraints_satisfied').default(1),
+  status: mysqlEnum('status', ['pending', 'running', 'completed', 'failed']).default('pending').notNull(),
+  durationMs: int('duration_ms'),
+  errorMessage: text('error_message'),
+  createdAt: timestamp('created_at', { fsp: 3 }).defaultNow().notNull(),
+  completedAt: timestamp('completed_at', { fsp: 3 }),
+}, (table) => [
+  index('idx_ptt_job').on(table.jobId),
+  index('idx_ptt_status').on(table.status),
+  index('idx_ptt_objective').on(table.objectiveValue),
+]);
+export type EvolutionParamTuningTrial = typeof evolutionParamTuningTrials.$inferSelect;
+export type InsertEvolutionParamTuningTrial = typeof evolutionParamTuningTrials.$inferInsert;
+
+/** 代码生成/验证飞轮任务 */
+export const evolutionCodegenJobs = mysqlTable('evolution_codegen_jobs', {
+  id: int('id').primaryKey().autoincrement(),
+  name: varchar('name', { length: 256 }).notNull(),
+  codeType: mysqlEnum('code_type', ['feature_extractor', 'detection_rule', 'transform_pipeline', 'aggregation', 'custom']).notNull(),
+  description: text('description').notNull(),
+  inputSchema: json('input_schema').$type<Record<string, string>>().notNull(),
+  outputSchema: json('output_schema').$type<Record<string, string>>().notNull(),
+  codeConstraints: json('code_constraints').$type<string[]>(),
+  referenceCode: text('reference_code'),
+  testData: json('test_data').$type<unknown[]>(),
+  generatedCode: text('generated_code'),
+  language: mysqlEnum('language', ['typescript', 'javascript']).default('typescript'),
+  signature: varchar('signature', { length: 512 }),
+  validationStatus: mysqlEnum('validation_status', ['pending', 'validating', 'passed', 'failed']).default('pending').notNull(),
+  validationResult: json('validation_result').$type<{
+    syntaxValid: boolean; typeCheckPassed: boolean;
+    testsPassed: number; testsFailed: number;
+    securityIssues: string[]; performanceMs: number;
+  }>(),
+  version: int('version').default(1).notNull(),
+  deployed: tinyint('deployed').default(0).notNull(),
+  deployedAt: timestamp('deployed_at', { fsp: 3 }),
+  status: mysqlEnum('codegen_status', ['draft', 'generating', 'generated', 'validating', 'validated', 'deployed', 'failed']).default('draft').notNull(),
+  createdAt: timestamp('created_at', { fsp: 3 }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { fsp: 3 }).defaultNow().notNull(),
+}, (table) => [
+  index('idx_cgj_type').on(table.codeType),
+  index('idx_cgj_status').on(table.status),
+  index('idx_cgj_validation').on(table.validationStatus),
+  index('idx_cgj_created').on(table.createdAt),
+]);
+export type EvolutionCodegenJob = typeof evolutionCodegenJobs.$inferSelect;
+export type InsertEvolutionCodegenJob = typeof evolutionCodegenJobs.$inferInsert;

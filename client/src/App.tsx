@@ -45,6 +45,7 @@ import DomainRouterConfig from "./pages/evolution/DomainRouterConfig";
 import FSDInterventionPanel from "./pages/evolution/FSDInterventionPanel";
 import KnowledgeCrystalManager from "./pages/evolution/KnowledgeCrystalManager";
 import EvolutionObservability from "./pages/evolution/EvolutionObservability";
+import EvolutionSelfHealing from "./pages/evolution/EvolutionSelfHealing";
 import KnowledgeManager from "./pages/KnowledgeManager";
 import KnowledgeGraph from "./pages/KnowledgeGraph";
 import VectorAdmin from "./pages/VectorAdmin";
@@ -233,6 +234,7 @@ function Router() {
       <Route path="/evolution/fsd" component={FSDInterventionPanel} />
       <Route path="/evolution/crystals" component={KnowledgeCrystalManager} />
       <Route path="/evolution/observability" component={EvolutionObservability} />
+      <Route path="/evolution/self-healing" component={EvolutionSelfHealing} />
       
 
       {/* ━━━ 基础设置 ━━━ */}

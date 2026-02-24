@@ -42,6 +42,7 @@ import {
 } from '../../../drizzle/evolution-schema';
 import { InterventionRateEngine } from '../../platform/evolution/shadow/intervention-rate-engine';
 import { observabilityRouter } from './observability.router';
+import { selfHealingRouter } from './self-healing.router';
 
 // 单例干预率引擎
 const interventionRateEngine = new InterventionRateEngine();
@@ -1355,6 +1356,7 @@ export const evolutionDomainRouter = router({
   audit: auditRouter,
   dojo: dojoRouter,
   observability: observabilityRouter,
+  selfHealing: selfHealingRouter,
 
   // ========== 前端仪表盘 Facade 方法（CognitiveDashboard 页面使用） ==========
 
