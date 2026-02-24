@@ -40,6 +40,59 @@ import { createModuleLogger } from '../../../core/logger';
 const log = createModuleLogger('e2e-evolution-agent');
 
 // ============================================================================
+// FFT 辅助函数（Radix-2 Cooley-Tukey, O(n log n)）
+// ============================================================================
+
+/** 返回 >= n 的最小 2 的幂次 */
+function nextPowerOf2(n: number): number {
+  let p = 1;
+  while (p < n) p <<= 1;
+  return p;
+}
+
+/** Radix-2 Cooley-Tukey FFT，输入长度必须是 2 的幂次 */
+function fftRadix2(input: Float64Array): { re: Float64Array; im: Float64Array } {
+  const N = input.length;
+  const re = new Float64Array(N);
+  const im = new Float64Array(N);
+
+  // 位反转排序
+  const bits = Math.log2(N);
+  for (let i = 0; i < N; i++) {
+    let reversed = 0;
+    for (let j = 0; j < bits; j++) {
+      reversed = (reversed << 1) | ((i >> j) & 1);
+    }
+    re[reversed] = input[i];
+  }
+
+  // 蝶形运算
+  for (let size = 2; size <= N; size *= 2) {
+    const halfSize = size / 2;
+    const angle = -2 * Math.PI / size;
+    const wRe = Math.cos(angle);
+    const wIm = Math.sin(angle);
+
+    for (let i = 0; i < N; i += size) {
+      let curRe = 1, curIm = 0;
+      for (let j = 0; j < halfSize; j++) {
+        const tRe = curRe * re[i + j + halfSize] - curIm * im[i + j + halfSize];
+        const tIm = curRe * im[i + j + halfSize] + curIm * re[i + j + halfSize];
+        re[i + j + halfSize] = re[i + j] - tRe;
+        im[i + j + halfSize] = im[i + j] - tIm;
+        re[i + j] += tRe;
+        im[i + j] += tIm;
+        const newCurRe = curRe * wRe - curIm * wIm;
+        curIm = curRe * wIm + curIm * wRe;
+        curRe = newCurRe;
+      }
+    }
+  }
+
+  return { re, im };
+}
+
+// ============================================================================
 // 类型定义
 // ============================================================================
 
@@ -417,18 +470,18 @@ export class EndToEndEvolutionAgent {
     const min = Math.min(...values);
     const max = Math.max(...values);
 
-    // --- 频域特征（简化 DFT）---
-    // 计算前 N/2 个频率分量的能量谱
+    // --- 频域特征（FFT — Radix-2 Cooley-Tukey, O(n log n)）---
+    // 将输入 zero-pad 到最近的 2 的幂次
+    const fftSize = nextPowerOf2(n);
+    const padded = new Float64Array(fftSize);
+    for (let i = 0; i < n; i++) padded[i] = values[i] - mean;
+
+    const { re: fftRe, im: fftIm } = fftRadix2(padded);
+
     const halfN = Math.floor(n / 2);
     const spectrum: number[] = [];
     for (let k = 0; k < halfN; k++) {
-      let re = 0, im = 0;
-      for (let t = 0; t < n; t++) {
-        const angle = (2 * Math.PI * k * t) / n;
-        re += (values[t] - mean) * Math.cos(angle);
-        im -= (values[t] - mean) * Math.sin(angle);
-      }
-      spectrum.push((re * re + im * im) / n);
+      spectrum.push((fftRe[k] * fftRe[k] + fftIm[k] * fftIm[k]) / n);
     }
 
     const totalEnergy = spectrum.reduce((a, b) => a + b, 0) || 1;
@@ -670,12 +723,50 @@ export class EndToEndEvolutionAgent {
             merged[i] = (1 - t) * weightsA[i] + t * weightsB[i];
           }
         } else if (Math.abs(theta - Math.PI) < EPSILON) {
-          // theta ≈ π：向量反平行，使用中间点插值
-          log.warn('SLERP: 检测到反平行向量，使用中间点插值');
-          // 找一个正交方向作为中间点
-          for (let i = 0; i < minLen; i++) {
-            const mid = weightsA[i] + (i % 2 === 0 ? 1e-4 : -1e-4);
-            merged[i] = (1 - t) * weightsA[i] + t * mid;
+          // theta ≈ π：向量反平行，使用 Gram-Schmidt 正交化找到真正正交方向
+          log.warn('SLERP: 检测到反平行向量，使用 Gram-Schmidt 正交化');
+
+          // Gram-Schmidt: 找到与 unitA 正交的方向
+          const unitA = weightsA.slice(0, minLen).map(v => v / normA);
+
+          // 随机扰动向量（扰动最小分量维度）
+          const perturbed = [...unitA];
+          let minIdx = 0;
+          let minVal = Math.abs(perturbed[0]);
+          for (let i = 1; i < minLen; i++) {
+            if (Math.abs(perturbed[i]) < minVal) {
+              minVal = Math.abs(perturbed[i]);
+              minIdx = i;
+            }
+          }
+          perturbed[minIdx] += 1.0; // 扰动最小分量
+
+          // 正交化：ortho = perturbed - (perturbed · unitA) * unitA
+          const projScalar = perturbed.reduce((s, v, i) => s + v * unitA[i], 0);
+          const ortho = perturbed.map((v, i) => v - projScalar * unitA[i]);
+
+          // 归一化
+          const orthoNorm = Math.sqrt(ortho.reduce((s, v) => s + v * v, 0));
+          if (orthoNorm < 1e-10) {
+            // 极端情况：正交化失败，退化为线性插值
+            for (let i = 0; i < minLen; i++) {
+              merged[i] = (1 - t) * weightsA[i] + t * weightsB[i];
+            }
+          } else {
+            const unitOrtho = ortho.map(v => v / orthoNorm);
+
+            // 通过正交方向做 SLERP：
+            // A → ortho → B 的大圆路径
+            // 中间点 = cos(t*π/2) * unitA * normA + sin(t*π/2) * unitOrtho * normA
+            // 然后从中间点到 B 做第二段插值
+            const halfAngle = t * Math.PI;
+            const factorA = Math.cos(halfAngle);
+            const factorOrtho = Math.sin(halfAngle);
+            const avgNorm = (normA + normB) / 2;
+
+            for (let i = 0; i < minLen; i++) {
+              merged[i] = avgNorm * (factorA * unitA[i] + factorOrtho * unitOrtho[i]);
+            }
           }
         } else {
           // 正常 SLERP

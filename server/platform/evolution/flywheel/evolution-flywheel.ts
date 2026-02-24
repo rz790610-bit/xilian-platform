@@ -923,12 +923,23 @@ export class EvolutionFlywheel {
         .orderBy(desc(shadowEvalRecords.completedAt))
         .limit(200);
 
-      const recentMetrics = recentEvals.length > 0
-        ? await db.select()
+      // 分批查询代替 IN 子查询（防止超过 1000 条时的性能问题）
+      const BATCH_SIZE = 500;
+      let recentMetrics: typeof shadowEvalMetrics.$inferSelect[] = [];
+      if (recentEvals.length > 0) {
+        const evalIds = recentEvals.map(e => e.id);
+        if (evalIds.length > BATCH_SIZE) {
+          log.warn(`IN 查询条数较多 (${evalIds.length})，使用分批查询`);
+        }
+        for (let i = 0; i < evalIds.length; i += BATCH_SIZE) {
+          const batch = evalIds.slice(i, i + BATCH_SIZE);
+          const batchResults = await db.select()
             .from(shadowEvalMetrics)
-            .where(sql`${shadowEvalMetrics.recordId} IN (${sql.join(recentEvals.map(e => sql`${e.id}`), sql`, `)})`)
-            .limit(1000)
-        : [];
+            .where(sql`${shadowEvalMetrics.recordId} IN (${sql.join(batch.map(id => sql`${id}`), sql`, `)})`)
+            .limit(BATCH_SIZE * 5);
+          recentMetrics = recentMetrics.concat(batchResults);
+        }
+      }
 
       // 2. 从 evolution_interventions 加载最近干预记录（作为边缘案例输入）
       const recentInterventions = await db.select()
