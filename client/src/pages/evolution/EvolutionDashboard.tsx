@@ -6,6 +6,7 @@ import React from 'react';
 import { trpc } from '@/lib/trpc';
 import { MetricCard, StatusBadge, SectionHeader } from '@/components/evolution';
 import { useLocation } from 'wouter';
+import { MainLayout } from '@/components/layout/MainLayout';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart,
 } from 'recharts';
@@ -140,7 +141,8 @@ export default function EvolutionDashboard() {
   const f = flywheel.data;
 
   return (
-    <div className="p-6 space-y-5 max-w-[1400px] mx-auto">
+    <MainLayout title="进化引擎总览">
+    <div className="space-y-5 max-w-[1400px] mx-auto">
       {/* 页面标题 */}
       <div className="flex items-center justify-between">
         <div>
@@ -173,5 +175,6 @@ export default function EvolutionDashboard() {
       {/* 快捷入口 */}
       <QuickLinks />
     </div>
+    </MainLayout>
   );
 }

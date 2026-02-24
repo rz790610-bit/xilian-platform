@@ -4,6 +4,7 @@
  */
 import React, { useState } from 'react';
 import { trpc } from '@/lib/trpc';
+import { MainLayout } from '@/components/layout/MainLayout';
 import { StatusBadge, MetricCard, SectionHeader, DataTable } from '@/components/evolution';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -204,7 +205,8 @@ export default function FlywheelReport() {
   const cycles = listQuery.data?.cycles ?? [];
 
   return (
-    <div className="p-6 space-y-5 max-w-[1400px] mx-auto">
+    <MainLayout title="进化飞轮">
+    <div className="space-y-5 max-w-[1400px] mx-auto">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-zinc-100">进化飞轮报告</h1>
@@ -247,9 +249,9 @@ export default function FlywheelReport() {
         />
       </div>
 
-      <SchedulePanel />
-
+       <SchedulePanel />
       <CreateScheduleDialog open={scheduleOpen} onOpenChange={setScheduleOpen} />
     </div>
+    </MainLayout>
   );
 }

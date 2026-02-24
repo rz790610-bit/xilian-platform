@@ -15,6 +15,7 @@
  */
 import React, { useState } from 'react';
 import { trpc } from '@/lib/trpc';
+import { MainLayout } from '@/components/layout/MainLayout';
 import { StatusBadge, MetricCard, SectionHeader, DataTable } from '@/components/evolution';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -149,7 +150,8 @@ function DomainHealthPanel() {
 /* ─── 主页面 ─── */
 export default function DomainRouterConfig() {
   return (
-    <div className="p-6 space-y-5 max-w-[1400px] mx-auto">
+    <MainLayout title="领域路由">
+    <div className="space-y-5 max-w-[1400px] mx-auto">
       <div>
         <h1 className="text-xl font-bold text-zinc-100">领域路由配置</h1>
         <p className="text-xs text-zinc-500 mt-0.5">Domain Router · 干预率监控、领域健康与事件追踪</p>
@@ -159,5 +161,6 @@ export default function DomainRouterConfig() {
       <DomainHealthPanel />
       <InterventionList />
     </div>
+    </MainLayout>
   );
 }

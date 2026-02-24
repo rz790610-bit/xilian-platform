@@ -9,6 +9,7 @@
  */
 import React, { useState } from 'react';
 import { trpc } from '@/lib/trpc';
+import { MainLayout } from '@/components/layout/MainLayout';
 import { StatusBadge, MetricCard, SectionHeader, DataTable, ConfirmDialog } from '@/components/evolution';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -163,7 +164,8 @@ export default function ChampionChallengerPanel() {
   const experiments = listQuery.data?.experiments ?? [];
 
   return (
-    <div className="p-6 space-y-5 max-w-[1400px] mx-auto">
+    <MainLayout title="冠军挑战者">
+    <div className="space-y-5 max-w-[1400px] mx-auto">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-zinc-100">冠军挑战者管理</h1>
@@ -201,5 +203,6 @@ export default function ChampionChallengerPanel() {
 
       <CreateExperimentDialog open={createOpen} onOpenChange={setCreateOpen} />
     </div>
+    </MainLayout>
   );
 }
