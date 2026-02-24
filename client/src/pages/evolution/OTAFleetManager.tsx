@@ -2,10 +2,14 @@
  * OTA 车队管理
  * 对接 API: evoEvolution.canary.list + fsd.getInterventionRate
  * OTA 部署复用 canary 的数据模型（共享 DeploymentRepository）
+ *
+ * 后端 canaryDeployments schema:
+ *   id, experimentId, modelId, trafficPercent, status, rollbackReason,
+ *   metricsSnapshot, startedAt, endedAt, createdAt
  */
 import React, { useState } from 'react';
 import { trpc } from '@/lib/trpc';
-import { StatusBadge, MetricCard, SectionHeader, DataTable, StageTimeline } from '@/components/evolution';
+import { StatusBadge, MetricCard, SectionHeader, DataTable } from '@/components/evolution';
 import { Button } from '@/components/ui/button';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
@@ -18,10 +22,6 @@ function FleetHealthOverview() {
     { refetchInterval: 30000 }
   );
   const r = interventionRate.data;
-
-  const gaugeData = [
-    { name: '干预率', value: r?.rate ? r.rate * 100 : 0 },
-  ];
 
   return (
     <div className="bg-zinc-900/60 border border-zinc-800 rounded-lg p-5">
@@ -46,21 +46,21 @@ function FleetHealthOverview() {
   );
 }
 
-/* ─── OTA 部署阶段分布 ─── */
-function StageDistribution({ deployments }: { deployments: any[] }) {
-  const stageCount: Record<string, number> = {};
+/* ─── OTA 部署状态分布 ─── */
+function StatusDistribution({ deployments }: { deployments: any[] }) {
+  const statusCount: Record<string, number> = {};
   deployments.forEach(d => {
-    const stage = d.currentStage ?? 'unknown';
-    stageCount[stage] = (stageCount[stage] || 0) + 1;
+    const status = d.status ?? 'unknown';
+    statusCount[status] = (statusCount[status] || 0) + 1;
   });
-  const chartData = Object.entries(stageCount).map(([name, value]) => ({ name, value }));
+  const chartData = Object.entries(statusCount).map(([name, value]) => ({ name, value }));
   const COLORS = ['#6366f1', '#22d3ee', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6'];
 
   if (!chartData.length) return null;
 
   return (
     <div className="bg-zinc-900/60 border border-zinc-800 rounded-lg p-5">
-      <SectionHeader title="部署阶段分布" />
+      <SectionHeader title="部署状态分布" />
       <ResponsiveContainer width="100%" height={200}>
         <BarChart data={chartData}>
           <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
@@ -79,11 +79,9 @@ function StageDistribution({ deployments }: { deployments: any[] }) {
 /* ─── 主页面 ─── */
 export default function OTAFleetManager() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const listQuery = trpc.evoEvolution.canary.list.useQuery({ limit: 100 }, { refetchInterval: 10000 });
+  const listQuery = trpc.evoEvolution.canary.list.useQuery({}, { refetchInterval: 10000 });
 
-  const allDeployments = listQuery.data?.deployments ?? [];
-  // OTA 部署通常是较大规模的部署（区分于小规模金丝雀）
-  const deployments = allDeployments;
+  const deployments = listQuery.data?.deployments ?? [];
 
   return (
     <div className="p-6 space-y-5 max-w-[1400px] mx-auto">
@@ -100,13 +98,13 @@ export default function OTAFleetManager() {
       {/* 指标卡片 */}
       <div className="grid grid-cols-4 gap-3">
         <MetricCard label="总部署" value={deployments.length} />
-        <MetricCard label="活跃部署" value={deployments.filter(d => d.status === 'active').length} />
-        <MetricCard label="已完成" value={deployments.filter(d => d.status === 'completed').length} />
-        <MetricCard label="已回滚" value={deployments.filter(d => d.status === 'rolled_back').length} />
+        <MetricCard label="活跃部署" value={deployments.filter((d: any) => d.status === 'active').length} />
+        <MetricCard label="已完成" value={deployments.filter((d: any) => d.status === 'completed').length} />
+        <MetricCard label="已回滚" value={deployments.filter((d: any) => d.status === 'rolled_back').length} />
       </div>
 
-      {/* 阶段分布 */}
-      <StageDistribution deployments={deployments.filter(d => d.status === 'active')} />
+      {/* 状态分布 */}
+      <StatusDistribution deployments={deployments} />
 
       {/* 部署列表 */}
       <div className="bg-zinc-900/60 border border-zinc-800 rounded-lg p-5">
@@ -116,19 +114,19 @@ export default function OTAFleetManager() {
           onRowClick={(row) => setSelectedId(row.id)}
           columns={[
             { key: 'id', label: 'ID', width: '60px' },
-            { key: 'modelId', label: '模型', render: (r) => <span className="text-zinc-200 font-medium">{r.modelId}</span> },
-            { key: 'targetVersion', label: '版本' },
-            { key: 'currentStage', label: '阶段', width: '100px' },
-            { key: 'currentTrafficPercent', label: '流量', width: '80px', render: (r) => (
+            { key: 'modelId', label: '模型', render: (r: any) => <span className="text-zinc-200 font-medium">{r.modelId}</span> },
+            { key: 'experimentId', label: '实验 ID', width: '80px', render: (r: any) => <span className="tabular-nums">#{r.experimentId}</span> },
+            { key: 'trafficPercent', label: '流量', width: '100px', render: (r: any) => (
               <div className="flex items-center gap-1.5">
                 <div className="w-16 h-1.5 bg-zinc-700 rounded-full overflow-hidden">
-                  <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${r.currentTrafficPercent ?? 0}%` }} />
+                  <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${r.trafficPercent ?? 0}%` }} />
                 </div>
-                <span className="text-[10px] tabular-nums text-zinc-400">{r.currentTrafficPercent ?? 0}%</span>
+                <span className="text-[10px] tabular-nums text-zinc-400">{r.trafficPercent ?? 0}%</span>
               </div>
             )},
-            { key: 'status', label: '状态', width: '100px', render: (r) => <StatusBadge status={r.status ?? 'pending'} /> },
-            { key: 'createdAt', label: '创建时间', render: (r) => <span className="text-zinc-500 text-xs">{r.createdAt ? new Date(r.createdAt).toLocaleString('zh-CN') : '-'}</span> },
+            { key: 'status', label: '状态', width: '100px', render: (r: any) => <StatusBadge status={r.status ?? 'pending'} /> },
+            { key: 'startedAt', label: '开始时间', render: (r: any) => <span className="text-zinc-500 text-xs">{r.startedAt ? new Date(r.startedAt).toLocaleString('zh-CN') : '-'}</span> },
+            { key: 'createdAt', label: '创建时间', render: (r: any) => <span className="text-zinc-500 text-xs">{r.createdAt ? new Date(r.createdAt).toLocaleString('zh-CN') : '-'}</span> },
           ]}
           emptyMessage="暂无 OTA 部署"
         />

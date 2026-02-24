@@ -1,6 +1,11 @@
 /**
  * 冠军挑战者实验管理
  * 对接 API: evoEvolution.championChallenger.*
+ *
+ * 后端 schema 字段：
+ *   id, name, championId, challengerId, gate1Passed, gate2Passed, gate3Passed,
+ *   tasScore, verdict (PROMOTE|CANARY_EXTENDED|REJECT|PENDING), promotedAt,
+ *   shadowEvalId, createdAt, updatedAt
  */
 import React, { useState } from 'react';
 import { trpc } from '@/lib/trpc';
@@ -8,7 +13,6 @@ import { StatusBadge, MetricCard, SectionHeader, DataTable, ConfirmDialog } from
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from '@/components/ui/dialog';
@@ -18,8 +22,6 @@ function CreateExperimentDialog({ open, onOpenChange }: { open: boolean; onOpenC
   const [name, setName] = useState('');
   const [championId, setChampionId] = useState('');
   const [challengerId, setChallengerId] = useState('');
-  const [metric, setMetric] = useState('accuracy');
-  const [threshold, setThreshold] = useState('0.05');
   const utils = trpc.useUtils();
   const createMutation = trpc.evoEvolution.championChallenger.create.useMutation({
     onSuccess: () => {
@@ -54,35 +56,11 @@ function CreateExperimentDialog({ open, onOpenChange }: { open: boolean; onOpenC
                 className="bg-zinc-800 border-zinc-700 text-zinc-200 mt-1" />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label className="text-zinc-300 text-xs">评估指标</Label>
-              <Select value={metric} onValueChange={setMetric}>
-                <SelectTrigger className="bg-zinc-800 border-zinc-700 text-zinc-200 mt-1">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-zinc-800 border-zinc-700">
-                  <SelectItem value="accuracy">准确率</SelectItem>
-                  <SelectItem value="latency">延迟</SelectItem>
-                  <SelectItem value="intervention_rate">干预率</SelectItem>
-                  <SelectItem value="composite">综合评分</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label className="text-zinc-300 text-xs">胜出阈值</Label>
-              <Input type="number" value={threshold} onChange={e => setThreshold(e.target.value)} step="0.01"
-                className="bg-zinc-800 border-zinc-700 text-zinc-200 mt-1" />
-            </div>
-          </div>
         </div>
         <DialogFooter className="gap-2">
           <Button variant="outline" onClick={() => onOpenChange(false)} className="border-zinc-700 text-zinc-300">取消</Button>
           <Button
-            onClick={() => createMutation.mutate({
-              name, championModelId: championId, challengerModelId: challengerId,
-              primaryMetric: metric, minImprovementThreshold: Number(threshold),
-            })}
+            onClick={() => createMutation.mutate({ name, championId, challengerId })}
             disabled={!name || !championId || !challengerId || createMutation.isPending}
           >
             {createMutation.isPending ? '创建中...' : '创建实验'}
@@ -90,6 +68,18 @@ function CreateExperimentDialog({ open, onOpenChange }: { open: boolean; onOpenC
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/* ─── 三门控状态 ─── */
+function GateStatus({ label, passed }: { label: string; passed: boolean | null }) {
+  const color = passed === true ? 'text-emerald-400' : passed === false ? 'text-red-400' : 'text-zinc-500';
+  const icon = passed === true ? '✓' : passed === false ? '✗' : '—';
+  return (
+    <div className="flex items-center gap-1.5 text-xs">
+      <span className={`font-mono ${color}`}>{icon}</span>
+      <span className="text-zinc-400">{label}</span>
+    </div>
   );
 }
 
@@ -114,10 +104,10 @@ function ExperimentDetail({ id, onClose }: { id: number; onClose: () => void }) 
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-base font-semibold text-zinc-100">{d.name}</h3>
-          <p className="text-xs text-zinc-500 mt-0.5">ID: {d.id} · {d.primaryMetric} · 阈值 {d.minImprovementThreshold}</p>
+          <p className="text-xs text-zinc-500 mt-0.5">ID: {d.id} · 创建于 {d.createdAt ? new Date(d.createdAt).toLocaleString('zh-CN') : '-'}</p>
         </div>
         <div className="flex items-center gap-2">
-          <StatusBadge status={d.verdict ?? d.status ?? 'PENDING'} />
+          <StatusBadge status={d.verdict ?? 'PENDING'} />
           {(!d.verdict || d.verdict === 'PENDING') && (
             <>
               <Button size="sm" onClick={() => { setVerdictType('PROMOTE'); setVerdictOpen(true); }}
@@ -132,26 +122,29 @@ function ExperimentDetail({ id, onClose }: { id: number; onClose: () => void }) 
       </div>
 
       <div className="grid grid-cols-4 gap-3">
-        <MetricCard label="冠军模型" value={d.championModelId ?? '-'} />
-        <MetricCard label="挑战者模型" value={d.challengerModelId ?? '-'} />
-        <MetricCard label="评估指标" value={d.primaryMetric ?? '-'} />
+        <MetricCard label="冠军模型" value={d.championId ?? '-'} />
+        <MetricCard label="挑战者模型" value={d.challengerId ?? '-'} />
+        <MetricCard label="TAS 评分" value={d.tasScore != null ? d.tasScore.toFixed(3) : '-'} />
         <MetricCard label="裁决" value={d.verdict ?? 'PENDING'} />
       </div>
 
-      {d.results && typeof d.results === 'object' && (
-        <div className="bg-zinc-800/40 rounded-lg p-4">
-          <h4 className="text-xs font-medium text-zinc-400 mb-2">实验结果</h4>
-          <pre className="text-xs text-zinc-300 overflow-x-auto">{JSON.stringify(d.results, null, 2)}</pre>
+      {/* 三门控状态 */}
+      <div className="bg-zinc-800/40 rounded-lg p-4">
+        <h4 className="text-xs font-medium text-zinc-400 mb-3">三门控检查</h4>
+        <div className="flex items-center gap-6">
+          <GateStatus label="Gate 1 (统计显著性)" passed={d.gate1Passed} />
+          <GateStatus label="Gate 2 (安全性)" passed={d.gate2Passed} />
+          <GateStatus label="Gate 3 (业务指标)" passed={d.gate3Passed} />
         </div>
-      )}
+      </div>
 
       <ConfirmDialog
         open={verdictOpen}
         onOpenChange={setVerdictOpen}
         title={verdictType === 'PROMOTE' ? '确认提升挑战者' : '确认拒绝挑战者'}
         description={verdictType === 'PROMOTE'
-          ? `将 ${d.challengerModelId} 提升为新冠军，替换 ${d.championModelId}`
-          : `拒绝 ${d.challengerModelId}，保留 ${d.championModelId} 为冠军`}
+          ? `将 ${d.challengerId} 提升为新冠军，替换 ${d.championId}`
+          : `拒绝 ${d.challengerId}，保留 ${d.championId} 为冠军`}
         confirmLabel={verdictType === 'PROMOTE' ? '确认提升' : '确认拒绝'}
         variant={verdictType === 'REJECT' ? 'destructive' : 'default'}
         requireReason
@@ -181,9 +174,9 @@ export default function ChampionChallengerPanel() {
 
       <div className="grid grid-cols-4 gap-3">
         <MetricCard label="总实验数" value={experiments.length} />
-        <MetricCard label="待裁决" value={experiments.filter(e => !e.verdict || e.verdict === 'PENDING').length} />
-        <MetricCard label="已提升" value={experiments.filter(e => e.verdict === 'PROMOTE').length} />
-        <MetricCard label="已拒绝" value={experiments.filter(e => e.verdict === 'REJECT').length} />
+        <MetricCard label="待裁决" value={experiments.filter((e: any) => !e.verdict || e.verdict === 'PENDING').length} />
+        <MetricCard label="已提升" value={experiments.filter((e: any) => e.verdict === 'PROMOTE').length} />
+        <MetricCard label="已拒绝" value={experiments.filter((e: any) => e.verdict === 'REJECT').length} />
       </div>
 
       {selectedId && <ExperimentDetail id={selectedId} onClose={() => setSelectedId(null)} />}
@@ -195,12 +188,12 @@ export default function ChampionChallengerPanel() {
           onRowClick={(row) => setSelectedId(row.id)}
           columns={[
             { key: 'id', label: 'ID', width: '60px' },
-            { key: 'name', label: '实验名称', render: (r) => <span className="text-zinc-200 font-medium">{r.name}</span> },
-            { key: 'championModelId', label: '冠军模型' },
-            { key: 'challengerModelId', label: '挑战者模型' },
-            { key: 'primaryMetric', label: '评估指标', width: '100px' },
-            { key: 'verdict', label: '裁决', width: '120px', render: (r) => <StatusBadge status={r.verdict ?? 'PENDING'} /> },
-            { key: 'createdAt', label: '创建时间', render: (r) => <span className="text-zinc-500 text-xs">{r.createdAt ? new Date(r.createdAt).toLocaleString('zh-CN') : '-'}</span> },
+            { key: 'name', label: '实验名称', render: (r: any) => <span className="text-zinc-200 font-medium">{r.name}</span> },
+            { key: 'championId', label: '冠军模型' },
+            { key: 'challengerId', label: '挑战者模型' },
+            { key: 'tasScore', label: 'TAS', width: '80px', render: (r: any) => <span className="tabular-nums">{r.tasScore != null ? r.tasScore.toFixed(3) : '-'}</span> },
+            { key: 'verdict', label: '裁决', width: '120px', render: (r: any) => <StatusBadge status={r.verdict ?? 'PENDING'} /> },
+            { key: 'createdAt', label: '创建时间', render: (r: any) => <span className="text-zinc-500 text-xs">{r.createdAt ? new Date(r.createdAt).toLocaleString('zh-CN') : '-'}</span> },
           ]}
           emptyMessage="暂无冠军挑战者实验"
         />

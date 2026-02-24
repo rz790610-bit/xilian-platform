@@ -117,6 +117,7 @@ export const navigationConfig: NavItem[] = [
     id: 'evolution',
     label: '进化引擎',
     icon: '🔄',
+    section: '自主进化',
     children: [
       { id: 'evolution-dashboard', label: '进化总览', icon: '📊', path: '/evolution/dashboard' },
       { id: 'shadow-fleet', label: '影子车队', icon: '👻', path: '/evolution/shadow' },

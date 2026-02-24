@@ -1,29 +1,32 @@
 /**
  * 领域路由配置
- * 对接 API: evoEvolution.fsd.* (getInterventionRate, listInterventions, getDomainHealth)
+ * 对接 API: evoEvolution.fsd.* (getInterventionRate, listInterventions)
+ *
+ * 后端 evolutionInterventions schema:
+ *   id, sessionId, modelId, divergenceScore, isIntervention, interventionType,
+ *   requestData, humanDecision, shadowDecision, contextSnapshot, autoLabel,
+ *   labelConfidence, difficultyScore, videoClipUrl, createdAt
+ *
+ * fsd.getInterventionRate 返回:
+ *   rate, fsdStyle, totalDecisions, interventionCount, windowHours, trend, trendSlope
+ *
+ * fsd.listInterventions 输入: { modelId?, interventionType?, limit? }
+ * fsd.listInterventions 返回: { interventions[], total }
  */
 import React, { useState } from 'react';
 import { trpc } from '@/lib/trpc';
 import { StatusBadge, MetricCard, SectionHeader, DataTable } from '@/components/evolution';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
-  AreaChart, Area,
-} from 'recharts';
 
-/* ─── 干预率趋势图 ─── */
+/* ─── 干预率趋势 ─── */
 function InterventionTrend() {
   const rate24h = trpc.evoEvolution.fsd.getInterventionRate.useQuery({ windowHours: 24 }, { refetchInterval: 30000 });
   const rate7d = trpc.evoEvolution.fsd.getInterventionRate.useQuery({ windowHours: 168 }, { refetchInterval: 60000 });
 
   const r24 = rate24h.data;
   const r7d = rate7d.data;
-
-  // 构造趋势数据（如果有历史数据）
-  const trendData = r24?.history ?? r24?.hourlyBreakdown ?? [];
 
   return (
     <div className="bg-zinc-900/60 border border-zinc-800 rounded-lg p-5">
@@ -37,18 +40,6 @@ function InterventionTrend() {
         <MetricCard label="趋势方向" value={r24?.trend === 'improving' ? '改善中' : r24?.trend === 'degrading' ? '恶化中' : '稳定'} />
         <MetricCard label="趋势斜率" value={r24?.trendSlope?.toFixed(6) ?? '0'} />
       </div>
-
-      {Array.isArray(trendData) && trendData.length > 0 && (
-        <ResponsiveContainer width="100%" height={200}>
-          <AreaChart data={trendData}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-            <XAxis dataKey="hour" tick={{ fontSize: 10, fill: '#71717a' }} />
-            <YAxis tick={{ fontSize: 10, fill: '#71717a' }} />
-            <Tooltip contentStyle={{ backgroundColor: '#18181b', border: '1px solid #3f3f46', borderRadius: 8, fontSize: 12 }} />
-            <Area type="monotone" dataKey="rate" stroke="#6366f1" fill="#6366f1" fillOpacity={0.15} strokeWidth={2} />
-          </AreaChart>
-        </ResponsiveContainer>
-      )}
     </div>
   );
 }
@@ -96,14 +87,15 @@ function InterventionList() {
         data={interventions}
         columns={[
           { key: 'id', label: 'ID', width: '60px' },
-          { key: 'modelId', label: '模型 ID', width: '100px', render: (r) => <span className="text-zinc-200 font-mono text-xs">{r.modelId ?? '-'}</span> },
-          { key: 'interventionType', label: '干预类型', width: '100px', render: (r) => {
+          { key: 'sessionId', label: '会话 ID', width: '120px', render: (r: any) => <span className="text-zinc-200 font-mono text-xs truncate max-w-[120px] inline-block">{r.sessionId ?? '-'}</span> },
+          { key: 'modelId', label: '模型 ID', width: '100px', render: (r: any) => <span className="text-zinc-200 font-mono text-xs">{r.modelId ?? '-'}</span> },
+          { key: 'interventionType', label: '干预类型', width: '100px', render: (r: any) => {
             const typeMap: Record<string, string> = { decision_diverge: '决策分歧', threshold_breach: '阈值突破', safety_override: '安全覆盖', manual: '手动' };
             return <span className="text-zinc-300 text-xs">{typeMap[r.interventionType] ?? r.interventionType ?? '-'}</span>;
           }},
-          { key: 'divergenceScore', label: '分歧分', width: '80px', render: (r) => <span className="tabular-nums text-amber-400">{r.divergenceScore ?? '-'}</span> },
-          { key: 'vehicleId', label: '车辆 ID', width: '100px', render: (r) => <span className="text-zinc-300 text-xs">{r.vehicleId ?? '-'}</span> },
-          { key: 'createdAt', label: '时间', render: (r) => <span className="text-zinc-500 text-xs">{r.createdAt ? new Date(r.createdAt).toLocaleString('zh-CN') : '-'}</span> },
+          { key: 'divergenceScore', label: '分歧分', width: '80px', render: (r: any) => <span className="tabular-nums text-amber-400">{r.divergenceScore?.toFixed(3) ?? '-'}</span> },
+          { key: 'isIntervention', label: '已干预', width: '60px', render: (r: any) => <span className={r.isIntervention ? 'text-red-400' : 'text-zinc-500'}>{r.isIntervention ? '是' : '否'}</span> },
+          { key: 'createdAt', label: '时间', render: (r: any) => <span className="text-zinc-500 text-xs">{r.createdAt ? new Date(r.createdAt).toLocaleString('zh-CN') : '-'}</span> },
         ]}
         emptyMessage="暂无干预事件"
       />

@@ -27,6 +27,9 @@ const statusStyles: Record<string, string> = {
   evaluating:  'bg-indigo-500/15 text-indigo-400 border-indigo-500/30',
   deploying:   'bg-teal-500/15 text-teal-400 border-teal-500/30',
   crystallizing:'bg-purple-500/15 text-purple-400 border-purple-500/30',
+  healthy:     'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
+  warning:     'bg-amber-500/15 text-amber-400 border-amber-500/30',
+  critical:    'bg-red-500/15 text-red-400 border-red-500/30',
 };
 
 export function StatusBadge({ status, className }: { status: string; className?: string }) {
@@ -67,7 +70,7 @@ export function MetricCard({
 
 /* ─── StageTimeline ─── */
 export function StageTimeline({ stages }: {
-  stages: Array<{ name: string; status: string; startedAt?: string; completedAt?: string }>;
+  stages: Array<{ name: string; status: string; startedAt?: string | Date | null; completedAt?: string | Date | null }>;
 }) {
   if (!stages.length) return <p className="text-xs text-zinc-500">暂无阶段数据</p>;
   return (
@@ -78,6 +81,7 @@ export function StageTimeline({ stages }: {
           s.status === 'active' || s.status === 'running' ? 'bg-amber-400 animate-pulse' :
           s.status === 'rolled_back' ? 'bg-orange-400' :
           s.status === 'failed' ? 'bg-red-400' : 'bg-zinc-600';
+        const startStr = s.startedAt ? new Date(s.startedAt).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : null;
         return (
           <div key={i} className="flex items-start shrink-0">
             <div className="flex flex-col items-center">
@@ -85,10 +89,8 @@ export function StageTimeline({ stages }: {
               <div className="flex flex-col items-center mt-1.5">
                 <span className="text-[10px] font-medium text-zinc-300 whitespace-nowrap">{s.name}</span>
                 <StatusBadge status={s.status} className="mt-0.5 text-[9px] px-1.5" />
-                {s.startedAt && (
-                  <span className="text-[9px] text-zinc-600 mt-0.5">
-                    {new Date(s.startedAt).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
-                  </span>
+                {startStr && (
+                  <span className="text-[9px] text-zinc-600 mt-0.5">{startStr}</span>
                 )}
               </div>
             </div>
@@ -103,15 +105,15 @@ export function StageTimeline({ stages }: {
 }
 
 /* ─── HealthCheckTable ─── */
+/**
+ * 后端 canaryHealthChecks schema:
+ *   id, deploymentId, stageId, checkType (manual|threshold_breach|periodic),
+ *   championMetrics (Record<string,number>), challengerMetrics (Record<string,number>),
+ *   passed (number/tinyint), failureReason (string|null),
+ *   consecutiveFails (number), checkedAt (Date)
+ */
 export function HealthCheckTable({ checks }: {
-  checks: Array<{
-    id?: number;
-    healthy?: number | boolean;
-    metrics?: any;
-    checkedAt?: string;
-    errorRate?: string | number;
-    latencyP99?: string | number;
-  }>;
+  checks: Array<Record<string, any>>;
 }) {
   if (!checks.length) return <p className="text-xs text-zinc-500">暂无健康检查记录</p>;
   return (
@@ -120,24 +122,29 @@ export function HealthCheckTable({ checks }: {
         <thead>
           <tr className="text-zinc-500 border-b border-zinc-800">
             <th className="text-left py-2 px-2 font-medium">时间</th>
+            <th className="text-left py-2 px-2 font-medium">类型</th>
             <th className="text-left py-2 px-2 font-medium">状态</th>
-            <th className="text-left py-2 px-2 font-medium">错误率</th>
-            <th className="text-left py-2 px-2 font-medium">P99 延迟</th>
+            <th className="text-left py-2 px-2 font-medium">连续失败</th>
+            <th className="text-left py-2 px-2 font-medium">失败原因</th>
           </tr>
         </thead>
         <tbody>
-          {checks.slice(0, 20).map((c, i) => (
-            <tr key={i} className="border-b border-zinc-800/50 hover:bg-zinc-800/30">
-              <td className="py-1.5 px-2 text-zinc-400">
-                {c.checkedAt ? new Date(c.checkedAt).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '-'}
-              </td>
-              <td className="py-1.5 px-2">
-                <StatusBadge status={c.healthy ? 'active' : 'failed'} />
-              </td>
-              <td className="py-1.5 px-2 text-zinc-300 tabular-nums">{c.errorRate ?? '-'}</td>
-              <td className="py-1.5 px-2 text-zinc-300 tabular-nums">{c.latencyP99 ? `${c.latencyP99}ms` : '-'}</td>
-            </tr>
-          ))}
+          {checks.slice(0, 20).map((c, i) => {
+            const checkTypeMap: Record<string, string> = { periodic: '定期', manual: '手动', threshold_breach: '阈值突破' };
+            return (
+              <tr key={i} className="border-b border-zinc-800/50 hover:bg-zinc-800/30">
+                <td className="py-1.5 px-2 text-zinc-400">
+                  {c.checkedAt ? new Date(c.checkedAt).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '-'}
+                </td>
+                <td className="py-1.5 px-2 text-zinc-300">{checkTypeMap[c.checkType] ?? c.checkType ?? '-'}</td>
+                <td className="py-1.5 px-2">
+                  <StatusBadge status={c.passed ? 'active' : 'failed'} />
+                </td>
+                <td className="py-1.5 px-2 text-zinc-300 tabular-nums">{c.consecutiveFails ?? 0}</td>
+                <td className="py-1.5 px-2 text-zinc-400 truncate max-w-[200px]">{c.failureReason ?? '-'}</td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>

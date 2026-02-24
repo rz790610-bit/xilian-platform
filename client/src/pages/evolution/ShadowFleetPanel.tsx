@@ -14,16 +14,17 @@ import {
 
 /* ─── 创建影子评估对话框 ─── */
 function CreateShadowDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
-  const [name, setName] = useState('');
-  const [challengerModel, setChallengerModel] = useState('');
-  const [championModel, setChampionModel] = useState('');
-  const [trafficPercent, setTrafficPercent] = useState('10');
+  const [experimentName, setExperimentName] = useState('');
+  const [challengerModelId, setChallengerModelId] = useState('');
+  const [baselineModelId, setBaselineModelId] = useState('');
+  const [dataRangeStart, setDataRangeStart] = useState('');
+  const [dataRangeEnd, setDataRangeEnd] = useState('');
   const utils = trpc.useUtils();
   const createMutation = trpc.evoEvolution.shadowEval.create.useMutation({
     onSuccess: () => {
       utils.evoEvolution.shadowEval.list.invalidate();
       onOpenChange(false);
-      setName(''); setChallengerModel(''); setChampionModel(''); setTrafficPercent('10');
+      setExperimentName(''); setChallengerModelId(''); setBaselineModelId('');
     },
   });
 
@@ -32,40 +33,50 @@ function CreateShadowDialog({ open, onOpenChange }: { open: boolean; onOpenChang
       <DialogContent className="bg-zinc-900 border-zinc-800 text-zinc-100 max-w-lg">
         <DialogHeader>
           <DialogTitle className="text-zinc-100">创建影子评估</DialogTitle>
-          <DialogDescription className="text-zinc-400">创建新的影子评估实验，对比挑战者模型与冠军模型的表现</DialogDescription>
+          <DialogDescription className="text-zinc-400">创建新的影子评估实验，对比挑战者模型与基线模型的表现</DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
           <div>
             <Label className="text-zinc-300 text-xs">实验名称</Label>
-            <Input value={name} onChange={e => setName(e.target.value)} placeholder="例：v3.2 vs v3.1 影子评估"
+            <Input value={experimentName} onChange={e => setExperimentName(e.target.value)} placeholder="例：v3.2 vs v3.1 影子评估"
               className="bg-zinc-800 border-zinc-700 text-zinc-200 mt-1" />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label className="text-zinc-300 text-xs">挑战者模型 ID</Label>
-              <Input value={challengerModel} onChange={e => setChallengerModel(e.target.value)} placeholder="model-v3.2"
+              <Input value={challengerModelId} onChange={e => setChallengerModelId(e.target.value)} placeholder="model-v3.2"
                 className="bg-zinc-800 border-zinc-700 text-zinc-200 mt-1" />
             </div>
             <div>
-              <Label className="text-zinc-300 text-xs">冠军模型 ID</Label>
-              <Input value={championModel} onChange={e => setChampionModel(e.target.value)} placeholder="model-v3.1"
+              <Label className="text-zinc-300 text-xs">基线模型 ID</Label>
+              <Input value={baselineModelId} onChange={e => setBaselineModelId(e.target.value)} placeholder="model-v3.1"
                 className="bg-zinc-800 border-zinc-700 text-zinc-200 mt-1" />
             </div>
           </div>
-          <div>
-            <Label className="text-zinc-300 text-xs">流量百分比 (%)</Label>
-            <Input type="number" value={trafficPercent} onChange={e => setTrafficPercent(e.target.value)} min={1} max={100}
-              className="bg-zinc-800 border-zinc-700 text-zinc-200 mt-1 w-32" />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-zinc-300 text-xs">数据范围起始</Label>
+              <Input type="date" value={dataRangeStart} onChange={e => setDataRangeStart(e.target.value)}
+                className="bg-zinc-800 border-zinc-700 text-zinc-200 mt-1" />
+            </div>
+            <div>
+              <Label className="text-zinc-300 text-xs">数据范围结束</Label>
+              <Input type="date" value={dataRangeEnd} onChange={e => setDataRangeEnd(e.target.value)}
+                className="bg-zinc-800 border-zinc-700 text-zinc-200 mt-1" />
+            </div>
           </div>
         </div>
         <DialogFooter className="gap-2">
           <Button variant="outline" onClick={() => onOpenChange(false)} className="border-zinc-700 text-zinc-300">取消</Button>
           <Button
             onClick={() => createMutation.mutate({
-              name, challengerModelId: challengerModel, championModelId: championModel,
-              trafficPercent: Number(trafficPercent),
+              experimentName,
+              challengerModelId,
+              baselineModelId,
+              dataRangeStart: dataRangeStart || new Date().toISOString(),
+              dataRangeEnd: dataRangeEnd || new Date().toISOString(),
             })}
-            disabled={!name || !challengerModel || !championModel || createMutation.isPending}
+            disabled={!experimentName || !challengerModelId || !baselineModelId || createMutation.isPending}
           >
             {createMutation.isPending ? '创建中...' : '创建实验'}
           </Button>
@@ -82,14 +93,14 @@ function ShadowDetail({ id, onClose }: { id: number; onClose: () => void }) {
   const startMutation = trpc.evoEvolution.shadowEval.start.useMutation({
     onSuccess: () => { utils.evoEvolution.shadowEval.get.invalidate({ id }); utils.evoEvolution.shadowEval.list.invalidate(); },
   });
-  const d = detail.data?.evaluation;
+  const d = detail.data?.record;
   if (!d) return <div className="p-6 text-zinc-500">加载中...</div>;
 
   return (
     <div className="bg-zinc-900/60 border border-zinc-800 rounded-lg p-5 space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-base font-semibold text-zinc-100">{d.name}</h3>
+          <h3 className="text-base font-semibold text-zinc-100">{d.experimentName}</h3>
           <p className="text-xs text-zinc-500 mt-0.5">ID: {d.id} · 创建于 {d.createdAt ? new Date(d.createdAt).toLocaleString('zh-CN') : '-'}</p>
         </div>
         <div className="flex items-center gap-2">
@@ -105,14 +116,14 @@ function ShadowDetail({ id, onClose }: { id: number; onClose: () => void }) {
 
       <div className="grid grid-cols-3 gap-3">
         <MetricCard label="挑战者模型" value={d.challengerModelId ?? '-'} />
-        <MetricCard label="冠军模型" value={d.championModelId ?? '-'} />
-        <MetricCard label="流量比例" value={`${d.trafficPercent ?? 0}%`} />
+        <MetricCard label="基线模型" value={d.baselineModelId ?? '-'} />
+        <MetricCard label="数据范围" value={`${d.dataRangeStart ? new Date(d.dataRangeStart).toLocaleDateString('zh-CN') : '-'} ~ ${d.dataRangeEnd ? new Date(d.dataRangeEnd).toLocaleDateString('zh-CN') : '-'}`} />
       </div>
 
-      {d.metrics && typeof d.metrics === 'object' && (
+      {detail.data?.metrics && detail.data.metrics.length > 0 && (
         <div className="bg-zinc-800/40 rounded-lg p-4">
           <h4 className="text-xs font-medium text-zinc-400 mb-2">评估指标</h4>
-          <pre className="text-xs text-zinc-300 overflow-x-auto">{JSON.stringify(d.metrics, null, 2)}</pre>
+          <pre className="text-xs text-zinc-300 overflow-x-auto">{JSON.stringify(detail.data.metrics, null, 2)}</pre>
         </div>
       )}
     </div>
@@ -125,7 +136,7 @@ export default function ShadowFleetPanel() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const listQuery = trpc.evoEvolution.shadowEval.list.useQuery({ limit: 50 }, { refetchInterval: 15000 });
 
-  const evaluations = listQuery.data?.evaluations ?? [];
+  const records = listQuery.data?.records ?? [];
 
   return (
     <div className="p-6 space-y-5 max-w-[1400px] mx-auto">
@@ -139,10 +150,10 @@ export default function ShadowFleetPanel() {
 
       {/* 概览指标 */}
       <div className="grid grid-cols-4 gap-3">
-        <MetricCard label="总实验数" value={evaluations.length} />
-        <MetricCard label="进行中" value={evaluations.filter(e => e.status === 'running').length} />
-        <MetricCard label="已完成" value={evaluations.filter(e => e.status === 'completed').length} />
-        <MetricCard label="待启动" value={evaluations.filter(e => e.status === 'pending').length} />
+        <MetricCard label="总实验数" value={records.length} />
+        <MetricCard label="进行中" value={records.filter((e: any) => e.status === 'running').length} />
+        <MetricCard label="已完成" value={records.filter((e: any) => e.status === 'completed').length} />
+        <MetricCard label="待启动" value={records.filter((e: any) => e.status === 'pending').length} />
       </div>
 
       {/* 详情面板 */}
@@ -152,16 +163,15 @@ export default function ShadowFleetPanel() {
       <div className="bg-zinc-900/60 border border-zinc-800 rounded-lg p-5">
         <SectionHeader title="影子评估实验" />
         <DataTable
-          data={evaluations}
+          data={records}
           onRowClick={(row) => setSelectedId(row.id)}
           columns={[
             { key: 'id', label: 'ID', width: '60px' },
-            { key: 'name', label: '实验名称', render: (r) => <span className="text-zinc-200 font-medium">{r.name}</span> },
+            { key: 'experimentName', label: '实验名称', render: (r: any) => <span className="text-zinc-200 font-medium">{r.experimentName}</span> },
             { key: 'challengerModelId', label: '挑战者模型' },
-            { key: 'championModelId', label: '冠军模型' },
-            { key: 'trafficPercent', label: '流量%', width: '80px', render: (r) => <span className="tabular-nums">{r.trafficPercent}%</span> },
-            { key: 'status', label: '状态', width: '100px', render: (r) => <StatusBadge status={r.status ?? 'pending'} /> },
-            { key: 'createdAt', label: '创建时间', render: (r) => <span className="text-zinc-500 text-xs">{r.createdAt ? new Date(r.createdAt).toLocaleString('zh-CN') : '-'}</span> },
+            { key: 'baselineModelId', label: '基线模型' },
+            { key: 'status', label: '状态', width: '100px', render: (r: any) => <StatusBadge status={r.status ?? 'pending'} /> },
+            { key: 'createdAt', label: '创建时间', render: (r: any) => <span className="text-zinc-500 text-xs">{r.createdAt ? new Date(r.createdAt).toLocaleString('zh-CN') : '-'}</span> },
           ]}
           emptyMessage="暂无影子评估实验"
         />
