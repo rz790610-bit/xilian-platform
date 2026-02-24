@@ -289,7 +289,7 @@ export class EvolutionEventConsumers {
   private async markAsHardCase(trajectory: any, divergenceScore: number): Promise<void> {
     try {
       const { getProtectedDb } = await import('../infra/protected-clients');
-      const { evolutionInterventions } = await import('../../../drizzle/evolution-schema');
+      const { evolutionInterventions } = await import('../../../../drizzle/evolution-schema');
       const { eq } = await import('drizzle-orm');
       const db = await getProtectedDb();
       if (!db || !trajectory.sessionId) return;
@@ -297,8 +297,7 @@ export class EvolutionEventConsumers {
       // 更新干预记录的难度标记
       await db.update(evolutionInterventions)
         .set({
-          divergenceScore: String(divergenceScore),
-          updatedAt: new Date(),
+          divergenceScore: divergenceScore,
         })
         .where(eq(evolutionInterventions.sessionId, trajectory.sessionId));
 

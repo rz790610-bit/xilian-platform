@@ -77,6 +77,14 @@ const shadowEvalRouter = router({
       const db = await getDb();
       if (!db) return { recordId: 0, status: 'pending' };
       try {
+        const configVal = input.config ? {
+          sliceCount: input.config.sliceCount,
+          timeoutMs: input.config.timeoutMs,
+          mcNemarAlpha: input.config.mcNemarAlpha,
+          monteCarloRuns: input.config.monteCarloRuns,
+          perturbationMagnitude: input.config.perturbationMagnitude,
+          tasWeights: input.config.tasWeights ?? { mcNemar: 0.4, dsFusion: 0.3, monteCarlo: 0.3 },
+        } : null;
         const result = await db.insert(shadowEvalRecords).values({
           experimentName: input.experimentName,
           baselineModelId: input.baselineModelId,
@@ -84,7 +92,7 @@ const shadowEvalRouter = router({
           dataRangeStart: new Date(input.dataRangeStart),
           dataRangeEnd: new Date(input.dataRangeEnd),
           status: 'pending',
-          config: input.config ?? {},
+          config: configVal,
         });
         return { recordId: Number(result[0].insertId), status: 'pending' };
       } catch (err) {
@@ -216,8 +224,7 @@ const championChallengerRouter = router({
         await db.update(championChallengerExperiments)
           .set({
             verdict: input.verdict,
-            verdictReason: input.reason,
-            verdictAt: new Date(),
+            updatedAt: new Date(),
           })
           .where(eq(championChallengerExperiments.id, input.id));
         return { success: true };
@@ -408,7 +415,6 @@ const dataEngineRouter = router({
           .set({
             status: 'labeled',
             labelResult: input.labelResult,
-            labeledAt: new Date(),
           })
           .where(eq(edgeCases.id, input.id));
         return { success: true };
@@ -764,7 +770,7 @@ const fsdRouter = router({
           conditions.push(eq(evolutionInterventions.interventionType, input.interventionType));
         }
         if (input.minDivergence !== undefined) {
-          conditions.push(gte(evolutionInterventions.divergenceScore, String(input.minDivergence)));
+          conditions.push(gte(evolutionInterventions.divergenceScore, input.minDivergence));
         }
         const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
@@ -820,8 +826,8 @@ const fsdRouter = router({
         return {
           rate,
           inverseMileage,
-          trend: interventionRateEngine.computeRate(input.windowHours * 3600000).trend.direction,
-          trendSlope: interventionRateEngine.computeRate(input.windowHours * 3600000).trend.slope,
+          trend: interventionRateEngine.computeRate(input.windowHours * 3600000).trend,
+          trendSlope: interventionRateEngine.computeRate(input.windowHours * 3600000).trendSlope,
           fsdStyle: `1/${inverseMileage}`,
           totalDecisions,
           interventionCount: interventions,
@@ -1095,7 +1101,7 @@ const dojoRouter = router({
           priority: input.priority,
           gpuCount: input.gpuCount,
           useSpot: input.useSpot ? 1 : 0,
-          config: input.config ?? {},
+          config: input.config ?? null,
           idempotencyKey: `idem-${jobId}`,
         });
         await db.insert(evolutionAuditLogs).values({
@@ -1151,7 +1157,8 @@ const configRouter = router({
   list: publicProcedure
     .input(z.object({ module: z.string().optional() }).optional())
     .query(async ({ input }) => {
-      const db = getDb();
+      const db = await getDb();
+      if (!db) return { items: [], source: 'database' };
       const rows = await db.select().from(engineConfigRegistry)
         .orderBy(asc(engineConfigRegistry.module), asc(engineConfigRegistry.sortOrder));
       const filtered = input?.module
@@ -1164,7 +1171,8 @@ const configRouter = router({
   update: publicProcedure
     .input(z.object({ id: z.number(), configValue: z.string() }))
     .mutation(async ({ input }) => {
-      const db = getDb();
+      const db = await getDb();
+      if (!db) return { success: false, error: '数据库不可用' };
       try {
         await db.update(engineConfigRegistry)
           .set({ configValue: input.configValue, updatedAt: new Date() })
@@ -1187,7 +1195,8 @@ const configRouter = router({
       }).optional(),
     }))
     .mutation(async ({ input }) => {
-      const db = getDb();
+      const db = await getDb();
+      if (!db) return { success: false, error: '数据库不可用' };
       try {
         await db.insert(engineConfigRegistry).values({
           module: input.module, configGroup: input.configGroup,
@@ -1205,7 +1214,8 @@ const configRouter = router({
   delete: publicProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
-      const db = getDb();
+      const db = await getDb();
+      if (!db) return { success: false, error: '数据库不可用' };
       try {
         const rows = await db.select().from(engineConfigRegistry).where(eq(engineConfigRegistry.id, input.id)).limit(1);
         if (rows.length === 0) return { success: false, error: '配置项不存在' };
@@ -1219,7 +1229,8 @@ const configRouter = router({
   reset: publicProcedure
     .input(z.object({ id: z.number().optional(), module: z.string().optional() }))
     .mutation(async ({ input }) => {
-      const db = getDb();
+      const db = await getDb();
+      if (!db) return { success: false, error: '数据库不可用' };
       try {
         if (input.id) {
           const rows = await db.select().from(engineConfigRegistry).where(eq(engineConfigRegistry.id, input.id)).limit(1);
@@ -1241,7 +1252,8 @@ const configRouter = router({
   /** 批量种子化进化引擎配置 */
   seed: publicProcedure
     .mutation(async () => {
-      const db = getDb();
+      const db = await getDb();
+      if (!db) return { success: false, message: '数据库不可用', seeded: 0 };
       const existing = await db.select().from(engineConfigRegistry)
         .where(eq(engineConfigRegistry.module, 'shadowEvaluator')).limit(1);
       if (existing.length > 0) return { success: true, message: '种子数据已存在', seeded: 0 };
