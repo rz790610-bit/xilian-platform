@@ -129,7 +129,9 @@ export const navigationConfig: NavItem[] = [
       { id: 'feedback-center', label: '反馈中心', icon: '📥', path: '/evolution/feedback' },
       { id: 'active-learning', label: '主动学习', icon: '🎯', path: '/evolution/learning' },
       { id: 'auto-train', label: '自动训练', icon: '🔧', path: '/evolution/train' },
-      { id: 'evolution-board', label: '进化看板', icon: '📋', path: '/evolution/board' }
+      { id: 'evolution-board', label: '进化看板', icon: '📋', path: '/evolution/board' },
+      { id: 'fsd-intervention', label: 'FSD 干预', icon: '🎮', path: '/evolution/fsd' },
+      { id: 'knowledge-crystal', label: '知识结晶', icon: '💎', path: '/evolution/crystals' }
     ]
   },
 

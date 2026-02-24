@@ -42,6 +42,8 @@ import CanaryDeployConsole from "./pages/evolution/CanaryDeployConsole";
 import OTAFleetManager from "./pages/evolution/OTAFleetManager";
 import FlywheelReport from "./pages/evolution/FlywheelReport";
 import DomainRouterConfig from "./pages/evolution/DomainRouterConfig";
+import FSDInterventionPanel from "./pages/evolution/FSDInterventionPanel";
+import KnowledgeCrystalManager from "./pages/evolution/KnowledgeCrystalManager";
 import KnowledgeManager from "./pages/KnowledgeManager";
 import KnowledgeGraph from "./pages/KnowledgeGraph";
 import VectorAdmin from "./pages/VectorAdmin";
@@ -227,6 +229,8 @@ function Router() {
       <Route path="/evolution/ota" component={OTAFleetManager} />
       <Route path="/evolution/flywheel" component={FlywheelReport} />
       <Route path="/evolution/domain-router" component={DomainRouterConfig} />
+      <Route path="/evolution/fsd" component={FSDInterventionPanel} />
+      <Route path="/evolution/crystals" component={KnowledgeCrystalManager} />
       
 
       {/* ━━━ 基础设置 ━━━ */}
