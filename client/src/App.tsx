@@ -34,6 +34,14 @@ import FeedbackCenter from "./pages/evolution/FeedbackCenter";
 import ActiveLearning from "./pages/evolution/ActiveLearning";
 import AutoTrain from "./pages/evolution/AutoTrain";
 import EvolutionBoard from "./pages/evolution/EvolutionBoard";
+// 进化引擎 v6.0 新增页面
+import EvolutionDashboard from "./pages/evolution/EvolutionDashboard";
+import ShadowFleetPanel from "./pages/evolution/ShadowFleetPanel";
+import ChampionChallengerPanel from "./pages/evolution/ChampionChallengerPanel";
+import CanaryDeployConsole from "./pages/evolution/CanaryDeployConsole";
+import OTAFleetManager from "./pages/evolution/OTAFleetManager";
+import FlywheelReport from "./pages/evolution/FlywheelReport";
+import DomainRouterConfig from "./pages/evolution/DomainRouterConfig";
 import KnowledgeManager from "./pages/KnowledgeManager";
 import KnowledgeGraph from "./pages/KnowledgeGraph";
 import VectorAdmin from "./pages/VectorAdmin";
@@ -211,6 +219,14 @@ function Router() {
       <Route path="/evolution/learning" component={ActiveLearning} />
       <Route path="/evolution/train" component={AutoTrain} />
       <Route path="/evolution/board" component={EvolutionBoard} />
+      {/* 进化引擎 v6.0 — 自主进化闭环 */}
+      <Route path="/evolution/dashboard" component={EvolutionDashboard} />
+      <Route path="/evolution/shadow" component={ShadowFleetPanel} />
+      <Route path="/evolution/champion" component={ChampionChallengerPanel} />
+      <Route path="/evolution/canary" component={CanaryDeployConsole} />
+      <Route path="/evolution/ota" component={OTAFleetManager} />
+      <Route path="/evolution/flywheel" component={FlywheelReport} />
+      <Route path="/evolution/domain-router" component={DomainRouterConfig} />
       
 
       {/* ━━━ 基础设置 ━━━ */}

@@ -118,10 +118,17 @@ export const navigationConfig: NavItem[] = [
     label: '进化引擎',
     icon: '🔄',
     children: [
+      { id: 'evolution-dashboard', label: '进化总览', icon: '📊', path: '/evolution/dashboard' },
+      { id: 'shadow-fleet', label: '影子车队', icon: '👻', path: '/evolution/shadow' },
+      { id: 'champion-challenger', label: '冠军挑战者', icon: '🏆', path: '/evolution/champion' },
+      { id: 'canary-deploy', label: '金丝雀部署', icon: '🐦', path: '/evolution/canary' },
+      { id: 'ota-fleet', label: 'OTA 车队', icon: '🚗', path: '/evolution/ota' },
+      { id: 'flywheel-report', label: '飞轮报告', icon: '⚡', path: '/evolution/flywheel' },
+      { id: 'domain-router', label: '领域路由', icon: '🛣️', path: '/evolution/domain-router' },
       { id: 'feedback-center', label: '反馈中心', icon: '📥', path: '/evolution/feedback' },
       { id: 'active-learning', label: '主动学习', icon: '🎯', path: '/evolution/learning' },
-      { id: 'auto-train', label: '自动训练', icon: '⚡', path: '/evolution/train' },
-      { id: 'evolution-board', label: '进化看板', icon: '📊', path: '/evolution/board' }
+      { id: 'auto-train', label: '自动训练', icon: '🔧', path: '/evolution/train' },
+      { id: 'evolution-board', label: '进化看板', icon: '📋', path: '/evolution/board' }
     ]
   },
 
