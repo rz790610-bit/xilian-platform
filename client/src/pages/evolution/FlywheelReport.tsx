@@ -15,6 +15,8 @@ import {
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import EvolutionConfigPanel from '@/components/evolution/EvolutionConfigPanel';
 
 /* ─── 创建调度对话框 ─── */
 function CreateScheduleDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
@@ -215,41 +217,58 @@ export default function FlywheelReport() {
         <Button onClick={() => setScheduleOpen(true)}>⚡ 创建调度</Button>
       </div>
 
-      <div className="grid grid-cols-4 gap-3">
-        <MetricCard label="总周期数" value={cycles.length} />
-        <MetricCard label="进行中" value={cycles.filter((c: any) => c.status === 'running').length} />
-        <MetricCard label="已完成" value={cycles.filter((c: any) => c.status === 'completed').length} />
-        <MetricCard label="失败" value={cycles.filter((c: any) => c.status === 'failed').length} />
-      </div>
+      <Tabs defaultValue="overview" className="w-full">
+        <TabsList className="bg-zinc-800/60 border border-zinc-700">
+          <TabsTrigger value="overview" className="text-xs data-[state=active]:bg-zinc-700 data-[state=active]:text-zinc-100">
+            🔄 飞轮报告
+          </TabsTrigger>
+          <TabsTrigger value="config" className="text-xs data-[state=active]:bg-zinc-700 data-[state=active]:text-zinc-100">
+            ⚙️ 引擎配置
+          </TabsTrigger>
+        </TabsList>
 
-      <FlywheelTrend />
+        <TabsContent value="overview" className="mt-4 space-y-5">
+          <div className="grid grid-cols-4 gap-3">
+            <MetricCard label="总周期数" value={cycles.length} />
+            <MetricCard label="进行中" value={cycles.filter((c: any) => c.status === 'running').length} />
+            <MetricCard label="已完成" value={cycles.filter((c: any) => c.status === 'completed').length} />
+            <MetricCard label="失败" value={cycles.filter((c: any) => c.status === 'failed').length} />
+          </div>
 
-      {selectedId && <CycleDetail id={selectedId} onClose={() => setSelectedId(null)} />}
+          <FlywheelTrend />
 
-      <div className="bg-zinc-900/60 border border-zinc-800 rounded-lg p-5">
-        <SectionHeader title="飞轮周期列表" />
-        <DataTable
-          data={cycles}
-          onRowClick={(row: any) => setSelectedId(row.id)}
-          columns={[
-            { key: 'id', label: 'ID', width: '60px' },
-            { key: 'cycleNumber', label: '周期号', width: '80px', render: (r: any) => <span className="font-medium text-zinc-200">#{r.cycleNumber}</span> },
-            { key: 'accuracyBefore', label: '精度(前)', width: '90px', render: (r: any) => <span className="tabular-nums">{r.accuracyBefore != null ? `${(r.accuracyBefore * 100).toFixed(2)}%` : '-'}</span> },
-            { key: 'accuracyAfter', label: '精度(后)', width: '90px', render: (r: any) => <span className="tabular-nums text-cyan-400">{r.accuracyAfter != null ? `${(r.accuracyAfter * 100).toFixed(2)}%` : '-'}</span> },
-            { key: 'improvementPercent', label: '提升', width: '80px', render: (r: any) => {
-              const v = r.improvementPercent;
-              if (v == null) return <span className="text-zinc-500">-</span>;
-              return <span className={`tabular-nums ${v > 0 ? 'text-emerald-400' : v < 0 ? 'text-red-400' : 'text-zinc-400'}`}>{v > 0 ? '+' : ''}{v.toFixed(2)}%</span>;
-            }},
-            { key: 'edgeCasesFound', label: '边界案例', width: '80px', render: (r: any) => <span className="tabular-nums">{r.edgeCasesFound ?? 0}</span> },
-            { key: 'status', label: '状态', width: '80px', render: (r: any) => <StatusBadge status={r.status ?? 'pending'} /> },
-            { key: 'startedAt', label: '开始时间', render: (r: any) => <span className="text-zinc-500 text-xs">{r.startedAt ? new Date(r.startedAt).toLocaleString('zh-CN') : '-'}</span> },
-          ]}
-          emptyMessage="暂无飞轮周期记录"
-        />
-      </div>
+          {selectedId && <CycleDetail id={selectedId} onClose={() => setSelectedId(null)} />}
 
-       <SchedulePanel />
+          <div className="bg-zinc-900/60 border border-zinc-800 rounded-lg p-5">
+            <SectionHeader title="飞轮周期列表" />
+            <DataTable
+              data={cycles}
+              onRowClick={(row: any) => setSelectedId(row.id)}
+              columns={[
+                { key: 'id', label: 'ID', width: '60px' },
+                { key: 'cycleNumber', label: '周期号', width: '80px', render: (r: any) => <span className="font-medium text-zinc-200">#{r.cycleNumber}</span> },
+                { key: 'accuracyBefore', label: '精度(前)', width: '90px', render: (r: any) => <span className="tabular-nums">{r.accuracyBefore != null ? `${(r.accuracyBefore * 100).toFixed(2)}%` : '-'}</span> },
+                { key: 'accuracyAfter', label: '精度(后)', width: '90px', render: (r: any) => <span className="tabular-nums text-cyan-400">{r.accuracyAfter != null ? `${(r.accuracyAfter * 100).toFixed(2)}%` : '-'}</span> },
+                { key: 'improvementPercent', label: '提升', width: '80px', render: (r: any) => {
+                  const v = r.improvementPercent;
+                  if (v == null) return <span className="text-zinc-500">-</span>;
+                  return <span className={`tabular-nums ${v > 0 ? 'text-emerald-400' : v < 0 ? 'text-red-400' : 'text-zinc-400'}`}>{v > 0 ? '+' : ''}{v.toFixed(2)}%</span>;
+                }},
+                { key: 'edgeCasesFound', label: '边界案例', width: '80px', render: (r: any) => <span className="tabular-nums">{r.edgeCasesFound ?? 0}</span> },
+                { key: 'status', label: '状态', width: '80px', render: (r: any) => <StatusBadge status={r.status ?? 'pending'} /> },
+                { key: 'startedAt', label: '开始时间', render: (r: any) => <span className="text-zinc-500 text-xs">{r.startedAt ? new Date(r.startedAt).toLocaleString('zh-CN') : '-'}</span> },
+              ]}
+              emptyMessage="暂无飞轮周期记录"
+            />
+          </div>
+
+          <SchedulePanel />
+        </TabsContent>
+
+        <TabsContent value="config" className="mt-4">
+          <EvolutionConfigPanel modules={['dualFlywheel', 'dojoTrainer', 'autoLabeler']} title="飞轮 / Dojo 训练 / 自动标注配置" />
+        </TabsContent>
+      </Tabs>
       <CreateScheduleDialog open={scheduleOpen} onOpenChange={setScheduleOpen} />
     </div>
     </MainLayout>

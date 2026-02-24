@@ -1,12 +1,17 @@
 /**
  * 进化引擎总览仪表盘
- * 对接 API: evoEvolution.getOverview / getFlywheelStatus / cycle.getTrend
+ * 对接 API: evoEvolution.getOverview / getFlywheelStatus / cycle.getTrend / dataEngine.triggerAnalysis
  */
-import React from 'react';
+import React, { useState } from 'react';
 import { trpc } from '@/lib/trpc';
 import { MetricCard, StatusBadge, SectionHeader } from '@/components/evolution';
 import { useLocation } from 'wouter';
 import { MainLayout } from '@/components/layout/MainLayout';
+import EvolutionConfigPanel from '@/components/evolution/EvolutionConfigPanel';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart,
 } from 'recharts';
@@ -125,8 +130,52 @@ function TrendSection({ trend }: { trend: Array<{ cycleNumber: number; accuracyA
   );
 }
 
+/* ─── 触发数据分析对话框 ─── */
+function TriggerAnalysisDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
+  const [startDate, setStartDate] = useState(new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10));
+  const [endDate, setEndDate] = useState(new Date().toISOString().slice(0, 10));
+  const trigger = trpc.evoEvolution.dataEngine.triggerAnalysis.useMutation({
+    onSuccess: (data) => {
+      alert(`数据分析已触发！新建进化周期 #${data.cycleId}，发现 ${data.edgeCasesFound} 个边缘案例`);
+      onOpenChange(false);
+    },
+    onError: (err) => alert(`触发失败: ${err.message}`),
+  });
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="bg-zinc-900 border-zinc-700 max-w-md">
+        <DialogHeader>
+          <DialogTitle className="text-zinc-100">触发数据引擎分析</DialogTitle>
+          <DialogDescription className="text-zinc-400">选择数据范围，启动边缘案例发现与自动标注流程</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3 py-3">
+          <div>
+            <label className="text-xs text-zinc-400 mb-1 block">开始日期</label>
+            <Input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="bg-zinc-800 border-zinc-700 text-zinc-200" />
+          </div>
+          <div>
+            <label className="text-xs text-zinc-400 mb-1 block">结束日期</label>
+            <Input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="bg-zinc-800 border-zinc-700 text-zinc-200" />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)} className="border-zinc-700 text-zinc-300">取消</Button>
+          <Button
+            onClick={() => trigger.mutate({ dataRangeStart: startDate, dataRangeEnd: endDate })}
+            disabled={trigger.isPending}
+            className="bg-indigo-600 hover:bg-indigo-500"
+          >
+            {trigger.isPending ? '分析中...' : '启动分析'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 /* ─── 主页面 ─── */
 export default function EvolutionDashboard() {
+  const [showTrigger, setShowTrigger] = useState(false);
   const overview = trpc.evoEvolution.getOverview.useQuery(undefined, {
     refetchInterval: 30000,
     retry: 1,
@@ -149,32 +198,62 @@ export default function EvolutionDashboard() {
           <h1 className="text-xl font-bold text-zinc-100">进化引擎总览</h1>
           <p className="text-xs text-zinc-500 mt-0.5">自主进化闭环 · 实时监控</p>
         </div>
-        <StatusBadge status={f?.status ?? 'idle'} className="text-xs px-3 py-1" />
+        <div className="flex items-center gap-3">
+          <Button
+            size="sm"
+            onClick={() => setShowTrigger(true)}
+            className="bg-emerald-600 hover:bg-emerald-500 text-xs"
+          >
+            🔬 触发数据分析
+          </Button>
+          <StatusBadge status={f?.status ?? 'idle'} className="text-xs px-3 py-1" />
+        </div>
       </div>
 
-      {/* 指标卡片 */}
-      <div className="grid grid-cols-5 gap-3">
-        <MetricCard label="进化周期" value={o?.totalCycles ?? 0} sub={`${o?.activeCycles ?? 0} 活跃`} />
-        <MetricCard label="挑战实验" value={o?.totalExperiments ?? 0} sub={`${o?.activeDeployments ?? 0} 部署中`} />
-        <MetricCard
-          label="干预率"
-          value={o?.interventionRate ? `${(o.interventionRate * 100).toFixed(2)}%` : '0%'}
-          sub={`${o?.totalInterventions ?? 0} 总决策`}
-          trend={o?.interventionRate && o.interventionRate < 0.05 ? 'down' : 'stable'}
-        />
-        <MetricCard label="仿真场景" value={o?.totalSimulations ?? 0} />
-        <MetricCard label="知识结晶" value={o?.totalCrystals ?? 0} sub={`${o?.activeSchedules ?? 0} 调度活跃`} />
-      </div>
+      <Tabs defaultValue="overview" className="w-full">
+        <TabsList className="bg-zinc-800/60 border border-zinc-700">
+          <TabsTrigger value="overview" className="text-xs data-[state=active]:bg-zinc-700 data-[state=active]:text-zinc-100">
+            总览
+          </TabsTrigger>
+          <TabsTrigger value="config" className="text-xs data-[state=active]:bg-zinc-700 data-[state=active]:text-zinc-100">
+            ⚙️ 全局引擎配置
+          </TabsTrigger>
+        </TabsList>
 
-      {/* 进化闭环状态 */}
-      <EvolutionLoop currentStatus={f?.status ?? 'idle'} />
+        <TabsContent value="overview" className="mt-4 space-y-5">
+          {/* 指标卡片 */}
+          <div className="grid grid-cols-5 gap-3">
+            <MetricCard label="进化周期" value={o?.totalCycles ?? 0} sub={`${o?.activeCycles ?? 0} 活跃`} />
+            <MetricCard label="挑战实验" value={o?.totalExperiments ?? 0} sub={`${o?.activeDeployments ?? 0} 部署中`} />
+            <MetricCard
+              label="干预率"
+              value={o?.interventionRate ? `${(o.interventionRate * 100).toFixed(2)}%` : '0%'}
+              sub={`${o?.totalInterventions ?? 0} 总决策`}
+              trend={o?.interventionRate && o.interventionRate < 0.05 ? 'down' : 'stable'}
+            />
+            <MetricCard label="仿真场景" value={o?.totalSimulations ?? 0} />
+            <MetricCard label="知识结晶" value={o?.totalCrystals ?? 0} sub={`${o?.activeSchedules ?? 0} 调度活跃`} />
+          </div>
 
-      {/* 趋势图 */}
-      <TrendSection trend={trendQuery.data?.trend ?? []} />
+          {/* 进化闭环状态 */}
+          <EvolutionLoop currentStatus={f?.status ?? 'idle'} />
 
-      {/* 快捷入口 */}
-      <QuickLinks />
+          {/* 趋势图 */}
+          <TrendSection trend={trendQuery.data?.trend ?? []} />
+
+          {/* 快捷入口 */}
+          <QuickLinks />
+        </TabsContent>
+
+        <TabsContent value="config" className="mt-4">
+          <EvolutionConfigPanel
+            modules={['shadowEval', 'championChallenger', 'canaryRelease', 'otaFleet', 'fsdIntervention', 'simulationEngine', 'dataEngine', 'dualFlywheel', 'dojoTrainer', 'autoLabeler', 'domainRouter']}
+            title="进化引擎全局配置中心"
+          />
+        </TabsContent>
+      </Tabs>
     </div>
+    <TriggerAnalysisDialog open={showTrigger} onOpenChange={setShowTrigger} />
     </MainLayout>
   );
 }

@@ -15,7 +15,7 @@
 import { router, publicProcedure, protectedProcedure } from '../../core/trpc';
 import { z } from 'zod';
 import { getDb } from '../../lib/db';
-import { eq, desc, count, gte, and, lte } from 'drizzle-orm';
+import { eq, desc, count, gte, and, lte, asc } from 'drizzle-orm';
 import {
   shadowEvalRecords,
   shadowEvalMetrics,
@@ -31,6 +31,7 @@ import {
   evolutionSimulations,
   evolutionVideoTrajectories,
   evolutionFlywheelSchedules,
+  engineConfigRegistry,
 } from '../../../drizzle/evolution-schema';
 import { InterventionRateEngine } from '../../platform/evolution/shadow/intervention-rate-engine';
 
@@ -773,6 +774,214 @@ const scheduleRouter = router({
 // ============================================================================
 // 进化领域聚合路由 v2.0
 // ============================================================================
+
+// ============================================================================
+// 引擎配置路由 — 复用 engine_config_registry 表
+// ============================================================================
+const EVOLUTION_MODULES = [
+  'shadowEvaluator', 'interventionRate', 'dualFlywheel', 'e2eAgent',
+  'modelMerge', 'autoLabeling', 'dojoScheduler', 'fleetPlanner',
+  'otaCanary', 'simulationEngine', 'metaLearner',
+] as const;
+
+const configRouter = router({
+  /** 列出进化引擎配置项（可按 module 过滤） */
+  list: publicProcedure
+    .input(z.object({ module: z.string().optional() }).optional())
+    .query(async ({ input }) => {
+      const db = getDb();
+      const rows = await db.select().from(engineConfigRegistry)
+        .orderBy(asc(engineConfigRegistry.module), asc(engineConfigRegistry.sortOrder));
+      const filtered = input?.module
+        ? rows.filter(r => r.module === input.module)
+        : rows.filter(r => (EVOLUTION_MODULES as readonly string[]).includes(r.module));
+      return { items: filtered, source: 'database' };
+    }),
+
+  /** 更新配置项值 */
+  update: publicProcedure
+    .input(z.object({ id: z.number(), configValue: z.string() }))
+    .mutation(async ({ input }) => {
+      const db = getDb();
+      try {
+        await db.update(engineConfigRegistry)
+          .set({ configValue: input.configValue, updatedAt: new Date() })
+          .where(eq(engineConfigRegistry.id, input.id));
+        return { success: true };
+      } catch (e: any) { return { success: false, error: e.message }; }
+    }),
+
+  /** 新增配置项 */
+  add: publicProcedure
+    .input(z.object({
+      module: z.string(), configGroup: z.string().default('general'),
+      configKey: z.string(), configValue: z.string(),
+      valueType: z.enum(['number', 'string', 'boolean', 'json']).default('string'),
+      label: z.string(), description: z.string().optional(),
+      unit: z.string().optional(),
+      constraints: z.object({
+        min: z.number().optional(), max: z.number().optional(),
+        step: z.number().optional(), options: z.array(z.string()).optional(),
+      }).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const db = getDb();
+      try {
+        await db.insert(engineConfigRegistry).values({
+          module: input.module, configGroup: input.configGroup,
+          configKey: input.configKey, configValue: input.configValue,
+          defaultValue: input.configValue, valueType: input.valueType,
+          label: input.label, description: input.description ?? null,
+          unit: input.unit ?? null, constraints: input.constraints ?? null,
+          isBuiltin: 0,
+        });
+        return { success: true };
+      } catch (e: any) { return { success: false, error: e.message }; }
+    }),
+
+  /** 删除配置项（仅非内置项） */
+  delete: publicProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      const db = getDb();
+      try {
+        const rows = await db.select().from(engineConfigRegistry).where(eq(engineConfigRegistry.id, input.id)).limit(1);
+        if (rows.length === 0) return { success: false, error: '配置项不存在' };
+        if (rows[0].isBuiltin) return { success: false, error: '内置配置项不可删除' };
+        await db.delete(engineConfigRegistry).where(eq(engineConfigRegistry.id, input.id));
+        return { success: true };
+      } catch (e: any) { return { success: false, error: e.message }; }
+    }),
+
+  /** 重置配置项为默认值 */
+  reset: publicProcedure
+    .input(z.object({ id: z.number().optional(), module: z.string().optional() }))
+    .mutation(async ({ input }) => {
+      const db = getDb();
+      try {
+        if (input.id) {
+          const rows = await db.select().from(engineConfigRegistry).where(eq(engineConfigRegistry.id, input.id)).limit(1);
+          if (rows[0]?.defaultValue) {
+            await db.update(engineConfigRegistry).set({ configValue: rows[0].defaultValue, updatedAt: new Date() }).where(eq(engineConfigRegistry.id, input.id));
+          }
+        } else if (input.module) {
+          const rows = await db.select().from(engineConfigRegistry).where(eq(engineConfigRegistry.module, input.module));
+          for (const row of rows) {
+            if (row.defaultValue) {
+              await db.update(engineConfigRegistry).set({ configValue: row.defaultValue, updatedAt: new Date() }).where(eq(engineConfigRegistry.id, row.id));
+            }
+          }
+        }
+        return { success: true };
+      } catch (e: any) { return { success: false, error: e.message }; }
+    }),
+
+  /** 批量种子化进化引擎配置 */
+  seed: publicProcedure
+    .mutation(async () => {
+      const db = getDb();
+      const existing = await db.select().from(engineConfigRegistry)
+        .where(eq(engineConfigRegistry.module, 'shadowEvaluator')).limit(1);
+      if (existing.length > 0) return { success: true, message: '种子数据已存在', seeded: 0 };
+
+      const seeds = [
+        // shadowEvaluator
+        { module: 'shadowEvaluator', configGroup: '数据分片', configKey: 'sliceCount', configValue: '100', valueType: 'number' as const, label: '数据分片数', description: '影子评估数据分片数量', unit: '片', constraints: { min: 10, max: 1000, step: 10 }, sortOrder: 1 },
+        { module: 'shadowEvaluator', configGroup: '超时控制', configKey: 'timeoutMs', configValue: '30000', valueType: 'number' as const, label: '超时限制', description: '单次评估超时时间', unit: 'ms', constraints: { min: 5000, max: 300000, step: 1000 }, sortOrder: 2 },
+        { module: 'shadowEvaluator', configGroup: '统计检验', configKey: 'mcNemarAlpha', configValue: '0.05', valueType: 'number' as const, label: 'McNemar 显著性水平', description: 'McNemar 检验的 alpha 值', constraints: { min: 0.001, max: 0.2, step: 0.005 }, sortOrder: 3 },
+        { module: 'shadowEvaluator', configGroup: '统计检验', configKey: 'monteCarloRuns', configValue: '1000', valueType: 'number' as const, label: '蒙特卡洛模拟次数', description: '蒙特卡洛置换检验运行次数', unit: '次', constraints: { min: 100, max: 10000, step: 100 }, sortOrder: 4 },
+        { module: 'shadowEvaluator', configGroup: '统计检验', configKey: 'perturbationMagnitude', configValue: '0.1', valueType: 'number' as const, label: '扰动幅度', description: '鲁棒性测试扰动幅度', constraints: { min: 0.01, max: 1.0, step: 0.01 }, sortOrder: 5 },
+        { module: 'shadowEvaluator', configGroup: 'TAS 融合权重', configKey: 'tasWeightMcNemar', configValue: '0.4', valueType: 'number' as const, label: 'McNemar 权重', description: 'TAS 融合中 McNemar 检验权重', constraints: { min: 0, max: 1, step: 0.05 }, sortOrder: 6 },
+        { module: 'shadowEvaluator', configGroup: 'TAS 融合权重', configKey: 'tasWeightDsFusion', configValue: '0.3', valueType: 'number' as const, label: 'DS 融合权重', description: 'TAS 融合中 DS 融合权重', constraints: { min: 0, max: 1, step: 0.05 }, sortOrder: 7 },
+        { module: 'shadowEvaluator', configGroup: 'TAS 融合权重', configKey: 'tasWeightMonteCarlo', configValue: '0.3', valueType: 'number' as const, label: '蒙特卡洛权重', description: 'TAS 融合中蒙特卡洛权重', constraints: { min: 0, max: 1, step: 0.05 }, sortOrder: 8 },
+        { module: 'shadowEvaluator', configGroup: '安全合规', configKey: 'enableSafetyCheck', configValue: 'true', valueType: 'boolean' as const, label: '启用安全合规检查', description: '是否在评估中启用安全合规检查', sortOrder: 9 },
+        { module: 'shadowEvaluator', configGroup: '评估参数', configKey: 'datasetSize', configValue: '10000', valueType: 'number' as const, label: '评估数据集大小', description: '影子评估使用的数据集样本数', unit: '条', constraints: { min: 100, max: 1000000, step: 100 }, sortOrder: 10 },
+        { module: 'shadowEvaluator', configGroup: '评估参数', configKey: 'evaluationRounds', configValue: '5', valueType: 'number' as const, label: '评估轮次', description: '重复评估轮次以提高统计可靠性', unit: '轮', constraints: { min: 1, max: 50, step: 1 }, sortOrder: 11 },
+        { module: 'shadowEvaluator', configGroup: '评估参数', configKey: 'minImprovementPercent', configValue: '2', valueType: 'number' as const, label: '最小改进阈值', description: '挑战者需超过基线的最小改进百分比', unit: '%', constraints: { min: 0.1, max: 50, step: 0.1 }, sortOrder: 12 },
+        // interventionRate
+        { module: 'interventionRate', configGroup: '告警阈值', configKey: 'alertThreshold', configValue: '0.05', valueType: 'number' as const, label: '告警阈值', description: '干预率超过此值触发告警', constraints: { min: 0.001, max: 0.5, step: 0.001 }, sortOrder: 1 },
+        { module: 'interventionRate', configGroup: '告警阈值', configKey: 'criticalThreshold', configValue: '0.1', valueType: 'number' as const, label: '严重告警阈值', description: '干预率超过此值触发严重告警', constraints: { min: 0.01, max: 1.0, step: 0.01 }, sortOrder: 2 },
+        { module: 'interventionRate', configGroup: '趋势分析', configKey: 'trendWindowCount', configValue: '10', valueType: 'number' as const, label: '趋势窗口数', description: '趋势计算使用的窗口数量', unit: '个', constraints: { min: 3, max: 50, step: 1 }, sortOrder: 3 },
+        { module: 'interventionRate', configGroup: '趋势分析', configKey: 'aggregationGranularityMs', configValue: '60000', valueType: 'number' as const, label: '聚合粒度', description: '干预率聚合计算的时间粒度', unit: 'ms', constraints: { min: 10000, max: 3600000, step: 10000 }, sortOrder: 4 },
+        // dualFlywheel
+        { module: 'dualFlywheel', configGroup: '执行策略', configKey: 'parallelExecution', configValue: 'true', valueType: 'boolean' as const, label: '并行执行', description: '是否并行执行 Real 和 Sim 飞轮', sortOrder: 1 },
+        { module: 'dualFlywheel', configGroup: '阈值', configKey: 'consistencyThreshold', configValue: '0.85', valueType: 'number' as const, label: '一致性阈值', description: '交叉验证一致性阈值', constraints: { min: 0.5, max: 1.0, step: 0.01 }, sortOrder: 2 },
+        { module: 'dualFlywheel', configGroup: '阈值', configKey: 'autoPromoteThreshold', configValue: '0.9', valueType: 'number' as const, label: '自动提升阈值', description: '超过此阈值自动提升模型', constraints: { min: 0.5, max: 1.0, step: 0.01 }, sortOrder: 3 },
+        { module: 'dualFlywheel', configGroup: '标注', configKey: 'enableAutoLabeling', configValue: 'true', valueType: 'boolean' as const, label: '启用自动标注', description: '是否在飞轮中启用自动标注管线', sortOrder: 4 },
+        // e2eAgent
+        { module: 'e2eAgent', configGroup: '预测', configKey: 'futureSteps', configValue: '10', valueType: 'number' as const, label: '未来预测步数', description: 'E2E Agent 预测的未来时间步数', unit: '步', constraints: { min: 1, max: 100, step: 1 }, sortOrder: 1 },
+        { module: 'e2eAgent', configGroup: '融合', configKey: 'fusionMethod', configValue: 'attention', valueType: 'string' as const, label: '特征融合方法', description: '多模态特征融合策略', constraints: { options: ['early', 'late', 'attention'] }, sortOrder: 2 },
+        { module: 'e2eAgent', configGroup: '世界模型', configKey: 'enableWorldModel', configValue: 'true', valueType: 'boolean' as const, label: '启用世界模型', description: '是否启用内部世界模型进行预测', sortOrder: 3 },
+        { module: 'e2eAgent', configGroup: '超时', configKey: 'decisionTimeoutMs', configValue: '5000', valueType: 'number' as const, label: '决策超时', description: '单次决策的最大等待时间', unit: 'ms', constraints: { min: 100, max: 60000, step: 100 }, sortOrder: 4 },
+        { module: 'e2eAgent', configGroup: '历史', configKey: 'historyWindowSize', configValue: '50', valueType: 'number' as const, label: '历史窗口大小', description: '用于决策的历史数据窗口大小', unit: '帧', constraints: { min: 5, max: 500, step: 5 }, sortOrder: 5 },
+        { module: 'e2eAgent', configGroup: '阈值', configKey: 'minConfidence', configValue: '0.7', valueType: 'number' as const, label: '最小置信度', description: '决策输出的最小置信度阈值', constraints: { min: 0.1, max: 1.0, step: 0.05 }, sortOrder: 6 },
+        // modelMerge
+        { module: 'modelMerge', configGroup: '合并策略', configKey: 'method', configValue: 'slerp', valueType: 'string' as const, label: '合并方法', description: '模型权重合并算法', constraints: { options: ['slerp', 'linear', 'task_arithmetic'] }, sortOrder: 1 },
+        { module: 'modelMerge', configGroup: '合并策略', configKey: 'interpolationFactor', configValue: '0.5', valueType: 'number' as const, label: '插值系数', description: '0=完全使用 ModelA, 1=完全使用 ModelB', constraints: { min: 0, max: 1, step: 0.05 }, sortOrder: 2 },
+        // autoLabeling
+        { module: 'autoLabeling', configGroup: '质量控制', configKey: 'confidenceThreshold', configValue: '0.85', valueType: 'number' as const, label: '置信度阈值', description: '自动标注结果的最低置信度要求', constraints: { min: 0.5, max: 1.0, step: 0.01 }, sortOrder: 1 },
+        { module: 'autoLabeling', configGroup: '批处理', configKey: 'batchSize', configValue: '32', valueType: 'number' as const, label: '批大小', description: '自动标注的批处理大小', unit: '条', constraints: { min: 1, max: 512, step: 1 }, sortOrder: 2 },
+        { module: 'autoLabeling', configGroup: '集成', configKey: 'enableEnsemble', configValue: 'true', valueType: 'boolean' as const, label: '启用集成标注', description: '是否使用多模型集成提高标注质量', sortOrder: 3 },
+        { module: 'autoLabeling', configGroup: '超时', configKey: 'timeoutMs', configValue: '10000', valueType: 'number' as const, label: '标注超时', description: '单条数据标注的超时时间', unit: 'ms', constraints: { min: 1000, max: 60000, step: 1000 }, sortOrder: 4 },
+        { module: 'autoLabeling', configGroup: '质量控制', configKey: 'dimensionConsistencyThreshold', configValue: '0.8', valueType: 'number' as const, label: '维度一致性阈值', description: '特征维度一致性低于此值标记为 uncertain', constraints: { min: 0.3, max: 1.0, step: 0.05 }, sortOrder: 5 },
+        { module: 'autoLabeling', configGroup: '时间衰减', configKey: 'recencyHalfLifeMs', configValue: '86400000', valueType: 'number' as const, label: '时间衰减半衰期', description: '数据新鲜度的半衰期', unit: 'ms', constraints: { min: 3600000, max: 604800000, step: 3600000 }, sortOrder: 6 },
+        // dojoScheduler
+        { module: 'dojoScheduler', configGroup: '碳感知', configKey: 'enableCarbonAware', configValue: 'false', valueType: 'boolean' as const, label: '启用 Carbon-aware 调度', description: '是否根据碳排放强度调度训练任务', sortOrder: 1 },
+        { module: 'dojoScheduler', configGroup: '碳感知', configKey: 'carbonThreshold', configValue: '200', valueType: 'number' as const, label: '碳强度阈值', description: '超过此阈值延迟训练任务', unit: 'gCO2/kWh', constraints: { min: 50, max: 1000, step: 10 }, sortOrder: 2 },
+        { module: 'dojoScheduler', configGroup: '资源', configKey: 'preferSpot', configValue: 'true', valueType: 'boolean' as const, label: '优先 Spot 实例', description: '是否优先使用 Spot 实例降低成本', sortOrder: 3 },
+        { module: 'dojoScheduler', configGroup: '资源', configKey: 'spotDiscount', configValue: '0.7', valueType: 'number' as const, label: 'Spot 折扣率', description: 'Spot 实例相对按需实例的折扣率', constraints: { min: 0.1, max: 1.0, step: 0.05 }, sortOrder: 4 },
+        { module: 'dojoScheduler', configGroup: '资源', configKey: 'maxParallelJobs', configValue: '4', valueType: 'number' as const, label: '最大并行任务数', description: '同时运行的最大训练任务数', unit: '个', constraints: { min: 1, max: 32, step: 1 }, sortOrder: 5 },
+        { module: 'dojoScheduler', configGroup: '优先级', configKey: 'videoPriorityBoost', configValue: '1.5', valueType: 'number' as const, label: '视频数据优先级加成', description: '视频数据训练任务的优先级倍数', unit: 'x', constraints: { min: 1.0, max: 5.0, step: 0.1 }, sortOrder: 6 },
+        { module: 'dojoScheduler', configGroup: '成本', configKey: 'gpuHourlyRate', configValue: '2.5', valueType: 'number' as const, label: 'GPU 单价', description: 'GPU 实例每小时费用', unit: '$/h', constraints: { min: 0.1, max: 50, step: 0.1 }, sortOrder: 7 },
+        // fleetPlanner
+        { module: 'fleetPlanner', configGroup: '评分权重', configKey: 'accuracyWeight', configValue: '0.4', valueType: 'number' as const, label: '准确率权重', description: '车队评分中准确率的权重', constraints: { min: 0, max: 1, step: 0.05 }, sortOrder: 1 },
+        { module: 'fleetPlanner', configGroup: '评分权重', configKey: 'interventionWeight', configValue: '0.3', valueType: 'number' as const, label: '干预率权重', description: '车队评分中干预率的权重', constraints: { min: 0, max: 1, step: 0.05 }, sortOrder: 2 },
+        { module: 'fleetPlanner', configGroup: '评分权重', configKey: 'efficiencyWeight', configValue: '0.15', valueType: 'number' as const, label: '效率权重', description: '车队评分中效率的权重', constraints: { min: 0, max: 1, step: 0.05 }, sortOrder: 3 },
+        { module: 'fleetPlanner', configGroup: '评分权重', configKey: 'stabilityWeight', configValue: '0.15', valueType: 'number' as const, label: '稳定性权重', description: '车队评分中稳定性的权重', constraints: { min: 0, max: 1, step: 0.05 }, sortOrder: 4 },
+        { module: 'fleetPlanner', configGroup: '阈值', configKey: 'minAccuracyThreshold', configValue: '0.85', valueType: 'number' as const, label: '最小准确率阈值', description: '车队最低准确率要求', constraints: { min: 0.5, max: 1.0, step: 0.01 }, sortOrder: 5 },
+        { module: 'fleetPlanner', configGroup: '阈值', configKey: 'maxInterventionThreshold', configValue: '0.02', valueType: 'number' as const, label: '最大干预率阈值', description: '车队最大可接受干预率', constraints: { min: 0.001, max: 0.1, step: 0.001 }, sortOrder: 6 },
+        { module: 'fleetPlanner', configGroup: '自适应', configKey: 'enableAdaptiveWeights', configValue: 'false', valueType: 'boolean' as const, label: '启用自适应权重', description: '是否根据历史数据自动调整评分权重', sortOrder: 7 },
+        // otaCanary
+        { module: 'otaCanary', configGroup: '告警', configKey: 'maxActiveAlerts', configValue: '0', valueType: 'number' as const, label: '最大活跃告警数', description: '允许的最大活跃告警数（0=零容忍）', unit: '个', constraints: { min: 0, max: 10, step: 1 }, sortOrder: 1 },
+        { module: 'otaCanary', configGroup: 'Shadow 阶段', configKey: 'shadowTrafficPercent', configValue: '0', valueType: 'number' as const, label: 'Shadow 流量比例', description: 'Shadow 阶段的流量百分比', unit: '%', constraints: { min: 0, max: 100, step: 1 }, sortOrder: 2 },
+        { module: 'otaCanary', configGroup: 'Shadow 阶段', configKey: 'shadowMinDurationH', configValue: '24', valueType: 'number' as const, label: 'Shadow 最小持续时间', description: 'Shadow 阶段最短运行时间', unit: 'h', constraints: { min: 1, max: 168, step: 1 }, sortOrder: 3 },
+        { module: 'otaCanary', configGroup: 'Canary 阶段', configKey: 'canaryTrafficPercent', configValue: '5', valueType: 'number' as const, label: 'Canary 流量比例', description: 'Canary 阶段的流量百分比', unit: '%', constraints: { min: 1, max: 20, step: 1 }, sortOrder: 4 },
+        { module: 'otaCanary', configGroup: 'Canary 阶段', configKey: 'canaryMinDurationH', configValue: '48', valueType: 'number' as const, label: 'Canary 最小持续时间', description: 'Canary 阶段最短运行时间', unit: 'h', constraints: { min: 1, max: 336, step: 1 }, sortOrder: 5 },
+        { module: 'otaCanary', configGroup: 'Gray 阶段', configKey: 'grayTrafficPercent', configValue: '20', valueType: 'number' as const, label: 'Gray 流量比例', description: 'Gray 阶段的流量百分比', unit: '%', constraints: { min: 10, max: 50, step: 5 }, sortOrder: 6 },
+        { module: 'otaCanary', configGroup: 'Gray 阶段', configKey: 'grayMinDurationH', configValue: '72', valueType: 'number' as const, label: 'Gray 最小持续时间', description: 'Gray 阶段最短运行时间', unit: 'h', constraints: { min: 1, max: 336, step: 1 }, sortOrder: 7 },
+        { module: 'otaCanary', configGroup: 'Half 阶段', configKey: 'halfTrafficPercent', configValue: '50', valueType: 'number' as const, label: 'Half 流量比例', description: 'Half 阶段的流量百分比', unit: '%', constraints: { min: 30, max: 80, step: 5 }, sortOrder: 8 },
+        { module: 'otaCanary', configGroup: 'Full 阶段', configKey: 'fullTrafficPercent', configValue: '100', valueType: 'number' as const, label: 'Full 流量比例', description: '全量发布的流量百分比', unit: '%', constraints: { min: 100, max: 100 }, sortOrder: 9 },
+        { module: 'otaCanary', configGroup: '健康检查', configKey: 'healthCheckIntervalMs', configValue: '3600000', valueType: 'number' as const, label: '健康检查间隔', description: '默认健康检查间隔时间', unit: 'ms', constraints: { min: 60000, max: 86400000, step: 60000 }, sortOrder: 10 },
+        // simulationEngine
+        { module: 'simulationEngine', configGroup: '仿真参数', configKey: 'variationsPerIntervention', configValue: '5', valueType: 'number' as const, label: '每次干预变体数', description: '每次干预生成的仿真变体数量', unit: '个', constraints: { min: 1, max: 50, step: 1 }, sortOrder: 1 },
+        { module: 'simulationEngine', configGroup: '仿真参数', configKey: 'maxNoiseLevel', configValue: '0.5', valueType: 'number' as const, label: '最大噪声水平', description: '仿真中注入的最大噪声水平', constraints: { min: 0.01, max: 2.0, step: 0.01 }, sortOrder: 2 },
+        { module: 'simulationEngine', configGroup: '资源', configKey: 'parallelism', configValue: '4', valueType: 'number' as const, label: '并行度', description: '仿真引擎的并行执行数', unit: '线程', constraints: { min: 1, max: 32, step: 1 }, sortOrder: 3 },
+        { module: 'simulationEngine', configGroup: '阈值', configKey: 'passThreshold', configValue: '0.1', valueType: 'number' as const, label: '通过阈值', description: '仿真结果与期望输出的最大允许偏差', constraints: { min: 0.01, max: 1.0, step: 0.01 }, sortOrder: 4 },
+        // metaLearner
+        { module: 'metaLearner', configGroup: '探索', configKey: 'explorationRate', configValue: '0.1', valueType: 'number' as const, label: '探索率', description: '元学习器的探索-利用平衡参数', constraints: { min: 0.01, max: 1.0, step: 0.01 }, sortOrder: 1 },
+        { module: 'metaLearner', configGroup: '评估', configKey: 'evaluationWindowSize', configValue: '100', valueType: 'number' as const, label: '评估窗口大小', description: '用于评估策略效果的样本窗口大小', unit: '条', constraints: { min: 10, max: 1000, step: 10 }, sortOrder: 2 },
+        { module: 'metaLearner', configGroup: '阈值', configKey: 'minImprovementThreshold', configValue: '0.02', valueType: 'number' as const, label: '最小改进阈值', description: '策略切换所需的最小改进幅度', constraints: { min: 0.001, max: 0.5, step: 0.001 }, sortOrder: 3 },
+        { module: 'metaLearner', configGroup: '记忆', configKey: 'memoryCapacity', configValue: '10000', valueType: 'number' as const, label: '记忆容量', description: '元学习器经验回放缓冲区大小', unit: '条', constraints: { min: 100, max: 100000, step: 100 }, sortOrder: 4 },
+      ];
+
+      let seeded = 0;
+      for (const s of seeds) {
+        try {
+          await db.insert(engineConfigRegistry).values({
+            module: s.module, configGroup: s.configGroup,
+            configKey: s.configKey, configValue: s.configValue,
+            defaultValue: s.configValue, valueType: s.valueType,
+            label: s.label, description: s.description,
+            unit: s.unit ?? null, constraints: s.constraints ?? null,
+            sortOrder: s.sortOrder, isBuiltin: 1,
+          });
+          seeded++;
+        } catch { /* ignore duplicates */ }
+      }
+      return { success: true, message: `已种子化 ${seeded} 个配置项`, seeded };
+    }),
+});
+
 export const evolutionDomainRouter = router({
   shadowEval: shadowEvalRouter,
   championChallenger: championChallengerRouter,
@@ -782,6 +991,7 @@ export const evolutionDomainRouter = router({
   crystal: crystalRouter,
   fsd: fsdRouter,
   schedule: scheduleRouter,
+  config: configRouter,
 
   // ========== 前端仪表盘 Facade 方法（CognitiveDashboard 页面使用） ==========
 

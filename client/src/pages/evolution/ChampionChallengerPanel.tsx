@@ -17,6 +17,8 @@ import { Label } from '@/components/ui/label';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from '@/components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import EvolutionConfigPanel from '@/components/evolution/EvolutionConfigPanel';
 
 /* ─── 创建实验对话框 ─── */
 function CreateExperimentDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
@@ -174,32 +176,49 @@ export default function ChampionChallengerPanel() {
         <Button onClick={() => setCreateOpen(true)}>+ 创建实验</Button>
       </div>
 
-      <div className="grid grid-cols-4 gap-3">
-        <MetricCard label="总实验数" value={experiments.length} />
-        <MetricCard label="待裁决" value={experiments.filter((e: any) => !e.verdict || e.verdict === 'PENDING').length} />
-        <MetricCard label="已提升" value={experiments.filter((e: any) => e.verdict === 'PROMOTE').length} />
-        <MetricCard label="已拒绝" value={experiments.filter((e: any) => e.verdict === 'REJECT').length} />
-      </div>
+      <Tabs defaultValue="overview" className="w-full">
+        <TabsList className="bg-zinc-800/60 border border-zinc-700">
+          <TabsTrigger value="overview" className="text-xs data-[state=active]:bg-zinc-700 data-[state=active]:text-zinc-100">
+            🏆 实验管理
+          </TabsTrigger>
+          <TabsTrigger value="config" className="text-xs data-[state=active]:bg-zinc-700 data-[state=active]:text-zinc-100">
+            ⚙️ 引擎配置
+          </TabsTrigger>
+        </TabsList>
 
-      {selectedId && <ExperimentDetail id={selectedId} onClose={() => setSelectedId(null)} />}
+        <TabsContent value="overview" className="mt-4 space-y-5">
+          <div className="grid grid-cols-4 gap-3">
+            <MetricCard label="总实验数" value={experiments.length} />
+            <MetricCard label="待裁决" value={experiments.filter((e: any) => !e.verdict || e.verdict === 'PENDING').length} />
+            <MetricCard label="已提升" value={experiments.filter((e: any) => e.verdict === 'PROMOTE').length} />
+            <MetricCard label="已拒绝" value={experiments.filter((e: any) => e.verdict === 'REJECT').length} />
+          </div>
 
-      <div className="bg-zinc-900/60 border border-zinc-800 rounded-lg p-5">
-        <SectionHeader title="实验列表" />
-        <DataTable
-          data={experiments}
-          onRowClick={(row) => setSelectedId(row.id)}
-          columns={[
-            { key: 'id', label: 'ID', width: '60px' },
-            { key: 'name', label: '实验名称', render: (r: any) => <span className="text-zinc-200 font-medium">{r.name}</span> },
-            { key: 'championId', label: '冠军模型' },
-            { key: 'challengerId', label: '挑战者模型' },
-            { key: 'tasScore', label: 'TAS', width: '80px', render: (r: any) => <span className="tabular-nums">{r.tasScore != null ? r.tasScore.toFixed(3) : '-'}</span> },
-            { key: 'verdict', label: '裁决', width: '120px', render: (r: any) => <StatusBadge status={r.verdict ?? 'PENDING'} /> },
-            { key: 'createdAt', label: '创建时间', render: (r: any) => <span className="text-zinc-500 text-xs">{r.createdAt ? new Date(r.createdAt).toLocaleString('zh-CN') : '-'}</span> },
-          ]}
-          emptyMessage="暂无冠军挑战者实验"
-        />
-      </div>
+          {selectedId && <ExperimentDetail id={selectedId} onClose={() => setSelectedId(null)} />}
+
+          <div className="bg-zinc-900/60 border border-zinc-800 rounded-lg p-5">
+            <SectionHeader title="实验列表" />
+            <DataTable
+              data={experiments}
+              onRowClick={(row) => setSelectedId(row.id)}
+              columns={[
+                { key: 'id', label: 'ID', width: '60px' },
+                { key: 'name', label: '实验名称', render: (r: any) => <span className="text-zinc-200 font-medium">{r.name}</span> },
+                { key: 'championId', label: '冠军模型' },
+                { key: 'challengerId', label: '挑战者模型' },
+                { key: 'tasScore', label: 'TAS', width: '80px', render: (r: any) => <span className="tabular-nums">{r.tasScore != null ? r.tasScore.toFixed(3) : '-'}</span> },
+                { key: 'verdict', label: '裁决', width: '120px', render: (r: any) => <StatusBadge status={r.verdict ?? 'PENDING'} /> },
+                { key: 'createdAt', label: '创建时间', render: (r: any) => <span className="text-zinc-500 text-xs">{r.createdAt ? new Date(r.createdAt).toLocaleString('zh-CN') : '-'}</span> },
+              ]}
+              emptyMessage="暂无冠军挑战者实验"
+            />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="config" className="mt-4">
+          <EvolutionConfigPanel modules={['modelMerge']} title="模型合并配置" />
+        </TabsContent>
+      </Tabs>
 
       <CreateExperimentDialog open={createOpen} onOpenChange={setCreateOpen} />
     </div>

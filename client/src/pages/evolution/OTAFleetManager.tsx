@@ -12,6 +12,8 @@ import { trpc } from '@/lib/trpc';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { StatusBadge, MetricCard, SectionHeader, DataTable } from '@/components/evolution';
 import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import EvolutionConfigPanel from '@/components/evolution/EvolutionConfigPanel';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
 } from 'recharts';
@@ -94,45 +96,59 @@ export default function OTAFleetManager() {
         </div>
       </div>
 
-      {/* 车队健康 */}
-      <FleetHealthOverview />
+      <Tabs defaultValue="overview" className="w-full">
+        <TabsList className="bg-zinc-800/60 border border-zinc-700">
+          <TabsTrigger value="overview" className="text-xs data-[state=active]:bg-zinc-700 data-[state=active]:text-zinc-100">
+            🚗 车队管理
+          </TabsTrigger>
+          <TabsTrigger value="config" className="text-xs data-[state=active]:bg-zinc-700 data-[state=active]:text-zinc-100">
+            ⚙️ 引擎配置
+          </TabsTrigger>
+        </TabsList>
 
-      {/* 指标卡片 */}
-      <div className="grid grid-cols-4 gap-3">
-        <MetricCard label="总部署" value={deployments.length} />
-        <MetricCard label="活跃部署" value={deployments.filter((d: any) => d.status === 'active').length} />
-        <MetricCard label="已完成" value={deployments.filter((d: any) => d.status === 'completed').length} />
-        <MetricCard label="已回滚" value={deployments.filter((d: any) => d.status === 'rolled_back').length} />
-      </div>
+        <TabsContent value="overview" className="mt-4 space-y-5">
+          {/* 车队健康 */}
+          <FleetHealthOverview />
+          {/* 指标卡片 */}
+          <div className="grid grid-cols-4 gap-3">
+            <MetricCard label="总部署" value={deployments.length} />
+            <MetricCard label="活跃部署" value={deployments.filter((d: any) => d.status === 'active').length} />
+            <MetricCard label="已完成" value={deployments.filter((d: any) => d.status === 'completed').length} />
+            <MetricCard label="已回滚" value={deployments.filter((d: any) => d.status === 'rolled_back').length} />
+          </div>
+          {/* 状态分布 */}
+          <StatusDistribution deployments={deployments} />
+          {/* 部署列表 */}
+          <div className="bg-zinc-900/60 border border-zinc-800 rounded-lg p-5">
+            <SectionHeader title="OTA 部署列表" />
+            <DataTable
+              data={deployments}
+              onRowClick={(row) => setSelectedId(row.id)}
+              columns={[
+                { key: 'id', label: 'ID', width: '60px' },
+                { key: 'modelId', label: '模型', render: (r: any) => <span className="text-zinc-200 font-medium">{r.modelId}</span> },
+                { key: 'experimentId', label: '实验 ID', width: '80px', render: (r: any) => <span className="tabular-nums">#{r.experimentId}</span> },
+                { key: 'trafficPercent', label: '流量', width: '100px', render: (r: any) => (
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-16 h-1.5 bg-zinc-700 rounded-full overflow-hidden">
+                      <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${r.trafficPercent ?? 0}%` }} />
+                    </div>
+                    <span className="text-[10px] tabular-nums text-zinc-400">{r.trafficPercent ?? 0}%</span>
+                  </div>
+                )},
+                { key: 'status', label: '状态', width: '100px', render: (r: any) => <StatusBadge status={r.status ?? 'pending'} /> },
+                { key: 'startedAt', label: '开始时间', render: (r: any) => <span className="text-zinc-500 text-xs">{r.startedAt ? new Date(r.startedAt).toLocaleString('zh-CN') : '-'}</span> },
+                { key: 'createdAt', label: '创建时间', render: (r: any) => <span className="text-zinc-500 text-xs">{r.createdAt ? new Date(r.createdAt).toLocaleString('zh-CN') : '-'}</span> },
+              ]}
+              emptyMessage="暂无 OTA 部署"
+            />
+          </div>
+        </TabsContent>
 
-      {/* 状态分布 */}
-      <StatusDistribution deployments={deployments} />
-
-      {/* 部署列表 */}
-      <div className="bg-zinc-900/60 border border-zinc-800 rounded-lg p-5">
-        <SectionHeader title="OTA 部署列表" />
-        <DataTable
-          data={deployments}
-          onRowClick={(row) => setSelectedId(row.id)}
-          columns={[
-            { key: 'id', label: 'ID', width: '60px' },
-            { key: 'modelId', label: '模型', render: (r: any) => <span className="text-zinc-200 font-medium">{r.modelId}</span> },
-            { key: 'experimentId', label: '实验 ID', width: '80px', render: (r: any) => <span className="tabular-nums">#{r.experimentId}</span> },
-            { key: 'trafficPercent', label: '流量', width: '100px', render: (r: any) => (
-              <div className="flex items-center gap-1.5">
-                <div className="w-16 h-1.5 bg-zinc-700 rounded-full overflow-hidden">
-                  <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${r.trafficPercent ?? 0}%` }} />
-                </div>
-                <span className="text-[10px] tabular-nums text-zinc-400">{r.trafficPercent ?? 0}%</span>
-              </div>
-            )},
-            { key: 'status', label: '状态', width: '100px', render: (r: any) => <StatusBadge status={r.status ?? 'pending'} /> },
-            { key: 'startedAt', label: '开始时间', render: (r: any) => <span className="text-zinc-500 text-xs">{r.startedAt ? new Date(r.startedAt).toLocaleString('zh-CN') : '-'}</span> },
-            { key: 'createdAt', label: '创建时间', render: (r: any) => <span className="text-zinc-500 text-xs">{r.createdAt ? new Date(r.createdAt).toLocaleString('zh-CN') : '-'}</span> },
-          ]}
-          emptyMessage="暂无 OTA 部署"
-        />
-      </div>
+        <TabsContent value="config" className="mt-4">
+          <EvolutionConfigPanel modules={['fleetPlanner', 'otaCanary']} title="车队规划 / OTA 配置" />
+        </TabsContent>
+      </Tabs>
     </div>
     </MainLayout>
   );

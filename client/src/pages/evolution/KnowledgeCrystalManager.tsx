@@ -24,6 +24,7 @@ import { StatusBadge, MetricCard, SectionHeader, DataTable, EmptyState } from '@
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import EvolutionConfigPanel from '@/components/evolution/EvolutionConfigPanel';
 import { Input } from '@/components/ui/input';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
@@ -402,6 +403,9 @@ export default function KnowledgeCrystalManager() {
           <TabsTrigger value="analytics" className="text-xs data-[state=active]:bg-zinc-700 data-[state=active]:text-zinc-100">
             统计分析
           </TabsTrigger>
+          <TabsTrigger value="config" className="text-xs data-[state=active]:bg-zinc-700 data-[state=active]:text-zinc-100">
+            ⚙️ 引擎配置
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="list" className="mt-4">
@@ -519,6 +523,9 @@ export default function KnowledgeCrystalManager() {
 
         <TabsContent value="analytics" className="mt-4">
           <CrystalAnalytics crystals={allCrystals} />
+        </TabsContent>
+        <TabsContent value="config" className="mt-4">
+          <EvolutionConfigPanel modules={['dataEngine']} title="知识结晶 / 数据引擎配置" />
         </TabsContent>
       </Tabs>
 

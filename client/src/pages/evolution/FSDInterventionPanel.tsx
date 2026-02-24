@@ -31,6 +31,7 @@ import { StatusBadge, MetricCard, SectionHeader, DataTable, EmptyState } from '@
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import EvolutionConfigPanel from '@/components/evolution/EvolutionConfigPanel';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from '@/components/ui/dialog';
@@ -623,6 +624,9 @@ export default function FSDInterventionPanel() {
           <TabsTrigger value="trajectories" className="text-xs data-[state=active]:bg-zinc-700 data-[state=active]:text-zinc-100">
             视频轨迹
           </TabsTrigger>
+          <TabsTrigger value="config" className="text-xs data-[state=active]:bg-zinc-700 data-[state=active]:text-zinc-100">
+            ⚙️ 引擎配置
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="interventions" className="mt-4">
@@ -633,6 +637,9 @@ export default function FSDInterventionPanel() {
         </TabsContent>
         <TabsContent value="trajectories" className="mt-4">
           <VideoTrajectoryPanel />
+        </TabsContent>
+        <TabsContent value="config" className="mt-4">
+          <EvolutionConfigPanel modules={['simEngine', 'autoLabeler']} title="仿真引擎 / 自动标注配置" />
         </TabsContent>
       </Tabs>
     </div>

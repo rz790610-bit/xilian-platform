@@ -18,6 +18,8 @@ import { trpc } from '@/lib/trpc';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { StatusBadge, MetricCard, SectionHeader, DataTable } from '@/components/evolution';
 import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import EvolutionConfigPanel from '@/components/evolution/EvolutionConfigPanel';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
@@ -157,9 +159,26 @@ export default function DomainRouterConfig() {
         <p className="text-xs text-zinc-500 mt-0.5">Domain Router · 干预率监控、领域健康与事件追踪</p>
       </div>
 
-      <InterventionTrend />
-      <DomainHealthPanel />
-      <InterventionList />
+      <Tabs defaultValue="overview" className="w-full">
+        <TabsList className="bg-zinc-800/60 border border-zinc-700">
+          <TabsTrigger value="overview" className="text-xs data-[state=active]:bg-zinc-700 data-[state=active]:text-zinc-100">
+            🌐 领域路由
+          </TabsTrigger>
+          <TabsTrigger value="config" className="text-xs data-[state=active]:bg-zinc-700 data-[state=active]:text-zinc-100">
+            ⚙️ 引擎配置
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="overview" className="mt-4 space-y-5">
+          <InterventionTrend />
+          <DomainHealthPanel />
+          <InterventionList />
+        </TabsContent>
+
+        <TabsContent value="config" className="mt-4">
+          <EvolutionConfigPanel modules={['simEngine', 'dataEngine']} title="仿真引擎 / 数据引擎配置" />
+        </TabsContent>
+      </Tabs>
     </div>
     </MainLayout>
   );

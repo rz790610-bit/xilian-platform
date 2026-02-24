@@ -9,9 +9,11 @@ import { StatusBadge, MetricCard, SectionHeader, DataTable, EmptyState, ConfirmD
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from '@/components/ui/dialog';
+import EvolutionConfigPanel from '@/components/evolution/EvolutionConfigPanel';
 
 /* ─── 创建影子评估对话框 ─── */
 function CreateShadowDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
@@ -108,7 +110,7 @@ function ShadowDetail({ id, onClose }: { id: number; onClose: () => void }) {
           <StatusBadge status={d.status ?? 'pending'} />
           {d.status === 'pending' && (
             <Button size="sm" onClick={() => startMutation.mutate({ id })} disabled={startMutation.isPending}>
-              {startMutation.isPending ? '启动中...' : '启动评估'}
+              {startMutation.isPending ? '启动中...' : '🚀 启动评估'}
             </Button>
           )}
           <Button variant="outline" size="sm" onClick={onClose} className="border-zinc-700 text-zinc-400">关闭</Button>
@@ -150,34 +152,51 @@ export default function ShadowFleetPanel() {
         <Button onClick={() => setCreateOpen(true)}>+ 创建影子评估</Button>
       </div>
 
-      {/* 概览指标 */}
-      <div className="grid grid-cols-4 gap-3">
-        <MetricCard label="总实验数" value={records.length} />
-        <MetricCard label="进行中" value={records.filter((e: any) => e.status === 'running').length} />
-        <MetricCard label="已完成" value={records.filter((e: any) => e.status === 'completed').length} />
-        <MetricCard label="待启动" value={records.filter((e: any) => e.status === 'pending').length} />
-      </div>
+      <Tabs defaultValue="overview" className="w-full">
+        <TabsList className="bg-zinc-800/60 border border-zinc-700">
+          <TabsTrigger value="overview" className="text-xs data-[state=active]:bg-zinc-700 data-[state=active]:text-zinc-100">
+            📊 实验管理
+          </TabsTrigger>
+          <TabsTrigger value="config" className="text-xs data-[state=active]:bg-zinc-700 data-[state=active]:text-zinc-100">
+            ⚙️ 引擎配置
+          </TabsTrigger>
+        </TabsList>
 
-      {/* 详情面板 */}
-      {selectedId && <ShadowDetail id={selectedId} onClose={() => setSelectedId(null)} />}
+        <TabsContent value="overview" className="mt-4 space-y-5">
+          {/* 概览指标 */}
+          <div className="grid grid-cols-4 gap-3">
+            <MetricCard label="总实验数" value={records.length} />
+            <MetricCard label="进行中" value={records.filter((e: any) => e.status === 'running').length} />
+            <MetricCard label="已完成" value={records.filter((e: any) => e.status === 'completed').length} />
+            <MetricCard label="待启动" value={records.filter((e: any) => e.status === 'pending').length} />
+          </div>
 
-      {/* 实验列表 */}
-      <div className="bg-zinc-900/60 border border-zinc-800 rounded-lg p-5">
-        <SectionHeader title="影子评估实验" />
-        <DataTable
-          data={records}
-          onRowClick={(row) => setSelectedId(row.id)}
-          columns={[
-            { key: 'id', label: 'ID', width: '60px' },
-            { key: 'experimentName', label: '实验名称', render: (r: any) => <span className="text-zinc-200 font-medium">{r.experimentName}</span> },
-            { key: 'challengerModelId', label: '挑战者模型' },
-            { key: 'baselineModelId', label: '基线模型' },
-            { key: 'status', label: '状态', width: '100px', render: (r: any) => <StatusBadge status={r.status ?? 'pending'} /> },
-            { key: 'createdAt', label: '创建时间', render: (r: any) => <span className="text-zinc-500 text-xs">{r.createdAt ? new Date(r.createdAt).toLocaleString('zh-CN') : '-'}</span> },
-          ]}
-          emptyMessage="暂无影子评估实验"
-        />
-      </div>
+          {/* 详情面板 */}
+          {selectedId && <ShadowDetail id={selectedId} onClose={() => setSelectedId(null)} />}
+
+          {/* 实验列表 */}
+          <div className="bg-zinc-900/60 border border-zinc-800 rounded-lg p-5">
+            <SectionHeader title="影子评估实验" />
+            <DataTable
+              data={records}
+              onRowClick={(row) => setSelectedId(row.id)}
+              columns={[
+                { key: 'id', label: 'ID', width: '60px' },
+                { key: 'experimentName', label: '实验名称', render: (r: any) => <span className="text-zinc-200 font-medium">{r.experimentName}</span> },
+                { key: 'challengerModelId', label: '挑战者模型' },
+                { key: 'baselineModelId', label: '基线模型' },
+                { key: 'status', label: '状态', width: '100px', render: (r: any) => <StatusBadge status={r.status ?? 'pending'} /> },
+                { key: 'createdAt', label: '创建时间', render: (r: any) => <span className="text-zinc-500 text-xs">{r.createdAt ? new Date(r.createdAt).toLocaleString('zh-CN') : '-'}</span> },
+              ]}
+              emptyMessage="暂无影子评估实验"
+            />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="config" className="mt-4">
+          <EvolutionConfigPanel modules={['shadowEvaluator']} title="影子评估器配置" />
+        </TabsContent>
+      </Tabs>
 
       <CreateShadowDialog open={createOpen} onOpenChange={setCreateOpen} />
     </div>

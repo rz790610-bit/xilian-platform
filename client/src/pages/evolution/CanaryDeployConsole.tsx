@@ -20,6 +20,8 @@ import { Label } from '@/components/ui/label';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from '@/components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import EvolutionConfigPanel from '@/components/evolution/EvolutionConfigPanel';
 
 /* ─── 创建部署对话框 ─── */
 function CreateDeployDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
@@ -190,32 +192,49 @@ export default function CanaryDeployConsole() {
         <Button onClick={() => setCreateOpen(true)}>+ 创建部署</Button>
       </div>
 
-      <div className="grid grid-cols-4 gap-3">
-        <MetricCard label="总部署数" value={deployments.length} />
-        <MetricCard label="活跃部署" value={deployments.filter((d: any) => d.status === 'active').length} />
-        <MetricCard label="已完成" value={deployments.filter((d: any) => d.status === 'completed').length} />
-        <MetricCard label="已回滚" value={deployments.filter((d: any) => d.status === 'rolled_back').length} />
-      </div>
+      <Tabs defaultValue="overview" className="w-full">
+        <TabsList className="bg-zinc-800/60 border border-zinc-700">
+          <TabsTrigger value="overview" className="text-xs data-[state=active]:bg-zinc-700 data-[state=active]:text-zinc-100">
+            🐦 部署管理
+          </TabsTrigger>
+          <TabsTrigger value="config" className="text-xs data-[state=active]:bg-zinc-700 data-[state=active]:text-zinc-100">
+            ⚙️ 引擎配置
+          </TabsTrigger>
+        </TabsList>
 
-      {selectedId && <DeploymentDetail id={selectedId} onClose={() => setSelectedId(null)} />}
+        <TabsContent value="overview" className="mt-4 space-y-5">
+          <div className="grid grid-cols-4 gap-3">
+            <MetricCard label="总部署数" value={deployments.length} />
+            <MetricCard label="活跃部署" value={deployments.filter((d: any) => d.status === 'active').length} />
+            <MetricCard label="已完成" value={deployments.filter((d: any) => d.status === 'completed').length} />
+            <MetricCard label="已回滚" value={deployments.filter((d: any) => d.status === 'rolled_back').length} />
+          </div>
 
-      <div className="bg-zinc-900/60 border border-zinc-800 rounded-lg p-5">
-        <SectionHeader title="部署列表" />
-        <DataTable
-          data={deployments}
-          onRowClick={(row) => setSelectedId(row.id)}
-          columns={[
-            { key: 'id', label: 'ID', width: '60px' },
-            { key: 'modelId', label: '模型', render: (r: any) => <span className="text-zinc-200 font-medium">{r.modelId}</span> },
-            { key: 'experimentId', label: '实验 ID', width: '80px', render: (r: any) => <span className="tabular-nums">#{r.experimentId}</span> },
-            { key: 'trafficPercent', label: '流量%', width: '80px', render: (r: any) => <span className="tabular-nums">{r.trafficPercent ?? 0}%</span> },
-            { key: 'status', label: '状态', width: '100px', render: (r: any) => <StatusBadge status={r.status ?? 'pending'} /> },
-            { key: 'startedAt', label: '开始时间', render: (r: any) => <span className="text-zinc-500 text-xs">{r.startedAt ? new Date(r.startedAt).toLocaleString('zh-CN') : '-'}</span> },
-            { key: 'createdAt', label: '创建时间', render: (r: any) => <span className="text-zinc-500 text-xs">{r.createdAt ? new Date(r.createdAt).toLocaleString('zh-CN') : '-'}</span> },
-          ]}
-          emptyMessage="暂无金丝雀部署"
-        />
-      </div>
+          {selectedId && <DeploymentDetail id={selectedId} onClose={() => setSelectedId(null)} />}
+
+          <div className="bg-zinc-900/60 border border-zinc-800 rounded-lg p-5">
+            <SectionHeader title="部署列表" />
+            <DataTable
+              data={deployments}
+              onRowClick={(row) => setSelectedId(row.id)}
+              columns={[
+                { key: 'id', label: 'ID', width: '60px' },
+                { key: 'modelId', label: '模型', render: (r: any) => <span className="text-zinc-200 font-medium">{r.modelId}</span> },
+                { key: 'experimentId', label: '实验 ID', width: '80px', render: (r: any) => <span className="tabular-nums">#{r.experimentId}</span> },
+                { key: 'trafficPercent', label: '流量%', width: '80px', render: (r: any) => <span className="tabular-nums">{r.trafficPercent ?? 0}%</span> },
+                { key: 'status', label: '状态', width: '100px', render: (r: any) => <StatusBadge status={r.status ?? 'pending'} /> },
+                { key: 'startedAt', label: '开始时间', render: (r: any) => <span className="text-zinc-500 text-xs">{r.startedAt ? new Date(r.startedAt).toLocaleString('zh-CN') : '-'}</span> },
+                { key: 'createdAt', label: '创建时间', render: (r: any) => <span className="text-zinc-500 text-xs">{r.createdAt ? new Date(r.createdAt).toLocaleString('zh-CN') : '-'}</span> },
+              ]}
+              emptyMessage="暂无金丝雀部署"
+            />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="config" className="mt-4">
+          <EvolutionConfigPanel modules={['otaCanary', 'fleetPlanner']} title="OTA 金丝雀 / 车队规划配置" />
+        </TabsContent>
+      </Tabs>
 
       <CreateDeployDialog open={createOpen} onOpenChange={setCreateOpen} />
     </div>
