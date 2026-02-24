@@ -471,7 +471,11 @@ export class EndToEndEvolutionAgent {
     const max = Math.max(...values);
 
     // --- 频域特征（FFT — Radix-2 Cooley-Tukey, O(n log n)）---
-    // 将输入 zero-pad 到最近的 2 的幂次
+    // 将输入 zero-pad 到最近的 2 的幂次。
+    // 关于 zero-padding 对频谱分辨率的影响：
+    //   - zero-padding 提高了频率分辨率（更细的频率间隔），但不会引入虚假频率成分，
+    //     只是在真实频率之间插值。对特征提取的统计量（谱质心、平坦度、熔）影响可忽略。
+    //   - 若需严格保持原始分辨率，可截取前 n/2 个频率 bin（当前已这样做）。
     const fftSize = nextPowerOf2(n);
     const padded = new Float64Array(fftSize);
     for (let i = 0; i < n; i++) padded[i] = values[i] - mean;

@@ -36,6 +36,7 @@ import { eq, and, desc } from 'drizzle-orm';
 import { EventBus } from '../../events/event-bus';
 import { createModuleLogger } from '../../../core/logger';
 import { RedisClient } from '../../../lib/clients/redis.client';
+import { DeploymentRepository, otaRepository } from '../repository/deployment-repository';
 
 const log = createModuleLogger('ota-fleet-canary');
 
@@ -139,6 +140,7 @@ export class OTAFleetCanary {
   private stages: DeploymentStage[];
   private eventBus: EventBus;
   private redis: RedisClient;
+  private repo: DeploymentRepository;
   private healthProvider: HealthCheckProvider | null = null;
 
   /** 活跃部署状态（内存缓存 + DB 持久化） */
@@ -152,11 +154,13 @@ export class OTAFleetCanary {
     stages?: DeploymentStage[],
     eventBus?: EventBus,
     redis?: RedisClient,
+    repo?: DeploymentRepository,
   ) {
     this.config = { ...DEFAULT_CONFIG, ...config };
     this.stages = stages ?? DEFAULT_STAGES;
     this.eventBus = eventBus || new EventBus();
     this.redis = redis || new RedisClient();
+    this.repo = repo || otaRepository;
   }
 
   setHealthProvider(provider: HealthCheckProvider): void {
@@ -168,13 +172,8 @@ export class OTAFleetCanary {
   // ==========================================================================
 
   async recoverActiveDeployments(): Promise<void> {
-    const db = await getDb();
-    if (!db) return;
-
     try {
-      const activeRows = await db.select()
-        .from(canaryDeployments)
-        .where(eq(canaryDeployments.status, 'running'));
+      const activeRows = await this.repo.getRunningDeployments();
 
       for (const row of activeRows) {
         const stageIndex = this.stages.findIndex(s => s.trafficPercent === row.trafficPercent);
@@ -218,11 +217,8 @@ export class OTAFleetCanary {
       throw new Error(`部署 ${plan.planId} 已存在（幂等拦截）`);
     }
 
-    const db = await getDb();
-    if (!db) throw new Error('数据库连接不可用');
-
-    // 写入 canary_deployments 表
-    const [inserted] = await db.insert(canaryDeployments).values({
+    // 写入 canary_deployments 表（通过共享 Repository）
+    const dbId = await this.repo.createDeployment({
       deploymentId: plan.planId,
       modelId: plan.modelId,
       modelVersion: plan.modelVersion,
@@ -236,12 +232,18 @@ export class OTAFleetCanary {
         healthConfig: this.config,
         createdBy: plan.createdBy,
       },
-    }).$returningId();
+    });
 
-    const dbId = inserted?.id ?? null;
-
-    // 写入第一阶段记录
-    await this.persistStageRecord(dbId, plan.planId, this.stages[0], 'running');
+    // 写入第一阶段记录（通过共享 Repository）
+    if (dbId) {
+      await this.repo.persistStageRecord({
+        deploymentId: dbId,
+        stageName: this.stages[0].name,
+        trafficPercent: this.stages[0].trafficPercent,
+        status: 'running',
+        startedAt: new Date(),
+      });
+    }
 
     const state: DeploymentState = {
       planId: plan.planId,
@@ -572,21 +574,7 @@ export class OTAFleetCanary {
   // ==========================================================================
 
   private async updateDeploymentInDB(state: DeploymentState, trafficPercent: number): Promise<void> {
-    const db = await getDb();
-    if (!db) return;
-
-    try {
-      await db.update(canaryDeployments)
-        .set({
-          status: state.status,
-          trafficPercent,
-          completedAt: state.status === 'completed' || state.status === 'rolled_back'
-            ? new Date() : undefined,
-        })
-        .where(eq(canaryDeployments.deploymentId, state.planId));
-    } catch (err) {
-      log.error(`更新 OTA 部署 DB 失败: ${state.planId}`, err);
-    }
+    await this.repo.updateDeploymentByPlanId(state.planId, state.status, trafficPercent);
   }
 
   private async persistStageRecord(
@@ -595,20 +583,14 @@ export class OTAFleetCanary {
     stage: DeploymentStage,
     status: string,
   ): Promise<void> {
-    const db = await getDb();
-    if (!db || !deploymentDbId) return;
-
-    try {
-      await db.insert(canaryDeploymentStages).values({
-        deploymentId: deploymentDbId,
-        stageName: stage.name,
-        trafficPercent: stage.trafficPercent,
-        status,
-        startedAt: new Date(),
-      });
-    } catch (err) {
-      log.error(`持久化 OTA 阶段记录失败: ${planId} / ${stage.name}`, err);
-    }
+    if (!deploymentDbId) return;
+    await this.repo.persistStageRecord({
+      deploymentId: deploymentDbId,
+      stageName: stage.name,
+      trafficPercent: stage.trafficPercent,
+      status,
+      startedAt: new Date(),
+    });
   }
 
   private async persistHealthCheck(
@@ -617,26 +599,20 @@ export class OTAFleetCanary {
     stageName: string,
     health: HealthCheckResult,
   ): Promise<void> {
-    const db = await getDb();
-    if (!db || !deploymentDbId) return;
-
-    try {
-      await db.insert(canaryHealthChecks).values({
-        deploymentId: deploymentDbId,
-        stageName,
-        checkResult: health.passed ? 'passed' : 'failed',
-        metrics: {
-          interventionRate: health.interventionRate,
-          errorRate: health.errorRate,
-          latencyP99: health.latencyP99,
-          activeAlerts: health.activeAlerts,
-          details: health.details,
-        },
-        checkedAt: new Date(health.checkedAt),
-      });
-    } catch (err) {
-      log.error(`持久化 OTA 健康检查失败: ${planId} / ${stageName}`, err);
-    }
+    if (!deploymentDbId) return;
+    await this.repo.persistHealthCheck({
+      deploymentId: deploymentDbId,
+      stageName,
+      checkResult: health.passed ? 'passed' : 'failed',
+      metrics: {
+        interventionRate: health.interventionRate,
+        errorRate: health.errorRate,
+        latencyP99: health.latencyP99,
+        activeAlerts: health.activeAlerts,
+        details: health.details,
+      },
+      checkedAt: new Date(health.checkedAt),
+    });
   }
 
   // ==========================================================================

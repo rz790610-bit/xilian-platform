@@ -67,6 +67,14 @@ export interface FlywheelConfig {
   maxParallelHypotheses: number;
   /** 人工审核开关 */
   requireHumanApproval: boolean;
+  /**
+   * IN 查询分批大小。
+   * 默认 500，这是一个经验值：
+   *   - MySQL 对 IN 查询没有硬性条数限制，真正的瓶颈是参数包大小（默认 max_allowed_packet=64MB）
+   *     和查询计划退化（超过一定数量 MySQL 可能放弃索引走全表扫描）
+   *   - DBA 可根据实际环境调整此值
+   */
+  queryBatchSize: number;
 }
 
 export interface FlywheelCycleReport {
@@ -198,6 +206,7 @@ const DEFAULT_FLYWHEEL_CONFIG: FlywheelConfig = {
   autoExecute: false,
   maxParallelHypotheses: 3,
   requireHumanApproval: true,
+  queryBatchSize: 500,
 };
 
 // ============================================================================
@@ -923,8 +932,8 @@ export class EvolutionFlywheel {
         .orderBy(desc(shadowEvalRecords.completedAt))
         .limit(200);
 
-      // 分批查询代替 IN 子查询（防止超过 1000 条时的性能问题）
-      const BATCH_SIZE = 500;
+      // 分批查询代替 IN 子查询（防止超过一定数量时的查询计划退化）
+      const BATCH_SIZE = this.config.queryBatchSize;
       let recentMetrics: typeof shadowEvalMetrics.$inferSelect[] = [];
       if (recentEvals.length > 0) {
         const evalIds = recentEvals.map(e => e.id);

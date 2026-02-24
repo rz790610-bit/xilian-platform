@@ -35,6 +35,7 @@ import { eq, desc, and, count } from 'drizzle-orm';
 import { EventBus } from '../../events/event-bus';
 import { createModuleLogger } from '../../../core/logger';
 import { RedisClient } from '../../../lib/clients/redis.client';
+import { DeploymentRepository, canaryRepository } from '../repository/deployment-repository';
 
 const log = createModuleLogger('canary-deployer');
 
@@ -148,6 +149,7 @@ export class CanaryDeployer {
   private metrics = new CanaryMetrics();
   private eventBus: EventBus;
   private redis: RedisClient;
+  private repo: DeploymentRepository;
 
   // 内存中的运行时指标（按 deploymentId 聚合）
   private runtimeMetrics = new Map<number, {
@@ -175,11 +177,13 @@ export class CanaryDeployer {
     config: Partial<CanaryDeployerConfig> = {},
     eventBus?: EventBus,
     redis?: RedisClient,
+    repo?: DeploymentRepository,
   ) {
     this.config = { ...DEFAULT_CONFIG, ...config };
     this.stages = config.stages || DEFAULT_STAGES;
     this.eventBus = eventBus || new EventBus();
     this.redis = redis || new RedisClient();
+    this.repo = repo || canaryRepository;
   }
 
   // ==========================================================================
@@ -190,19 +194,12 @@ export class CanaryDeployer {
     if (this.initialized) return;
 
     try {
-      const db = await getDb();
-      if (!db) return;
-
-      // 查询所有活跃部署
-      const activeDeployments = await db.select().from(canaryDeployments)
-        .where(eq(canaryDeployments.status, 'active'));
+      // 查询所有活跃部署（通过共享 Repository）
+      const activeDeployments = await this.repo.getActiveDeployments();
 
       for (const deployment of activeDeployments) {
         // 恢复运行时指标（从最近的健康检查记录重建）
-        const recentChecks = await db.select().from(canaryHealthChecks)
-          .where(eq(canaryHealthChecks.deploymentId, deployment.id))
-          .orderBy(desc(canaryHealthChecks.checkedAt))
-          .limit(1);
+        const recentChecks = await this.repo.getRecentHealthChecks(deployment.id, 1);
 
         if (recentChecks.length > 0) {
           const lastCheck = recentChecks[0];
@@ -297,8 +294,8 @@ export class CanaryDeployer {
     try {
       const stageConfigs = params.stages || this.stages;
 
-      // 1. 写入 canary_deployments 主表
-      const result = await db.insert(canaryDeployments).values({
+      // 1. 写入 canary_deployments 主表（通过共享 Repository）
+      const deploymentId = await this.repo.createDeployment({
         experimentId: params.experimentId,
         modelId: params.challengerModelId,
         trafficPercent: 0,
@@ -307,20 +304,18 @@ export class CanaryDeployer {
         startedAt: new Date(),
       });
 
-      const deploymentId = Number(result[0].insertId);
+      if (!deploymentId) throw new Error('创建部署记录失败');
 
-      // 2. 写入 canary_deployment_stages（5 阶段）
+      // 2. 写入 canary_deployment_stages（5 阶段，通过共享 Repository）
       for (let i = 0; i < stageConfigs.length; i++) {
         const stage = stageConfigs[i];
-        await db.insert(canaryDeploymentStages).values({
+        await this.repo.persistStageRecord({
           deploymentId,
           stageIndex: i,
           stageName: stage.name,
           trafficPercent: stage.trafficPercent,
-          rollbackThresholdPct: stage.rollbackThresholdPercent,
-          durationHours: stage.durationHours,
           status: i === 0 ? 'active' : 'pending',
-          startedAt: i === 0 ? new Date() : null,
+          startedAt: i === 0 ? new Date() : undefined,
         });
       }
 
@@ -336,7 +331,7 @@ export class CanaryDeployer {
 
       // 5. Prometheus 埋点
       this.metrics.inc('canary_deployments_created_total');
-      this.metrics.set('canary_active_deployments', {}, await this.countActiveDeployments());
+      this.metrics.set('canary_active_deployments', {}, await this.repo.countActiveDeployments());
 
       // 6. EventBus 通知
       await this.eventBus.publish({
@@ -827,7 +822,7 @@ export class CanaryDeployer {
 
       // 5. Prometheus + EventBus
       this.metrics.inc('canary_rollbacks_total');
-      this.metrics.set('canary_active_deployments', {}, await this.countActiveDeployments());
+      this.metrics.set('canary_active_deployments', {}, await this.repo.countActiveDeployments());
 
       await this.eventBus.publish({
         type: 'canary.deployment.rolled_back',
@@ -880,7 +875,7 @@ export class CanaryDeployer {
 
     // Prometheus + EventBus
     this.metrics.inc('canary_deployments_completed_total');
-    this.metrics.set('canary_active_deployments', {}, await this.countActiveDeployments());
+    this.metrics.set('canary_active_deployments', {}, await this.repo.countActiveDeployments());
 
     await this.eventBus.publish({
       type: 'canary.deployment.completed',
@@ -895,49 +890,16 @@ export class CanaryDeployer {
   // 8. 查询方法
   // ==========================================================================
 
-  async getDeployment(deploymentId: number): Promise<{
-    deployment: typeof canaryDeployments.$inferSelect | null;
-    stages: typeof canaryDeploymentStages.$inferSelect[];
-    recentChecks: typeof canaryHealthChecks.$inferSelect[];
-  }> {
-    const db = await getDb();
-    if (!db) return { deployment: null, stages: [], recentChecks: [] };
-
-    const deployments = await db.select().from(canaryDeployments)
-      .where(eq(canaryDeployments.id, deploymentId)).limit(1);
-
-    const stages = await db.select().from(canaryDeploymentStages)
-      .where(eq(canaryDeploymentStages.deploymentId, deploymentId))
-      .orderBy(canaryDeploymentStages.stageIndex);
-
-    const recentChecks = await db.select().from(canaryHealthChecks)
-      .where(eq(canaryHealthChecks.deploymentId, deploymentId))
-      .orderBy(desc(canaryHealthChecks.checkedAt))
-      .limit(20);
-
-    return {
-      deployment: deployments[0] || null,
-      stages,
-      recentChecks,
-    };
+  async getDeployment(deploymentId: number) {
+    return this.repo.getDeploymentDetail(deploymentId);
   }
 
-  async getActiveDeployments(): Promise<typeof canaryDeployments.$inferSelect[]> {
-    const db = await getDb();
-    if (!db) return [];
-
-    return db.select().from(canaryDeployments)
-      .where(eq(canaryDeployments.status, 'active'))
-      .orderBy(desc(canaryDeployments.startedAt));
+  async getActiveDeployments() {
+    return this.repo.getActiveDeployments();
   }
 
-  async getDeploymentHistory(limit = 20): Promise<typeof canaryDeployments.$inferSelect[]> {
-    const db = await getDb();
-    if (!db) return [];
-
-    return db.select().from(canaryDeployments)
-      .orderBy(desc(canaryDeployments.startedAt))
-      .limit(limit);
+  async getDeploymentHistory(limit = 20) {
+    return this.repo.getDeploymentHistory(limit);
   }
 
   getRuntimeMetrics(deploymentId: number): { champion: DeploymentMetrics; challenger: DeploymentMetrics } | null {
@@ -976,13 +938,7 @@ export class CanaryDeployer {
     return hash / 0x7fffffff;
   }
 
-  private async countActiveDeployments(): Promise<number> {
-    const db = await getDb();
-    if (!db) return 0;
-    const rows = await db.select({ cnt: count() }).from(canaryDeployments)
-      .where(eq(canaryDeployments.status, 'active'));
-    return rows[0]?.cnt ?? 0;
-  }
+  // countActiveDeployments 已迁移至 DeploymentRepository，通过 this.repo.countActiveDeployments() 调用
 
   /**
    * 幂等 key 管理
