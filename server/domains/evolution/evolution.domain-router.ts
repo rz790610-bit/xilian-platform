@@ -32,6 +32,8 @@ import {
   evolutionVideoTrajectories,
   evolutionFlywheelSchedules,
   engineConfigRegistry,
+  evolutionAuditLogs,
+  dojoTrainingJobs,
 } from '../../../drizzle/evolution-schema';
 import { InterventionRateEngine } from '../../platform/evolution/shadow/intervention-rate-engine';
 
@@ -492,6 +494,182 @@ const cycleRouter = router({
         return { stepLogs: logs };
       } catch { return { stepLogs: [] }; }
     }),
+
+  /** 一键启动进化周期 */
+  startCycle: publicProcedure
+    .input(z.object({
+      trigger: z.enum(['manual', 'auto', 'scheduled', 'event']).default('manual'),
+      config: z.record(z.string(), z.unknown()).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return { cycleId: 0, error: 'DB not available' };
+      try {
+        // 检查是否有正在运行的周期
+        const running = await db.select().from(evolutionCycles)
+          .where(eq(evolutionCycles.status, 'running'))
+          .limit(1);
+        if (running.length > 0) {
+          return { cycleId: 0, error: '已有正在运行的进化周期 #' + running[0].cycleNumber };
+        }
+        // 获取下一个周期号
+        const latest = await db.select().from(evolutionCycles)
+          .orderBy(desc(evolutionCycles.cycleNumber))
+          .limit(1);
+        const nextCycleNumber = (latest[0]?.cycleNumber ?? 0) + 1;
+        // 创建周期记录
+        const result = await db.insert(evolutionCycles).values({
+          cycleNumber: nextCycleNumber,
+          startedAt: new Date(),
+          status: 'running',
+          edgeCasesFound: 0,
+          hypothesesGenerated: 0,
+          modelsEvaluated: 0,
+          deployed: 0,
+          knowledgeCrystallized: 0,
+        });
+        const cycleId = Number(result[0].insertId);
+        // 创建 5 个步骤日志
+        const steps = [
+          { stepNumber: 1, stepName: '数据发现' },
+          { stepNumber: 2, stepName: '假设生成' },
+          { stepNumber: 3, stepName: '影子验证' },
+          { stepNumber: 4, stepName: '金丝雀部署' },
+          { stepNumber: 5, stepName: '反馈结晶' },
+        ];
+        for (const step of steps) {
+          await db.insert(evolutionStepLogs).values({
+            cycleId,
+            stepNumber: step.stepNumber,
+            stepName: step.stepName,
+            status: step.stepNumber === 1 ? 'running' : 'pending',
+            startedAt: step.stepNumber === 1 ? new Date() : undefined,
+          });
+        }
+        // 写入审计日志
+        await db.insert(evolutionAuditLogs).values({
+          eventType: 'cycle.started',
+          eventSource: 'evolution-flywheel',
+          eventData: { cycleId, cycleNumber: nextCycleNumber, trigger: input.trigger, config: input.config },
+          severity: 'info',
+        });
+        return { cycleId, cycleNumber: nextCycleNumber };
+      } catch (err) {
+        return { cycleId: 0, error: String(err) };
+      }
+    }),
+
+  /** 推进步骤状态 */
+  advanceStep: publicProcedure
+    .input(z.object({
+      cycleId: z.number(),
+      stepNumber: z.number().min(1).max(5),
+      status: z.enum(['running', 'completed', 'failed', 'skipped']),
+      metrics: z.record(z.string(), z.number()).optional(),
+      outputSummary: z.record(z.string(), z.unknown()).optional(),
+      errorMessage: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return { success: false };
+      try {
+        const updates: Record<string, unknown> = { status: input.status };
+        if (input.status === 'running') {
+          updates.startedAt = new Date();
+        }
+        if (input.status === 'completed' || input.status === 'failed') {
+          updates.completedAt = new Date();
+          if (input.metrics) updates.metrics = input.metrics;
+          if (input.outputSummary) updates.outputSummary = input.outputSummary;
+          if (input.errorMessage) updates.errorMessage = input.errorMessage;
+          // 计算耗时
+          const stepRow = await db.select().from(evolutionStepLogs)
+            .where(and(eq(evolutionStepLogs.cycleId, input.cycleId), eq(evolutionStepLogs.stepNumber, input.stepNumber)))
+            .limit(1);
+          if (stepRow[0]?.startedAt) {
+            updates.durationMs = Date.now() - stepRow[0].startedAt.getTime();
+          }
+        }
+        await db.update(evolutionStepLogs)
+          .set(updates)
+          .where(and(eq(evolutionStepLogs.cycleId, input.cycleId), eq(evolutionStepLogs.stepNumber, input.stepNumber)));
+        // 如果当前步骤完成且不是最后一步，自动将下一步设为 running
+        if (input.status === 'completed' && input.stepNumber < 5) {
+          await db.update(evolutionStepLogs)
+            .set({ status: 'running', startedAt: new Date() })
+            .where(and(eq(evolutionStepLogs.cycleId, input.cycleId), eq(evolutionStepLogs.stepNumber, input.stepNumber + 1)));
+        }
+        // 如果最后一步完成，标记周期完成
+        if (input.status === 'completed' && input.stepNumber === 5) {
+          await db.update(evolutionCycles)
+            .set({ status: 'completed', completedAt: new Date() })
+            .where(eq(evolutionCycles.id, input.cycleId));
+          // 审计日志
+          await db.insert(evolutionAuditLogs).values({
+            eventType: 'cycle.completed',
+            eventSource: 'evolution-flywheel',
+            eventData: { cycleId: input.cycleId },
+            severity: 'info',
+          });
+        }
+        // 如果任何步骤失败，标记周期失败
+        if (input.status === 'failed') {
+          await db.update(evolutionCycles)
+            .set({ status: 'failed', completedAt: new Date() })
+            .where(eq(evolutionCycles.id, input.cycleId));
+          await db.insert(evolutionAuditLogs).values({
+            eventType: 'cycle.failed',
+            eventSource: 'evolution-flywheel',
+            eventData: { cycleId: input.cycleId, failedStep: input.stepNumber, error: input.errorMessage },
+            severity: 'error',
+          });
+        }
+        return { success: true };
+      } catch (err) {
+        return { success: false, error: String(err) };
+      }
+    }),
+
+  /** 暂停进化周期 */
+  pauseCycle: publicProcedure
+    .input(z.object({ cycleId: z.number() }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return { success: false };
+      try {
+        await db.update(evolutionCycles)
+          .set({ status: 'paused' })
+          .where(eq(evolutionCycles.id, input.cycleId));
+        await db.insert(evolutionAuditLogs).values({
+          eventType: 'cycle.paused',
+          eventSource: 'evolution-flywheel',
+          eventData: { cycleId: input.cycleId },
+          severity: 'warn',
+        });
+        return { success: true };
+      } catch { return { success: false }; }
+    }),
+
+  /** 恢复进化周期 */
+  resumeCycle: publicProcedure
+    .input(z.object({ cycleId: z.number() }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return { success: false };
+      try {
+        await db.update(evolutionCycles)
+          .set({ status: 'running' })
+          .where(eq(evolutionCycles.id, input.cycleId));
+        await db.insert(evolutionAuditLogs).values({
+          eventType: 'cycle.resumed',
+          eventSource: 'evolution-flywheel',
+          eventData: { cycleId: input.cycleId },
+          severity: 'info',
+        });
+        return { success: true };
+      } catch { return { success: false }; }
+    }),
+
 });
 
 // ============================================================================
@@ -775,6 +953,182 @@ const scheduleRouter = router({
 // 进化领域聚合路由 v2.0
 // ============================================================================
 
+
+// ============================================================================
+// 审计日志路由（Phase 2 新增）
+// ============================================================================
+const auditRouter = router({
+  /** 查询审计日志 */
+  list: publicProcedure
+    .input(z.object({
+      eventType: z.string().optional(),
+      eventSource: z.string().optional(),
+      severity: z.enum(['info', 'warn', 'error', 'critical']).optional(),
+      sessionId: z.string().optional(),
+      modelId: z.string().optional(),
+      limit: z.number().default(50),
+    }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return { logs: [], total: 0 };
+      try {
+        const conditions = [];
+        if (input.eventType) conditions.push(eq(evolutionAuditLogs.eventType, input.eventType));
+        if (input.eventSource) conditions.push(eq(evolutionAuditLogs.eventSource, input.eventSource));
+        if (input.severity) conditions.push(eq(evolutionAuditLogs.severity, input.severity));
+        if (input.sessionId) conditions.push(eq(evolutionAuditLogs.sessionId, input.sessionId));
+        if (input.modelId) conditions.push(eq(evolutionAuditLogs.modelId, input.modelId));
+        const where = conditions.length > 0 ? and(...conditions) : undefined;
+        const rows = await db.select().from(evolutionAuditLogs)
+          .where(where)
+          .orderBy(desc(evolutionAuditLogs.createdAt))
+          .limit(input.limit);
+        const totalRows = await db.select({ cnt: count() }).from(evolutionAuditLogs).where(where);
+        return { logs: rows, total: totalRows[0]?.cnt ?? 0 };
+      } catch { return { logs: [], total: 0 }; }
+    }),
+
+  /** 按会话查询审计日志 */
+  getBySession: publicProcedure
+    .input(z.object({ sessionId: z.string() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return { logs: [] };
+      try {
+        const rows = await db.select().from(evolutionAuditLogs)
+          .where(eq(evolutionAuditLogs.sessionId, input.sessionId))
+          .orderBy(desc(evolutionAuditLogs.createdAt));
+        return { logs: rows };
+      } catch { return { logs: [] }; }
+    }),
+});
+
+// ============================================================================
+// Dojo 训练任务路由（Phase 2 新增）
+// ============================================================================
+const dojoRouter = router({
+  /** 查询训练任务列表 */
+  list: publicProcedure
+    .input(z.object({
+      status: z.enum(['pending', 'scheduled', 'running', 'completed', 'failed', 'cancelled']).optional(),
+      modelId: z.string().optional(),
+      limit: z.number().default(50),
+    }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return { jobs: [], total: 0 };
+      try {
+        const conditions = [];
+        if (input.status) conditions.push(eq(dojoTrainingJobs.status, input.status));
+        if (input.modelId) conditions.push(eq(dojoTrainingJobs.modelId, input.modelId));
+        const where = conditions.length > 0 ? and(...conditions) : undefined;
+        const rows = await db.select().from(dojoTrainingJobs)
+          .where(where)
+          .orderBy(desc(dojoTrainingJobs.createdAt))
+          .limit(input.limit);
+        const totalRows = await db.select({ cnt: count() }).from(dojoTrainingJobs).where(where);
+        return { jobs: rows, total: totalRows[0]?.cnt ?? 0 };
+      } catch { return { jobs: [], total: 0 }; }
+    }),
+
+  /** 获取训练任务详情 */
+  get: publicProcedure
+    .input(z.object({ id: z.number() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return { job: null };
+      try {
+        const rows = await db.select().from(dojoTrainingJobs)
+          .where(eq(dojoTrainingJobs.id, input.id)).limit(1);
+        return { job: rows[0] ?? null };
+      } catch { return { job: null }; }
+    }),
+
+  /** 取消训练任务 */
+  cancel: publicProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return { success: false };
+      try {
+        await db.update(dojoTrainingJobs)
+          .set({ status: 'cancelled', completedAt: new Date() })
+          .where(eq(dojoTrainingJobs.id, input.id));
+        await db.insert(evolutionAuditLogs).values({
+          eventType: 'dojo.job.cancelled',
+          eventSource: 'dojo-trainer',
+          eventData: { jobId: input.id },
+          severity: 'warn',
+        });
+        return { success: true };
+      } catch { return { success: false }; }
+    }),
+
+  /** 创建训练任务 */
+  create: publicProcedure
+    .input(z.object({
+      name: z.string(),
+      modelId: z.string(),
+      priority: z.number().default(5),
+      gpuCount: z.number().default(8),
+      useSpot: z.boolean().default(true),
+      config: z.record(z.string(), z.unknown()).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return { jobId: 0 };
+      try {
+        const jobId = `dojo-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        const result = await db.insert(dojoTrainingJobs).values({
+          jobId,
+          name: input.name,
+          modelId: input.modelId,
+          status: 'pending',
+          priority: input.priority,
+          gpuCount: input.gpuCount,
+          useSpot: input.useSpot ? 1 : 0,
+          config: input.config ?? {},
+          idempotencyKey: `idem-${jobId}`,
+        });
+        await db.insert(evolutionAuditLogs).values({
+          eventType: 'dojo.job.created',
+          eventSource: 'dojo-trainer',
+          eventData: { jobId: Number(result[0].insertId), name: input.name, modelId: input.modelId },
+          severity: 'info',
+        });
+        return { jobId: Number(result[0].insertId) };
+      } catch (err) {
+        return { jobId: 0, error: String(err) };
+      }
+    }),
+
+  /** 获取 Dojo 统计概览 */
+  getStats: publicProcedure
+    .query(async () => {
+      const db = await getDb();
+      if (!db) return { total: 0, running: 0, completed: 0, failed: 0, pending: 0, totalGpuHours: 0 };
+      try {
+        const [total, running, completed, failed, pending] = await Promise.all([
+          db.select({ cnt: count() }).from(dojoTrainingJobs),
+          db.select({ cnt: count() }).from(dojoTrainingJobs).where(eq(dojoTrainingJobs.status, 'running')),
+          db.select({ cnt: count() }).from(dojoTrainingJobs).where(eq(dojoTrainingJobs.status, 'completed')),
+          db.select({ cnt: count() }).from(dojoTrainingJobs).where(eq(dojoTrainingJobs.status, 'failed')),
+          db.select({ cnt: count() }).from(dojoTrainingJobs).where(eq(dojoTrainingJobs.status, 'pending')),
+        ]);
+        return {
+          total: total[0]?.cnt ?? 0,
+          running: running[0]?.cnt ?? 0,
+          completed: completed[0]?.cnt ?? 0,
+          failed: failed[0]?.cnt ?? 0,
+          pending: pending[0]?.cnt ?? 0,
+          totalGpuHours: 0,
+        };
+      } catch {
+        return { total: 0, running: 0, completed: 0, failed: 0, pending: 0, totalGpuHours: 0 };
+      }
+    }),
+});
+
 // ============================================================================
 // 引擎配置路由 — 复用 engine_config_registry 表
 // ============================================================================
@@ -992,6 +1346,8 @@ export const evolutionDomainRouter = router({
   fsd: fsdRouter,
   schedule: scheduleRouter,
   config: configRouter,
+  audit: auditRouter,
+  dojo: dojoRouter,
 
   // ========== 前端仪表盘 Facade 方法（CognitiveDashboard 页面使用） ==========
 
