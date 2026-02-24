@@ -2230,3 +2230,210 @@ export const evolutionCodegenJobs = mysqlTable('evolution_codegen_jobs', {
 ]);
 export type EvolutionCodegenJob = typeof evolutionCodegenJobs.$inferSelect;
 export type InsertEvolutionCodegenJob = typeof evolutionCodegenJobs.$inferInsert;
+
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Phase 5: 深度 AI 集成与神经世界模型
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+/**
+ * 神经世界模型版本管理
+ */
+export const neuralWorldModelVersions = mysqlTable('neural_world_model_versions', {
+  id: bigint('id', { mode: 'number' }).autoincrement().primaryKey(),
+  modelName: varchar('model_name', { length: 200 }).notNull(),
+  version: varchar('version', { length: 50 }).notNull(),
+  /** architecture: transformer / ssm / hybrid / diffusion */
+  architecture: varchar('architecture', { length: 50 }).notNull(),
+  /** status: draft / training / validating / active / deprecated / archived */
+  status: varchar('status', { length: 30 }).default('draft').notNull(),
+  description: text('description'),
+  parameterCount: bigint('parameter_count', { mode: 'number' }),
+  trainingDataSize: bigint('training_data_size', { mode: 'number' }),
+  inputDimensions: int('input_dimensions'),
+  outputDimensions: int('output_dimensions'),
+  predictionHorizonMin: int('prediction_horizon_min'),
+  predictionHorizonMax: int('prediction_horizon_max'),
+  performanceMetrics: json('performance_metrics').$type<{
+    mse?: number; mae?: number; r2?: number;
+    predictionAccuracy?: number; anomalyDetectionF1?: number;
+    latencyMs?: number; throughputPerSec?: number;
+  }>(),
+  trainingConfig: json('training_config').$type<{
+    learningRate?: number; batchSize?: number; epochs?: number;
+    optimizer?: string; scheduler?: string; lossFunction?: string;
+    regularization?: string; dropoutRate?: number;
+  }>(),
+  modelPath: varchar('model_path', { length: 500 }),
+  parentVersionId: bigint('parent_version_id', { mode: 'number' }),
+  tags: json('tags').$type<string[]>(),
+  createdBy: varchar('created_by', { length: 100 }),
+  createdAt: timestamp('created_at', { fsp: 3 }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { fsp: 3 }).defaultNow().notNull(),
+}, (table) => [
+  index('idx_nwmv_name').on(table.modelName),
+  index('idx_nwmv_status').on(table.status),
+  index('idx_nwmv_arch').on(table.architecture),
+  index('idx_nwmv_created').on(table.createdAt),
+]);
+export type NeuralWorldModelVersion = typeof neuralWorldModelVersions.$inferSelect;
+export type InsertNeuralWorldModelVersion = typeof neuralWorldModelVersions.$inferInsert;
+
+/**
+ * 世界模型训练任务
+ */
+export const worldModelTrainingJobs = mysqlTable('world_model_training_jobs', {
+  id: bigint('id', { mode: 'number' }).autoincrement().primaryKey(),
+  modelVersionId: bigint('model_version_id', { mode: 'number' }).notNull(),
+  status: varchar('status', { length: 30 }).default('queued').notNull(),
+  trainingType: varchar('training_type', { length: 30 }).notNull(),
+  config: json('config').$type<Record<string, unknown>>(),
+  gpuCount: int('gpu_count').default(1),
+  gpuType: varchar('gpu_type', { length: 50 }),
+  progress: int('progress').default(0),
+  currentEpoch: int('current_epoch').default(0),
+  totalEpochs: int('total_epochs'),
+  currentLoss: double('current_loss'),
+  bestLoss: double('best_loss'),
+  trainingLog: json('training_log').$type<Array<{
+    epoch: number; loss: number; valLoss: number; lr: number; timestamp: string;
+  }>>(),
+  startedAt: timestamp('started_at', { fsp: 3 }),
+  completedAt: timestamp('completed_at', { fsp: 3 }),
+  errorMessage: text('error_message'),
+  createdAt: timestamp('created_at', { fsp: 3 }).defaultNow().notNull(),
+}, (table) => [
+  index('idx_wmtj_version').on(table.modelVersionId),
+  index('idx_wmtj_status').on(table.status),
+  index('idx_wmtj_type').on(table.trainingType),
+]);
+export type WorldModelTrainingJob = typeof worldModelTrainingJobs.$inferSelect;
+export type InsertWorldModelTrainingJob = typeof worldModelTrainingJobs.$inferInsert;
+
+/**
+ * 模型注册表（多模型横向对比）
+ */
+export const evolutionModelRegistry = mysqlTable('evolution_model_registry', {
+  id: bigint('id', { mode: 'number' }).autoincrement().primaryKey(),
+  modelName: varchar('model_name', { length: 200 }).notNull(),
+  modelVersion: varchar('model_version', { length: 50 }).notNull(),
+  modelType: varchar('model_type', { length: 50 }).notNull(),
+  status: varchar('status', { length: 30 }).default('registered').notNull(),
+  framework: varchar('framework', { length: 50 }),
+  metrics: json('metrics').$type<{
+    accuracy?: number; precision?: number; recall?: number; f1?: number;
+    interventionRate?: number; latencyP50Ms?: number; latencyP99Ms?: number;
+    throughputPerSec?: number; memoryMb?: number; modelSizeMb?: number;
+    stabilityScore?: number; edgeCaseAccuracy?: number;
+  }>(),
+  trainingInfo: json('training_info').$type<{
+    datasetSize?: number; trainingHours?: number; gpuType?: string;
+    gpuCount?: number; finalLoss?: number; bestEpoch?: number;
+  }>(),
+  deploymentInfo: json('deployment_info').$type<{
+    endpoint?: string; replicas?: number; autoScale?: boolean;
+    minReplicas?: number; maxReplicas?: number;
+  }>(),
+  description: text('description'),
+  tags: json('tags').$type<string[]>(),
+  createdBy: varchar('created_by', { length: 100 }),
+  createdAt: timestamp('created_at', { fsp: 3 }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { fsp: 3 }).defaultNow().notNull(),
+}, (table) => [
+  index('idx_emr_name').on(table.modelName),
+  index('idx_emr_type').on(table.modelType),
+  index('idx_emr_status').on(table.status),
+  index('idx_emr_created').on(table.createdAt),
+]);
+export type EvolutionModelRegistry = typeof evolutionModelRegistry.$inferSelect;
+export type InsertEvolutionModelRegistry = typeof evolutionModelRegistry.$inferInsert;
+
+/**
+ * 模型对比报告
+ */
+export const modelComparisonReports = mysqlTable('model_comparison_reports', {
+  id: bigint('id', { mode: 'number' }).autoincrement().primaryKey(),
+  reportName: varchar('report_name', { length: 200 }).notNull(),
+  modelIds: json('model_ids').$type<number[]>().notNull(),
+  dimensions: json('dimensions').$type<string[]>().notNull(),
+  results: json('results').$type<{
+    summary: string;
+    winner?: { modelId: number; reason: string };
+    dimensionResults: Array<{
+      dimension: string;
+      scores: Array<{ modelId: number; score: number; rank: number }>;
+    }>;
+    tradeoffAnalysis?: string;
+  }>(),
+  status: varchar('status', { length: 30 }).default('draft').notNull(),
+  createdBy: varchar('created_by', { length: 100 }),
+  createdAt: timestamp('created_at', { fsp: 3 }).defaultNow().notNull(),
+}, (table) => [
+  index('idx_mcr_status').on(table.status),
+  index('idx_mcr_created').on(table.createdAt),
+]);
+export type ModelComparisonReport = typeof modelComparisonReports.$inferSelect;
+export type InsertModelComparisonReport = typeof modelComparisonReports.$inferInsert;
+
+/**
+ * 自适应参数推荐记录
+ */
+export const adaptiveParamRecommendations = mysqlTable('adaptive_param_recommendations', {
+  id: bigint('id', { mode: 'number' }).autoincrement().primaryKey(),
+  engineModule: varchar('engine_module', { length: 100 }).notNull(),
+  recommendationType: varchar('recommendation_type', { length: 30 }).notNull(),
+  currentParams: json('current_params').$type<Record<string, unknown>>().notNull(),
+  recommendedParams: json('recommended_params').$type<Record<string, unknown>>().notNull(),
+  reasoning: text('reasoning'),
+  expectedImprovement: json('expected_improvement').$type<{
+    metric: string; currentValue: number; expectedValue: number; improvementPercent: number;
+  }[]>(),
+  confidence: double('confidence'),
+  basedOnDataPoints: int('based_on_data_points'),
+  status: varchar('status', { length: 30 }).default('pending').notNull(),
+  actualResult: json('actual_result').$type<{
+    metric: string; beforeValue: number; afterValue: number; actualImprovementPercent: number;
+  }[]>(),
+  appliedAt: timestamp('applied_at', { fsp: 3 }),
+  revertedAt: timestamp('reverted_at', { fsp: 3 }),
+  createdAt: timestamp('created_at', { fsp: 3 }).defaultNow().notNull(),
+}, (table) => [
+  index('idx_apr_module').on(table.engineModule),
+  index('idx_apr_type').on(table.recommendationType),
+  index('idx_apr_status').on(table.status),
+  index('idx_apr_created').on(table.createdAt),
+]);
+export type AdaptiveParamRecommendation = typeof adaptiveParamRecommendations.$inferSelect;
+export type InsertAdaptiveParamRecommendation = typeof adaptiveParamRecommendations.$inferInsert;
+
+/**
+ * 进化引擎实例状态（总控中心）
+ */
+export const evolutionEngineInstances = mysqlTable('evolution_engine_instances', {
+  id: bigint('id', { mode: 'number' }).autoincrement().primaryKey(),
+  engineModule: varchar('engine_module', { length: 100 }).notNull(),
+  instanceId: varchar('instance_id', { length: 100 }).notNull(),
+  status: varchar('status', { length: 30 }).default('stopped').notNull(),
+  healthScore: int('health_score').default(100),
+  resourceUsage: json('resource_usage').$type<{
+    cpuPercent?: number; memoryMb?: number; gpuPercent?: number;
+    gpuMemoryMb?: number; diskIoMbps?: number; networkIoMbps?: number;
+  }>(),
+  performanceMetrics: json('performance_metrics').$type<{
+    requestsPerSec?: number; avgLatencyMs?: number; p99LatencyMs?: number;
+    errorRate?: number; queueDepth?: number; activeConnections?: number;
+  }>(),
+  dependencies: json('dependencies').$type<string[]>(),
+  configDigest: varchar('config_digest', { length: 64 }),
+  lastHeartbeat: timestamp('last_heartbeat', { fsp: 3 }),
+  startedAt: timestamp('started_at', { fsp: 3 }),
+  lastError: text('last_error'),
+  createdAt: timestamp('created_at', { fsp: 3 }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { fsp: 3 }).defaultNow().notNull(),
+}, (table) => [
+  index('idx_eei_module').on(table.engineModule),
+  index('idx_eei_status').on(table.status),
+  index('idx_eei_instance').on(table.instanceId),
+]);
+export type EvolutionEngineInstance = typeof evolutionEngineInstances.$inferSelect;
+export type InsertEvolutionEngineInstance = typeof evolutionEngineInstances.$inferInsert;

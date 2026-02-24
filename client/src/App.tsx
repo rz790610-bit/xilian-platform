@@ -46,6 +46,10 @@ import FSDInterventionPanel from "./pages/evolution/FSDInterventionPanel";
 import KnowledgeCrystalManager from "./pages/evolution/KnowledgeCrystalManager";
 import EvolutionObservability from "./pages/evolution/EvolutionObservability";
 import EvolutionSelfHealing from "./pages/evolution/EvolutionSelfHealing";
+import EvolutionWorldModel from "./pages/evolution/EvolutionWorldModel";
+import EvolutionModelComparison from "./pages/evolution/EvolutionModelComparison";
+import EvolutionAdaptiveParams from "./pages/evolution/EvolutionAdaptiveParams";
+import EvolutionControlCenter from "./pages/evolution/EvolutionControlCenter";
 import KnowledgeManager from "./pages/KnowledgeManager";
 import KnowledgeGraph from "./pages/KnowledgeGraph";
 import VectorAdmin from "./pages/VectorAdmin";
@@ -235,6 +239,10 @@ function Router() {
       <Route path="/evolution/crystals" component={KnowledgeCrystalManager} />
       <Route path="/evolution/observability" component={EvolutionObservability} />
       <Route path="/evolution/self-healing" component={EvolutionSelfHealing} />
+      <Route path="/evolution/world-model" component={EvolutionWorldModel} />
+      <Route path="/evolution/model-comparison" component={EvolutionModelComparison} />
+      <Route path="/evolution/adaptive-params" component={EvolutionAdaptiveParams} />
+      <Route path="/evolution/control-center" component={EvolutionControlCenter} />
       
 
       {/* ━━━ 基础设置 ━━━ */}

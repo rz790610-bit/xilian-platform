@@ -43,6 +43,7 @@ import {
 import { InterventionRateEngine } from '../../platform/evolution/shadow/intervention-rate-engine';
 import { observabilityRouter } from './observability.router';
 import { selfHealingRouter } from './self-healing.router';
+import { deepAIRouter } from './deep-ai.router';
 
 // 单例干预率引擎
 const interventionRateEngine = new InterventionRateEngine();
@@ -1357,6 +1358,7 @@ export const evolutionDomainRouter = router({
   dojo: dojoRouter,
   observability: observabilityRouter,
   selfHealing: selfHealingRouter,
+  deepAI: deepAIRouter,
 
   // ========== 前端仪表盘 Facade 方法（CognitiveDashboard 页面使用） ==========
 

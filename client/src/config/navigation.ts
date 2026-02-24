@@ -133,7 +133,11 @@ export const navigationConfig: NavItem[] = [
       { id: 'fsd-intervention', label: 'FSD 干预', icon: '🎮', path: '/evolution/fsd' },
       { id: 'knowledge-crystal', label: '知识结晶', icon: '💎', path: '/evolution/crystals' },
       { id: 'evolution-observability', label: '可观测性中心', icon: '📡', path: '/evolution/observability' },
-      { id: 'evolution-self-healing', label: '自愈与自优化', icon: '🛡️', path: '/evolution/self-healing' }
+      { id: 'evolution-self-healing', label: '自愈与自优化', icon: '🛡️', path: '/evolution/self-healing' },
+      { id: 'evolution-world-model', label: '神经世界模型', icon: '🧠', path: '/evolution/world-model' },
+      { id: 'evolution-model-comparison', label: '多模型对比', icon: '⚖️', path: '/evolution/model-comparison' },
+      { id: 'evolution-adaptive-params', label: '自适应参数推荐', icon: '🎯', path: '/evolution/adaptive-params' },
+      { id: 'evolution-control-center', label: '总控中心', icon: '🎛️', path: '/evolution/control-center' }
     ]
   },
 
