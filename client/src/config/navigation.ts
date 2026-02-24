@@ -131,7 +131,8 @@ export const navigationConfig: NavItem[] = [
       { id: 'auto-train', label: '自动训练', icon: '🔧', path: '/evolution/train' },
       { id: 'evolution-board', label: '进化看板', icon: '📋', path: '/evolution/board' },
       { id: 'fsd-intervention', label: 'FSD 干预', icon: '🎮', path: '/evolution/fsd' },
-      { id: 'knowledge-crystal', label: '知识结晶', icon: '💎', path: '/evolution/crystals' }
+      { id: 'knowledge-crystal', label: '知识结晶', icon: '💎', path: '/evolution/crystals' },
+      { id: 'evolution-observability', label: '可观测性中心', icon: '📡', path: '/evolution/observability' }
     ]
   },
 

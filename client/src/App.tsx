@@ -44,6 +44,7 @@ import FlywheelReport from "./pages/evolution/FlywheelReport";
 import DomainRouterConfig from "./pages/evolution/DomainRouterConfig";
 import FSDInterventionPanel from "./pages/evolution/FSDInterventionPanel";
 import KnowledgeCrystalManager from "./pages/evolution/KnowledgeCrystalManager";
+import EvolutionObservability from "./pages/evolution/EvolutionObservability";
 import KnowledgeManager from "./pages/KnowledgeManager";
 import KnowledgeGraph from "./pages/KnowledgeGraph";
 import VectorAdmin from "./pages/VectorAdmin";
@@ -231,6 +232,7 @@ function Router() {
       <Route path="/evolution/domain-router" component={DomainRouterConfig} />
       <Route path="/evolution/fsd" component={FSDInterventionPanel} />
       <Route path="/evolution/crystals" component={KnowledgeCrystalManager} />
+      <Route path="/evolution/observability" component={EvolutionObservability} />
       
 
       {/* ━━━ 基础设置 ━━━ */}

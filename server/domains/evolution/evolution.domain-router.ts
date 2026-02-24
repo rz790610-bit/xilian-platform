@@ -15,7 +15,7 @@
 import { router, publicProcedure, protectedProcedure } from '../../core/trpc';
 import { z } from 'zod';
 import { getDb } from '../../lib/db';
-import { eq, desc, count, gte, and, lte, asc } from 'drizzle-orm';
+import { eq, desc, count, gte, and, lte, asc, sql, or } from 'drizzle-orm';
 import {
   shadowEvalRecords,
   shadowEvalMetrics,
@@ -34,8 +34,14 @@ import {
   engineConfigRegistry,
   evolutionAuditLogs,
   dojoTrainingJobs,
+  evolutionTraces,
+  evolutionSpans,
+  evolutionMetricSnapshots,
+  evolutionAlertRules,
+  evolutionAlerts,
 } from '../../../drizzle/evolution-schema';
 import { InterventionRateEngine } from '../../platform/evolution/shadow/intervention-rate-engine';
+import { observabilityRouter } from './observability.router';
 
 // 单例干预率引擎
 const interventionRateEngine = new InterventionRateEngine();
@@ -1348,6 +1354,7 @@ export const evolutionDomainRouter = router({
   config: configRouter,
   audit: auditRouter,
   dojo: dojoRouter,
+  observability: observabilityRouter,
 
   // ========== 前端仪表盘 Facade 方法（CognitiveDashboard 页面使用） ==========
 

@@ -1900,3 +1900,148 @@ export const dojoTrainingJobs = mysqlTable('dojo_training_jobs', {
 ]);
 export type DojoTrainingJob = typeof dojoTrainingJobs.$inferSelect;
 export type InsertDojoTrainingJob = typeof dojoTrainingJobs.$inferInsert;
+
+// ============================================================================
+// Phase 3: 可观测性增强 — 5 张新表
+// ============================================================================
+
+/**
+ * evolution_traces — 全链路追踪记录
+ * 每条 trace 代表一次完整的进化操作（周期、评估、部署等）
+ */
+export const evolutionTraces = mysqlTable('evolution_traces', {
+  id: bigint('id', { mode: 'number' }).autoincrement().primaryKey(),
+  traceId: varchar('trace_id', { length: 64 }).notNull(),
+  name: varchar('name', { length: 256 }).notNull(),
+  cycleId: bigint('cycle_id', { mode: 'number' }),
+  operationType: varchar('operation_type', { length: 64 }).notNull(),
+  status: mysqlEnum('status', ['running', 'completed', 'failed', 'timeout']).default('running'),
+  startedAt: timestamp('started_at', { fsp: 3 }).defaultNow().notNull(),
+  completedAt: timestamp('completed_at', { fsp: 3 }),
+  durationMs: bigint('duration_ms', { mode: 'number' }),
+  spanCount: int('span_count').default(0),
+  errorCount: int('error_count').default(0),
+  criticalPathMs: bigint('critical_path_ms', { mode: 'number' }),
+  trigger: varchar('trigger', { length: 64 }).default('manual'),
+  metadata: json('metadata').$type<Record<string, unknown>>(),
+  createdAt: timestamp('created_at', { fsp: 3 }).defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex('uq_et_trace').on(table.traceId),
+  index('idx_et_cycle').on(table.cycleId),
+  index('idx_et_type').on(table.operationType),
+  index('idx_et_status').on(table.status),
+  index('idx_et_started').on(table.startedAt),
+]);
+export type EvolutionTrace = typeof evolutionTraces.$inferSelect;
+export type InsertEvolutionTrace = typeof evolutionTraces.$inferInsert;
+
+/**
+ * evolution_spans — 追踪 Span（追踪中的每个步骤/操作）
+ */
+export const evolutionSpans = mysqlTable('evolution_spans', {
+  id: bigint('id', { mode: 'number' }).autoincrement().primaryKey(),
+  spanId: varchar('span_id', { length: 64 }).notNull(),
+  traceId: varchar('trace_id', { length: 64 }).notNull(),
+  parentSpanId: varchar('parent_span_id', { length: 64 }),
+  name: varchar('name', { length: 256 }).notNull(),
+  engineModule: varchar('engine_module', { length: 64 }).notNull(),
+  status: mysqlEnum('status', ['running', 'completed', 'failed', 'timeout']).default('running'),
+  startedAt: timestamp('started_at', { fsp: 3 }).defaultNow().notNull(),
+  completedAt: timestamp('completed_at', { fsp: 3 }),
+  durationMs: bigint('duration_ms', { mode: 'number' }),
+  inputSummary: json('input_summary').$type<Record<string, unknown>>(),
+  outputSummary: json('output_summary').$type<Record<string, unknown>>(),
+  errorMessage: text('error_message'),
+  resourceUsage: json('resource_usage').$type<{ cpuMs?: number; memoryMb?: number; gpuMs?: number; dbQueries?: number }>(),
+  tags: json('tags').$type<Record<string, string>>(),
+  createdAt: timestamp('created_at', { fsp: 3 }).defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex('uq_es_span').on(table.spanId),
+  index('idx_es_trace').on(table.traceId),
+  index('idx_es_parent').on(table.parentSpanId),
+  index('idx_es_module').on(table.engineModule),
+  index('idx_es_status').on(table.status),
+  index('idx_es_started').on(table.startedAt),
+]);
+export type EvolutionSpan = typeof evolutionSpans.$inferSelect;
+export type InsertEvolutionSpan = typeof evolutionSpans.$inferInsert;
+
+/**
+ * evolution_metric_snapshots — 性能指标快照（定期采集）
+ */
+export const evolutionMetricSnapshots = mysqlTable('evolution_metric_snapshots', {
+  id: bigint('id', { mode: 'number' }).autoincrement().primaryKey(),
+  metricName: varchar('metric_name', { length: 128 }).notNull(),
+  engineModule: varchar('engine_module', { length: 64 }).notNull(),
+  metricType: mysqlEnum('metric_type', ['counter', 'gauge', 'histogram', 'summary']).notNull(),
+  value: double('value').notNull(),
+  aggregations: json('aggregations').$type<{ min?: number; max?: number; avg?: number; sum?: number; count?: number; p50?: number; p95?: number; p99?: number }>(),
+  tags: json('tags').$type<Record<string, string>>(),
+  collectedAt: timestamp('collected_at', { fsp: 3 }).defaultNow().notNull(),
+  createdAt: timestamp('created_at', { fsp: 3 }).defaultNow().notNull(),
+}, (table) => [
+  index('idx_ems_name').on(table.metricName),
+  index('idx_ems_module').on(table.engineModule),
+  index('idx_ems_type').on(table.metricType),
+  index('idx_ems_collected').on(table.collectedAt),
+]);
+export type EvolutionMetricSnapshot = typeof evolutionMetricSnapshots.$inferSelect;
+export type InsertEvolutionMetricSnapshot = typeof evolutionMetricSnapshots.$inferInsert;
+
+/**
+ * evolution_alert_rules — 告警规则定义
+ */
+export const evolutionAlertRules = mysqlTable('evolution_alert_rules', {
+  id: bigint('id', { mode: 'number' }).autoincrement().primaryKey(),
+  name: varchar('name', { length: 256 }).notNull(),
+  description: text('description'),
+  engineModule: varchar('engine_module', { length: 64 }).notNull(),
+  metricName: varchar('metric_name', { length: 128 }).notNull(),
+  operator: mysqlEnum('operator', ['gt', 'gte', 'lt', 'lte', 'eq', 'neq']).notNull(),
+  threshold: double('threshold').notNull(),
+  severity: mysqlEnum('severity', ['info', 'warning', 'critical', 'fatal']).default('warning'),
+  durationSeconds: int('duration_seconds').default(60),
+  cooldownSeconds: int('cooldown_seconds').default(300),
+  notifyChannels: json('notify_channels').$type<string[]>(),
+  enabled: tinyint('enabled').default(1),
+  lastTriggeredAt: timestamp('last_triggered_at', { fsp: 3 }),
+  triggerCount: int('trigger_count').default(0),
+  createdAt: timestamp('created_at', { fsp: 3 }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { fsp: 3 }).defaultNow().notNull(),
+}, (table) => [
+  index('idx_ear_module').on(table.engineModule),
+  index('idx_ear_metric').on(table.metricName),
+  index('idx_ear_severity').on(table.severity),
+  index('idx_ear_enabled').on(table.enabled),
+]);
+export type EvolutionAlertRule = typeof evolutionAlertRules.$inferSelect;
+export type InsertEvolutionAlertRule = typeof evolutionAlertRules.$inferInsert;
+
+/**
+ * evolution_alerts — 告警事件记录
+ */
+export const evolutionAlerts = mysqlTable('evolution_alerts', {
+  id: bigint('id', { mode: 'number' }).autoincrement().primaryKey(),
+  ruleId: bigint('rule_id', { mode: 'number' }).notNull(),
+  alertName: varchar('alert_name', { length: 256 }).notNull(),
+  engineModule: varchar('engine_module', { length: 64 }).notNull(),
+  severity: mysqlEnum('severity', ['info', 'warning', 'critical', 'fatal']).default('warning'),
+  metricValue: double('metric_value').notNull(),
+  threshold: double('threshold').notNull(),
+  status: mysqlEnum('status', ['firing', 'acknowledged', 'resolved', 'silenced']).default('firing'),
+  message: text('message'),
+  acknowledgedBy: varchar('acknowledged_by', { length: 128 }),
+  acknowledgedAt: timestamp('acknowledged_at', { fsp: 3 }),
+  resolvedAt: timestamp('resolved_at', { fsp: 3 }),
+  metadata: json('metadata').$type<Record<string, unknown>>(),
+  firedAt: timestamp('fired_at', { fsp: 3 }).defaultNow().notNull(),
+  createdAt: timestamp('created_at', { fsp: 3 }).defaultNow().notNull(),
+}, (table) => [
+  index('idx_ea_rule').on(table.ruleId),
+  index('idx_ea_module').on(table.engineModule),
+  index('idx_ea_severity').on(table.severity),
+  index('idx_ea_status').on(table.status),
+  index('idx_ea_fired').on(table.firedAt),
+]);
+export type EvolutionAlert = typeof evolutionAlerts.$inferSelect;
+export type InsertEvolutionAlert = typeof evolutionAlerts.$inferInsert;
