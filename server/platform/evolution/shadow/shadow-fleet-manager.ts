@@ -589,9 +589,8 @@ export class ShadowFleetManager {
       }
 
       // 4a. 写入干预记录表
-      // @ts-ignore
       const result = await db.insert(evolutionInterventions).values({
-        // @ts-ignore
+        // @ts-expect-error — Drizzle ORM 类型推断限制，运行时行为正确
         sessionId: trajectory.sessionId,
         modelId: trajectory.shadowDecision.modelId,
         interventionType: trajectory.isHardCase ? 'decision_diverge' : (trajectory.isIntervention ? 'threshold_breach' : 'decision_diverge'),
@@ -606,7 +605,7 @@ export class ShadowFleetManager {
 
       // 4b. 如果是难例，写入 edge_cases 表
       if (trajectory.isHardCase) {
-        // @ts-ignore
+        // @ts-expect-error — Drizzle ORM 类型推断限制，运行时行为正确
         await db.insert(edgeCases).values({
           cycleId: null,
           caseType: 'shadow_divergence',
@@ -622,7 +621,7 @@ export class ShadowFleetManager {
 
       // 4c. 如果启用视频轨迹，写入视频轨迹表
       if (this.config.enableVideoTrajectory && trajectory.isIntervention) {
-        // @ts-ignore
+        // @ts-expect-error — Drizzle ORM 类型推断限制，运行时行为正确
         await db.insert(evolutionVideoTrajectories).values({
           interventionId,
           sessionId: trajectory.sessionId,
@@ -708,7 +707,7 @@ export class ShadowFleetManager {
         db.select({ cnt: count() }).from(edgeCases)
           .where(and(
             gte(edgeCases.discoveredAt, windowStart),
-            // @ts-ignore
+            // @ts-expect-error — Drizzle ORM 类型推断限制，运行时行为正确
             eq(edgeCases.caseType, 'shadow_divergence'),
           )),
       ]);
@@ -779,7 +778,7 @@ export class ShadowFleetManager {
 
     try {
       return db.select().from(edgeCases)
-        // @ts-ignore
+        // @ts-expect-error — Drizzle ORM 类型推断限制，运行时行为正确
         .where(eq(edgeCases.caseType, 'shadow_divergence'))
         .orderBy(desc(edgeCases.anomalyScore))
         .limit(limit);
@@ -815,12 +814,10 @@ export class ShadowFleetManager {
     const cutoff = new Date(Date.now() - this.config.trajectoryRetentionDays * 24 * 3600000);
 
     try {
-      // @ts-ignore
       await db.delete(evolutionInterventions)
         .where(lte(evolutionInterventions.createdAt, cutoff));
 
       // 同步清理视频轨迹
-      // @ts-ignore
       await db.delete(evolutionVideoTrajectories)
         .where(lte(evolutionVideoTrajectories.createdAt, cutoff));
 

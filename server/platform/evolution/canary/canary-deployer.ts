@@ -296,8 +296,7 @@ export class CanaryDeployer {
 
       // 1. 写入 canary_deployments 主表（通过共享 Repository）
       const deploymentId = await this.repo.createDeployment({
-        // @ts-ignore
-        experimentId: params.experimentId,
+          experimentId: params.experimentId,
         modelId: params.challengerModelId,
         trafficPercent: 0,
         status: 'active',
@@ -442,6 +441,7 @@ export class CanaryDeployer {
     trafficPercent: number;
     completed: boolean;
   }> {
+    log.debug(`[金丝雀] advanceStage, deploymentId=${deploymentId}`);
     const db = await getDb();
     if (!db) throw new Error('数据库不可用');
 
@@ -626,6 +626,7 @@ export class CanaryDeployer {
   }
 
   async performHealthCheck(deploymentId: number): Promise<HealthCheckResult> {
+    log.debug(`[金丝雀] performHealthCheck, deploymentId=${deploymentId}`);
     if (this.isShuttingDown) {
       return { passed: true, failureReason: null, championMetrics: {}, challengerMetrics: {} };
     }
@@ -769,6 +770,7 @@ export class CanaryDeployer {
   // ==========================================================================
 
   async rollback(deploymentId: number, reason: string): Promise<boolean> {
+    log.debug(`[金丝雀] rollback, deploymentId=${deploymentId}, reason=${reason}`);
     const db = await getDb();
     if (!db) return false;
 

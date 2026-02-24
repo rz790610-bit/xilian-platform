@@ -4,7 +4,7 @@
  * ============================================================================
  * 全链路追踪 + 性能指标仪表盘 + 告警规则引擎
  */
-import { router, publicProcedure, protectedProcedure } from '../../core/trpc';
+import { router, protectedProcedure } from '../../core/trpc';
 import { TRPCError } from '@trpc/server';
 import { getOrchestrator, EVOLUTION_TOPICS } from './evolution-orchestrator';
 import { z } from 'zod';
@@ -175,7 +175,7 @@ export const observabilityRouter = router({
     }),
 
   /** 列出追踪记录 */
-  listTraces: publicProcedure
+  listTraces: protectedProcedure
     .input(z.object({
       operationType: z.string().optional(),
       status: z.enum(['running', 'completed', 'failed', 'timeout']).optional(),
@@ -201,7 +201,7 @@ export const observabilityRouter = router({
     }),
 
   /** 获取单条追踪详情（含所有 Span） */
-  getTrace: publicProcedure
+  getTrace: protectedProcedure
     .input(z.object({ traceId: z.string() }))
     .query(async ({ input }) => {
       const db = await getDb();
@@ -218,7 +218,7 @@ export const observabilityRouter = router({
     }),
 
   /** 获取追踪统计 */
-  getTraceStats: publicProcedure
+  getTraceStats: protectedProcedure
     .query(async () => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
@@ -379,7 +379,7 @@ export const observabilityRouter = router({
     }),
 
   /** 获取指标历史 */
-  getMetricHistory: publicProcedure
+  getMetricHistory: protectedProcedure
     .input(z.object({
       metricName: z.string(),
       engineModule: z.string().optional(),
@@ -407,7 +407,7 @@ export const observabilityRouter = router({
     }),
 
   /** 获取引擎健康度概览 */
-  getEngineHealth: publicProcedure
+  getEngineHealth: protectedProcedure
     .query(async () => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
@@ -488,7 +488,7 @@ export const observabilityRouter = router({
     }),
 
   /** 获取最新指标快照（按模块分组） */
-  getLatestMetrics: publicProcedure
+  getLatestMetrics: protectedProcedure
     .input(z.object({ engineModule: z.string().optional() }).optional())
     .query(async ({ input }) => {
       const db = await getDb();
@@ -515,7 +515,7 @@ export const observabilityRouter = router({
   // ─── 告警规则引擎 ───
 
   /** 列出告警规则 */
-  listAlertRules: publicProcedure
+  listAlertRules: protectedProcedure
     .input(z.object({
       engineModule: z.string().optional(),
       severity: z.enum(['info', 'warning', 'critical', 'fatal']).optional(),
@@ -624,7 +624,7 @@ export const observabilityRouter = router({
     }),
 
   /** 列出告警事件 */
-  listAlerts: publicProcedure
+  listAlerts: protectedProcedure
     .input(z.object({
       status: z.enum(['firing', 'acknowledged', 'resolved', 'silenced']).optional(),
       severity: z.enum(['info', 'warning', 'critical', 'fatal']).optional(),
@@ -700,7 +700,7 @@ export const observabilityRouter = router({
       } catch (e: any) { throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: e.message ?? "Unknown error" }); }
     }),
   /** 获取告警统计 */
-  getAlertStats: publicProcedure
+  getAlertStats: protectedProcedure
     .query(async () => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });

@@ -146,12 +146,12 @@ export class EvolutionEventConsumers {
       // 延迟导入避免循环依赖
       const { HighFidelitySimulationEngine } = await import('../simulation/simulation-engine');
       const engine = new HighFidelitySimulationEngine();
-      // @ts-ignore
       const scenario = await engine.createScenarioFromIntervention({
-        id: trajectory.sessionId,
+        id: typeof trajectory.sessionId === 'number' ? trajectory.sessionId : parseInt(trajectory.sessionId) || 0,
         requestData: trajectory.request,
         humanDecision: trajectory.humanDecision,
         shadowDecision: trajectory.shadowDecision,
+        divergenceScore: trajectory.divergenceScore ?? 0,
       });
       log.info(`[干预消费者] 仿真场景已创建: ${scenario.id}，变异数=${scenario.variations?.length || 0}`);
     } catch (err) {

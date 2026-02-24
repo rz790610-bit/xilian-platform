@@ -12,7 +12,7 @@
  *   - 增强 cycle 子路由（趋势分析 + 步骤日志）
  *   - 增强 canary 子路由（阶段详情 + 健康检查记录）
  */
-import { router, publicProcedure, protectedProcedure } from '../../core/trpc';
+import { router, protectedProcedure } from '../../core/trpc';
 import { TRPCError } from '@trpc/server';
 import { getOrchestrator, EVOLUTION_TOPICS } from './evolution-orchestrator';
 import { z } from 'zod';
@@ -103,7 +103,7 @@ const shadowEvalRouter = router({
     }),
 
   /** 列出影子评估 */
-  list: publicProcedure
+  list: protectedProcedure
     .input(z.object({
       status: z.enum(['pending', 'running', 'completed', 'failed']).optional(),
       limit: z.number().default(20),
@@ -121,7 +121,7 @@ const shadowEvalRouter = router({
     }),
 
   /** 获取评估详情 */
-  get: publicProcedure
+  get: protectedProcedure
     .input(z.object({ id: z.number() }))
     .query(async ({ input }) => {
       const db = await getDb();
@@ -186,7 +186,7 @@ const championChallengerRouter = router({
     }),
 
   /** 列出实验 */
-  list: publicProcedure
+  list: protectedProcedure
     .input(z.object({
       verdict: z.enum(['PROMOTE', 'CANARY_EXTENDED', 'REJECT', 'PENDING']).optional(),
       limit: z.number().default(20),
@@ -204,7 +204,7 @@ const championChallengerRouter = router({
     }),
 
   /** 获取实验详情 */
-  get: publicProcedure
+  get: protectedProcedure
     .input(z.object({ id: z.number() }))
     .query(async ({ input }) => {
       const db = await getDb();
@@ -269,7 +269,7 @@ const canaryRouter = router({
     }),
 
   /** 列出金丝雀发布 */
-  list: publicProcedure
+  list: protectedProcedure
     .input(z.object({
       status: z.enum(['active', 'completed', 'rolled_back', 'failed']).optional(),
     }))
@@ -284,7 +284,7 @@ const canaryRouter = router({
     }),
 
   /** 获取金丝雀详情（v2.0: 含阶段 + 健康检查） */
-  get: publicProcedure
+  get: protectedProcedure
     .input(z.object({ id: z.number() }))
     .query(async ({ input }) => {
       const db = await getDb();
@@ -389,7 +389,7 @@ const dataEngineRouter = router({
     }),
 
   /** 获取边缘案例列表 */
-  getEdgeCases: publicProcedure
+  getEdgeCases: protectedProcedure
     .input(z.object({
       cycleId: z.number().optional(),
       status: z.enum(['discovered', 'analyzing', 'labeled', 'integrated', 'dismissed']).optional(),
@@ -435,7 +435,7 @@ const dataEngineRouter = router({
 // ============================================================================
 const cycleRouter = router({
   /** 获取进化周期列表 */
-  list: publicProcedure
+  list: protectedProcedure
     .input(z.object({ limit: z.number().default(20) }))
     .query(async ({ input }) => {
       const db = await getDb();
@@ -450,7 +450,7 @@ const cycleRouter = router({
     }),
 
   /** 获取进化趋势（v2.0: 真实数据） */
-  getTrend: publicProcedure
+  getTrend: protectedProcedure
     .input(z.object({ weeks: z.number().default(12) }))
     .query(async ({ input }) => {
       const db = await getDb();
@@ -489,7 +489,7 @@ const cycleRouter = router({
     }),
 
   /** 获取当前周期状态 */
-  getCurrent: publicProcedure
+  getCurrent: protectedProcedure
     .query(async () => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
@@ -502,7 +502,7 @@ const cycleRouter = router({
     }),
 
   /** 获取周期步骤日志（v2.0 新增） */
-  getStepLogs: publicProcedure
+  getStepLogs: protectedProcedure
     .input(z.object({ cycleId: z.number() }))
     .query(async ({ input }) => {
       const db = await getDb();
@@ -700,7 +700,7 @@ const cycleRouter = router({
 // ============================================================================
 const crystalRouter = router({
   /** 列出知识结晶 */
-  list: publicProcedure
+  list: protectedProcedure
     .input(z.object({
       minConfidence: z.number().optional(),
       limit: z.number().default(50),
@@ -718,7 +718,7 @@ const crystalRouter = router({
     }),
 
   /** 获取结晶详情 */
-  get: publicProcedure
+  get: protectedProcedure
     .input(z.object({ id: z.number() }))
     .query(async ({ input }) => {
       const db = await getDb();
@@ -759,7 +759,7 @@ const crystalRouter = router({
 // ============================================================================
 const fsdRouter = router({
   /** 列出干预记录 */
-  listInterventions: publicProcedure
+  listInterventions: protectedProcedure
     .input(z.object({
       modelId: z.string().optional(),
       interventionType: z.enum(['decision_diverge', 'threshold_breach', 'safety_override', 'manual']).optional(),
@@ -794,7 +794,7 @@ const fsdRouter = router({
     }),
 
   /** 获取干预详情 */
-  getIntervention: publicProcedure
+  getIntervention: protectedProcedure
     .input(z.object({ id: z.number() }))
     .query(async ({ input }) => {
       const db = await getDb();
@@ -814,7 +814,7 @@ const fsdRouter = router({
     }),
 
   /** 获取干预率统计 */
-  getInterventionRate: publicProcedure
+  getInterventionRate: protectedProcedure
     .input(z.object({
       modelId: z.string().optional(),
       windowHours: z.number().default(24),
@@ -846,7 +846,7 @@ const fsdRouter = router({
     }),
 
   /** 列出仿真场景 */
-  listSimulations: publicProcedure
+  listSimulations: protectedProcedure
     .input(z.object({
       scenarioType: z.enum(['regression', 'stress', 'edge_case', 'adversarial', 'replay']).optional(),
       difficulty: z.enum(['easy', 'medium', 'hard', 'extreme']).optional(),
@@ -865,7 +865,7 @@ const fsdRouter = router({
     }),
 
   /** 获取仿真场景详情 */
-  getSimulation: publicProcedure
+  getSimulation: protectedProcedure
     .input(z.object({ id: z.number() }))
     .query(async ({ input }) => {
       const db = await getDb();
@@ -878,7 +878,7 @@ const fsdRouter = router({
     }),
 
   /** 列出视频轨迹 */
-  listVideoTrajectories: publicProcedure
+  listVideoTrajectories: protectedProcedure
     .input(z.object({ limit: z.number().default(20) }))
     .query(async ({ input }) => {
       const db = await getDb();
@@ -898,7 +898,7 @@ const fsdRouter = router({
 // ============================================================================
 const scheduleRouter = router({
   /** 列出调度配置 */
-  list: publicProcedure
+  list: protectedProcedure
     .query(async () => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
@@ -982,7 +982,7 @@ const scheduleRouter = router({
 // ============================================================================
 const auditRouter = router({
   /** 查询审计日志 */
-  list: publicProcedure
+  list: protectedProcedure
     .input(z.object({
       eventType: z.string().optional(),
       eventSource: z.string().optional(),
@@ -1012,7 +1012,7 @@ const auditRouter = router({
     }),
 
   /** 按会话查询审计日志 */
-  getBySession: publicProcedure
+  getBySession: protectedProcedure
     .input(z.object({ sessionId: z.string() }))
     .query(async ({ input }) => {
       const db = await getDb();
@@ -1031,7 +1031,7 @@ const auditRouter = router({
 // ============================================================================
 const dojoRouter = router({
   /** 查询训练任务列表 */
-  list: publicProcedure
+  list: protectedProcedure
     .input(z.object({
       status: z.enum(['pending', 'scheduled', 'running', 'completed', 'failed', 'cancelled']).optional(),
       modelId: z.string().optional(),
@@ -1055,7 +1055,7 @@ const dojoRouter = router({
     }),
 
   /** 获取训练任务详情 */
-  get: publicProcedure
+  get: protectedProcedure
     .input(z.object({ id: z.number() }))
     .query(async ({ input }) => {
       const db = await getDb();
@@ -1126,7 +1126,7 @@ const dojoRouter = router({
     }),
 
   /** 获取 Dojo 统计概览 */
-  getStats: publicProcedure
+  getStats: protectedProcedure
     .query(async () => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
@@ -1163,7 +1163,7 @@ const EVOLUTION_MODULES = [
 
 const configRouter = router({
   /** 列出进化引擎配置项（可按 module 过滤） */
-  list: publicProcedure
+  list: protectedProcedure
     .input(z.object({ module: z.string().optional() }).optional())
     .query(async ({ input }) => {
       const db = await getDb();
@@ -1384,7 +1384,7 @@ export const evolutionDomainRouter = router({
   // ========== 前端仪表盘 Facade 方法（CognitiveDashboard 页面使用） ==========
 
   /** 获取飞轮状态（进化循环概览） */
-  getFlywheelStatus: publicProcedure
+  getFlywheelStatus: protectedProcedure
     .query(async () => {
       const db = await getDb();
       if (!db) {
@@ -1434,8 +1434,117 @@ export const evolutionDomainRouter = router({
       }
     }),
 
+  /** 进化看板 — 获取模型进化列表（从实验 + 训练记录聚合） */
+  getBoardModels: protectedProcedure
+    .query(async () => {
+      const db = await getDb();
+      if (!db) return [];
+      try {
+        // 从 champion_challenger_experiments 聚合模型进化信息
+        const experiments = await db.select().from(championChallengerExperiments)
+          .orderBy(desc(championChallengerExperiments.createdAt))
+          .limit(50);
+
+        // 按 championId 分组，构建模型进化时间线
+        const modelMap = new Map<string, {
+          id: string; name: string; currentVersion: string;
+          versions: { version: string; date: string; trigger: string; improvement: number }[];
+          healthScore: number; status: string; lastUpdated: string;
+          totalFeedback: number; pendingFeedback: number;
+        }>();
+
+        for (const exp of experiments) {
+          const modelId = exp.championId;
+          if (!modelMap.has(modelId)) {
+            modelMap.set(modelId, {
+              id: modelId,
+              name: exp.name || modelId,
+              currentVersion: exp.challengerId,
+              versions: [],
+              healthScore: exp.tasScore ? Math.round(exp.tasScore * 100) : 70,
+              status: exp.verdict === 'PROMOTE' ? 'healthy' : exp.verdict === 'REJECT' ? 'needs_retrain' : exp.verdict === 'PENDING' ? 'training' : 'degrading',
+              lastUpdated: exp.updatedAt?.toISOString() ?? '',
+              totalFeedback: 0,
+              pendingFeedback: 0,
+            });
+          }
+          const model = modelMap.get(modelId)!;
+          model.versions.push({
+            version: exp.challengerId,
+            date: exp.createdAt?.toISOString() ?? '',
+            trigger: exp.verdict ?? 'PENDING',
+            improvement: exp.tasScore ?? 0,
+          });
+        }
+
+        return Array.from(modelMap.values());
+      } catch {
+        return [];
+      }
+    }),
+
+  /** 进化看板 — 获取自动化规则列表（从飞轮调度表聚合） */
+  getBoardRules: protectedProcedure
+    .query(async () => {
+      const db = await getDb();
+      if (!db) return [];
+      try {
+        const schedules = await db.select().from(evolutionFlywheelSchedules)
+          .orderBy(desc(evolutionFlywheelSchedules.createdAt))
+          .limit(20);
+
+        return schedules.map(s => ({
+          id: String(s.id),
+          name: s.name,
+          description: `Cron: ${s.cronExpression}`,
+          trigger: s.cronExpression,
+          action: JSON.stringify(s.config).slice(0, 100),
+          enabled: s.enabled === 1,
+          lastTriggered: s.lastTriggeredAt?.toISOString() ?? undefined,
+          triggerCount: s.totalRuns,
+        }));
+      } catch {
+        return [];
+      }
+    }),
+
+  /** 进化看板 — 获取健康度指标（从各表聚合统计） */
+  getBoardHealthMetrics: protectedProcedure
+    .query(async () => {
+      const db = await getDb();
+      if (!db) return [];
+      try {
+        const [intRows, simRows, crystalRows, expRows, scheduleRows] = await Promise.all([
+          db.select({ cnt: count() }).from(evolutionInterventions),
+          db.select({ cnt: count() }).from(evolutionSimulations),
+          db.select({ cnt: count() }).from(knowledgeCrystals),
+          db.select({ cnt: count() }).from(championChallengerExperiments),
+          db.select({ cnt: count() }).from(evolutionFlywheelSchedules).where(eq(evolutionFlywheelSchedules.enabled, 1)),
+        ]);
+
+        const intCount = intRows[0]?.cnt ?? 0;
+        const simCount = simRows[0]?.cnt ?? 0;
+        const crystalCount = crystalRows[0]?.cnt ?? 0;
+        const expCount = expRows[0]?.cnt ?? 0;
+        const scheduleCount = scheduleRows[0]?.cnt ?? 0;
+
+        const metrics = [
+          { category: '数据质量', name: '干预记录数', score: Math.min(intCount, 100), status: intCount > 50 ? 'good' : intCount > 10 ? 'warning' : 'critical', detail: `共 ${intCount} 条干预记录` },
+          { category: '数据质量', name: '仿真场景数', score: Math.min(simCount, 100), status: simCount > 20 ? 'good' : simCount > 5 ? 'warning' : 'critical', detail: `共 ${simCount} 个仿真场景` },
+          { category: '模型性能', name: '实验总数', score: Math.min(expCount * 10, 100), status: expCount > 5 ? 'good' : expCount > 1 ? 'warning' : 'critical', detail: `共 ${expCount} 个冠军挑战者实验` },
+          { category: '模型性能', name: '知识结晶数', score: Math.min(crystalCount * 5, 100), status: crystalCount > 10 ? 'good' : crystalCount > 3 ? 'warning' : 'critical', detail: `共 ${crystalCount} 个知识结晶` },
+          { category: '反馈闭环', name: '活跃调度数', score: Math.min(scheduleCount * 20, 100), status: scheduleCount > 3 ? 'good' : scheduleCount > 0 ? 'warning' : 'critical', detail: `${scheduleCount} 个活跃调度` },
+          { category: '反馈闭环', name: '数据闭环完整性', score: (intCount > 0 && simCount > 0 && crystalCount > 0) ? 90 : (intCount > 0 || simCount > 0) ? 50 : 10, status: (intCount > 0 && simCount > 0 && crystalCount > 0) ? 'good' : 'warning', detail: '干预→仿真→结晶 闭环状态' },
+        ];
+
+        return metrics;
+      } catch {
+        return [];
+      }
+    }),
+
   /** 获取进化引擎综合概览（v2.0 新增） */
-  getOverview: publicProcedure
+  getOverview: protectedProcedure
     .query(async () => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });

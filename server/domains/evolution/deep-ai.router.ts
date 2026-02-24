@@ -4,7 +4,7 @@
  * ============================================================================
  * 功能：神经世界模型管理、多模型横向对比、自适应参数推荐、进化引擎总控中心
  */
-import { router, publicProcedure, protectedProcedure } from '../../core/trpc';
+import { router, protectedProcedure } from '../../core/trpc';
 import { TRPCError } from '@trpc/server';
 import { getOrchestrator, EVOLUTION_TOPICS } from './evolution-orchestrator';
 import { z } from 'zod';
@@ -26,7 +26,7 @@ import {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 const worldModelRouter = router({
   /** 列出所有世界模型版本 */
-  listVersions: publicProcedure
+  listVersions: protectedProcedure
     .input(z.object({
       status: z.string().optional(),
       architecture: z.string().optional(),
@@ -50,7 +50,7 @@ const worldModelRouter = router({
     }),
 
   /** 获取单个模型版本详情 */
-  getVersion: publicProcedure
+  getVersion: protectedProcedure
     .input(z.object({ id: z.number() }))
     .query(async ({ input }) => {
       const db = await getDb();
@@ -133,7 +133,7 @@ const worldModelRouter = router({
     }),
 
   /** 列出训练任务 */
-  listTrainingJobs: publicProcedure
+  listTrainingJobs: protectedProcedure
     .input(z.object({
       modelVersionId: z.number().optional(),
       status: z.string().optional(),
@@ -217,7 +217,7 @@ const worldModelRouter = router({
     }),
 
   /** 世界模型统计 */
-  getStats: publicProcedure.query(async () => {
+  getStats: protectedProcedure.query(async () => {
     const db = await getDb();
     if (!db) return { totalVersions: 0, activeVersions: 0, trainingJobs: 0, runningJobs: 0, architectures: {} as Record<string, number> };
     try {
@@ -245,7 +245,7 @@ const worldModelRouter = router({
     }
   }),
   // ── 世界模型预测验证 ──
-  listPredictions: publicProcedure
+  listPredictions: protectedProcedure
     .input(z.object({ snapshotId: z.number().optional(), limit: z.number().default(50) }).optional())
     .query(async ({ input }) => {
       const db = await getDb();
@@ -301,7 +301,7 @@ const worldModelRouter = router({
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 const modelRegistryRouter = router({
   /** 列出所有注册模型 */
-  list: publicProcedure
+  list: protectedProcedure
     .input(z.object({
       modelType: z.string().optional(),
       status: z.string().optional(),
@@ -325,7 +325,7 @@ const modelRegistryRouter = router({
     }),
 
   /** 获取单个模型详情 */
-  get: publicProcedure
+  get: protectedProcedure
     .input(z.object({ id: z.number() }))
     .query(async ({ input }) => {
       const db = await getDb();
@@ -469,7 +469,7 @@ const modelRegistryRouter = router({
     }),
 
   /** 列出对比报告 */
-  listComparisons: publicProcedure
+  listComparisons: protectedProcedure
     .input(z.object({ limit: z.number().default(20) }).optional())
     .query(async ({ input }) => {
       const db = await getDb();
@@ -479,7 +479,7 @@ const modelRegistryRouter = router({
     }),
 
   /** 获取对比报告详情 */
-  getComparison: publicProcedure
+  getComparison: protectedProcedure
     .input(z.object({ id: z.number() }))
     .query(async ({ input }) => {
       const db = await getDb();
@@ -501,7 +501,7 @@ const modelRegistryRouter = router({
     }),
 
   /** 模型注册表统计 */
-  getStats: publicProcedure.query(async () => {
+  getStats: protectedProcedure.query(async () => {
     const db = await getDb();
     if (!db) return { total: 0, byType: {} as Record<string, number>, byStatus: {} as Record<string, number>, champions: 0, comparisons: 0 };
     try {
@@ -538,7 +538,7 @@ const modelRegistryRouter = router({
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 const adaptiveRecommendRouter = router({
   /** 列出推荐记录 */
-  list: publicProcedure
+  list: protectedProcedure
     .input(z.object({
       engineModule: z.string().optional(),
       status: z.string().optional(),
@@ -556,7 +556,7 @@ const adaptiveRecommendRouter = router({
     }),
 
   /** 获取推荐详情 */
-  get: publicProcedure
+  get: protectedProcedure
     .input(z.object({ id: z.number() }))
     .query(async ({ input }) => {
       const db = await getDb();
@@ -739,7 +739,7 @@ const adaptiveRecommendRouter = router({
     }),
 
   /** 推荐统计 */
-  getStats: publicProcedure.query(async () => {
+  getStats: protectedProcedure.query(async () => {
     const db = await getDb();
     if (!db) return { total: 0, pending: 0, applied: 0, reverted: 0, rejected: 0, avgConfidence: 0, byModule: {} as Record<string, number> };
     try {
@@ -798,7 +798,7 @@ const ENGINE_MODULES = [
 
 const controlCenterRouter = router({
   /** 获取所有引擎实例状态 */
-  listInstances: publicProcedure.query(async () => {
+  listInstances: protectedProcedure.query(async () => {
     const db = await getDb();
     if (!db) return ENGINE_MODULES.map(m => ({
       ...m, status: 'stopped' as const, healthScore: 0,
@@ -915,7 +915,7 @@ const controlCenterRouter = router({
   }),
 
   /** 获取引擎拓扑图数据 */
-  getTopology: publicProcedure.query(async () => {
+  getTopology: protectedProcedure.query(async () => {
     const db = await getDb();
     const instances = db ? await db.select().from(evolutionEngineInstances) : [];
     const instanceMap: Record<string, any> = {};
@@ -938,7 +938,7 @@ const controlCenterRouter = router({
   }),
 
   /** 总控中心统计 */
-  getStats: publicProcedure.query(async () => {
+  getStats: protectedProcedure.query(async () => {
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
     try {
@@ -962,7 +962,7 @@ const controlCenterRouter = router({
   }),
 
   /** 获取引擎模块定义列表 */
-  getModuleDefinitions: publicProcedure.query(() => ENGINE_MODULES),
+  getModuleDefinitions: protectedProcedure.query(() => ENGINE_MODULES),
 });
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

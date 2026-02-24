@@ -1760,6 +1760,7 @@ export type InsertEvolutionIntervention = typeof evolutionInterventions.$inferIn
 export const evolutionSimulations = mysqlTable('evolution_simulations', {
   id: bigint('id', { mode: 'number' }).autoincrement().primaryKey(),
   scenarioId: varchar('scenario_id', { length: 64 }).notNull(),
+  name: varchar('name', { length: 200 }),
   sourceInterventionId: bigint('source_intervention_id', { mode: 'number' }),
   scenarioType: mysqlEnum('scenario_type', ['regression', 'stress', 'edge_case', 'adversarial', 'replay']).notNull().default('regression'),
   inputData: json('input_data').$type<Record<string, unknown>>().notNull(),

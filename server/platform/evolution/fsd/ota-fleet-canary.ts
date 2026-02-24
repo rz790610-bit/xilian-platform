@@ -178,8 +178,7 @@ export class OTAFleetCanary {
       for (const row of activeRows) {
         const stageIndex = this.stages.findIndex(s => s.trafficPercent === row.trafficPercent);
         const state: DeploymentState = {
-          // @ts-ignore
-          planId: row.id,
+            planId: String(row.id) as any,
           dbId: row.id,
           currentStage: this.stages[Math.max(stageIndex, 0)]?.name ?? 'shadow',
           stageIndex: Math.max(stageIndex, 0),
@@ -190,12 +189,10 @@ export class OTAFleetCanary {
           status: 'running',
         };
 
-        // @ts-ignore
-        this.activeDeployments.set(row.id, state);
+        this.activeDeployments.set(row.id as any, state);
 
         // 恢复健康检查定时器
-        // @ts-ignore
-        this.startHealthCheckTimer(row.id, row.modelId);
+        this.startHealthCheckTimer(String(row.id), row.modelId);
 
         log.info(`恢复 OTA 部署: ${row.id}, 阶段 ${state.currentStage}`);
       }

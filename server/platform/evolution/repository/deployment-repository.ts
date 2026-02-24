@@ -33,8 +33,8 @@ const log = createModuleLogger('deployment-repository');
 
 export interface DeploymentRecord {
   id: number;
-  experimentId?: string;
-  deploymentId?: string;
+  experimentId?: number;
+  deploymentId?: number | string;
   modelId: string;
   modelVersion?: string;
   status: string;
@@ -91,10 +91,9 @@ export class DeploymentRepository {
     if (!db) return null;
 
     try {
-      // @ts-ignore
       const result = await db.insert(canaryDeployments).values({
-        // @ts-ignore
-        experimentId: record.experimentId,
+          // @ts-expect-error — Drizzle ORM 类型推断限制，运行时行为正确
+          experimentId: record.experimentId,
         modelId: record.modelId,
         status: record.status,
         trafficPercent: record.trafficPercent,
@@ -135,9 +134,7 @@ export class DeploymentRepository {
         setClause.endedAt = setClause.endedAt || new Date();
       }
 
-      // @ts-ignore
       await db.update(canaryDeployments)
-        // @ts-ignore
         .set(setClause)
         .where(eq(canaryDeployments.id, deploymentId));
     } catch (err) {
@@ -162,11 +159,9 @@ export class DeploymentRepository {
         setClause.endedAt = new Date();
       }
 
-      // @ts-ignore
       await db.update(canaryDeployments)
-        // @ts-ignore
         .set(setClause)
-        // @ts-ignore
+        // @ts-expect-error — Drizzle ORM 类型推断限制，运行时行为正确
         .where(eq(canaryDeployments.id, planId));
     } catch (err) {
       log.error(`[${this.source}] 更新部署状态失败: planId=${planId}`, err);
@@ -185,7 +180,7 @@ export class DeploymentRepository {
     if (!db || !record.deploymentId) return;
 
     try {
-      // @ts-ignore
+      // @ts-expect-error — Drizzle ORM 类型推断限制，运行时行为正确
       await db.insert(canaryDeploymentStages).values({
         stageIndex: record.stageIndex ?? 0,
         stageName: record.stageName,
@@ -222,9 +217,7 @@ export class DeploymentRepository {
       if (extra?.metricsSnapshot !== undefined) setClause.metricsSnapshot = extra.metricsSnapshot;
       if (extra?.rollbackReason) setClause.rollbackReason = extra.rollbackReason;
 
-      // @ts-ignore
       await db.update(canaryDeploymentStages)
-        // @ts-ignore
         .set(setClause)
         .where(eq(canaryDeploymentStages.id, stageId));
     } catch (err) {
@@ -254,18 +247,15 @@ export class DeploymentRepository {
   async persistHealthCheck(record: HealthCheckRecord): Promise<void> {
     const db = await getDb();
     if (!db || !record.deploymentId) return;
-
     try {
-      // @ts-ignore
       await db.insert(canaryHealthChecks).values({
-        // @ts-ignore
-        stageName: record.stageName,
-        checkResult: record.checkResult,
-        metrics: record.metrics,
+        deploymentId: record.deploymentId,
+        checkType: 'periodic' as const,
+        passed: record.checkResult === 'passed' ? 1 : 0,
         championMetrics: record.championMetrics,
         challengerMetrics: record.challengerMetrics,
         checkedAt: record.checkedAt,
-      });
+      } as any);
     } catch (err) {
       log.error(`[${this.source}] 持久化健康检查失败: deployment=${record.deploymentId}`, err);
     }
@@ -310,7 +300,7 @@ export class DeploymentRepository {
     if (!db) return [];
 
     return db.select().from(canaryDeployments)
-      // @ts-ignore
+      // @ts-expect-error — Drizzle ORM 类型推断限制，运行时行为正确
       .where(eq(canaryDeployments.status, 'running'));
   }
 
@@ -322,7 +312,6 @@ export class DeploymentRepository {
     if (!db) return 0;
 
     try {
-      // @ts-ignore
       const result = await db.select({ count: count() }).from(canaryDeployments)
         .where(eq(canaryDeployments.status, 'active'));
       return result[0]?.count ?? 0;
@@ -343,7 +332,6 @@ export class DeploymentRepository {
     const db = await getDb();
     if (!db) return { deployment: null, stages: [], recentChecks: [] };
 
-    // @ts-ignore
     const deployments = await db.select().from(canaryDeployments)
       .where(eq(canaryDeployments.id, deploymentId)).limit(1);
 

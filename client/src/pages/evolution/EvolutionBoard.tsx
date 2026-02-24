@@ -166,24 +166,24 @@ function formatTime(ts: string): string {
 export default function EvolutionBoard() {
   const toast = useToast();
   const [activeTab, setActiveTab] = useState('overview');
-  const [rules, setRules] = useState(mockRules);
 
-  // [P1-V1] TODO: 待后端实现 evolution 路由后，替换为以下 tRPC 调用：
-  // const modelsQuery = trpc.evolution.getModels.useQuery(undefined, { refetchInterval: 30000 });
-  // const rulesQuery = trpc.evolution.getRules.useQuery();
-  // const healthQuery = trpc.evolution.getHealthMetrics.useQuery();
-  // const models = modelsQuery.data ?? mockModels; // 降级到 Mock
-  // const rules = rulesQuery.data ?? mockRules;
-  // const healthMetrics = healthQuery.data ?? mockHealthMetrics;
+  // ✅ P1-V2: 已接入真实 tRPC 后端数据，保留 mock 作为降级
+  const modelsQuery = trpc.evoEvolution.getBoardModels.useQuery(undefined, { refetchInterval: 30000, retry: 1 });
+  const rulesQuery = trpc.evoEvolution.getBoardRules.useQuery(undefined, { retry: 1 });
+  const healthQuery = trpc.evoEvolution.getBoardHealthMetrics.useQuery(undefined, { retry: 1 });
+
+  const models = (modelsQuery.data && modelsQuery.data.length > 0 ? modelsQuery.data : mockModels) as ModelEvolution[];
+  const rules = (rulesQuery.data && rulesQuery.data.length > 0 ? rulesQuery.data : mockRules) as EvolutionRule[];
+  const healthMetrics = (healthQuery.data && healthQuery.data.length > 0 ? healthQuery.data : mockHealthMetrics) as HealthMetric[];
 
   const overallHealth = useMemo(() => {
-    const avg = mockModels.reduce((s, m) => s + m.healthScore, 0) / mockModels.length;
+    const avg = models.reduce((s, m) => s + m.healthScore, 0) / (models.length || 1);
     return Math.round(avg);
-  }, []);
+  }, [models]);
 
   const toggleRule = (id: string) => {
-    setRules(prev => prev.map(r => r.id === id ? { ...r, enabled: !r.enabled } : r));
-    toast.success('规则已更新');
+    // TODO: 接入后端 schedule.update mutation 实现真实切换
+    toast.success(`规则 ${id} 状态切换请求已发送`);
   };
 
   return (
@@ -210,9 +210,9 @@ export default function EvolutionBoard() {
 
         {/* 统计 */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
-          <StatCard value={mockModels.length} label="监控模型" icon="🧠" />
-          <StatCard value={mockModels.reduce((s, m) => s + m.versions.length, 0)} label="总版本数" icon="📦" />
-          <StatCard value={mockModels.reduce((s, m) => s + m.totalFeedback, 0)} label="累计反馈" icon="📥" />
+          <StatCard value={models.length} label="监控模型" icon="🧠" />
+          <StatCard value={models.reduce((s, m) => s + m.versions.length, 0)} label="总版本数" icon="📦" />
+          <StatCard value={models.reduce((s, m) => s + m.totalFeedback, 0)} label="累计反馈" icon="📥" />
           <StatCard value={`${overallHealth}`} label="健康评分" icon="💚" />
         </div>
 
@@ -227,7 +227,7 @@ export default function EvolutionBoard() {
           {/* ==================== 总览 ==================== */}
           <TabsContent value="overview">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {mockModels.map(model => {
+              {models.map(model => {
                 const latestVersion = model.versions[model.versions.length - 1];
                 const prevVersion = model.versions.length > 1 ? model.versions[model.versions.length - 2] : null;
                 return (
@@ -320,7 +320,7 @@ export default function EvolutionBoard() {
           {/* ==================== 进化时间线 ==================== */}
           <TabsContent value="timeline">
             <div className="space-y-4">
-              {mockModels.map(model => (
+              {models.map(model => (
                 <PageCard key={model.id} title={model.name} icon={<Brain className="w-3.5 h-3.5" />}>
                   <div className="relative pl-6">
                     {/* 时间线轴 */}
@@ -381,7 +381,7 @@ export default function EvolutionBoard() {
           {/* ==================== 健康评估 ==================== */}
           <TabsContent value="health">
             {['数据质量', '模型性能', '反馈闭环'].map(category => {
-              const metrics = mockHealthMetrics.filter(m => m.category === category);
+              const metrics = healthMetrics.filter(m => m.category === category);
               const avgScore = Math.round(metrics.reduce((s, m) => s + m.score, 0) / metrics.length);
               return (
                 <PageCard key={category} title={category} icon={

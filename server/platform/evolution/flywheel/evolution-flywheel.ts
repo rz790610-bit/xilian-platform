@@ -256,6 +256,7 @@ export class EvolutionFlywheel {
     evaluationDataset: EvaluationDataPoint[],
     challengerModel?: ModelCandidate
   ): Promise<FlywheelCycleReport> {
+    log.debug(`[飞轮] executeCycle 开始, diagnosisHistory=${diagnosisHistory.length}条, evaluationDataset=${evaluationDataset.length}条, challenger=${challengerModel?.modelId ?? 'none'}`);
     if (this.state.isRunning) {
       throw new Error('飞轮正在运行中，不允许并发执行');
     }

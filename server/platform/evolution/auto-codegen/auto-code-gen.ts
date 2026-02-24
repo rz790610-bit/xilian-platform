@@ -1,3 +1,6 @@
+import { createModuleLogger } from '../../../core/logger';
+const log = createModuleLogger('auto-codegen');
+
 /**
  * ============================================================================
  * 自动代码生成器 — AutoCodeGenerator
@@ -101,6 +104,7 @@ export class AutoCodeGenerator {
    * 生成代码（通过 Grok 或模板）
    */
   async generate(request: CodeGenerationRequest): Promise<GeneratedCode> {
+    log.debug(`[代码生成] generate 开始, id=${request.id}, type=${request.type}`);
     // 根据类型选择生成策略
     let code: string;
     let signature: string;

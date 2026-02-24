@@ -4,7 +4,7 @@
  * ============================================================================
  * 职责：自动回滚 + 参数自调优 + 代码生成/验证飞轮 + 自愈策略管理
  */
-import { router, publicProcedure, protectedProcedure } from '../../core/trpc';
+import { router, protectedProcedure } from '../../core/trpc';
 import { TRPCError } from '@trpc/server';
 import { getOrchestrator, EVOLUTION_TOPICS } from './evolution-orchestrator';
 import { z } from 'zod';
@@ -25,7 +25,7 @@ import {
 
 const policyRouter = router({
   /** 获取所有自愈策略 */
-  list: publicProcedure
+  list: protectedProcedure
     .input(z.object({
       policyType: z.enum(['auto_rollback', 'param_tuning', 'codegen', 'circuit_breaker']).optional(),
       engineModule: z.string().optional(),
@@ -279,7 +279,7 @@ const policyRouter = router({
 
 const healingLogRouter = router({
   /** 查询自愈执行日志 */
-  list: publicProcedure
+  list: protectedProcedure
     .input(z.object({
       policyType: z.enum(['auto_rollback', 'param_tuning', 'codegen', 'circuit_breaker']).optional(),
       status: z.enum(['pending', 'executing', 'success', 'failed', 'skipped']).optional(),
@@ -298,7 +298,7 @@ const healingLogRouter = router({
     }),
 
   /** 获取执行统计 */
-  stats: publicProcedure.query(async () => {
+  stats: protectedProcedure.query(async () => {
     const db = await getDb();
     if (!db) return { total: 0, success: 0, failed: 0, executing: 0, byType: {} };
     const logs = await db.select().from(evolutionSelfHealingLogs);
@@ -318,7 +318,7 @@ const healingLogRouter = router({
 
 const rollbackRouter = router({
   /** 查询回滚记录 */
-  list: publicProcedure
+  list: protectedProcedure
     .input(z.object({
       rollbackType: z.enum(['deployment', 'model', 'config', 'full_chain']).optional(),
       status: z.enum(['pending', 'executing', 'completed', 'failed', 'cancelled']).optional(),
@@ -403,7 +403,7 @@ const rollbackRouter = router({
     }),
 
   /** 获取回滚统计 */
-  stats: publicProcedure.query(async () => {
+  stats: protectedProcedure.query(async () => {
     const db = await getDb();
     if (!db) return { total: 0, completed: 0, failed: 0, byType: {} };
     const records = await db.select().from(evolutionRollbackRecords);
@@ -422,7 +422,7 @@ const rollbackRouter = router({
 
 const paramTuningRouter = router({
   /** 查询调优任务 */
-  list: publicProcedure
+  list: protectedProcedure
     .input(z.object({
       engineModule: z.string().optional(),
       status: z.enum(['pending', 'running', 'completed', 'failed', 'cancelled']).optional(),
@@ -586,7 +586,7 @@ const paramTuningRouter = router({
     }),
 
   /** 获取任务的试验列表 */
-  getTrials: publicProcedure
+  getTrials: protectedProcedure
     .input(z.object({ jobId: z.number() }))
     .query(async ({ input }) => {
       const db = await getDb();
@@ -623,7 +623,7 @@ const paramTuningRouter = router({
     }),
 
   /** 获取调优统计 */
-  stats: publicProcedure.query(async () => {
+  stats: protectedProcedure.query(async () => {
     const db = await getDb();
     if (!db) return { total: 0, running: 0, completed: 0, avgImprovement: 0, byModule: {} };
     const jobs = await db.select().from(evolutionParamTuningJobs);
@@ -642,7 +642,7 @@ const paramTuningRouter = router({
 
 const codegenRouter = router({
   /** 查询代码生成任务 */
-  list: publicProcedure
+  list: protectedProcedure
     .input(z.object({
       codeType: z.enum(['feature_extractor', 'detection_rule', 'transform_pipeline', 'aggregation', 'custom']).optional(),
       status: z.enum(['draft', 'generating', 'generated', 'validating', 'validated', 'deployed', 'failed']).optional(),
@@ -825,7 +825,7 @@ const codegenRouter = router({
     }),
 
   /** 获取代码生成统计 */
-  stats: publicProcedure.query(async () => {
+  stats: protectedProcedure.query(async () => {
     const db = await getDb();
     if (!db) return { total: 0, validated: 0, deployed: 0, failed: 0, byType: {} };
     const jobs = await db.select().from(evolutionCodegenJobs);

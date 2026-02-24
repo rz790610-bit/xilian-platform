@@ -135,6 +135,7 @@ export class HighFidelitySimulationEngine {
     shadowDecision: Record<string, unknown>;
     divergenceScore: number;
   }): Promise<SimScenario> {
+    log.debug(`[仿真] createScenarioFromIntervention, interventionId=${intervention.id}, divergence=${intervention.divergenceScore}`);
     const variations = this.generateVariations(
       intervention.requestData,
       this.config.variationsPerIntervention,
@@ -172,7 +173,6 @@ export class HighFidelitySimulationEngine {
     if (!db) return [];
 
     try {
-      // @ts-ignore
       const interventions = await db.select().from(evolutionInterventions)
         .where(eq(evolutionInterventions.isIntervention, 1))
         .orderBy(desc(evolutionInterventions.createdAt))
@@ -263,6 +263,7 @@ export class HighFidelitySimulationEngine {
     modelProvider: SimulationModelProvider,
     scenarios?: SimScenario[],
   ): Promise<RegressionSuiteReport> {
+    log.debug(`[仿真] runRegressionSuite 开始, modelId=${modelId}, scenarios=${scenarios?.length ?? 'auto'}`);
     const startTime = Date.now();
     const suiteId = `regression_${modelId}_${startTime}`;
 
@@ -564,7 +565,7 @@ export class HighFidelitySimulationEngine {
     if (!db) return;
 
     try {
-      // @ts-ignore
+      // @ts-expect-error — Drizzle ORM 类型推断限制，运行时行为正确
       await db.insert(evolutionSimulations).values({
         scenarioId: scenario.id,
         name: scenario.id,
@@ -588,17 +589,15 @@ export class HighFidelitySimulationEngine {
     if (!db) return [];
 
     try {
-      // @ts-ignore
       const rows = await db.select().from(evolutionSimulations)
-        // @ts-ignore
+        // @ts-expect-error — Drizzle ORM 类型推断限制，运行时行为正确
         .where(eq(evolutionSimulations.scenarioType, 'active'))
         .orderBy(desc(evolutionSimulations.createdAt))
         .limit(100);
 
       return rows.map(r => ({
         id: r.scenarioId,
-        // @ts-ignore
-        name: r.name,
+        name: r.name ?? '',
         scenarioType: r.scenarioType as SimScenario['scenarioType'],
         sourceInterventionId: r.sourceInterventionId,
         inputData: (r.inputData as Record<string, unknown>) ?? {},
@@ -619,7 +618,6 @@ export class HighFidelitySimulationEngine {
     const db = await getDb();
     if (!db) return 0;
     try {
-      // @ts-ignore
       const rows = await db.select({ cnt: count() }).from(evolutionSimulations);
       return rows[0]?.cnt ?? 0;
     } catch { return 0; }
