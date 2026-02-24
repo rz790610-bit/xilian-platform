@@ -41,7 +41,7 @@
  *   └─────────────────────────────────────────────────────┘
  */
 
-import { getDb } from '../../../lib/db';
+import { getProtectedDb as getDb } from '../infra/protected-clients';
 import {
   evolutionInterventions,
   evolutionVideoTrajectories,
@@ -463,7 +463,10 @@ export class ShadowFleetManager {
    * - 对象类型：递归比较
    * - 缺失字段：差异 = 1.0
    */
-  private computeFieldDivergence(a: unknown, b: unknown): number {
+  private computeFieldDivergence(a: unknown, b: unknown, depth: number = 0): number {
+    // P0 修复：递归深度限制，防止栈溢出
+    const MAX_DEPTH = 20;
+    if (depth >= MAX_DEPTH) return 1.0; // 超过最大深度，返回最大差异
     // 一方缺失
     if (a === undefined && b === undefined) return 0;
     if (a === undefined || b === undefined) return 1.0;
@@ -499,7 +502,7 @@ export class ShadowFleetManager {
 
       let sum = 0;
       for (const k of keys) {
-        sum += this.computeFieldDivergence(aObj[k], bObj[k]);
+        sum += this.computeFieldDivergence(aObj[k], bObj[k], depth + 1);
       }
       return sum / keys.size;
     }
@@ -537,7 +540,7 @@ export class ShadowFleetManager {
 
     let sum = 0;
     for (let i = 0; i < maxLen; i++) {
-      sum += this.computeFieldDivergence(a[i], b[i]);
+      sum += this.computeFieldDivergence(a[i], b[i], depth + 1);
     }
     return sum / maxLen;
   }

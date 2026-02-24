@@ -14,7 +14,7 @@
  *   LabelingProvider (Grok/WorldModel) → 集成投票 → 规则矩阵降级 → 持久化
  */
 
-import { getDb } from '../../../lib/db';
+import { getProtectedDb as getDb } from '../infra/protected-clients';
 import { evolutionInterventions, edgeCases } from '../../../../drizzle/evolution-schema';
 import { eq, desc } from 'drizzle-orm';
 import { EventBus } from '../../events/event-bus';

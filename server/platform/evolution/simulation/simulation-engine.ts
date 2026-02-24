@@ -18,7 +18,7 @@
  *   - replay:       历史回放（真实数据重放）
  */
 
-import { getDb } from '../../../lib/db';
+import { getProtectedDb as getDb } from '../infra/protected-clients';
 import { evolutionSimulations, evolutionInterventions } from '../../../../drizzle/evolution-schema';
 import { eq, desc, count } from 'drizzle-orm';
 import { EventBus } from '../../events/event-bus';

@@ -24,7 +24,7 @@
  *   └──────────┴────────┴──────────┴──────────┘
  */
 
-import { getDb } from '../../../lib/db';
+import { getProtectedDb as getDb } from '../infra/protected-clients';
 import {
   canaryDeployments,
   canaryDeploymentStages,

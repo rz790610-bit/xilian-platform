@@ -401,6 +401,12 @@ export class EndToEndEvolutionAgent {
    */
   private encodeChannel(values: number[]): number[] {
     if (values.length === 0) return new Array(12).fill(0);
+    if (values.length > 1_000_000) {
+      throw new Error(`encodeChannel: 输入序列过长 (${values.length})，最大允许 1,000,000`);
+    }
+    if (!values.every(v => Number.isFinite(v))) {
+      throw new Error('encodeChannel: 输入包含非有限数值 (NaN/Infinity)');
+    }
 
     const n = values.length;
 

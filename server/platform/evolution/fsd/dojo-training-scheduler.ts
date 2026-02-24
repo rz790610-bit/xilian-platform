@@ -12,7 +12,7 @@
  *   - 资源预估和分配
  */
 
-import { getDb } from '../../../lib/db';
+import { getProtectedDb as getDb } from '../infra/protected-clients';
 import { dojoTrainingJobs } from '../../../../drizzle/evolution-schema';
 import { eq, desc, inArray } from 'drizzle-orm';
 import { EventBus } from '../../events/event-bus';

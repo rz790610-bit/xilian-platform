@@ -21,7 +21,7 @@
  *   └──────────────────────────────────────────────────────┘
  */
 
-import { getDb } from '../../../lib/db';
+import { getProtectedDb as getDb } from '../infra/protected-clients';
 import { evolutionInterventions } from '../../../../drizzle/evolution-schema';
 import { gte, count, eq, and } from 'drizzle-orm';
 import { EventBus } from '../../events/event-bus';

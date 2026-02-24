@@ -26,7 +26,7 @@
  *   - 自动清理 90 天前的审计日志
  */
 
-import { getDb } from '../../../lib/db';
+import { getProtectedDb as getDb } from '../infra/protected-clients';
 import { evolutionAuditLogs } from '../../../../drizzle/evolution-schema';
 import { lte } from 'drizzle-orm';
 import { createModuleLogger } from '../../../core/logger';
@@ -240,11 +240,27 @@ export class EvolutionAuditSubscriber {
       }
     } catch (err) {
       log.error(`批量写入审计日志失败 (${batch.length} 条)`, err);
-      this.stats.dropped += batch.length;
 
-      // 降级：写入日志
-      for (const entry of batch) {
-        log.info(`[AUDIT-FALLBACK] ${entry.eventType}: ${JSON.stringify(entry.eventData).slice(0, 200)}`);
+      // 高可靠模式：失败的 batch 放回 buffer 头部进行重试（最多重试 3 次）
+      const MAX_RETRY = 3;
+      const retryBatch = batch.map(entry => ({
+        ...entry,
+        _retryCount: ((entry as any)._retryCount ?? 0) + 1,
+      }));
+      const retriable = retryBatch.filter(e => (e as any)._retryCount <= MAX_RETRY);
+      const exhausted = retryBatch.filter(e => (e as any)._retryCount > MAX_RETRY);
+
+      if (retriable.length > 0) {
+        this.buffer.unshift(...retriable);
+        log.warn(`${retriable.length} 条审计日志将在下次 flush 时重试`);
+      }
+
+      // 超过重试次数的降级到日志
+      if (exhausted.length > 0) {
+        this.stats.dropped += exhausted.length;
+        for (const entry of exhausted) {
+          log.info(`[AUDIT-FALLBACK] ${entry.eventType}: ${JSON.stringify(entry.eventData).slice(0, 200)}`);
+        }
       }
     }
   }

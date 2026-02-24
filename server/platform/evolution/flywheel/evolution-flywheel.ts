@@ -38,7 +38,7 @@ import { MetaLearner, type Hypothesis, type EvolutionStrategy } from '../metalea
 import { ShadowEvaluator, type ShadowEvaluationReport, type ModelCandidate, type EvaluationDataPoint } from '../shadow/shadow-evaluator';
 import { ChampionChallengerManager, type DeploymentPlan } from '../champion/champion-challenger';
 import { KnowledgeCrystallizer, type DiscoveredPattern, type DiagnosisHistoryEntry } from '../crystallization/knowledge-crystallizer';
-import { getDb } from '../../../lib/db';
+import { getProtectedDb as getDb } from '../infra/protected-clients';
 import {
   evolutionCycles,
   evolutionStepLogs,
@@ -760,9 +760,10 @@ export class EvolutionFlywheel {
   /**
    * 计算下一次触发时间。
    * 支持标准 5 字段 cron：minute hour dayOfMonth month dayOfWeek
+   * 也支持 6 字段扩展：second minute hour dayOfMonth month dayOfWeek
    * 包含范围、步进、枚举语法。
    *
-   * 算法：从 now+1分钟 开始，最多扫描 366 天，找到第一个匹配的时间点。
+   * 算法：从 now+1分钟（5字段）或 now+1秒（6字段）开始，最多扫描 366 天。
    */
   private computeNextTrigger(cronExpression: string): Date {
     const now = new Date();
@@ -773,7 +774,12 @@ export class EvolutionFlywheel {
       return new Date(now.getTime() + 7 * 24 * 3600000);
     }
 
-    const [minuteStr, hourStr, dayOfMonthStr, monthStr, dayOfWeekStr] = parts;
+    // P3 修复：支持 6 字段 cron（秒级）
+    const hasSeconds = parts.length >= 6;
+    const secondStr = hasSeconds ? parts[0] : '0';
+    const [minuteStr, hourStr, dayOfMonthStr, monthStr, dayOfWeekStr] = hasSeconds ? parts.slice(1) : parts;
+
+    const seconds = this.parseCronField(secondStr, 0, 59);
     const minutes = this.parseCronField(minuteStr, 0, 59);
     const hours = this.parseCronField(hourStr, 0, 23);
     const daysOfMonth = this.parseCronField(dayOfMonthStr, 1, 31);
@@ -783,10 +789,15 @@ export class EvolutionFlywheel {
     const isDomWild = dayOfMonthStr === '*';
     const isDowWild = dayOfWeekStr === '*';
 
-    // 从下一分钟开始扫描
+    // 从下一秒/下一分钟开始扫描
     const candidate = new Date(now);
-    candidate.setSeconds(0, 0);
-    candidate.setMinutes(candidate.getMinutes() + 1);
+    if (hasSeconds) {
+      candidate.setMilliseconds(0);
+      candidate.setSeconds(candidate.getSeconds() + 1);
+    } else {
+      candidate.setSeconds(0, 0);
+      candidate.setMinutes(candidate.getMinutes() + 1);
+    }
 
     // 最多扫描 366 天
     const maxScanMs = 366 * 24 * 3600000;
@@ -838,8 +849,20 @@ export class EvolutionFlywheel {
 
       // 检查分钟
       if (!minutes.includes(cMinute)) {
+        if (hasSeconds) {
+          candidate.setSeconds(0);
+        }
         candidate.setMinutes(candidate.getMinutes() + 1);
         continue;
+      }
+
+      // P3 修复：检查秒（6 字段模式）
+      if (hasSeconds) {
+        const cSecond = candidate.getSeconds();
+        if (!seconds.includes(cSecond)) {
+          candidate.setSeconds(candidate.getSeconds() + 1);
+          continue;
+        }
       }
 
       // 所有字段匹配

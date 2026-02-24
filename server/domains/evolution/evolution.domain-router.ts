@@ -32,6 +32,10 @@ import {
   evolutionVideoTrajectories,
   evolutionFlywheelSchedules,
 } from '../../../drizzle/evolution-schema';
+import { InterventionRateEngine } from '../../platform/evolution/shadow/intervention-rate-engine';
+
+// 单例干预率引擎
+const interventionRateEngine = new InterventionRateEngine();
 
 // ============================================================================
 // 影子评估路由
@@ -564,10 +568,25 @@ const fsdRouter = router({
       const db = await getDb();
       if (!db) return { interventions: [], total: 0 };
       try {
+        // P0 修复：构建动态过滤条件（不再静默忽略输入参数）
+        const conditions: any[] = [];
+        if (input.modelId) {
+          conditions.push(eq(evolutionInterventions.modelId, input.modelId));
+        }
+        if (input.interventionType) {
+          conditions.push(eq(evolutionInterventions.interventionType, input.interventionType));
+        }
+        if (input.minDivergence !== undefined) {
+          conditions.push(gte(evolutionInterventions.divergenceScore, String(input.minDivergence)));
+        }
+        const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
         const rows = await db.select().from(evolutionInterventions)
+          .where(whereClause)
           .orderBy(desc(evolutionInterventions.createdAt))
           .limit(input.limit);
-        const totalRows = await db.select({ cnt: count() }).from(evolutionInterventions);
+        const totalRows = await db.select({ cnt: count() }).from(evolutionInterventions)
+          .where(whereClause);
         return { interventions: rows, total: totalRows[0]?.cnt ?? 0 };
       } catch { return { interventions: [], total: 0 }; }
     }),
@@ -614,7 +633,8 @@ const fsdRouter = router({
         return {
           rate,
           inverseMileage,
-          trend: 'improving' as const,
+          trend: interventionRateEngine.computeRate(input.windowHours * 3600000).trend.direction,
+          trendSlope: interventionRateEngine.computeRate(input.windowHours * 3600000).trend.slope,
           fsdStyle: `1/${inverseMileage}`,
           totalDecisions,
           interventionCount: interventions,

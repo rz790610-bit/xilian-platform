@@ -106,6 +106,24 @@ export class FleetNeuralPlanner {
   constructor(config: Partial<FleetPlannerConfig> = {}, eventBus?: EventBus) {
     this.config = { ...DEFAULT_CONFIG, ...config };
     this.eventBus = eventBus || new EventBus();
+
+    // P2 修复：权重归一化验证
+    const weightSum = this.config.accuracyWeight + this.config.interventionWeight +
+      this.config.efficiencyWeight + this.config.stabilityWeight;
+    if (Math.abs(weightSum - 1.0) > 0.01) {
+      log.warn(`Fleet Planner 权重之和为 ${weightSum.toFixed(4)}，应为 1.0，将自动归一化`);
+      this.config.accuracyWeight /= weightSum;
+      this.config.interventionWeight /= weightSum;
+      this.config.efficiencyWeight /= weightSum;
+      this.config.stabilityWeight /= weightSum;
+    }
+
+    const subWeightSum = this.config.stabilityUptimeWeight + this.config.stabilityLatencyWeight;
+    if (Math.abs(subWeightSum - 1.0) > 0.01) {
+      log.warn(`稳定性子权重之和为 ${subWeightSum.toFixed(4)}，将自动归一化`);
+      this.config.stabilityUptimeWeight /= subWeightSum;
+      this.config.stabilityLatencyWeight /= subWeightSum;
+    }
   }
 
   // ==========================================================================

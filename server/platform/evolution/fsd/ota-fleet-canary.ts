@@ -26,7 +26,7 @@
  *     - 无严重告警
  */
 
-import { getDb } from '../../../lib/db';
+import { getProtectedDb as getDb } from '../infra/protected-clients';
 import {
   canaryDeployments,
   canaryDeploymentStages,
@@ -467,29 +467,46 @@ export class OTAFleetCanary {
     failedStage: DeploymentStage,
     reason: string,
   ): Promise<DeploymentState> {
+    // P3 修复：分阶段回滚策略
+    // 第 1 步：先将流量降到 0%（快速止损）
+    log.warn(`OTA 回滚开始: ${plan.planId}, 阶段 ${failedStage.name}, 原因: ${reason}`);
+    await this.updateDeploymentInDB(state, 0);
+
+    // 第 2 步：清理健康检查定时器
+    this.clearHealthCheckTimer(plan.planId);
+
+    // 第 3 步：标记当前阶段和后续未执行阶段为 rolled_back
+    await this.persistStageRecord(state.dbId, plan.planId, failedStage, 'rolled_back');
+    for (let i = state.stageIndex + 1; i < this.stages.length; i++) {
+      await this.persistStageRecord(state.dbId, plan.planId, this.stages[i], 'skipped');
+    }
+
+    // 第 4 步：更新状态
     state.status = 'rolled_back';
     state.rollbackReason = reason;
 
-    // 清理健康检查定时器
-    this.clearHealthCheckTimer(plan.planId);
-
-    // 更新 DB
-    await this.updateDeploymentInDB(state, 0);
-    await this.persistStageRecord(state.dbId, plan.planId, failedStage, 'rolled_back');
-
+    // 第 5 步：发布回滚事件（包含更多诊断信息）
     await this.eventBus.publish({
       type: 'ota.deployment.rolled_back',
       source: 'ota-fleet-canary',
       data: {
         planId: plan.planId,
         modelId: plan.modelId,
+        modelVersion: plan.modelVersion,
         failedStage: failedStage.name,
+        failedStageIndex: state.stageIndex,
+        totalStages: this.stages.length,
         reason,
         durationMs: Date.now() - state.startedAt,
+        healthChecks: state.healthChecks.slice(-5), // 最后 5 次健康检查结果
+        consecutivePasses: state.consecutivePasses,
       },
     });
 
-    log.warn(`OTA 部署回滚: ${plan.planId}, 阶段 ${failedStage.name}, 原因: ${reason}`);
+    // 第 6 步：从活跃部署中移除
+    this.activeDeployments.delete(plan.planId);
+
+    log.warn(`OTA 回滚完成: ${plan.planId}, 总耗时 ${Date.now() - state.startedAt}ms`);
     return state;
   }
 
