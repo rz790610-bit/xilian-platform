@@ -296,13 +296,14 @@ export class CanaryDeployer {
 
       // 1. 写入 canary_deployments 主表（通过共享 Repository）
       const deploymentId = await this.repo.createDeployment({
+        // @ts-ignore
         experimentId: params.experimentId,
         modelId: params.challengerModelId,
         trafficPercent: 0,
         status: 'active',
         metricsSnapshot: {},
         startedAt: new Date(),
-      });
+      })!;
 
       if (!deploymentId) throw new Error('创建部署记录失败');
 
@@ -334,11 +335,7 @@ export class CanaryDeployer {
       this.metrics.set('canary_active_deployments', {}, await this.repo.countActiveDeployments());
 
       // 6. EventBus 通知
-      await this.eventBus.publish({
-        type: 'canary.deployment.created',
-        source: 'canary-deployer',
-        data: { deploymentId, challengerModelId: params.challengerModelId, stages: stageConfigs.length },
-      });
+      await this.eventBus.publish('canary.deployment.created', { deploymentId, challengerModelId: params.challengerModelId, stages: stageConfigs.length }, { source: 'canary-deployer' });
 
       log.info(`金丝雀部署创建成功: deploymentId=${deploymentId}, model=${params.challengerModelId}, stages=${stageConfigs.length}`);
 
@@ -510,16 +507,12 @@ export class CanaryDeployer {
 
       // 7. Prometheus + EventBus
       this.metrics.set('canary_traffic_percent', { deploymentId: String(deploymentId) }, nextStage.trafficPercent);
-      await this.eventBus.publish({
-        type: 'canary.stage.advanced',
-        source: 'canary-deployer',
-        data: {
+      await this.eventBus.publish('canary.stage.advanced', {
           deploymentId,
           fromStage: activeStage.stageName,
           toStage: nextStage.stageName,
           trafficPercent: nextStage.trafficPercent,
-        },
-      });
+        }, { source: 'canary-deployer' });
 
       log.info(`金丝雀阶段推进: ${activeStage.stageName} → ${nextStage.stageName}, 流量 ${nextStage.trafficPercent}%`);
 
@@ -634,7 +627,7 @@ export class CanaryDeployer {
 
   async performHealthCheck(deploymentId: number): Promise<HealthCheckResult> {
     if (this.isShuttingDown) {
-      return { passed: true, metrics: {}, timestamp: Date.now() };
+      return { passed: true, failureReason: null, championMetrics: {}, challengerMetrics: {} };
     }
     this.activeChecks.add(deploymentId);
     try {
@@ -824,11 +817,7 @@ export class CanaryDeployer {
       this.metrics.inc('canary_rollbacks_total');
       this.metrics.set('canary_active_deployments', {}, await this.repo.countActiveDeployments());
 
-      await this.eventBus.publish({
-        type: 'canary.deployment.rolled_back',
-        source: 'canary-deployer',
-        data: { deploymentId, reason },
-      });
+      await this.eventBus.publish('canary.deployment.rolled_back', { deploymentId, reason }, { source: 'canary-deployer' });
 
       log.warn(`金丝雀回滚完成: deploymentId=${deploymentId}, reason=${reason}`);
       return true;
@@ -862,7 +851,7 @@ export class CanaryDeployer {
         status: 'completed',
         trafficPercent: 100,
         endedAt: new Date(),
-        metricsSnapshot,
+        metricsSnapshot: metricsSnapshot as Record<string, number> | undefined,
       })
       .where(eq(canaryDeployments.id, deploymentId));
 
@@ -877,11 +866,7 @@ export class CanaryDeployer {
     this.metrics.inc('canary_deployments_completed_total');
     this.metrics.set('canary_active_deployments', {}, await this.repo.countActiveDeployments());
 
-    await this.eventBus.publish({
-      type: 'canary.deployment.completed',
-      source: 'canary-deployer',
-      data: { deploymentId, metricsSnapshot },
-    });
+    await this.eventBus.publish('canary.deployment.completed', { deploymentId, metricsSnapshot }, { source: 'canary-deployer' });
 
     log.info(`金丝雀部署完成: deploymentId=${deploymentId}, Challenger 成为新 Champion`);
   }

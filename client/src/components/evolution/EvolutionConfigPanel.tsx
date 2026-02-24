@@ -97,34 +97,34 @@ export default function EvolutionConfigPanel({ modules, title, compact }: Evolut
     },
   });
 
-  const updateMutation = trpc.evoEvolution.config.update.useMutation({
+   const updateMutation = trpc.evoEvolution.config.update.useMutation({
     onSuccess: (data) => {
       if (data.success) { configQuery.refetch(); setEditingId(null); toast.success('配置已更新'); }
-      else toast.error(data.error || '更新失败');
+      else toast.error('更新失败');
     },
+    onError: (err) => toast.error(err.message || '更新失败'),
   });
-
   const addMutation = trpc.evoEvolution.config.add.useMutation({
     onSuccess: (data) => {
       if (data.success) { configQuery.refetch(); setShowAddDialog(false); resetNewItem(); toast.success('配置项已新增'); }
-      else toast.error(data.error || '新增失败');
+      else toast.error('新增失败');
     },
+    onError: (err) => toast.error(err.message || '新增失败'),
   });
-
   const deleteMutation = trpc.evoEvolution.config.delete.useMutation({
     onSuccess: (data) => {
       if (data.success) { configQuery.refetch(); toast.success('配置项已删除'); }
-      else toast.error(data.error || '删除失败');
+      else toast.error('删除失败');
     },
+    onError: (err) => toast.error(err.message || '删除失败'),
   });
-
   const resetMutation = trpc.evoEvolution.config.reset.useMutation({
     onSuccess: (data) => {
       if (data.success) { configQuery.refetch(); toast.success('已重置为默认值'); }
-      else toast.error(data.error || '重置失败');
+      else toast.error('重置失败');
     },
-  });
-
+    onError: (err) => toast.error(err.message || '重置失败'),
+   });
   // 自动种子化
   useEffect(() => {
     if (configQuery.data && configQuery.data.items.length === 0) {
@@ -133,7 +133,7 @@ export default function EvolutionConfigPanel({ modules, title, compact }: Evolut
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [configQuery.data]);
 
-  const items: ConfigItem[] = (configQuery.data?.items ?? []) as ConfigItem[];
+  const items: ConfigItem[] = (configQuery.data?.items ?? []) as unknown as ConfigItem[];
 
   // 按 module 过滤（如果指定了 modules）
   const filteredItems = useMemo(() => {

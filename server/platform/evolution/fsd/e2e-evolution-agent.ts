@@ -359,16 +359,12 @@ export class EndToEndEvolutionAgent {
       this.cacheDecision(decision);
 
       // EventBus
-      await this.eventBus.publish({
-        type: 'e2e_agent.decision.made',
-        source: 'e2e-evolution-agent',
-        data: {
+      await this.eventBus.publish('e2e_agent.decision.made', {
           decisionId,
           confidence: decision.confidence,
           latencyMs: totalLatencyMs,
           deviceId: input.deviceId,
-        },
-      });
+        }, { source: 'e2e-evolution-agent' });
 
       return decision;
     } catch (err) {

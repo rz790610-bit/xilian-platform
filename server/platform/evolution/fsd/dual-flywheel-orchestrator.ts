@@ -254,17 +254,13 @@ export class DualFlywheelOrchestrator {
     };
 
     // EventBus
-    await this.eventBus.publish({
-      type: 'dual_flywheel.cycle.completed',
-      source: 'dual-flywheel-orchestrator',
-      data: {
+    await this.eventBus.publish('dual_flywheel.cycle.completed', {
         reportId,
         durationMs: report.durationMs,
         consistent: crossValidation.consistent,
         shouldPromote: recommendation.shouldPromote,
         riskLevel: recommendation.riskLevel,
-      },
-    });
+      }, { source: 'dual-flywheel-orchestrator' });
 
     log.info(`双飞轮周期完成: ${reportId}, 一致性=${crossValidation.consistencyScore.toFixed(2)}, 推荐提升=${recommendation.shouldPromote}`);
 

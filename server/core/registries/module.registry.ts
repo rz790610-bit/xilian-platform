@@ -692,19 +692,35 @@ moduleRegistry.register({
 
 moduleRegistry.register({
   id: 'evolution',
-  label: '自主进化',
+  label: '自主进化引擎',
   icon: '🧬',
-  description: 'L5 自主进化层：影子评估、舰队学习、进化管道',
+  description: 'L5 自主进化层：15 引擎模块 × 5 阶段闭环（配置暴露 → 闭环串联 → 可观测性 → 自愈自优化 → 深度 AI 集成）',
   category: 'intelligence',
   domain: 'intelligence',
-  version: '0.1.0',
-  frontendRoute: '/settings/status/evolution',
-  dbTableCount: 0,
-  dependencies: ['moduleRegistry', 'grokAgent', 'fusionDiagnosis'],
+  version: '5.0.0',
+  frontendRoute: '/evolution/dashboard',
+  dbTableCount: 27,
+  dependencies: ['moduleRegistry', 'grokAgent', 'fusionDiagnosis', 'eventBus', 'schemaRegistry'],
   capabilities: [
-    { id: 'evo-shadow', label: '影子评估', status: 'planned' },
-    { id: 'evo-fleet', label: '舰队学习', status: 'planned' },
-    { id: 'evo-pipeline', label: '进化管道', status: 'planned' },
+    // Phase 1 — 配置暴露
+    { id: 'evo-config', label: '80+ 参数配置面板', status: 'done' },
+    // Phase 2 — 闭环串联
+    { id: 'evo-cycle', label: '一键进化周期', status: 'done' },
+    { id: 'evo-audit', label: '审计日志 & Dojo 训练', status: 'done' },
+    // Phase 3 — 可观测性
+    { id: 'evo-trace', label: '全链路追踪', status: 'done' },
+    { id: 'evo-metrics', label: '性能指标仪表盘', status: 'done' },
+    { id: 'evo-alert', label: '告警规则引擎', status: 'done' },
+    // Phase 4 — 自愈与自优化
+    { id: 'evo-rollback', label: '自动回滚', status: 'done' },
+    { id: 'evo-tuning', label: '参数自调优', status: 'done' },
+    { id: 'evo-codegen', label: '代码生成飞轮', status: 'done' },
+    { id: 'evo-healing', label: '自愈策略引擎', status: 'done' },
+    // Phase 5 — 深度 AI 集成
+    { id: 'evo-worldmodel', label: '神经世界模型', status: 'done' },
+    { id: 'evo-comparison', label: '多模型横向对比', status: 'done' },
+    { id: 'evo-adaptive', label: '自适应参数推荐', status: 'done' },
+    { id: 'evo-control', label: '进化引擎总控中心', status: 'done' },
   ],
 });
 

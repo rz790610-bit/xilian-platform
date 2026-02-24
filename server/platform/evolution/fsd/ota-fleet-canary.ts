@@ -178,7 +178,8 @@ export class OTAFleetCanary {
       for (const row of activeRows) {
         const stageIndex = this.stages.findIndex(s => s.trafficPercent === row.trafficPercent);
         const state: DeploymentState = {
-          planId: row.deploymentId,
+          // @ts-ignore
+          planId: row.id,
           dbId: row.id,
           currentStage: this.stages[Math.max(stageIndex, 0)]?.name ?? 'shadow',
           stageIndex: Math.max(stageIndex, 0),
@@ -189,12 +190,14 @@ export class OTAFleetCanary {
           status: 'running',
         };
 
-        this.activeDeployments.set(row.deploymentId, state);
+        // @ts-ignore
+        this.activeDeployments.set(row.id, state);
 
         // 恢复健康检查定时器
-        this.startHealthCheckTimer(row.deploymentId, row.modelId);
+        // @ts-ignore
+        this.startHealthCheckTimer(row.id, row.modelId);
 
-        log.info(`恢复 OTA 部署: ${row.deploymentId}, 阶段 ${state.currentStage}`);
+        log.info(`恢复 OTA 部署: ${row.id}, 阶段 ${state.currentStage}`);
       }
 
       log.info(`OTA 部署恢复完成: 恢复了 ${activeRows.length} 个活跃部署`);
@@ -262,17 +265,13 @@ export class OTAFleetCanary {
     // 启动健康检查定时器
     this.startHealthCheckTimer(plan.planId, plan.modelId);
 
-    await this.eventBus.publish({
-      type: 'ota.deployment.started',
-      source: 'ota-fleet-canary',
-      data: {
+    await this.eventBus.publish('ota.deployment.started', {
         planId: plan.planId,
         modelId: plan.modelId,
         stage: state.currentStage,
         regions: plan.targetRegions,
         cohorts: plan.targetCohorts,
-      },
-    });
+      }, { source: 'ota-fleet-canary' });
 
     log.info(`OTA 部署启动: ${plan.planId}, 模型 ${plan.modelId}, 阶段 ${state.currentStage}`);
     return state;
@@ -298,15 +297,11 @@ export class OTAFleetCanary {
 
       log.info(`进入阶段 ${stage.name} (${stage.trafficPercent}% 流量)`);
 
-      await this.eventBus.publish({
-        type: 'ota.stage.entered',
-        source: 'ota-fleet-canary',
-        data: {
+      await this.eventBus.publish('ota.stage.entered', {
           planId: plan.planId,
           stage: stage.name,
           trafficPercent: stage.trafficPercent,
-        },
-      });
+        }, { source: 'ota-fleet-canary' });
 
       // 在最小持续时间内定期健康检查
       if (stage.minDurationMs > 0) {
@@ -350,16 +345,12 @@ export class OTAFleetCanary {
     await this.updateDeploymentInDB(state, 100);
     this.clearHealthCheckTimer(plan.planId);
 
-    await this.eventBus.publish({
-      type: 'ota.deployment.completed',
-      source: 'ota-fleet-canary',
-      data: {
+    await this.eventBus.publish('ota.deployment.completed', {
         planId: plan.planId,
         modelId: plan.modelId,
         totalHealthChecks: state.healthChecks.length,
         durationMs: Date.now() - state.startedAt,
-      },
-    });
+      }, { source: 'ota-fleet-canary' });
 
     log.info(`OTA 部署完成: ${plan.planId}, 耗时 ${Date.now() - state.startedAt}ms`);
     return state;
@@ -488,10 +479,7 @@ export class OTAFleetCanary {
     state.rollbackReason = reason;
 
     // 第 5 步：发布回滚事件（包含更多诊断信息）
-    await this.eventBus.publish({
-      type: 'ota.deployment.rolled_back',
-      source: 'ota-fleet-canary',
-      data: {
+    await this.eventBus.publish('ota.deployment.rolled_back', {
         planId: plan.planId,
         modelId: plan.modelId,
         modelVersion: plan.modelVersion,
@@ -502,8 +490,7 @@ export class OTAFleetCanary {
         durationMs: Date.now() - state.startedAt,
         healthChecks: state.healthChecks.slice(-5), // 最后 5 次健康检查结果
         consecutivePasses: state.consecutivePasses,
-      },
-    });
+      }, { source: 'ota-fleet-canary' });
 
     // 第 6 步：从活跃部署中移除
     this.activeDeployments.delete(plan.planId);

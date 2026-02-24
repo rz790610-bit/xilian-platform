@@ -436,7 +436,7 @@ export class EvolutionFlywheel {
 
         return {
           input: { challengerId: challengerModel.modelId },
-          output: { deploymentPlan: plan.stages.length, modelId: plan.modelId },
+          output: { deploymentPlan: plan.stages.length, challengerId: plan.challengerId },
           metrics: { deployed: 1, stages: plan.stages.length },
         };
       });
@@ -480,7 +480,7 @@ export class EvolutionFlywheel {
             patternsDiscovered: patterns.length,
             crystallized: crystallizedCount,
             rules: rulesCount,
-            strategy: strategy.mode,
+            strategy: strategy.focus,
           },
           metrics: {
             patterns_discovered: patterns.length,
@@ -525,7 +525,7 @@ export class EvolutionFlywheel {
     executor: () => Promise<{
       input: Record<string, unknown>;
       output: Record<string, unknown>;
-      metrics: Record<string, number>;
+      metrics: Record<string, number | undefined>;
     }>,
   ): Promise<StepLogEntry> {
     const startTime = Date.now();
@@ -551,7 +551,15 @@ export class EvolutionFlywheel {
     try {
       log.info(`飞轮步骤开始: [${stepNumber}/5] ${stepName}`);
 
-      const result = await executor();
+      const rawResult = await executor();
+      // Sanitize metrics: remove undefined values
+      const result = {
+        input: rawResult.input,
+        output: rawResult.output,
+        metrics: Object.fromEntries(
+          Object.entries(rawResult.metrics).filter(([, v]) => v !== undefined)
+        ) as Record<string, number>,
+      };
 
       logEntry.status = 'completed';
       logEntry.completedAt = Date.now();
@@ -581,11 +589,11 @@ export class EvolutionFlywheel {
     }
 
     // EventBus 通知
-    await this.eventBus.publish({
-      type: `flywheel.step.${logEntry.status}`,
-      source: 'evolution-flywheel',
-      data: { stepNumber, stepName, status: logEntry.status, durationMs: logEntry.durationMs },
-    });
+    await this.eventBus.publish(
+      `flywheel.step.${logEntry.status}`,
+      { stepNumber, stepName, status: logEntry.status, durationMs: logEntry.durationMs },
+      { source: 'evolution-flywheel' },
+    );
 
     return logEntry;
   }
@@ -710,11 +718,7 @@ export class EvolutionFlywheel {
           })
           .where(eq(evolutionFlywheelSchedules.id, schedule.id));
 
-        await this.eventBus.publish({
-          type: 'flywheel.schedule.triggered',
-          source: 'evolution-flywheel',
-          data: { scheduleId: schedule.id, name: schedule.name },
-        });
+        await this.eventBus.publish('flywheel.schedule.triggered', { scheduleId: schedule.id, name: schedule.name }, { source: 'evolution-flywheel' });
 
         this.metrics.inc('flywheel_schedule_triggers_total');
 
@@ -1006,36 +1010,28 @@ export class EvolutionFlywheel {
       // 5. 空数据检测 — 记录 SKIP 状态并告警，而非静默通过
       if (diagnosisHistory.length === 0 && evaluationDataset.length === 0) {
         log.warn(`调度执行: scheduleId=${scheduleId} 无可用数据（影子评估记录=0, 干预记录=0），跳过本周期`);
-        this.eventBus.emit({
-          type: 'flywheel.cycle.skipped',
-          source: 'evolution-flywheel',
-          data: { scheduleId, reason: 'no_data', timestamp: Date.now() },
-        });
-        await db.update(evolutionFlywheelSchedules)
-          .set({ lastFailureAt: new Date() })
+        this.eventBus.publish('flywheel.cycle.skipped', { scheduleId, reason: 'no_data', timestamp: Date.now() }, { source: 'evolution-flywheel' });
+          await db.update(evolutionFlywheelSchedules)
+          .set({ lastTriggeredAt: new Date(), consecutiveFails: sql`${evolutionFlywheelSchedules.consecutiveFails} + 1` })
           .where(eq(evolutionFlywheelSchedules.id, scheduleId));
         return;
       }
-
       log.info(`调度执行: 加载了 ${diagnosisHistory.length} 条诊断历史 + ${evaluationDataset.length} 条评估数据`);
-      const report = await this.executeCycle(diagnosisHistory, evaluationDataset);;
-
+      const report = await this.executeCycle(diagnosisHistory, evaluationDataset);
       log.info(`调度执行完成: scheduleId=${scheduleId}, status=${report.status}, cycle=#${report.cycleNumber}`);
-
-      // 更新调度记录的最后成功时间
+      // 更新调度记录的最后触发时间和重置失败计数
       if (db) {
         await db.update(evolutionFlywheelSchedules)
-          .set({ lastSuccessAt: new Date() })
+          .set({ lastTriggeredAt: new Date(), consecutiveFails: 0 })
           .where(eq(evolutionFlywheelSchedules.id, scheduleId));
       }
     } catch (err) {
       log.error(`调度执行飞轮周期失败: scheduleId=${scheduleId}`, err);
-
       // 更新调度记录的失败计数
       const db = await getDb();
       if (db) {
         await db.update(evolutionFlywheelSchedules)
-          .set({ lastFailureAt: new Date() })
+          .set({ lastTriggeredAt: new Date(), consecutiveFails: sql`${evolutionFlywheelSchedules.consecutiveFails} + 1` })
           .where(eq(evolutionFlywheelSchedules.id, scheduleId));
       }
     }
@@ -1196,17 +1192,13 @@ export class EvolutionFlywheel {
     this.metrics.observe('flywheel_cycle_duration_ms', report.completedAt - report.startedAt);
 
     // EventBus
-    this.eventBus.publish({
-      type: 'flywheel.cycle.completed',
-      source: 'evolution-flywheel',
-      data: {
+    this.eventBus.publish('flywheel.cycle.completed', {
         cycleId: report.cycleId,
         cycleNumber: report.cycleNumber,
         status: report.status,
         durationMs: report.completedAt - report.startedAt,
         performanceDelta: report.performanceDelta,
-      },
-    });
+      }, { source: 'evolution-flywheel' });
 
     this.onCycleComplete?.(report);
     return report;
@@ -1226,7 +1218,7 @@ export class EvolutionFlywheel {
       parts.push(`影子评估: ${report.shadowEvaluation.verdict}`);
     }
     if (report.deployment) {
-      parts.push(`已部署模型 ${report.deployment.modelId}`);
+      parts.push(`已部署模型 ${report.deployment.challengerId}`);
     }
     if (report.crystallization) {
       parts.push(`结晶 ${report.crystallization.knowledgeCrystallized} 条知识`);

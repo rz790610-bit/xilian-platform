@@ -413,11 +413,7 @@ export class InterventionRateEngine {
     }
 
     // EventBus 通知
-    this.eventBus.publish({
-      type: `intervention.alert.${alert.severity}`,
-      source: 'intervention-rate-engine',
-      data: alert,
-    });
+    this.eventBus.publish(`intervention.alert.${alert.severity}`, alert, { source: 'intervention-rate-engine' });
 
     log.warn(`干预率告警: ${alert.message}`);
   }

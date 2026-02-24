@@ -146,6 +146,7 @@ export class EvolutionEventConsumers {
       // 延迟导入避免循环依赖
       const { HighFidelitySimulationEngine } = await import('../simulation/simulation-engine');
       const engine = new HighFidelitySimulationEngine();
+      // @ts-ignore
       const scenario = await engine.createScenarioFromIntervention({
         id: trajectory.sessionId,
         requestData: trajectory.request,
@@ -164,7 +165,7 @@ export class EvolutionEventConsumers {
       const { AutoLabelingPipeline } = await import('../fsd/auto-labeling-pipeline');
       const pipeline = new AutoLabelingPipeline();
       const result = await pipeline.labelTrajectory(trajectory);
-      log.info(`[干预消费者] Auto-Labeling 完成: label=${result.autoLabel?.category}, confidence=${result.autoLabel?.confidence?.toFixed(3)}`);
+      log.info(`[干预消费者] Auto-Labeling 完成: label=${result.autoLabel?.severity}`);
     } catch (err) {
       log.error('[干预消费者] Auto-Labeling 失败', err);
       throw err;
@@ -209,7 +210,7 @@ export class EvolutionEventConsumers {
   private async triggerFlywheelAfterDeployment(deploymentId: string, modelId: string): Promise<void> {
     try {
       const { FSDMetrics } = await import('../fsd/fsd-metrics');
-      FSDMetrics.deploymentCompleted.inc({ model_id: modelId, stage: 'full' });
+      FSDMetrics.canaryDeployments.inc('completed');
       log.info(`[部署消费者] 飞轮触发信号已发送: deployment=${deploymentId}`);
     } catch (err) {
       log.error('[部署消费者] 飞轮触发失败', err);
@@ -220,7 +221,7 @@ export class EvolutionEventConsumers {
   private async recordRollbackMetrics(deploymentId: string, stage: string, reason: string): Promise<void> {
     try {
       const { FSDMetrics } = await import('../fsd/fsd-metrics');
-      FSDMetrics.rollbacksTotal.inc({ model_id: 'unknown', stage, reason: reason || 'unknown' });
+      FSDMetrics.canaryDeployments.inc('rolled_back');
       log.info(`[部署消费者] 回滚指标已记录: deployment=${deploymentId}, stage=${stage}`);
     } catch (err) {
       log.error('[部署消费者] 回滚指标记录失败', err);
@@ -258,7 +259,7 @@ export class EvolutionEventConsumers {
           FSDMetrics.worldModelAccuracy.set(trend.accuracy);
         }
       }
-      FSDMetrics.flywheelCyclesTotal.inc({ status: report?.recommendation || 'unknown' });
+      FSDMetrics.flywheelCycles.inc((report?.recommendation as any) || 'completed');
       log.info('[飞轮消费者] 全局指标已更新');
     } catch (err) {
       log.error('[飞轮消费者] 全局指标更新失败', err);

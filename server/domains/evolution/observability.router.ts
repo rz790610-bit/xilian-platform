@@ -4,7 +4,9 @@
  * ============================================================================
  * 全链路追踪 + 性能指标仪表盘 + 告警规则引擎
  */
-import { router, publicProcedure } from '../../core/trpc';
+import { router, publicProcedure, protectedProcedure } from '../../core/trpc';
+import { TRPCError } from '@trpc/server';
+import { getOrchestrator, EVOLUTION_TOPICS } from './evolution-orchestrator';
 import { z } from 'zod';
 import { getDb } from '../../lib/db';
 import { eq, desc, count, gte, and, lte, asc, sql, or } from 'drizzle-orm';
@@ -14,6 +16,8 @@ import {
   evolutionMetricSnapshots,
   evolutionAlertRules,
   evolutionAlerts,
+  evolutionSelfHealingPolicies,
+  evolutionSelfHealingLogs,
   evolutionCycles,
   evolutionStepLogs,
   shadowEvalRecords,
@@ -41,7 +45,7 @@ export const observabilityRouter = router({
   // ─── 全链路追踪 ───
 
   /** 创建追踪 */
-  startTrace: publicProcedure
+  startTrace: protectedProcedure
     .input(z.object({
       name: z.string(),
       operationType: z.string(),
@@ -51,7 +55,7 @@ export const observabilityRouter = router({
     }))
     .mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { error: "DB not available" } as any;
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
       const traceId = `tr_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
       try {
         await db.insert(evolutionTraces).values({
@@ -63,19 +67,23 @@ export const observabilityRouter = router({
           status: 'running',
           metadata: input.metadata ?? {},
         });
+        // EventBus: 追踪创建
+        await getOrchestrator().publishEvent(EVOLUTION_TOPICS.TRACE_CREATED, { operationType: input.operationType, trigger: input.trigger });
+        getOrchestrator().recordMetric('evolution.trace.created', 1, { operationType: input.operationType });
+
         return { traceId, status: 'running' };
       } catch (e: any) { return { traceId: '', error: e.message }; }
     }),
 
   /** 结束追踪 */
-  endTrace: publicProcedure
+  endTrace: protectedProcedure
     .input(z.object({
       traceId: z.string(),
       status: z.enum(['completed', 'failed', 'timeout']),
     }))
     .mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { error: "DB not available" } as any;
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
       try {
         const rows = await db.select().from(evolutionTraces)
           .where(eq(evolutionTraces.traceId, input.traceId)).limit(1);
@@ -94,12 +102,15 @@ export const observabilityRouter = router({
           spanCount: spanStats[0]?.cnt ?? 0,
           errorCount: Number(spanStats[0]?.errCnt ?? 0),
         }).where(eq(evolutionTraces.traceId, input.traceId));
+        // EventBus: 追踪完成
+        await getOrchestrator().publishEvent(EVOLUTION_TOPICS.TRACE_COMPLETED, { traceId: input.traceId });
+
         return { success: true, durationMs };
-      } catch (e: any) { return { success: false, error: e.message }; }
+      } catch (e: any) { throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: e.message ?? "Unknown error" }); }
     }),
 
   /** 添加 Span */
-  addSpan: publicProcedure
+  addSpan: protectedProcedure
     .input(z.object({
       traceId: z.string(),
       parentSpanId: z.string().optional(),
@@ -109,7 +120,7 @@ export const observabilityRouter = router({
     }))
     .mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { error: "DB not available" } as any;
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
       const spanId = `sp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
       try {
         await db.insert(evolutionSpans).values({
@@ -126,7 +137,7 @@ export const observabilityRouter = router({
     }),
 
   /** 结束 Span */
-  endSpan: publicProcedure
+  endSpan: protectedProcedure
     .input(z.object({
       spanId: z.string(),
       status: z.enum(['completed', 'failed', 'timeout']),
@@ -141,7 +152,7 @@ export const observabilityRouter = router({
     }))
     .mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { error: "DB not available" } as any;
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
       try {
         const rows = await db.select().from(evolutionSpans)
           .where(eq(evolutionSpans.spanId, input.spanId)).limit(1);
@@ -157,8 +168,10 @@ export const observabilityRouter = router({
           errorMessage: input.errorMessage ?? null,
           resourceUsage: input.resourceUsage ?? null,
         }).where(eq(evolutionSpans.spanId, input.spanId));
+        // EventBus: Span 完成
+        getOrchestrator().recordMetric('evolution.span.completed', 1, { status: input.status });
         return { success: true, durationMs };
-      } catch (e: any) { return { success: false, error: e.message }; }
+      } catch (e: any) { throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: e.message ?? "Unknown error" }); }
     }),
 
   /** 列出追踪记录 */
@@ -171,7 +184,7 @@ export const observabilityRouter = router({
     }).optional())
     .query(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { error: "DB not available" } as any;
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
       try {
         const conditions = [];
         if (input?.operationType) conditions.push(eq(evolutionTraces.operationType, input.operationType));
@@ -192,7 +205,7 @@ export const observabilityRouter = router({
     .input(z.object({ traceId: z.string() }))
     .query(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { error: "DB not available" } as any;
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
       try {
         const traceRows = await db.select().from(evolutionTraces)
           .where(eq(evolutionTraces.traceId, input.traceId)).limit(1);
@@ -208,7 +221,7 @@ export const observabilityRouter = router({
   getTraceStats: publicProcedure
     .query(async () => {
       const db = await getDb();
-      if (!db) return { error: "DB not available" } as any;
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
       try {
         const [total, running, completed, failed] = await Promise.all([
           db.select({ cnt: count() }).from(evolutionTraces),
@@ -241,7 +254,7 @@ export const observabilityRouter = router({
   // ─── 性能指标 ───
 
   /** 记录指标快照 */
-  recordMetric: publicProcedure
+  recordMetric: protectedProcedure
     .input(z.object({
       metricName: z.string(),
       engineModule: z.string(),
@@ -257,7 +270,7 @@ export const observabilityRouter = router({
     }))
     .mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { error: "DB not available" } as any;
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
       try {
         await db.insert(evolutionMetricSnapshots).values({
           metricName: input.metricName,
@@ -267,8 +280,102 @@ export const observabilityRouter = router({
           aggregations: input.aggregations ?? null,
           tags: input.tags ?? null,
         });
+        // EventBus: 指标快照
+        await getOrchestrator().publishEvent(EVOLUTION_TOPICS.METRIC_SNAPSHOT, { engineModule: input.engineModule, metricName: input.metricName });
+        getOrchestrator().recordMetric('evolution.metric.recorded', 1, { engineModule: input.engineModule });
+
+        // ── 告警规则自动检查 → 告警触发 → 自愈策略联动闭环 ──
+        try {
+          const matchedRules = await db.select().from(evolutionAlertRules)
+            .where(and(
+              eq(evolutionAlertRules.engineModule, input.engineModule),
+              eq(evolutionAlertRules.metricName, input.metricName),
+              eq(evolutionAlertRules.enabled, 1),
+            ));
+          for (const rule of matchedRules) {
+            const ops: Record<string, (v: number, t: number) => boolean> = {
+              gt: (v, t) => v > t, gte: (v, t) => v >= t,
+              lt: (v, t) => v < t, lte: (v, t) => v <= t,
+              eq: (v, t) => v === t, neq: (v, t) => v !== t,
+            };
+            const check = ops[rule.operator];
+            if (!check || !check(input.value, rule.threshold)) continue;
+            // 冷却检查
+            if (rule.lastTriggeredAt) {
+              const elapsed = (Date.now() - new Date(rule.lastTriggeredAt).getTime()) / 1000;
+              if (elapsed < (rule.cooldownSeconds ?? 300)) continue;
+            }
+            // 创建告警事件
+            await db.insert(evolutionAlerts).values({
+              ruleId: rule.id,
+              alertName: rule.name,
+              engineModule: rule.engineModule,
+              severity: rule.severity ?? 'warning',
+              metricValue: input.value,
+              threshold: rule.threshold,
+              status: 'firing',
+              message: `${rule.metricName} ${rule.operator} ${rule.threshold} (actual: ${input.value})`,
+            });
+            // 更新规则触发时间和计数
+            await db.update(evolutionAlertRules).set({
+              lastTriggeredAt: new Date(),
+              triggerCount: sql`${evolutionAlertRules.triggerCount} + 1`,
+            }).where(eq(evolutionAlertRules.id, rule.id));
+            // EventBus: 告警触发
+            await getOrchestrator().publishEvent(EVOLUTION_TOPICS.ALERT_FIRED, {
+              ruleId: rule.id, ruleName: rule.name,
+              engineModule: rule.engineModule, severity: rule.severity,
+              metricValue: input.value, threshold: rule.threshold,
+            });
+            // ── 自愈策略自动匹配与执行 ──
+            const policies = await db.select().from(evolutionSelfHealingPolicies)
+              .where(and(
+                eq(evolutionSelfHealingPolicies.enabled, 1),
+                sql`JSON_EXTRACT(${evolutionSelfHealingPolicies.triggerCondition}, '$.metricName') = ${rule.metricName}`,
+              ));
+            for (const policy of policies) {
+              const cond = policy.triggerCondition as any;
+              if (cond.engineModule && cond.engineModule !== rule.engineModule) continue;
+              const policyCheck = ops[cond.operator];
+              if (!policyCheck || !policyCheck(input.value, cond.threshold)) continue;
+              // 冷却检查
+              if (policy.lastExecutedAt) {
+                const pe = (Date.now() - new Date(policy.lastExecutedAt).getTime()) / 1000;
+                if (pe < policy.cooldownSeconds) continue;
+              }
+              // 记录自愈执行日志
+              await db.insert(evolutionSelfHealingLogs).values({
+                policyId: policy.id,
+                policyName: policy.name,
+                policyType: policy.policyType,
+                triggerReason: `Alert: ${rule.name} - ${rule.metricName} ${rule.operator} ${rule.threshold} (actual: ${input.value})`,
+                triggerMetricValue: input.value,
+                status: 'executing',
+                affectedModules: [rule.engineModule],
+              });
+              // 更新策略执行时间
+              await db.update(evolutionSelfHealingPolicies).set({
+                lastExecutedAt: new Date(),
+                totalExecutions: sql`${evolutionSelfHealingPolicies.totalExecutions} + 1`,
+              }).where(eq(evolutionSelfHealingPolicies.id, policy.id));
+              // EventBus: 自愈策略触发
+              await getOrchestrator().recordHealingExecution({
+                policyId: String(policy.id),
+                alertId: String(rule.id),
+                engineModule: rule.engineModule,
+                action: policy.policyType,
+                success: true,
+                duration: 0,
+              });
+            }
+          }
+        } catch (_alertErr) {
+          // 告警检查失败不影响指标记录主流程
+          console.warn('[observability] alert check failed:', _alertErr);
+        }
+
         return { success: true };
-      } catch (e: any) { return { success: false, error: e.message }; }
+      } catch (e: any) { throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: e.message ?? "Unknown error" }); }
     }),
 
   /** 获取指标历史 */
@@ -281,7 +388,7 @@ export const observabilityRouter = router({
     }))
     .query(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { error: "DB not available" } as any;
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
       try {
         const since = new Date(Date.now() - input.hours * 3600 * 1000);
         const conditions = [
@@ -303,7 +410,7 @@ export const observabilityRouter = router({
   getEngineHealth: publicProcedure
     .query(async () => {
       const db = await getDb();
-      if (!db) return { error: "DB not available" } as any;
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
       try {
         // 从各表获取引擎活跃度指标
         const [cycleCount, evalCount, expCount, deployCount, dojoCount, crystalCount, intCount, traceCount, alertCount] = await Promise.all([
@@ -385,7 +492,7 @@ export const observabilityRouter = router({
     .input(z.object({ engineModule: z.string().optional() }).optional())
     .query(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { error: "DB not available" } as any;
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
       try {
         // 获取每个指标的最新值（使用子查询）
         const conditions = input?.engineModule
@@ -416,7 +523,7 @@ export const observabilityRouter = router({
     }).optional())
     .query(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { error: "DB not available" } as any;
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
       try {
         const conditions = [];
         if (input?.engineModule) conditions.push(eq(evolutionAlertRules.engineModule, input.engineModule));
@@ -430,7 +537,7 @@ export const observabilityRouter = router({
     }),
 
   /** 创建告警规则 */
-  createAlertRule: publicProcedure
+  createAlertRule: protectedProcedure
     .input(z.object({
       name: z.string(),
       description: z.string().optional(),
@@ -446,7 +553,7 @@ export const observabilityRouter = router({
     }))
     .mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { error: "DB not available" } as any;
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
       try {
         await db.insert(evolutionAlertRules).values({
           name: input.name,
@@ -461,12 +568,15 @@ export const observabilityRouter = router({
           notifyChannels: input.notifyChannels ?? [],
           enabled: input.enabled ? 1 : 0,
         });
+        // EventBus: 告警规则创建
+        await getOrchestrator().publishEvent(EVOLUTION_TOPICS.ALERT_FIRED, { ruleName: input.name, engineModule: input.engineModule, severity: input.severity || 'warning' });
+
         return { success: true };
-      } catch (e: any) { return { success: false, error: e.message }; }
+      } catch (e: any) { throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: e.message ?? "Unknown error" }); }
     }),
 
   /** 更新告警规则 */
-  updateAlertRule: publicProcedure
+  updateAlertRule: protectedProcedure
     .input(z.object({
       id: z.number(),
       name: z.string().optional(),
@@ -481,7 +591,7 @@ export const observabilityRouter = router({
     }))
     .mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { error: "DB not available" } as any;
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
       try {
         const updates: Record<string, any> = { updatedAt: new Date() };
         if (input.name !== undefined) updates.name = input.name;
@@ -494,20 +604,23 @@ export const observabilityRouter = router({
         if (input.notifyChannels !== undefined) updates.notifyChannels = input.notifyChannels;
         if (input.enabled !== undefined) updates.enabled = input.enabled ? 1 : 0;
         await db.update(evolutionAlertRules).set(updates).where(eq(evolutionAlertRules.id, input.id));
+        // EventBus: 告警规则更新
+        getOrchestrator().recordMetric('evolution.alertRule.updated', 1);
         return { success: true };
-      } catch (e: any) { return { success: false, error: e.message }; }
+      } catch (e: any) { throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: e.message ?? "Unknown error" }); }
     }),
-
   /** 删除告警规则 */
-  deleteAlertRule: publicProcedure
+  deleteAlertRule: protectedProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { error: "DB not available" } as any;
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
       try {
         await db.delete(evolutionAlertRules).where(eq(evolutionAlertRules.id, input.id));
+        // EventBus: 告警规则删除
+        getOrchestrator().recordMetric('evolution.alertRule.deleted', 1);
         return { success: true };
-      } catch (e: any) { return { success: false, error: e.message }; }
+      } catch (e: any) { throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: e.message ?? "Unknown error" }); }
     }),
 
   /** 列出告警事件 */
@@ -521,7 +634,7 @@ export const observabilityRouter = router({
     }).optional())
     .query(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { error: "DB not available" } as any;
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
       try {
         const conditions = [];
         if (input?.status) conditions.push(eq(evolutionAlerts.status, input.status));
@@ -538,54 +651,59 @@ export const observabilityRouter = router({
     }),
 
   /** 确认告警 */
-  acknowledgeAlert: publicProcedure
+  acknowledgeAlert: protectedProcedure
     .input(z.object({ id: z.number(), acknowledgedBy: z.string().default('operator') }))
     .mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { error: "DB not available" } as any;
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
       try {
-        await db.update(evolutionAlerts).set({
+         await db.update(evolutionAlerts).set({
           status: 'acknowledged',
           acknowledgedBy: input.acknowledgedBy,
           acknowledgedAt: new Date(),
         }).where(eq(evolutionAlerts.id, input.id));
+        // EventBus: 告警确认
+        getOrchestrator().recordMetric('evolution.alert.acknowledged', 1);
         return { success: true };
-      } catch (e: any) { return { success: false, error: e.message }; }
+      } catch (e: any) { throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: e.message ?? "Unknown error" }); }
     }),
-
   /** 解决告警 */
-  resolveAlert: publicProcedure
+  resolveAlert: protectedProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { error: "DB not available" } as any;
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
       try {
         await db.update(evolutionAlerts).set({
           status: 'resolved',
           resolvedAt: new Date(),
         }).where(eq(evolutionAlerts.id, input.id));
+        // EventBus: 告警解决
+        await getOrchestrator().publishEvent(EVOLUTION_TOPICS.ALERT_RESOLVED, { alertId: input.id });
+
         return { success: true };
-      } catch (e: any) { return { success: false, error: e.message }; }
+      } catch (e: any) { throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: e.message ?? "Unknown error" }); }
     }),
 
   /** 静默告警 */
-  silenceAlert: publicProcedure
+  silenceAlert: protectedProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { error: "DB not available" } as any;
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
       try {
         await db.update(evolutionAlerts).set({ status: 'silenced' })
           .where(eq(evolutionAlerts.id, input.id));
+        // EventBus: 告警静默
+        getOrchestrator().recordMetric('evolution.alert.silenced', 1);
         return { success: true };
-      } catch (e: any) { return { success: false, error: e.message }; }
+      } catch (e: any) { throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: e.message ?? "Unknown error" }); }
     }),
-
   /** 获取告警统计 */
   getAlertStats: publicProcedure
     .query(async () => {
       const db = await getDb();
-      if (!db) return { error: "DB not available" } as any;
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
       try {
         const [total, firing, acked, resolved, silenced] = await Promise.all([
           db.select({ cnt: count() }).from(evolutionAlerts),
@@ -619,10 +737,10 @@ export const observabilityRouter = router({
     }),
 
   /** 种子化默认告警规则 */
-  seedAlertRules: publicProcedure
+  seedAlertRules: protectedProcedure
     .mutation(async () => {
       const db = await getDb();
-      if (!db) return { error: "DB not available" } as any;
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
       const existing = await db.select({ cnt: count() }).from(evolutionAlertRules);
       if ((existing[0]?.cnt ?? 0) > 0) return { success: true, message: '告警规则已存在', seeded: 0 };
 

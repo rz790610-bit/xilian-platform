@@ -202,7 +202,7 @@ export class ProtectedRedisClient {
  */
 export async function protectedPromQuery(query: string): Promise<any> {
   try {
-    const client = new PrometheusClient();
+    const client = PrometheusClient.getInstance();
     return await withCircuitBreaker(
       'prometheus',
       async () => client.query(query),

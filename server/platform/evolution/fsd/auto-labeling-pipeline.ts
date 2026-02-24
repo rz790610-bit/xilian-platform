@@ -343,10 +343,9 @@ export class AutoLabelingPipeline {
     await this.persistLabel(labelResult);
 
     // 2g. EventBus
-    await this.eventBus.publish({
-      type: needsHumanReview ? 'labeling.review_needed' : 'labeling.auto_completed',
-      source: 'auto-labeling-pipeline',
-      data: {
+    await this.eventBus.publish(
+      needsHumanReview ? 'labeling.review_needed' : 'labeling.auto_completed',
+      {
         interventionId: intervention.id,
         confidence: bestConfidence,
         labelSource,
@@ -354,7 +353,8 @@ export class AutoLabelingPipeline {
         isUncertain,
         featureVector,
       },
-    });
+      { source: 'auto-labeling-pipeline' },
+    );
 
     return labelResult;
   }
@@ -787,7 +787,7 @@ export class AutoLabelingPipeline {
             isUncertain: result.isUncertain,
             featureVector: result.featureVector,
           },
-          labeledAt: new Date(),
+          discoveredAt: new Date(),
         })
         .where(eq(edgeCases.id, result.interventionId));
     } catch (err) {

@@ -198,16 +198,12 @@ export class FleetNeuralPlanner {
     };
 
     // EventBus
-    await this.eventBus.publish({
-      type: 'fleet_planner.optimization.completed',
-      source: 'fleet-neural-planner',
-      data: {
+    await this.eventBus.publish('fleet_planner.optimization.completed', {
         bestModelId: bestChallenger.modelId,
         bestScore: bestChallenger.score,
         totalModels: fleetMetrics.length,
         paretoCount: paretoFront.length,
-      },
-    });
+      }, { source: 'fleet-neural-planner' });
 
     log.info(`车队优化完成: 最优模型 ${bestChallenger.modelId}, 评分 ${bestChallenger.score.toFixed(4)}`);
     return result;

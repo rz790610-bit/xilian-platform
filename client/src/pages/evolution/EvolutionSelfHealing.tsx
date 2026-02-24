@@ -5,6 +5,7 @@
  * 4 个 Tab: 自动回滚 | 参数自调优 | 代码飞轮 | 自愈策略
  * 后端路由: evoEvolution.selfHealing.*
  */
+import { QueryStateGuard, MutationButton } from '@/components/evolution/QueryStateGuard';
 import React, { useState, useMemo } from 'react';
 import { trpc } from '@/lib/trpc';
 import { MainLayout } from '@/components/layout/MainLayout';
@@ -38,21 +39,21 @@ import {
 // 常量
 // ============================================================================
 const ENGINE_MODULES = [
-  'shadow_evaluator', 'champion_challenger', 'canary_deployer', 'ota_fleet_canary',
-  'intervention_rate_engine', 'simulation_engine', 'data_engine', 'dual_flywheel',
-  'dojo_training_scheduler', 'auto_labeling_pipeline', 'domain_router', 'meta_learner',
-  'fleet_neural_planner', 'e2e_evolution_agent', 'closed_loop_tracker',
+  'shadowEvaluator', 'championChallenger', 'canaryDeployer', 'otaFleet',
+  'interventionRateEngine', 'simulationEngine', 'dataEngine', 'dualFlywheel',
+  'dojoTrainer', 'autoLabeler', 'domainRouter', 'metaLearner',
+  'fleetPlanner', 'e2eAgent', 'closedLoopTracker',
 ] as const;
 
 const MODULE_LABELS: Record<string, string> = {
-  shadow_evaluator: '影子评估器', champion_challenger: '冠军挑战者',
-  canary_deployer: '金丝雀部署', ota_fleet_canary: 'OTA 车队',
-  intervention_rate_engine: '干预率引擎', simulation_engine: '仿真引擎',
-  data_engine: '数据引擎', dual_flywheel: '双飞轮',
-  dojo_training_scheduler: 'Dojo 训练', auto_labeling_pipeline: '自动标注',
-  domain_router: '领域路由', meta_learner: '元学习器',
-  fleet_neural_planner: '车队规划', e2e_evolution_agent: 'E2E Agent',
-  closed_loop_tracker: '闭环追踪',
+  shadowEvaluator: '影子评估器', championChallenger: '冠军挑战者',
+  canaryDeployer: '金丝雀部署', otaFleet: 'OTA 车队',
+  interventionRateEngine: '干预率引擎', simulationEngine: '仿真引擎',
+  dataEngine: '数据引擎', dualFlywheel: '双飞轮',
+  dojoTrainer: 'Dojo 训练', autoLabeler: '自动标注',
+  domainRouter: '领域路由', metaLearner: '元学习器',
+  fleetPlanner: '车队规划', e2eAgent: 'E2E Agent',
+  closedLoopTracker: '闭环追踪',
 };
 
 const POLICY_TYPE_LABELS: Record<string, string> = {
@@ -297,7 +298,7 @@ function ParamTuningTab() {
   const [selectedJob, setSelectedJob] = useState<number | null>(null);
   const [form, setForm] = useState({
     name: '',
-    engineModule: 'shadow_evaluator',
+    engineModule: 'shadowEvaluator',
     searchStrategy: 'bayesian' as 'bayesian' | 'grid' | 'random' | 'evolutionary',
     objectiveMetric: 'accuracy',
     objectiveDirection: 'maximize' as 'maximize' | 'minimize',

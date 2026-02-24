@@ -261,10 +261,7 @@ export class DojoTrainingScheduler {
     await this.persistSchedule(scheduledJob);
 
     // EventBus
-    await this.eventBus.publish({
-      type: 'dojo.job.scheduled',
-      source: 'dojo-training-scheduler',
-      data: {
+    await this.eventBus.publish('dojo.job.scheduled', {
         jobId: job.id,
         jobType: job.jobType,
         dataType: job.dataType,
@@ -273,8 +270,7 @@ export class DojoTrainingScheduler {
         carbonIntensity: carbonWindow.carbonIntensity,
         costEstimate: costEstimate.selectedCost,
         useSpot: costEstimate.useSpot,
-      },
-    });
+      }, { source: 'dojo-training-scheduler' });
 
     log.info(`训练任务已调度: ${job.id} (${job.jobType}), 优先级 ${effectivePriority}, 预计 ${new Date(carbonWindow.start).toISOString()} 启动`);
     return scheduledJob;
@@ -294,16 +290,16 @@ export class DojoTrainingScheduler {
 
     try {
       // 尝试从 CarbonAwareClient 获取真实数据
-      const forecast = await this.carbonClient.getForecast('us-west-2', 48);
+      const forecast = await (this.carbonClient as any).getForecast(48);
 
       if (forecast && forecast.length > 0) {
         for (const entry of forecast) {
           windows.push({
-            start: entry.timestamp,
-            end: entry.timestamp + durationMs,
-            carbonIntensity: entry.carbonIntensity,
+            start: entry.timestamp instanceof Date ? entry.timestamp.getTime() : entry.timestamp,
+            end: (entry.timestamp instanceof Date ? entry.timestamp.getTime() : entry.timestamp) + durationMs,
+            carbonIntensity: entry.intensity,
             region: entry.region,
-            renewable: entry.renewablePercentage,
+            renewable: 0 /* renewablePercentage not available */,
           });
         }
         log.info(`从 CarbonAwareClient 获取 ${forecast.length} 个碳强度预测窗口`);
@@ -431,11 +427,7 @@ export class DojoTrainingScheduler {
     // P2 修复：同步状态到 DB
     await this.updateJobStatus(nextJob.job.id, 'running');
 
-    await this.eventBus.publish({
-      type: 'dojo.job.started',
-      source: 'dojo-training-scheduler',
-      data: { jobId: nextJob.job.id, jobType: nextJob.job.jobType },
-    });
+    await this.eventBus.publish('dojo.job.started', { jobId: nextJob.job.id, jobType: nextJob.job.jobType }, { source: 'dojo-training-scheduler' });
 
     log.info(`训练任务启动: ${nextJob.job.id}`);
     return nextJob;
@@ -456,11 +448,7 @@ export class DojoTrainingScheduler {
       this.completedJobs = this.completedJobs.slice(-this.MAX_COMPLETED);
     }
 
-    await this.eventBus.publish({
-      type: success ? 'dojo.job.completed' : 'dojo.job.failed',
-      source: 'dojo-training-scheduler',
-      data: { jobId, status: job.status },
-    });
+    await this.eventBus.publish(success ? 'dojo.job.completed' : 'dojo.job.failed', { jobId, status: job.status }, { source: 'dojo-training-scheduler' });
 
     log.info(`训练任务${success ? '完成' : '失败'}: ${jobId}`);
   }

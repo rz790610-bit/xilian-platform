@@ -13,6 +13,8 @@
  *   - 增强 canary 子路由（阶段详情 + 健康检查记录）
  */
 import { router, publicProcedure, protectedProcedure } from '../../core/trpc';
+import { TRPCError } from '@trpc/server';
+import { getOrchestrator, EVOLUTION_TOPICS } from './evolution-orchestrator';
 import { z } from 'zod';
 import { getDb } from '../../lib/db';
 import { eq, desc, count, gte, and, lte, asc, sql, or } from 'drizzle-orm';
@@ -53,7 +55,7 @@ const interventionRateEngine = new InterventionRateEngine();
 // ============================================================================
 const shadowEvalRouter = router({
   /** 创建影子评估实验 */
-  create: publicProcedure
+  create: protectedProcedure
     .input(z.object({
       experimentName: z.string(),
       baselineModelId: z.string(),
@@ -75,7 +77,7 @@ const shadowEvalRouter = router({
     }))
     .mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { recordId: 0, status: 'pending' };
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
       try {
         const configVal = input.config ? {
           sliceCount: input.config.sliceCount,
@@ -108,7 +110,7 @@ const shadowEvalRouter = router({
     }))
     .query(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { records: [], total: 0 };
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
       try {
         const rows = await db.select().from(shadowEvalRecords)
           .orderBy(desc(shadowEvalRecords.createdAt))
@@ -123,7 +125,7 @@ const shadowEvalRouter = router({
     .input(z.object({ id: z.number() }))
     .query(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { record: null, metrics: [] };
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
       try {
         const records = await db.select().from(shadowEvalRecords)
           .where(eq(shadowEvalRecords.id, input.id)).limit(1);
@@ -134,16 +136,20 @@ const shadowEvalRouter = router({
     }),
 
   /** 启动评估 */
-  start: publicProcedure
+  start: protectedProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { success: false, error: '数据库不可用' };
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
       try {
         await db.update(shadowEvalRecords)
           .set({ status: 'running', startedAt: new Date() })
           .where(eq(shadowEvalRecords.id, input.id));
-        return { success: true };
+        // EventBus: 进化周期启动
+      await getOrchestrator().publishEvent(EVOLUTION_TOPICS.CYCLE_STARTED, { trigger: 'manual', scope: 'shadow_eval', recordId: input.id });
+      getOrchestrator().recordMetric('evolution.cycle.started', 1);
+
+      return { success: true };
       } catch (err) {
         return { success: false, error: String(err) };
       }
@@ -155,7 +161,7 @@ const shadowEvalRouter = router({
 // ============================================================================
 const championChallengerRouter = router({
   /** 创建挑战实验 */
-  create: publicProcedure
+  create: protectedProcedure
     .input(z.object({
       name: z.string(),
       championId: z.string(),
@@ -164,7 +170,7 @@ const championChallengerRouter = router({
     }))
     .mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { experimentId: 0 };
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
       try {
         const result = await db.insert(championChallengerExperiments).values({
           name: input.name,
@@ -187,7 +193,7 @@ const championChallengerRouter = router({
     }))
     .query(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { experiments: [], total: 0 };
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
       try {
         const rows = await db.select().from(championChallengerExperiments)
           .orderBy(desc(championChallengerExperiments.createdAt))
@@ -202,7 +208,7 @@ const championChallengerRouter = router({
     .input(z.object({ id: z.number() }))
     .query(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { experiment: null };
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
       try {
         const rows = await db.select().from(championChallengerExperiments)
           .where(eq(championChallengerExperiments.id, input.id)).limit(1);
@@ -211,7 +217,7 @@ const championChallengerRouter = router({
     }),
 
   /** 手动裁决 */
-  verdict: publicProcedure
+  verdict: protectedProcedure
     .input(z.object({
       id: z.number(),
       verdict: z.enum(['PROMOTE', 'REJECT']),
@@ -219,7 +225,7 @@ const championChallengerRouter = router({
     }))
     .mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { success: false };
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
       try {
         await db.update(championChallengerExperiments)
           .set({
@@ -239,7 +245,7 @@ const championChallengerRouter = router({
 // ============================================================================
 const canaryRouter = router({
   /** 创建金丝雀发布 */
-  create: publicProcedure
+  create: protectedProcedure
     .input(z.object({
       experimentId: z.number(),
       modelId: z.string(),
@@ -247,7 +253,7 @@ const canaryRouter = router({
     }))
     .mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { deploymentId: 0 };
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
       try {
         const result = await db.insert(canaryDeployments).values({
           experimentId: input.experimentId,
@@ -269,7 +275,7 @@ const canaryRouter = router({
     }))
     .query(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { deployments: [], total: 0 };
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
       try {
         const rows = await db.select().from(canaryDeployments)
           .orderBy(desc(canaryDeployments.createdAt));
@@ -282,7 +288,7 @@ const canaryRouter = router({
     .input(z.object({ id: z.number() }))
     .query(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { deployment: null, stages: [], healthChecks: [] };
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
       try {
         const deployments = await db.select().from(canaryDeployments)
           .where(eq(canaryDeployments.id, input.id)).limit(1);
@@ -302,14 +308,14 @@ const canaryRouter = router({
     }),
 
   /** 回滚金丝雀 */
-  rollback: publicProcedure
+  rollback: protectedProcedure
     .input(z.object({
       id: z.number(),
       reason: z.string(),
     }))
     .mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { success: false };
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
       try {
         await db.update(canaryDeployments)
           .set({
@@ -337,11 +343,11 @@ const canaryRouter = router({
     }),
 
   /** 提升为全量 */
-  promote: publicProcedure
+  promote: protectedProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { success: false };
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
       try {
         await db.update(canaryDeployments)
           .set({ status: 'completed', trafficPercent: 100, endedAt: new Date() })
@@ -358,14 +364,14 @@ const canaryRouter = router({
 // ============================================================================
 const dataEngineRouter = router({
   /** 触发数据引擎分析 */
-  triggerAnalysis: publicProcedure
+  triggerAnalysis: protectedProcedure
     .input(z.object({
       dataRangeStart: z.string(),
       dataRangeEnd: z.string(),
     }))
     .mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { cycleId: 0, edgeCasesFound: 0 };
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
       try {
         // 创建新的进化周期
         const cycleRows = await db.select({ cnt: count() }).from(evolutionCycles);
@@ -391,7 +397,7 @@ const dataEngineRouter = router({
     }))
     .query(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { edgeCases: [], total: 0 };
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
       try {
         const rows = await db.select().from(edgeCases)
           .orderBy(desc(edgeCases.discoveredAt))
@@ -402,14 +408,14 @@ const dataEngineRouter = router({
     }),
 
   /** 标注边缘案例 */
-  labelEdgeCase: publicProcedure
+  labelEdgeCase: protectedProcedure
     .input(z.object({
       id: z.number(),
       labelResult: z.record(z.string(), z.unknown()),
     }))
     .mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { success: false };
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
       try {
         await db.update(edgeCases)
           .set({
@@ -433,7 +439,7 @@ const cycleRouter = router({
     .input(z.object({ limit: z.number().default(20) }))
     .query(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { cycles: [], total: 0 };
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
       try {
         const rows = await db.select().from(evolutionCycles)
           .orderBy(desc(evolutionCycles.startedAt))
@@ -448,7 +454,7 @@ const cycleRouter = router({
     .input(z.object({ weeks: z.number().default(12) }))
     .query(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { trend: [], direction: 'stable', slope: 0 };
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
       try {
         const cycles = await db.select().from(evolutionCycles)
           .orderBy(desc(evolutionCycles.startedAt))
@@ -486,7 +492,7 @@ const cycleRouter = router({
   getCurrent: publicProcedure
     .query(async () => {
       const db = await getDb();
-      if (!db) return { cycle: null };
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
       try {
         const rows = await db.select().from(evolutionCycles)
           .orderBy(desc(evolutionCycles.startedAt))
@@ -500,7 +506,7 @@ const cycleRouter = router({
     .input(z.object({ cycleId: z.number() }))
     .query(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { stepLogs: [] };
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
       try {
         const logs = await db.select().from(evolutionStepLogs)
           .where(eq(evolutionStepLogs.cycleId, input.cycleId))
@@ -510,14 +516,14 @@ const cycleRouter = router({
     }),
 
   /** 一键启动进化周期 */
-  startCycle: publicProcedure
+  startCycle: protectedProcedure
     .input(z.object({
       trigger: z.enum(['manual', 'auto', 'scheduled', 'event']).default('manual'),
       config: z.record(z.string(), z.unknown()).optional(),
     }))
     .mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { cycleId: 0, error: 'DB not available' };
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
       try {
         // 检查是否有正在运行的周期
         const running = await db.select().from(evolutionCycles)
@@ -574,7 +580,7 @@ const cycleRouter = router({
     }),
 
   /** 推进步骤状态 */
-  advanceStep: publicProcedure
+  advanceStep: protectedProcedure
     .input(z.object({
       cycleId: z.number(),
       stepNumber: z.number().min(1).max(5),
@@ -585,7 +591,7 @@ const cycleRouter = router({
     }))
     .mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { success: false };
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
       try {
         const updates: Record<string, unknown> = { status: input.status };
         if (input.status === 'running') {
@@ -638,18 +644,21 @@ const cycleRouter = router({
             severity: 'error',
           });
         }
-        return { success: true };
+        // EventBus: 步骤推进
+      await getOrchestrator().publishEvent(EVOLUTION_TOPICS.CYCLE_STEP_COMPLETED, { cycleId: input.cycleId, stepNumber: input.stepNumber });
+
+      return { success: true };
       } catch (err) {
         return { success: false, error: String(err) };
       }
     }),
 
   /** 暂停进化周期 */
-  pauseCycle: publicProcedure
+  pauseCycle: protectedProcedure
     .input(z.object({ cycleId: z.number() }))
     .mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { success: false };
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
       try {
         await db.update(evolutionCycles)
           .set({ status: 'paused' })
@@ -665,11 +674,11 @@ const cycleRouter = router({
     }),
 
   /** 恢复进化周期 */
-  resumeCycle: publicProcedure
+  resumeCycle: protectedProcedure
     .input(z.object({ cycleId: z.number() }))
     .mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { success: false };
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
       try {
         await db.update(evolutionCycles)
           .set({ status: 'running' })
@@ -698,7 +707,7 @@ const crystalRouter = router({
     }))
     .query(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { crystals: [], total: 0 };
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
       try {
         const rows = await db.select().from(knowledgeCrystals)
           .orderBy(desc(knowledgeCrystals.createdAt))
@@ -713,7 +722,7 @@ const crystalRouter = router({
     .input(z.object({ id: z.number() }))
     .query(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { crystal: null };
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
       try {
         const rows = await db.select().from(knowledgeCrystals)
           .where(eq(knowledgeCrystals.id, input.id)).limit(1);
@@ -722,7 +731,7 @@ const crystalRouter = router({
     }),
 
   /** 验证结晶 */
-  verify: publicProcedure
+  verify: protectedProcedure
     .input(z.object({
       id: z.number(),
       verified: z.boolean(),
@@ -730,7 +739,7 @@ const crystalRouter = router({
     }))
     .mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { success: false };
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
       try {
         if (input.verified) {
           const rows = await db.select().from(knowledgeCrystals).where(eq(knowledgeCrystals.id, input.id)).limit(1);
@@ -759,7 +768,7 @@ const fsdRouter = router({
     }))
     .query(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { interventions: [], total: 0 };
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
       try {
         // P0 修复：构建动态过滤条件（不再静默忽略输入参数）
         const conditions: any[] = [];
@@ -789,7 +798,7 @@ const fsdRouter = router({
     .input(z.object({ id: z.number() }))
     .query(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { intervention: null, videoTrajectory: null };
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
       try {
         const rows = await db.select().from(evolutionInterventions)
           .where(eq(evolutionInterventions.id, input.id)).limit(1);
@@ -812,7 +821,7 @@ const fsdRouter = router({
     }))
     .query(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { rate: 0, inverseMileage: 9999, trend: 'stable', fsdStyle: '1/9999' };
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
       try {
         const windowStart = new Date(Date.now() - input.windowHours * 3600000);
         const allRows = await db.select().from(evolutionInterventions)
@@ -845,7 +854,7 @@ const fsdRouter = router({
     }))
     .query(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { simulations: [], total: 0 };
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
       try {
         const rows = await db.select().from(evolutionSimulations)
           .orderBy(desc(evolutionSimulations.createdAt))
@@ -860,7 +869,7 @@ const fsdRouter = router({
     .input(z.object({ id: z.number() }))
     .query(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { simulation: null };
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
       try {
         const rows = await db.select().from(evolutionSimulations)
           .where(eq(evolutionSimulations.id, input.id)).limit(1);
@@ -873,7 +882,7 @@ const fsdRouter = router({
     .input(z.object({ limit: z.number().default(20) }))
     .query(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { trajectories: [], total: 0 };
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
       try {
         const rows = await db.select().from(evolutionVideoTrajectories)
           .orderBy(desc(evolutionVideoTrajectories.createdAt))
@@ -892,7 +901,7 @@ const scheduleRouter = router({
   list: publicProcedure
     .query(async () => {
       const db = await getDb();
-      if (!db) return { schedules: [] };
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
       try {
         const rows = await db.select().from(evolutionFlywheelSchedules)
           .orderBy(desc(evolutionFlywheelSchedules.createdAt));
@@ -901,7 +910,7 @@ const scheduleRouter = router({
     }),
 
   /** 创建调度 */
-  create: publicProcedure
+  create: protectedProcedure
     .input(z.object({
       name: z.string(),
       cronExpression: z.string(),
@@ -910,7 +919,7 @@ const scheduleRouter = router({
     }))
     .mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { scheduleId: 0 };
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
       try {
         const result = await db.insert(evolutionFlywheelSchedules).values({
           name: input.name,
@@ -927,14 +936,14 @@ const scheduleRouter = router({
     }),
 
   /** 启用/禁用调度 */
-  toggle: publicProcedure
+  toggle: protectedProcedure
     .input(z.object({
       id: z.number(),
       enabled: z.boolean(),
     }))
     .mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { success: false };
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
       try {
         await db.update(evolutionFlywheelSchedules)
           .set({ enabled: input.enabled ? 1 : 0 })
@@ -946,11 +955,11 @@ const scheduleRouter = router({
     }),
 
   /** 删除调度 */
-  delete: publicProcedure
+  delete: protectedProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { success: false };
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
       try {
         // Drizzle ORM 不直接支持 delete，使用 update 标记禁用
         await db.update(evolutionFlywheelSchedules)
@@ -984,7 +993,7 @@ const auditRouter = router({
     }))
     .query(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { logs: [], total: 0 };
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
       try {
         const conditions = [];
         if (input.eventType) conditions.push(eq(evolutionAuditLogs.eventType, input.eventType));
@@ -1007,7 +1016,7 @@ const auditRouter = router({
     .input(z.object({ sessionId: z.string() }))
     .query(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { logs: [] };
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
       try {
         const rows = await db.select().from(evolutionAuditLogs)
           .where(eq(evolutionAuditLogs.sessionId, input.sessionId))
@@ -1030,7 +1039,7 @@ const dojoRouter = router({
     }))
     .query(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { jobs: [], total: 0 };
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
       try {
         const conditions = [];
         if (input.status) conditions.push(eq(dojoTrainingJobs.status, input.status));
@@ -1050,7 +1059,7 @@ const dojoRouter = router({
     .input(z.object({ id: z.number() }))
     .query(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { job: null };
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
       try {
         const rows = await db.select().from(dojoTrainingJobs)
           .where(eq(dojoTrainingJobs.id, input.id)).limit(1);
@@ -1059,11 +1068,11 @@ const dojoRouter = router({
     }),
 
   /** 取消训练任务 */
-  cancel: publicProcedure
+  cancel: protectedProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { success: false };
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
       try {
         await db.update(dojoTrainingJobs)
           .set({ status: 'cancelled', completedAt: new Date() })
@@ -1079,7 +1088,7 @@ const dojoRouter = router({
     }),
 
   /** 创建训练任务 */
-  create: publicProcedure
+  create: protectedProcedure
     .input(z.object({
       name: z.string(),
       modelId: z.string(),
@@ -1090,7 +1099,7 @@ const dojoRouter = router({
     }))
     .mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { jobId: 0 };
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
       try {
         const jobId = `dojo-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
         const result = await db.insert(dojoTrainingJobs).values({
@@ -1120,7 +1129,7 @@ const dojoRouter = router({
   getStats: publicProcedure
     .query(async () => {
       const db = await getDb();
-      if (!db) return { total: 0, running: 0, completed: 0, failed: 0, pending: 0, totalGpuHours: 0 };
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
       try {
         const [total, running, completed, failed, pending] = await Promise.all([
           db.select({ cnt: count() }).from(dojoTrainingJobs),
@@ -1158,7 +1167,7 @@ const configRouter = router({
     .input(z.object({ module: z.string().optional() }).optional())
     .query(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { items: [], source: 'database' };
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
       const rows = await db.select().from(engineConfigRegistry)
         .orderBy(asc(engineConfigRegistry.module), asc(engineConfigRegistry.sortOrder));
       const filtered = input?.module
@@ -1168,21 +1177,21 @@ const configRouter = router({
     }),
 
   /** 更新配置项值 */
-  update: publicProcedure
+  update: protectedProcedure
     .input(z.object({ id: z.number(), configValue: z.string() }))
     .mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { success: false, error: '数据库不可用' };
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
       try {
         await db.update(engineConfigRegistry)
           .set({ configValue: input.configValue, updatedAt: new Date() })
           .where(eq(engineConfigRegistry.id, input.id));
         return { success: true };
-      } catch (e: any) { return { success: false, error: e.message }; }
+      } catch (e: any) { throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: e.message ?? "Unknown error" }); }
     }),
 
   /** 新增配置项 */
-  add: publicProcedure
+  add: protectedProcedure
     .input(z.object({
       module: z.string(), configGroup: z.string().default('general'),
       configKey: z.string(), configValue: z.string(),
@@ -1196,7 +1205,7 @@ const configRouter = router({
     }))
     .mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { success: false, error: '数据库不可用' };
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
       try {
         await db.insert(engineConfigRegistry).values({
           module: input.module, configGroup: input.configGroup,
@@ -1207,30 +1216,30 @@ const configRouter = router({
           isBuiltin: 0,
         });
         return { success: true };
-      } catch (e: any) { return { success: false, error: e.message }; }
+      } catch (e: any) { throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: e.message ?? "Unknown error" }); }
     }),
 
   /** 删除配置项（仅非内置项） */
-  delete: publicProcedure
+  delete: protectedProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { success: false, error: '数据库不可用' };
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
       try {
         const rows = await db.select().from(engineConfigRegistry).where(eq(engineConfigRegistry.id, input.id)).limit(1);
         if (rows.length === 0) return { success: false, error: '配置项不存在' };
         if (rows[0].isBuiltin) return { success: false, error: '内置配置项不可删除' };
         await db.delete(engineConfigRegistry).where(eq(engineConfigRegistry.id, input.id));
         return { success: true };
-      } catch (e: any) { return { success: false, error: e.message }; }
+      } catch (e: any) { throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: e.message ?? "Unknown error" }); }
     }),
 
   /** 重置配置项为默认值 */
-  reset: publicProcedure
+  reset: protectedProcedure
     .input(z.object({ id: z.number().optional(), module: z.string().optional() }))
     .mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { success: false, error: '数据库不可用' };
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
       try {
         if (input.id) {
           const rows = await db.select().from(engineConfigRegistry).where(eq(engineConfigRegistry.id, input.id)).limit(1);
@@ -1246,14 +1255,14 @@ const configRouter = router({
           }
         }
         return { success: true };
-      } catch (e: any) { return { success: false, error: e.message }; }
+      } catch (e: any) { throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: e.message ?? "Unknown error" }); }
     }),
 
   /** 批量种子化进化引擎配置 */
-  seed: publicProcedure
+  seed: protectedProcedure
     .mutation(async () => {
       const db = await getDb();
-      if (!db) return { success: false, message: '数据库不可用', seeded: 0 };
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
       const existing = await db.select().from(engineConfigRegistry)
         .where(eq(engineConfigRegistry.module, 'shadowEvaluator')).limit(1);
       if (existing.length > 0) return { success: true, message: '种子数据已存在', seeded: 0 };
@@ -1429,13 +1438,7 @@ export const evolutionDomainRouter = router({
   getOverview: publicProcedure
     .query(async () => {
       const db = await getDb();
-      if (!db) return {
-        totalCycles: 0, activeCycles: 0,
-        totalExperiments: 0, activeDeployments: 0,
-        totalInterventions: 0, interventionRate: 0,
-        totalSimulations: 0, totalCrystals: 0,
-        activeSchedules: 0,
-      };
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
 
       try {
         const [cycles, experiments, deployments, interventions, simulations, crystals, schedules] = await Promise.all([
