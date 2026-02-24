@@ -83,7 +83,7 @@ else
         MAX_WAIT=30
         WAITED=0
         while [ $WAITED -lt $MAX_WAIT ]; do
-            if docker exec "$MYSQL_CONTAINER" mysqladmin ping -h localhost -uroot -proot123 2>/dev/null | grep -q "alive"; then
+            if docker exec "$MYSQL_CONTAINER" mysqladmin ping -h localhost -uroot -p${MYSQL_ROOT_PASSWORD:-root123} 2>/dev/null | grep -q "alive"; then
                 break
             fi
             sleep 1
@@ -130,7 +130,7 @@ log_step "配置开发环境变量..."
 
 # 数据库
 if [ -z "$DATABASE_URL" ]; then
-    export DATABASE_URL="mysql://portai:portai123@localhost:3306/portai_nexus"
+    export DATABASE_URL="mysql://${MYSQL_USER:-portai}:${MYSQL_PASSWORD:-portai123}@localhost:${MYSQL_PORT:-3306}/${MYSQL_DATABASE:-portai_nexus}"
     log_ok "DATABASE_URL 已自动配置"
 fi
 

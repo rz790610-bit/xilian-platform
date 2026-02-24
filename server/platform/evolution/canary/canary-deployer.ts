@@ -34,7 +34,7 @@ import {
 import { eq, desc, and, count } from 'drizzle-orm';
 import { EventBus } from '../../events/event-bus';
 import { createModuleLogger } from '../../../core/logger';
-import { RedisClient } from '../../../lib/clients/redis.client';
+import { redisClient, type RedisClient } from '../../../lib/clients/redis.client';
 import { DeploymentRepository, canaryRepository } from '../repository/deployment-repository';
 
 const log = createModuleLogger('canary-deployer');
@@ -148,7 +148,7 @@ export class CanaryDeployer {
   private stages: DeploymentStageConfig[];
   private metrics = new CanaryMetrics();
   private eventBus: EventBus;
-  private redis: RedisClient;
+  private redis: typeof redisClient;
   private repo: DeploymentRepository;
 
   // 内存中的运行时指标（按 deploymentId 聚合）
@@ -176,13 +176,13 @@ export class CanaryDeployer {
   constructor(
     config: Partial<CanaryDeployerConfig> = {},
     eventBus?: EventBus,
-    redis?: RedisClient,
+    redis?: typeof redisClient,
     repo?: DeploymentRepository,
   ) {
     this.config = { ...DEFAULT_CONFIG, ...config };
     this.stages = config.stages || DEFAULT_STAGES;
     this.eventBus = eventBus || new EventBus();
-    this.redis = redis || new RedisClient();
+    this.redis = redis || redisClient;
     this.repo = repo || canaryRepository;
   }
 
@@ -286,8 +286,8 @@ export class CanaryDeployer {
 
     // P0 修复：分布式锁（防止多实例并发创建同一实验的部署）
     const lockKey = `canary:lock:experiment:${params.experimentId}`;
-    const lockAcquired = await this.redis.acquireLock(lockKey, 30);
-    if (!lockAcquired) {
+    const lockId = await this.redis.acquireLock(lockKey, 30);
+    if (!lockId) {
       throw new Error(`无法获取分布式锁: ${lockKey}，可能有其他实例正在创建部署`);
     }
 
@@ -350,7 +350,7 @@ export class CanaryDeployer {
 
       return deploymentId;
     } finally {
-      await this.redis.releaseLock(lockKey);
+      await this.redis.releaseLock(lockKey, lockId);
     }
   }
 
@@ -450,8 +450,8 @@ export class CanaryDeployer {
 
     // 分布式锁（防止多实例同时推进同一部署）
     const lockKey = `canary:lock:advance:${deploymentId}`;
-    const lockAcquired = await this.redis.acquireLock(lockKey, 15);
-    if (!lockAcquired) {
+    const lockId = await this.redis.acquireLock(lockKey, 15);
+    if (!lockId) {
       log.warn(`阶段推进锁竞争: deploymentId=${deploymentId}`);
       return { advanced: false, currentStage: 'locked', trafficPercent: 0, completed: false };
     }
@@ -533,7 +533,7 @@ export class CanaryDeployer {
         completed: false,
       };
     } finally {
-      await this.redis.releaseLock(lockKey);
+      await this.redis.releaseLock(lockKey, lockId);
     }
   }
 
@@ -781,8 +781,8 @@ export class CanaryDeployer {
 
     // 分布式锁
     const lockKey = `canary:lock:rollback:${deploymentId}`;
-    const lockAcquired = await this.redis.acquireLock(lockKey, 15);
-    if (!lockAcquired) {
+    const lockId = await this.redis.acquireLock(lockKey, 15);
+    if (!lockId) {
       log.warn(`回滚锁竞争: deploymentId=${deploymentId}`);
       return false;
     }
@@ -833,7 +833,7 @@ export class CanaryDeployer {
       log.warn(`金丝雀回滚完成: deploymentId=${deploymentId}, reason=${reason}`);
       return true;
     } finally {
-      await this.redis.releaseLock(lockKey);
+      await this.redis.releaseLock(lockKey, lockId);
     }
   }
 

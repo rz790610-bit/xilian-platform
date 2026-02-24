@@ -220,6 +220,21 @@ class RedisClientManager {
   }
 
   /**
+   * SETNX — 仅当 key 不存在时设置值
+   * @returns true 如果设置成功（key 不存在），false 如果 key 已存在
+   */
+  async setnx(key: string, value: string): Promise<boolean> {
+    if (!this.client) return true; // 内存模式降级
+    try {
+      const result = await this.client.set(key, value, 'NX');
+      return result === 'OK';
+    } catch (error) {
+      log.warn('[Redis] SETNX error:', error);
+      return false;
+    }
+  }
+
+  /**
    * 设置过期时间
    */
   async expire(key: string, seconds: number): Promise<boolean> {
@@ -1245,4 +1260,8 @@ class RedisClientManager {
 
 // 导出单例
 export const redisClient = new RedisClientManager();
+
+// 导出类型别名，供进化引擎等模块使用
+export type RedisClient = RedisClientManager;
+export { RedisClientManager };
 export type { RedisConfig };

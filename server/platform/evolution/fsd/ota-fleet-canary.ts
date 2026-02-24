@@ -35,7 +35,7 @@ import {
 import { eq, and, desc } from 'drizzle-orm';
 import { EventBus } from '../../events/event-bus';
 import { createModuleLogger } from '../../../core/logger';
-import { RedisClient } from '../../../lib/clients/redis.client';
+import { redisClient, type RedisClient } from '../../../lib/clients/redis.client';
 import { DeploymentRepository, otaRepository } from '../repository/deployment-repository';
 
 const log = createModuleLogger('ota-fleet-canary');
@@ -139,7 +139,7 @@ export class OTAFleetCanary {
   private config: OTACanaryConfig;
   private stages: DeploymentStage[];
   private eventBus: EventBus;
-  private redis: RedisClient;
+  private redis: typeof redisClient;
   private repo: DeploymentRepository;
   private healthProvider: HealthCheckProvider | null = null;
 
@@ -153,13 +153,13 @@ export class OTAFleetCanary {
     config: Partial<OTACanaryConfig> = {},
     stages?: DeploymentStage[],
     eventBus?: EventBus,
-    redis?: RedisClient,
+    redis?: typeof redisClient,
     repo?: DeploymentRepository,
   ) {
     this.config = { ...DEFAULT_CONFIG, ...config };
     this.stages = stages ?? DEFAULT_STAGES;
     this.eventBus = eventBus || new EventBus();
-    this.redis = redis || new RedisClient();
+    this.redis = redis || redisClient;
     this.repo = repo || otaRepository;
   }
 
@@ -210,8 +210,8 @@ export class OTAFleetCanary {
   async startDeployment(plan: DeploymentPlan): Promise<DeploymentState> {
     // 幂等检查 — 使用 acquireLock 实现 setnx 语义
     const idempotencyKey = `ota:deploy:idempotent:${plan.planId}`;
-    const lockAcquired = await this.redis.acquireLock(idempotencyKey, 86400);
-    if (!lockAcquired) {
+    const lockId = await this.redis.acquireLock(idempotencyKey, 86400);
+    if (!lockId) {
       const existing = this.activeDeployments.get(plan.planId);
       if (existing) return existing;
       throw new Error(`部署 ${plan.planId} 已存在（幂等拦截）`);

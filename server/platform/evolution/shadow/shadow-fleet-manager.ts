@@ -50,7 +50,7 @@ import {
 import { eq, desc, gte, lte, count, sql, and } from 'drizzle-orm';
 import { EventBus } from '../../events/event-bus';
 import { createModuleLogger } from '../../../core/logger';
-import { RedisClient } from '../../../lib/clients/redis.client';
+import { redisClient, type RedisClient } from '../../../lib/clients/redis.client';
 import { cosineDistance } from '../../../lib/math/vector-utils';
 
 const log = createModuleLogger('shadow-fleet-manager');
@@ -225,7 +225,7 @@ export class ShadowFleetManager {
   private modelProvider: ShadowModelProvider;
   private eventBus: EventBus;
   private metrics = new ShadowFleetMetrics();
-  private redis: RedisClient;
+  private redis: typeof redisClient;
 
   /** 并发控制信号量（本地 fallback，优先使用 Redis 原子计数） */
   private activeShadows = 0;
@@ -238,12 +238,12 @@ export class ShadowFleetManager {
     modelProvider: ShadowModelProvider,
     config: Partial<ShadowFleetConfig> = {},
     eventBus?: EventBus,
-    redis?: RedisClient,
+    redis?: typeof redisClient,
   ) {
     this.modelProvider = modelProvider;
     this.config = { ...DEFAULT_CONFIG, ...config };
     this.eventBus = eventBus || new EventBus();
-    this.redis = redis || new RedisClient();
+    this.redis = redis || redisClient;
   }
 
   // ==========================================================================

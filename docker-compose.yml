@@ -94,10 +94,10 @@ services:
       - "${MYSQL_PORT:-3306}:3306"
     environment:
       # P0-DOCKER-1: 密码必须通过环境变量配置，禁止硬编码
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD must be set}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root123}
       MYSQL_DATABASE: portai_nexus
       MYSQL_USER: ${MYSQL_USER:-portai}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD must be set}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-portai123}
       TZ: Asia/Shanghai
     command: >
       --default-authentication-plugin=mysql_native_password

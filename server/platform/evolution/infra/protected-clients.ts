@@ -5,12 +5,12 @@
  * 模块无需逐个调用 withCircuitBreaker，只需使用本文件导出的保护版客户端。
  *
  * 架构位置: server/platform/evolution/infra/
- * 依赖: circuitBreaker 中间件、getDb、RedisClient、PrometheusClient
+ * 依赖: circuitBreaker 中间件、getDb、redisClient、PrometheusClient
  */
 
 import { withCircuitBreaker, circuitBreakerRegistry } from '../../middleware/circuitBreaker';
 import { getDb } from '../../../lib/db';
-import { RedisClient } from '../../../lib/clients/redis.client';
+import { redisClient } from '../../../lib/clients/redis.client';
 import { PrometheusClient } from '../../../lib/clients/prometheus.client';
 import { createModuleLogger } from '../../../core/logger';
 
@@ -65,43 +65,49 @@ export async function getProtectedDb() {
 // ============================================================
 
 /**
- * 创建受熔断器保护的 Redis 客户端代理。
- * 对 acquireLock、releaseLock、incrementCounter、decrementCounter 等关键方法
- * 套上熔断器保护。
+ * 受熔断器保护的 Redis 客户端代理。
+ * 使用 redisClient 单例（RedisClientManager 实例），对关键方法套上熔断器保护。
+ *
+ * API 签名与 RedisClientManager 保持一致：
+ * - acquireLock(lockName, ttlSeconds) → string | null
+ * - releaseLock(lockName, lockId) → boolean
+ * - incrementCounter(key, ttlSeconds) → number
+ * - decrementCounter(key) → number
  */
 export class ProtectedRedisClient {
-  private redis: RedisClient;
-
-  constructor(redis?: RedisClient) {
-    this.redis = redis || new RedisClient();
-  }
-
   /**
    * 受保护的分布式锁获取
+   * @param lockName 锁名称
+   * @param ttlSeconds 锁超时时间（秒），默认 30
+   * @returns lockId（成功）或 null（失败/降级）
    */
-  async acquireLock(key: string, ttlMs: number): Promise<boolean> {
+  async acquireLock(lockName: string, ttlSeconds: number = 30): Promise<string | null> {
     try {
       return await withCircuitBreaker(
         'redis',
-        async () => this.redis.acquireLock(key, ttlMs),
+        async () => redisClient.acquireLock(lockName, ttlSeconds),
       )();
     } catch {
-      log.warn(`Redis 熔断器保护：acquireLock(${key}) 降级为 true（允许操作）`);
-      return true; // 降级策略：Redis 不可用时允许操作，避免阻塞业务
+      log.warn(`Redis 熔断器保护：acquireLock(${lockName}) 降级返回 memory-lock`);
+      // 降级策略：Redis 不可用时返回内存锁 ID，允许操作继续
+      return `memory-fallback-${Date.now()}`;
     }
   }
 
   /**
    * 受保护的锁释放
+   * @param lockName 锁名称
+   * @param lockId acquireLock 返回的锁 ID
    */
-  async releaseLock(key: string): Promise<void> {
+  async releaseLock(lockName: string, lockId: string): Promise<boolean> {
     try {
-      await withCircuitBreaker(
+      return await withCircuitBreaker(
         'redis',
-        async () => this.redis.releaseLock(key),
+        async () => redisClient.releaseLock(lockName, lockId),
       )();
     } catch {
-      log.warn(`Redis 熔断器保护：releaseLock(${key}) 降级忽略`);
+      log.warn(`Redis 熔断器保护：releaseLock(${lockName}) 降级忽略`);
+      return true;
     }
   }
 
@@ -112,7 +118,7 @@ export class ProtectedRedisClient {
     try {
       return await withCircuitBreaker(
         'redis',
-        async () => this.redis.incrementCounter(key, ttlSeconds),
+        async () => redisClient.incrementCounter(key, ttlSeconds),
       )();
     } catch {
       log.warn(`Redis 熔断器保护：incrementCounter(${key}) 降级返回 0`);
@@ -127,7 +133,7 @@ export class ProtectedRedisClient {
     try {
       return await withCircuitBreaker(
         'redis',
-        async () => this.redis.decrementCounter(key),
+        async () => redisClient.decrementCounter(key),
       )();
     } catch {
       log.warn(`Redis 熔断器保护：decrementCounter(${key}) 降级返回 0`);
@@ -135,9 +141,54 @@ export class ProtectedRedisClient {
     }
   }
 
-  /** 直接访问底层 Redis 客户端（用于非关键路径） */
-  get raw(): RedisClient {
-    return this.redis;
+  /**
+   * 受保护的缓存读取
+   */
+  async get<T = string>(key: string, parse: boolean = false): Promise<T | null> {
+    try {
+      return await withCircuitBreaker(
+        'redis',
+        async () => redisClient.get<T>(key, parse),
+      )();
+    } catch {
+      log.warn(`Redis 熔断器保护：get(${key}) 降级返回 null`);
+      return null;
+    }
+  }
+
+  /**
+   * 受保护的缓存写入
+   */
+  async set(key: string, value: string | number | object, ttlSeconds?: number): Promise<boolean> {
+    try {
+      return await withCircuitBreaker(
+        'redis',
+        async () => redisClient.set(key, value, ttlSeconds),
+      )();
+    } catch {
+      log.warn(`Redis 熔断器保护：set(${key}) 降级忽略`);
+      return false;
+    }
+  }
+
+  /**
+   * 受保护的发布消息
+   */
+  async publish(channel: string, message: string | object): Promise<number> {
+    try {
+      return await withCircuitBreaker(
+        'redis',
+        async () => redisClient.publish(channel, message),
+      )();
+    } catch {
+      log.warn(`Redis 熔断器保护：publish(${channel}) 降级忽略`);
+      return 0;
+    }
+  }
+
+  /** 直接访问底层 redisClient 单例（用于非关键路径） */
+  get raw() {
+    return redisClient;
   }
 }
 
