@@ -1,20 +1,29 @@
 /**
-
-const log = createModuleLogger('meta-learner');
  * ============================================================================
  * MetaLearner — Grok 元学习裁判
  * ============================================================================
  *
  * 自进化飞轮的"大脑"：
  *   1. 数据发现：分析数据质量，发现新的训练数据源
- *   2. 假设生成：基于诊断历史生成改进假设
+ *   2. 假设生成：基于诊断历史生成改进假设（Grok → LLM → 规则 三层降级）
  *   3. 实验设计：设计 A/B 实验验证假设
  *   4. 参数优化：优化模型超参数和物理参数
  *   5. 策略调度：决定下一步进化方向
  *
  * MetaLearner 是 Grok 的最高级应用：
  *   不是执行具体诊断，而是"学习如何更好地学习"
+ *
+ * AI 集成架构（v2 — P0 LLM/Grok 注入）：
+ *   - 第一层：GrokReasoningService.diagnose() — 工具调用 + 多步推理（最强）
+ *   - 第二层：invokeLLM() — Forge API 结构化输出（兜底）
+ *   - 第三层：generateHypothesesWithRules() — 原有 if-else 规则引擎（最终兜底）
  */
+
+import { createModuleLogger } from '../../../core/logger';
+import { invokeLLM, type InvokeResult } from '../../../core/llm';
+import { grokReasoningService, type DiagnoseRequest } from '../../cognition/grok/grok-reasoning.service';
+
+const log = createModuleLogger('meta-learner');
 
 // ============================================================================
 // 类型定义
@@ -31,6 +40,8 @@ export interface MetaLearnerConfig {
   evaluationWindowSize: number;
   /** 最小改进阈值 */
   minImprovementThreshold: number;
+  /** 是否启用 LLM 假设生成（默认 true，可降级关闭） */
+  enableLLMHypothesis?: boolean;
 }
 
 export interface DataDiscovery {
@@ -65,6 +76,8 @@ export interface Hypothesis {
   status: 'proposed' | 'testing' | 'validated' | 'rejected' | 'applied';
   /** 实际结果 */
   actualResult?: number;
+  /** 生成策略（标记来源） */
+  generatedBy?: 'grok' | 'llm' | 'rules';
 }
 
 export interface ExperimentDesign {
@@ -124,6 +137,24 @@ export interface MetaLearnerState {
   performanceTrend: { timestamp: number; score: number }[];
 }
 
+/** 假设生成上下文（供 LLM 使用） */
+export interface HypothesisGenerationContext {
+  /** 引擎模块标识 */
+  engineModule?: string;
+  /** 模块中文标签 */
+  engineModuleLabel?: string;
+  /** 性能历史摘要 */
+  recentPerformance: { score: number; context: Record<string, number> }[];
+  /** 当前参数 */
+  currentParams?: Record<string, unknown>;
+  /** 约束条件 */
+  constraints?: Record<string, unknown>;
+  /** 作业 ID（用于事件追踪） */
+  jobId?: string;
+  /** 用户 ID */
+  userId?: string;
+}
+
 // ============================================================================
 // 默认配置
 // ============================================================================
@@ -134,6 +165,7 @@ const DEFAULT_CONFIG: MetaLearnerConfig = {
   memoryCapacity: 10000,
   evaluationWindowSize: 100,
   minImprovementThreshold: 0.02,
+  enableLLMHypothesis: true,
 };
 
 // ============================================================================
@@ -226,17 +258,214 @@ export class MetaLearner {
     };
   }
 
+  // ==========================================================================
+  // 假设生成 — 三层降级架构（Grok → LLM → 规则）
+  // ==========================================================================
+
   /**
-   * 假设生成 — 基于性能趋势生成改进假设
+   * 假设生成 — 公开入口（兼容原有签名 + 新增 context 参数）
+   *
+   * 调用优先级：
+   *   1. Grok 推理链（GrokReasoningService.diagnose）— 最强推理能力
+   *   2. LLM 结构化输出（invokeLLM + JSON Schema）— 兜底
+   *   3. 规则引擎（原有 if-else）— 最终兜底
    */
-  generateHypotheses(
+  async generateHypotheses(
+    recentPerformance: { score: number; context: Record<string, number> }[],
+    generationContext?: HypothesisGenerationContext
+  ): Promise<Hypothesis[]> {
+    const context: HypothesisGenerationContext = generationContext ?? {
+      recentPerformance,
+    };
+
+    // 如果禁用 LLM，直接走规则
+    if (!this.config.enableLLMHypothesis) {
+      log.debug('[MetaLearner] LLM 已禁用，使用规则引擎生成假设');
+      return this.generateHypothesesWithRules(recentPerformance);
+    }
+
+    // 第一层：Grok 推理链
+    try {
+      log.debug('[MetaLearner] 尝试 Grok 推理链生成假设...');
+      const hypotheses = await this.generateHypothesesWithGrok(context);
+      if (hypotheses.length > 0) {
+        log.debug(`[MetaLearner] Grok 成功生成 ${hypotheses.length} 个假设`);
+        this.state.hypothesisHistory.push(...hypotheses);
+        return hypotheses;
+      }
+      log.debug('[MetaLearner] Grok 返回空结果，降级到 LLM');
+    } catch (err) {
+      log.warn('[MetaLearner] Grok 推理链失败，降级到 LLM', { error: String(err) });
+    }
+
+    // 第二层：LLM 结构化输出
+    try {
+      log.debug('[MetaLearner] 尝试 LLM 结构化输出生成假设...');
+      const hypotheses = await this.generateHypothesesWithLLM(context);
+      if (hypotheses.length > 0) {
+        log.debug(`[MetaLearner] LLM 成功生成 ${hypotheses.length} 个假设`);
+        this.state.hypothesisHistory.push(...hypotheses);
+        return hypotheses;
+      }
+      log.debug('[MetaLearner] LLM 返回空结果，降级到规则引擎');
+    } catch (err) {
+      log.warn('[MetaLearner] LLM 调用失败，降级到规则引擎', { error: String(err) });
+    }
+
+    // 第三层：规则引擎（原有 if-else）
+    log.debug('[MetaLearner] 使用规则引擎生成假设（最终兜底）');
+    const hypotheses = this.generateHypothesesWithRules(recentPerformance);
+    this.state.hypothesisHistory.push(...hypotheses);
+    return hypotheses;
+  }
+
+  /**
+   * 第一层：Grok 推理链生成假设
+   *
+   * 利用 GrokReasoningService 的多步推理 + 工具调用能力，
+   * 将假设生成建模为一次"诊断"任务。
+   */
+  private async generateHypothesesWithGrok(context: HypothesisGenerationContext): Promise<Hypothesis[]> {
+    const scores = context.recentPerformance.map(p => p.score);
+    const avgScore = scores.length > 0 ? scores.reduce((s, v) => s + v, 0) / scores.length : 0;
+    const trend = this.computeTrend(scores);
+
+    // 构建 Grok 诊断请求
+    const diagnoseRequest: DiagnoseRequest = {
+      machineId: `meta-learner-${context.engineModule || 'global'}`,
+      triggerType: 'manual',
+      query: `
+习联平台进化引擎 MetaLearner 假设生成任务。
+当前优化场景：${context.engineModule || '全局'}（${context.engineModuleLabel || '进化引擎'}）
+性能趋势：平均分 ${avgScore.toFixed(3)}，趋势斜率 ${trend.toFixed(4)}
+最近 ${scores.length} 次评估数据：${JSON.stringify(scores.slice(-10))}
+维度上下文：${JSON.stringify(context.recentPerformance.slice(-5).map(p => p.context))}
+${context.currentParams ? `当前参数：${JSON.stringify(context.currentParams)}` : ''}
+${context.constraints ? `约束条件：${JSON.stringify(context.constraints)}` : ''}
+
+请生成 3 个可验证的优化假设。每个假设必须包含：
+1. hypothesisId（格式：hyp_<type>_<timestamp>）
+2. description（中文，≤80 字）
+3. type（parameter_tuning | feature_engineering | model_architecture | data_augmentation | rule_update）
+4. expectedImprovement（百分比，0.01~0.80）
+5. confidence（0~1）
+6. parameters（JSON，可直接用于仿真的实验设计参数）
+
+只返回合法 JSON 数组。
+`,
+      priority: 'normal' as const,
+      config: {
+        maxSteps: 5,
+        timeoutMs: 30000,
+        temperature: 0.3,
+      },
+    };
+
+    const response = await grokReasoningService.diagnose(diagnoseRequest);
+
+    // 解析 Grok 推理结果
+    const rawOutput = typeof response.result.finalOutput === 'string'
+      ? response.result.finalOutput
+      : JSON.stringify(response.result.finalOutput);
+
+    // 尝试从推理输出中提取 JSON 数组
+    const jsonMatch = rawOutput.match(/\[[\s\S]*\]/);
+    if (!jsonMatch) {
+      log.debug('[MetaLearner] Grok 输出无法解析为 JSON 数组');
+      return [];
+    }
+
+    const parsed = JSON.parse(jsonMatch[0]) as Array<Record<string, unknown>>;
+    if (!Array.isArray(parsed) || parsed.length === 0) return [];
+
+    // 标准化为 Hypothesis 类型
+    return parsed.map(raw => this.normalizeHypothesis(raw, 'grok')).filter(Boolean) as Hypothesis[];
+  }
+
+  /**
+   * 第二层：LLM 结构化输出生成假设
+   *
+   * 使用平台核心 invokeLLM（Forge API），通过 JSON Schema 约束输出格式。
+   */
+  private async generateHypothesesWithLLM(context: HypothesisGenerationContext): Promise<Hypothesis[]> {
+    const scores = context.recentPerformance.map(p => p.score);
+    const avgScore = scores.length > 0 ? scores.reduce((s, v) => s + v, 0) / scores.length : 0;
+    const trend = this.computeTrend(scores);
+
+    const systemPrompt = `你是习联平台进化引擎的 MetaLearner 专家。你的任务是基于性能数据生成可验证的优化假设。
+规则：
+- 每个假设必须有明确的实验设计参数
+- expectedImprovement 必须在 0.01 ~ 0.80 之间
+- confidence 必须在 0 ~ 1 之间
+- description 使用中文，≤80 字
+- 只返回 JSON 数组，不要任何解释`;
+
+    const userPrompt = `当前优化场景：${context.engineModule || '全局'}（${context.engineModuleLabel || '进化引擎'}）
+性能趋势：平均分 ${avgScore.toFixed(3)}，趋势斜率 ${trend.toFixed(4)}
+最近评估：${JSON.stringify(scores.slice(-10))}
+维度上下文：${JSON.stringify(context.recentPerformance.slice(-5).map(p => p.context))}
+${context.currentParams ? `当前参数：${JSON.stringify(context.currentParams)}` : ''}
+
+请生成 3 个优化假设，每个包含 hypothesisId, description, type, expectedImprovement, confidence, parameters 字段。`;
+
+    const result: InvokeResult = await invokeLLM({
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ],
+      model: 'grok-2-1212',
+      maxTokens: 1500,
+      responseFormat: {
+        type: 'json_schema',
+        json_schema: {
+          name: 'hypotheses_output',
+          schema: {
+            type: 'object',
+            properties: {
+              hypotheses: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    hypothesisId: { type: 'string' },
+                    description: { type: 'string' },
+                    type: { type: 'string', enum: ['parameter_tuning', 'feature_engineering', 'model_architecture', 'data_augmentation', 'rule_update'] },
+                    expectedImprovement: { type: 'number' },
+                    confidence: { type: 'number' },
+                    parameters: { type: 'object' },
+                  },
+                  required: ['hypothesisId', 'description', 'type', 'expectedImprovement', 'confidence', 'parameters'],
+                },
+              },
+            },
+            required: ['hypotheses'],
+          },
+          strict: true,
+        },
+      },
+    });
+
+    // 解析 LLM 响应
+    const content = result.choices?.[0]?.message?.content;
+    if (!content || typeof content !== 'string') return [];
+
+    const parsed = JSON.parse(content);
+    const hypothesesArr = parsed.hypotheses || parsed;
+    if (!Array.isArray(hypothesesArr)) return [];
+
+    return hypothesesArr.map(raw => this.normalizeHypothesis(raw, 'llm')).filter(Boolean) as Hypothesis[];
+  }
+
+  /**
+   * 第三层：规则引擎生成假设（原有 if-else 逻辑，保持不变）
+   */
+  private generateHypothesesWithRules(
     recentPerformance: { score: number; context: Record<string, number> }[]
   ): Hypothesis[] {
     const hypotheses: Hypothesis[] = [];
 
     // 分析性能趋势
     const scores = recentPerformance.map(p => p.score);
-    const avgScore = scores.reduce((s, v) => s + v, 0) / scores.length;
     const trend = this.computeTrend(scores);
 
     // 假设 1：如果性能下降，可能需要参数调优
@@ -257,6 +486,7 @@ export class MetaLearner {
           },
         },
         status: 'proposed',
+        generatedBy: 'rules',
       });
     }
 
@@ -284,6 +514,7 @@ export class MetaLearner {
             suggestedFeatures: [`${dim}_rolling_mean`, `${dim}_rate_of_change`, `${dim}_interaction`],
           },
           status: 'proposed',
+          generatedBy: 'rules',
         });
       }
     }
@@ -303,12 +534,48 @@ export class MetaLearner {
           augmentationRatio: 2,
         },
         status: 'proposed',
+        generatedBy: 'rules',
       });
     }
 
-    this.state.hypothesisHistory.push(...hypotheses);
     return hypotheses;
   }
+
+  /**
+   * 标准化 LLM/Grok 输出为 Hypothesis 类型
+   */
+  private normalizeHypothesis(raw: Record<string, unknown>, source: 'grok' | 'llm'): Hypothesis | null {
+    try {
+      const validTypes = ['parameter_tuning', 'feature_engineering', 'model_architecture', 'data_augmentation', 'rule_update'];
+      const type = validTypes.includes(raw.type as string) ? raw.type as Hypothesis['type'] : 'parameter_tuning';
+
+      let expectedImprovement = Number(raw.expectedImprovement ?? raw.predicted_improvement ?? 0.05);
+      if (expectedImprovement > 1) expectedImprovement /= 100; // 百分比 → 小数
+      expectedImprovement = Math.max(0.01, Math.min(0.80, expectedImprovement));
+
+      let confidence = Number(raw.confidence ?? 0.5);
+      confidence = Math.max(0, Math.min(1, confidence));
+
+      return {
+        hypothesisId: String(raw.hypothesisId || raw.hypothesis_id || `hyp_${source}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`),
+        timestamp: Date.now(),
+        description: String(raw.description || ''),
+        type,
+        expectedImprovement,
+        confidence,
+        parameters: (raw.parameters || raw.experimentDesign || {}) as Record<string, unknown>,
+        status: 'proposed',
+        generatedBy: source,
+      };
+    } catch (err) {
+      log.warn(`[MetaLearner] 标准化 ${source} 假设失败`, { error: String(err), raw });
+      return null;
+    }
+  }
+
+  // ==========================================================================
+  // 实验设计（保持原有逻辑）
+  // ==========================================================================
 
   /**
    * 设计实验
@@ -351,7 +618,6 @@ export class MetaLearner {
     const actions: EvolutionStrategy['prioritizedActions'] = [];
 
     const successfulHypotheses = this.state.hypothesisHistory.filter(h => h.status === 'validated');
-    const failedHypotheses = this.state.hypothesisHistory.filter(h => h.status === 'rejected');
 
     if (successfulHypotheses.length > 0) {
       const bestHyp = successfulHypotheses.sort((a, b) => (b.actualResult || 0) - (a.actualResult || 0))[0];

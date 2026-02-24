@@ -19,6 +19,7 @@ import { evolutionInterventions, edgeCases } from '../../../../drizzle/evolution
 import { eq, desc } from 'drizzle-orm';
 import { EventBus } from '../../events/event-bus';
 import { createModuleLogger } from '../../../core/logger';
+import { GrokLabelProvider } from '../labeling/grok-label-provider';
 
 const log = createModuleLogger('auto-labeling-pipeline');
 
@@ -252,6 +253,14 @@ export class AutoLabelingPipeline {
   constructor(config: Partial<LabelingConfig> = {}, eventBus?: EventBus) {
     this.config = { ...DEFAULT_CONFIG, ...config };
     this.eventBus = eventBus || new EventBus();
+
+    // 自动注册 GrokLabelProvider（AI 标注优先，规则矩阵兜底）
+    try {
+      this.registerProvider('grok', new GrokLabelProvider());
+      log.info('[AutoLabelingPipeline] GrokLabelProvider 已自动注册');
+    } catch (err) {
+      log.warn('[AutoLabelingPipeline] GrokLabelProvider 注册失败，将使用规则矩阵标注', err);
+    }
   }
 
   // ==========================================================================

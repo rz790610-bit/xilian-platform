@@ -27,6 +27,7 @@ export const ENGINE_MODULES = [
   'fleetPlanner',
   'e2eAgent',
   'closedLoopTracker',
+  'grokLabelProvider',
 ] as const;
 
 export type EngineModule = (typeof ENGINE_MODULES)[number];
@@ -48,6 +49,7 @@ export const ENGINE_MODULE_LABELS: Record<EngineModule, string> = {
   fleetPlanner: '车队规划',
   e2eAgent: 'E2E Agent',
   closedLoopTracker: '闭环追踪',
+  grokLabelProvider: 'Grok 智能标注',
 };
 
 /**
@@ -91,6 +93,8 @@ export const SNAKE_TO_CAMEL: Record<string, EngineModule> = {
   fleetPlanner: 'fleetPlanner',
   e2eAgent: 'e2eAgent',
   closedLoopTracker: 'closedLoopTracker',
+  grok_label_provider: 'grokLabelProvider',
+  grokLabelProvider: 'grokLabelProvider',
 };
 
 /** 将任意模块名标准化为 camelCase */

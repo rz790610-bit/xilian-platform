@@ -332,9 +332,8 @@ export class EvolutionFlywheel {
           },
         }));
 
-        const hypotheses = this.metaLearner.generateHypotheses(recentPerformance);
+        const hypotheses = await this.metaLearner.generateHypotheses(recentPerformance);
         report.hypotheses = hypotheses.slice(0, this.config.maxParallelHypotheses);
-
         return {
           input: { performanceRecords: recentPerformance.length },
           output: { hypothesesGenerated: hypotheses.length, selected: report.hypotheses.length },

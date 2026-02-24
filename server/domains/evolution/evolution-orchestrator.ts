@@ -18,12 +18,15 @@
 
 import { EventBus } from '../../platform/events/event-bus';
 import { eventBus as globalEventBus } from '../../services/eventBus.service';
+import { invokeLLM, type InvokeParams, type InvokeResult } from '../../core/llm';
+import { grokReasoningService, type DiagnoseRequest, type DiagnoseResponse } from '../../platform/cognition/grok/grok-reasoning.service';
 import { MetaLearner, type MetaLearnerConfig } from '../../platform/evolution/metalearner/meta-learner';
 import { AutoCodeGenerator, type CodeGenerationRequest, type GeneratedCode, type CodeValidationResult } from '../../platform/evolution/auto-codegen/auto-code-gen';
 import { EvolutionMetricsCollector } from '../../platform/evolution/metrics/evolution-metrics';
 import { ClosedLoopTracker, type ClosedLoop } from '../../platform/evolution/closed-loop/closed-loop-tracker';
 import { EvolutionFlywheel, type FlywheelConfig, type FlywheelCycleReport } from '../../platform/evolution/flywheel/evolution-flywheel';
 import { type EngineModule, ENGINE_MODULES, ENGINE_MODULE_LABELS, normalizeModuleName } from '../../../shared/evolution-modules';
+import { GrokLabelProvider } from '../../platform/evolution/labeling/grok-label-provider';
 
 // ── 事件 Topic 常量 ──
 export const EVOLUTION_TOPICS = {
@@ -113,6 +116,10 @@ export class EvolutionOrchestrator {
   // 是否已初始化
   private initialized = false;
 
+  // ── LLM / Grok 单例引用 ──
+  private _llmInvoke = invokeLLM;
+  private _grokReasoner = grokReasoningService;
+
   private constructor() {
     this.platformEventBus = new EventBus();
     this.metaLearner = new MetaLearner();
@@ -138,6 +145,45 @@ export class EvolutionOrchestrator {
       EvolutionOrchestrator.instance = new EvolutionOrchestrator();
     }
     return EvolutionOrchestrator.instance;
+  }
+
+  // ── LLM / Grok Getter（所有 AI 调用统一走 Orchestrator） ──
+
+  /** 获取平台核心 LLM 调用函数（Forge API 兼容 OpenAI） */
+  getLLMClient(): typeof invokeLLM {
+    return this._llmInvoke;
+  }
+
+  /** 获取 Grok 推理链服务（工具调用 + 多步推理） */
+  getGrokReasoner(): typeof grokReasoningService {
+    return this._grokReasoner;
+  }
+
+  /** 获取 Grok 驱动的智能标注提供者 */
+  getLabelProvider(): GrokLabelProvider {
+    return new GrokLabelProvider();
+  }
+
+  /** 标注干预记录（域路由统一入口） */
+  async labelIntervention(jobId: string, data: Record<string, unknown>): Promise<unknown> {
+    const provider = this.getLabelProvider();
+    try {
+      const result = await provider.labelIntervention(data);
+      await this.publishEvent(EVOLUTION_TOPICS.CODEGEN_GENERATED, {
+        jobId,
+        type: 'auto_labeling',
+        success: true,
+        confidence: result.confidence,
+      });
+      return result;
+    } catch (error: any) {
+      await this.publishEvent(EVOLUTION_TOPICS.ENGINE_ERROR, {
+        jobId,
+        type: 'auto_labeling',
+        error: error.message,
+      });
+      throw error;
+    }
   }
 
   // ── 初始化 ──
