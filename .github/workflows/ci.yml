@@ -1,17 +1,18 @@
-# CI Pipeline — 整改方案 v2.1 B-06
+# CI Pipeline — 整改方案 v2.2 B-07
 # 
 # 触发条件：push 到 main/develop + 所有 PR
-# 阶段：lint → test（含覆盖率） → security audit → build + verify
+# 阶段：lint → test（含覆盖率） → e2e-api → e2e-ui → security audit → build + verify
 #
 # 缓存策略：
 # - pnpm store 缓存（actions/setup-node 内置）
 # - Turborepo 缓存（.turbo 目录，为未来 monorepo 预留）
+# - Playwright 浏览器缓存
 #
-# B-06 增强：
-# - pnpm 版本从 packageManager 字段自动读取
-# - 测试覆盖率报告上传
-# - 构建产物验证与上传
-# - Turborepo 缓存 key 增加 SHA 精确命中
+# B-07 增强：
+# - 新增 E2E API 测试（vitest + supertest）
+# - 新增 E2E UI 测试（Playwright）
+# - Playwright 浏览器缓存优化
+# - E2E 测试产物（截图/视频/trace）上传
 
 name: CI
 
@@ -23,7 +24,7 @@ on:
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-on-in-progress: true
 
 env:
   NODE_ENV: test
@@ -51,7 +52,7 @@ jobs:
         run: pnpm check
 
   test:
-    name: Test
+    name: Unit Tests
     runs-on: ubuntu-latest
     needs: lint
     steps:
@@ -89,6 +90,110 @@ jobs:
             turbo-${{ runner.os }}-${{ hashFiles('**/pnpm-lock.yaml') }}-
             turbo-${{ runner.os }}-
 
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # E2E API 测试（vitest + supertest）
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  e2e-api:
+    name: E2E API Tests
+    runs-on: ubuntu-latest
+    needs: [lint, test]
+    env:
+      NODE_ENV: test
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Start server in background
+        run: |
+          pnpm dev &
+          # 等待服务器启动
+          for i in $(seq 1 30); do
+            curl -s http://localhost:3000/api/metrics > /dev/null && break
+            echo "Waiting for server... ($i/30)"
+            sleep 2
+          done
+        env:
+          NODE_ENV: development
+
+      - name: Run E2E API tests
+        run: pnpm test:e2e
+        env:
+          E2E_BASE_URL: http://localhost:3000
+
+      - name: Stop server
+        if: always()
+        run: kill $(lsof -ti:3000) 2>/dev/null || true
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # E2E UI 测试（Playwright）
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  e2e-ui:
+    name: E2E UI Tests (Playwright)
+    runs-on: ubuntu-latest
+    needs: [lint, test]
+    env:
+      NODE_ENV: test
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      CI: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Playwright 浏览器缓存
+      - name: Get Playwright version
+        id: playwright-version
+        run: echo "version=$(pnpm exec playwright --version)" >> $GITHUB_OUTPUT
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
+
+      - name: Install Playwright browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Install Playwright system deps
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: pnpm exec playwright install-deps chromium
+
+      - name: Run Playwright tests
+        run: pnpm test:e2e:ui
+        env:
+          E2E_BASE_URL: http://localhost:3000
+
+      # 上传 Playwright 测试产物（截图/视频/trace）
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 14
+
   security:
     name: Security Audit
     runs-on: ubuntu-latest
@@ -122,7 +227,7 @@ jobs:
   build:
     name: Build & Verify
     runs-on: ubuntu-latest
-    needs: [lint, test]
+    needs: [lint, test, e2e-api, e2e-ui]
     steps:
       - uses: actions/checkout@v4
 
