@@ -249,6 +249,18 @@ const otaDeploymentsTotal = safeCounter({
 });
 
 // ============================================================================
+// 进化引擎健康探针（P1: /api/metrics 端点可达性验证）
+// ============================================================================
+
+/** 进化引擎存活状态（1=运行中, 0=停止） */
+const evolutionEngineUp = safeGauge({
+  name: 'evo_engine_up',
+  help: 'Evolution engine liveness (1=running, 0=stopped)',
+});
+// 启动时设为 1
+evolutionEngineUp.set(1);
+
+// ============================================================================
 // 统一导出接口（保持向后兼容）
 // ============================================================================
 
@@ -367,6 +379,12 @@ export const FSDMetrics = {
     inc: (stage = 'shadow') => otaDeploymentsTotal.inc({ stage }),
   },
 
+  // ── 引擎健康 ──
+  engineUp: {
+    set: (value: 0 | 1) => evolutionEngineUp.set(value),
+    get: async () => (await evolutionEngineUp.get()).values,
+  },
+
   // ── 导出（兼容旧接口）──
   exportAll: async () => {
     const metrics = await register.getMetricsAsJSON();
@@ -380,4 +398,4 @@ export const FSDMetrics = {
   },
 };
 
-log.info('FSD Metrics 已注册到 prom-client Registry（共 20 个指标）');
+log.info('FSD Metrics 已注册到 prom-client Registry（共 21 个指标，含 evo_engine_up 健康探针）');
