@@ -294,6 +294,27 @@ const worldModelRouter = router({
       });
       return { success: true };
     }),
+  /** 使用 ONNX 世界模型进行实时预测（E2E 飞轮闭环入口） */
+  predict: protectedProcedure
+    .input(z.object({
+      jobId: z.string().optional().default(`wm-predict-${Date.now()}`),
+      encodedFeatures: z.array(z.number()),
+      sequenceLength: z.number(),
+      featureDim: z.number(),
+      deviceId: z.string().optional(),
+      conditionLabel: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const prediction = await getOrchestrator().predictWithWorldModel({
+        jobId: input.jobId,
+        encodedFeatures: input.encodedFeatures,
+        sequenceLength: input.sequenceLength,
+        featureDim: input.featureDim,
+        deviceId: input.deviceId,
+        conditionLabel: input.conditionLabel,
+      });
+      return prediction;
+    }),
 });
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

@@ -19,6 +19,7 @@ import { grokReasoningService } from '../../cognition/grok/grok-reasoning.servic
 import { invokeLLM, type InvokeResult } from '../../../core/llm';
 import { createModuleLogger } from '../../../core/logger';
 import type { LabelingProvider, AutoLabel } from '../fsd/auto-labeling-pipeline';
+import { evolutionConfig } from '../evolution.config';
 
 const log = createModuleLogger('grok-label-provider');
 
@@ -155,7 +156,7 @@ export class GrokLabelProvider implements LabelingProvider {
     prompt: string,
   ): Promise<{ label: AutoLabel; confidence: number } | null> {
     const result: InvokeResult = await invokeLLM({
-      model: 'grok-2-1212',
+      model: evolutionConfig.grok.model,
       messages: [
         {
           role: 'system',
@@ -163,7 +164,7 @@ export class GrokLabelProvider implements LabelingProvider {
         },
         { role: 'user', content: prompt },
       ],
-      maxTokens: 800,
+      maxTokens: evolutionConfig.grok.maxTokens,
     });
 
     if (!result || !result.choices || result.choices.length === 0) return null;

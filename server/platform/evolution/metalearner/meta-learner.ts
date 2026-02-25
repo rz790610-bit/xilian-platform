@@ -25,6 +25,9 @@ import { invokeLLM, type InvokeResult } from '../../../core/llm';
 import { grokReasoningService, type DiagnoseRequest } from '../../cognition/grok/grok-reasoning.service';
 import { pluginEngine } from '../../../services/plugin.engine';
 import type { StrategyPlugin } from '../plugins/strategies/strategy-plugin.interface';
+import { eventBus } from '../../../services/eventBus.service';
+import { EVOLUTION_TOPICS } from '../../../../shared/evolution-topics';
+import { evolutionConfig } from '../evolution.config';
 
 const log = createModuleLogger('meta-learner');
 
@@ -183,6 +186,9 @@ export class MetaLearner {
   private strategyPlugins: Map<string, StrategyPlugin> = new Map();
   private pluginsInitialized = false;
 
+  /** pluginEngine 事件监听器清理函数 */
+  private pluginListenerCleanups: Array<() => void> = [];
+
   constructor(config: Partial<MetaLearnerConfig> = {}) {
     this.config = { ...DEFAULT_CONFIG, ...config };
     this.state = {
@@ -193,6 +199,100 @@ export class MetaLearner {
       experimentHistory: [],
       performanceTrend: [],
     };
+    // 自动设置插件生命周期监听
+    this.setupPluginListeners();
+  }
+
+  // ==========================================================================
+  // 插件生命周期监听（双注册状态同步）
+  // ==========================================================================
+
+  /**
+   * 监听 pluginEngine 的 disable/uninstall/enable 事件，
+   * 同步更新 MetaLearner 内部的 strategyPlugins Map。
+   *
+   * 解决冲突：策略插件双注册状态不同步问题
+   * （pluginEngine.disable 不同步到 MetaLearner）
+   */
+  private setupPluginListeners(): void {
+    // 插件被禁用
+    const onDisabled = (data: unknown) => {
+      const { pluginId } = data as { pluginId: string };
+      if (this.strategyPlugins.has(pluginId)) {
+        this.strategyPlugins.delete(pluginId);
+        log.info(`[MetaLearner] 策略插件已同步移除（disabled）: ${pluginId}`);
+        // 发布策略禁用事件
+        eventBus.publish(
+          EVOLUTION_TOPICS.STRATEGY_DISABLED,
+          'strategy_disabled',
+          { pluginId, reason: 'plugin_disabled' },
+          { source: 'meta-learner', severity: 'warning' },
+        ).catch(() => {});
+      }
+    };
+    pluginEngine.on('plugin:disabled', onDisabled);
+    this.pluginListenerCleanups.push(() => pluginEngine.off('plugin:disabled', onDisabled));
+
+    // 插件被卸载
+    const onUninstalled = (data: unknown) => {
+      const { pluginId } = data as { pluginId: string };
+      if (this.strategyPlugins.has(pluginId)) {
+        this.strategyPlugins.delete(pluginId);
+        log.info(`[MetaLearner] 策略插件已同步移除（uninstalled）: ${pluginId}`);
+        eventBus.publish(
+          EVOLUTION_TOPICS.STRATEGY_UNINSTALLED,
+          'strategy_uninstalled',
+          { pluginId, reason: 'plugin_uninstalled' },
+          { source: 'meta-learner', severity: 'warning' },
+        ).catch(() => {});
+      }
+    };
+    pluginEngine.on('plugin:uninstalled', onUninstalled);
+    this.pluginListenerCleanups.push(() => pluginEngine.off('plugin:uninstalled', onUninstalled));
+
+    // 插件被重新启用 — 尝试恢复到 strategyPlugins
+    const onEnabled = (data: unknown) => {
+      const { pluginId } = data as { pluginId: string };
+      // 检查是否是策略插件
+      const status = pluginEngine.getPluginStatus(pluginId);
+      if (!status) return;
+      const tags = status.metadata.tags || [];
+      if (tags.includes('evolution') && tags.includes('strategy')) {
+        // 尝试从 pluginEngine 获取实例并恢复
+        this.tryRecoverPlugin(pluginId);
+      }
+    };
+    pluginEngine.on('plugin:enabled', onEnabled);
+    this.pluginListenerCleanups.push(() => pluginEngine.off('plugin:enabled', onEnabled));
+
+    log.debug('[MetaLearner] 插件生命周期监听已设置');
+  }
+
+  /**
+   * 尝试从 pluginEngine 恢复策略插件实例
+   */
+  private tryRecoverPlugin(pluginId: string): void {
+    try {
+      // pluginEngine 内部存储了 runtime.instance，但没有公开 getPluginInstance
+      // 通过 getPluginStatus 检查状态，如果是 enabled 则记录日志
+      const status = pluginEngine.getPluginStatus(pluginId);
+      if (status && status.status === 'enabled') {
+        log.info(`[MetaLearner] 策略插件已重新启用: ${pluginId}，等待下次 registerStrategy 调用恢复`);
+      }
+    } catch (err) {
+      log.warn(`[MetaLearner] 恢复插件 ${pluginId} 失败`, { error: String(err) });
+    }
+  }
+
+  /**
+   * 清理插件监听器（资源释放）
+   */
+  disposeListeners(): void {
+    for (const cleanup of this.pluginListenerCleanups) {
+      try { cleanup(); } catch { /* ignore */ }
+    }
+    this.pluginListenerCleanups = [];
+    log.debug('[MetaLearner] 插件监听器已清理');
   }
 
   // ==========================================================================
@@ -328,7 +428,17 @@ export class MetaLearner {
     // ── 第零层：策略插件（可热插拔） ──
     const preferredStrategy = context.constraints?.['preferredStrategy'] as string | undefined;
     const strategyId = preferredStrategy || 'meta-learner.bayesian';
-    const plugin = this.strategyPlugins.get(strategyId) || this.strategyPlugins.get('meta-learner.bayesian');
+    let plugin = this.strategyPlugins.get(strategyId) || this.strategyPlugins.get('meta-learner.bayesian');
+
+    // 双重保险：如果 Map 中找不到插件，尝试从 pluginEngine 重新获取
+    if (!plugin) {
+      const status = pluginEngine.getPluginStatus(strategyId);
+      if (status && status.status === 'enabled') {
+        log.debug(`[MetaLearner] 双重保险：尝试从 pluginEngine 重新获取插件 ${strategyId}`);
+        // pluginEngine 不暴露 instance，但可以通过 executePlugin 桥接
+        // 这里记录日志，等待 Orchestrator 重新注册
+      }
+    }
 
     if (plugin) {
       try {
@@ -422,9 +532,9 @@ ${context.constraints ? `约束条件：${JSON.stringify(context.constraints)}` 
 `,
       priority: 'normal' as const,
       config: {
-        maxSteps: 5,
-        timeoutMs: 30000,
-        temperature: 0.3,
+        maxSteps: evolutionConfig.grok.maxSteps,
+        timeoutMs: evolutionConfig.grok.timeoutMs,
+        temperature: evolutionConfig.grok.temperature,
       },
     };
 
@@ -480,8 +590,8 @@ ${context.currentParams ? `当前参数：${JSON.stringify(context.currentParams
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },
       ],
-      model: 'grok-2-1212',
-      maxTokens: 1500,
+      model: evolutionConfig.grok.model,
+      maxTokens: evolutionConfig.grok.maxTokens,
       responseFormat: {
         type: 'json_schema',
         json_schema: {

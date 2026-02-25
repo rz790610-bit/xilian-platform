@@ -22,9 +22,11 @@
 
 import { createModuleLogger } from '../../../core/logger';
 import { eventBus } from '../../../services/eventBus.service';
-import { EVOLUTION_TOPICS } from '../../../domains/evolution/evolution-orchestrator';
+import { EVOLUTION_TOPICS } from '../../../../shared/evolution-topics';
 import { FSDMetrics } from '../fsd/fsd-metrics';
 import { DojoTrainingScheduler } from '../fsd/dojo-training-scheduler';
+import { carbonAwareClient } from '../carbon-aware.client';
+import { evolutionConfig } from '../evolution.config';
 import type {
   WorldModelProvider,
   WorldModelInput,
@@ -44,6 +46,17 @@ try {
   ort = require('onnxruntime-node');
 } catch {
   // onnxruntime-node 未安装，将使用 fallback 模式
+  // 发布 WORLD_MODEL_DEGRADED 事件告警
+  eventBus.publish(
+    EVOLUTION_TOPICS.WORLD_MODEL_DEGRADED,
+    'world_model_degraded',
+    {
+      reason: 'onnxruntime-node 未安装',
+      fallbackMode: 'physics_estimation',
+      timestamp: Date.now(),
+    },
+    { source: 'world-model-engine', severity: 'warning' },
+  ).catch(() => { /* EventBus 未初始化时忽略 */ });
 }
 
 // ============================================================================
@@ -185,10 +198,11 @@ export class WorldModelEngine implements WorldModelProvider {
       const interventionProb = (results.probability?.data?.[0] as number) ?? 0;
       const confidence = (results.confidence?.data?.[0] as number) ?? 0.5;
 
+      const carbonIntensity = await this.getCarbonIntensity();
       return {
         futureStates: futureTrajectory,
         interventionProbability: Math.max(0, Math.min(1, interventionProb)),
-        carbonIntensityForecast: this.estimateCarbon(input),
+        carbonIntensityForecast: carbonIntensity,
         confidence: Math.max(0, Math.min(1, confidence)),
         timestamp: Date.now(),
       };
@@ -244,7 +258,7 @@ export class WorldModelEngine implements WorldModelProvider {
     return {
       futureStates,
       interventionProbability,
-      carbonIntensityForecast: this.estimateCarbon(input),
+      carbonIntensityForecast: this.estimateCarbonByTime(),
       confidence: 0.3, // fallback 置信度较低
       timestamp: Date.now(),
     };
@@ -258,6 +272,21 @@ export class WorldModelEngine implements WorldModelProvider {
     await this.init();
 
     try {
+      // 碳感知调度：获取最优训练窗口
+      if (job.carbonAware && evolutionConfig.carbonAware.enabled) {
+        try {
+          const window = await carbonAwareClient.getOptimalTrainingWindow(2);
+          log.info('Dojo 训练已碳优化调度', {
+            trainNow: window.trainNow,
+            avgCarbonIntensity: window.avgCarbonIntensity,
+            savingsPercent: window.savingsPercent,
+            optimalStart: window.startTime,
+          });
+        } catch (err) {
+          log.warn('碳感知调度失败，立即开始训练', { error: String(err) });
+        }
+      }
+
       // 构造 Dojo 训练任务
       await this.dojoScheduler.schedule({
         id: job.id,
@@ -344,15 +373,26 @@ export class WorldModelEngine implements WorldModelProvider {
   // ========================================================================
 
   /**
-   * 碳排放强度估算
-   * TODO: 接入 WattTime API 或平台 CarbonAwareClient
+   * 碳排放强度获取（优先 WattTime API，降级到时间段估算）
    */
-  private estimateCarbon(input: WorldModelInput): number {
-    // 基于时间段的简化估算（gCO2/kWh）
+  private async getCarbonIntensity(): Promise<number> {
+    if (evolutionConfig.carbonAware.enabled) {
+      try {
+        return await carbonAwareClient.getCurrentIntensity();
+      } catch {
+        // WattTime 不可用，降级
+      }
+    }
+    return this.estimateCarbonByTime();
+  }
+
+  /**
+   * 碳排放强度估算（同步降级版本，用于不支持 async 的场景）
+   */
+  private estimateCarbonByTime(): number {
     const hour = new Date().getHours();
-    // 夜间低谷（碳强度较低），白天高峰（碳强度较高）
-    if (hour >= 22 || hour < 6) return 280; // 夜间低谷
-    if (hour >= 9 && hour < 17) return 520;  // 白天高峰
+    if (hour >= 22 || hour < 6) return 280;  // 夜间低谷
+    if (hour >= 9 && hour < 17) return 520;   // 白天高峰
     return 420; // 过渡时段
   }
 

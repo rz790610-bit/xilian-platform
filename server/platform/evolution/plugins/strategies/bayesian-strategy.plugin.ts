@@ -16,6 +16,8 @@
 import { createStrategyPlugin } from './strategy-plugin.interface';
 import type { Hypothesis, HypothesisGenerationContext } from '../../metalearner/meta-learner';
 import { createModuleLogger } from '../../../../core/logger';
+import { eventBus } from '../../../../services/eventBus.service';
+import { EVOLUTION_TOPICS } from '../../../../../shared/evolution-topics';
 
 const log = createModuleLogger('strategy-bayesian');
 
@@ -121,7 +123,22 @@ export const bayesianOptimizationPlugin = createStrategyPlugin(
       });
     }
 
-    log.debug(`[Bayesian] 生成 ${hypotheses.length} 个假设，耗时 ${Date.now() - start}ms`);
+    const durationMs = Date.now() - start;
+    log.debug(`[Bayesian] 生成 ${hypotheses.length} 个假设，耗时 ${durationMs}ms`);
+
+    // 发布 STRATEGY_EXECUTED 事件
+    eventBus.publish(
+      EVOLUTION_TOPICS.STRATEGY_EXECUTED,
+      'strategy_executed',
+      {
+        strategy: 'meta-learner.bayesian',
+        jobId: context.jobId || 'unknown',
+        hypothesesCount: hypotheses.length,
+        durationMs,
+      },
+      { source: 'bayesian-strategy-plugin', severity: 'info' },
+    ).catch(() => { /* EventBus 未初始化时忽略 */ });
+
     return hypotheses;
   },
 );

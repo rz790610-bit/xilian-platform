@@ -19,6 +19,7 @@
 import { createModuleLogger } from '../../../core/logger';
 import { invokeLLM, type InvokeResult } from '../../../core/llm';
 import { grokReasoningService, type DiagnoseRequest } from '../../cognition/grok/grok-reasoning.service';
+import { evolutionConfig } from '../evolution.config';
 
 const log = createModuleLogger('auto-codegen');
 
@@ -361,7 +362,7 @@ export class AutoCodeGenerator {
     const systemPrompt = buildCodeGenSystemPrompt(request);
 
     const result: InvokeResult = await invokeLLM({
-      model: 'grok-2-1212',
+      model: evolutionConfig.grok.model,
       messages: [
         { role: 'system', content: systemPrompt },
         {
@@ -369,7 +370,7 @@ export class AutoCodeGenerator {
           content: `请为以下需求生成 TypeScript 代码：\n${request.description}\n\n输入: ${JSON.stringify(request.inputSchema)}\n输出: ${JSON.stringify(request.outputSchema)}`,
         },
       ],
-      maxTokens: 2000,
+      maxTokens: evolutionConfig.grok.maxTokensCodeGen,
     });
 
     const content = result?.choices?.[0]?.message?.content;

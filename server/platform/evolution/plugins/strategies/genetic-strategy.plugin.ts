@@ -13,6 +13,8 @@
 import { createStrategyPlugin } from './strategy-plugin.interface';
 import type { Hypothesis, HypothesisGenerationContext } from '../../metalearner/meta-learner';
 import { createModuleLogger } from '../../../../core/logger';
+import { eventBus } from '../../../../services/eventBus.service';
+import { EVOLUTION_TOPICS } from '../../../../../shared/evolution-topics';
 
 const log = createModuleLogger('strategy-genetic');
 
@@ -99,7 +101,22 @@ export const geneticAlgorithmPlugin = createStrategyPlugin(
       });
     }
 
-    log.debug(`[Genetic] 生成 ${hypotheses.length} 个假设，耗时 ${Date.now() - start}ms`);
+    const durationMs = Date.now() - start;
+    log.debug(`[Genetic] 生成 ${hypotheses.length} 个假设，耗时 ${durationMs}ms`);
+
+    // 发布 STRATEGY_EXECUTED 事件
+    eventBus.publish(
+      EVOLUTION_TOPICS.STRATEGY_EXECUTED,
+      'strategy_executed',
+      {
+        strategy: 'meta-learner.genetic',
+        jobId: context.jobId || 'unknown',
+        hypothesesCount: hypotheses.length,
+        durationMs,
+      },
+      { source: 'genetic-strategy-plugin', severity: 'info' },
+    ).catch(() => { /* EventBus 未初始化时忽略 */ });
+
     return hypotheses;
   },
 );

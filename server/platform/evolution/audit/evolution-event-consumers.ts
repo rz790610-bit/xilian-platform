@@ -15,6 +15,7 @@
 
 import { subscribe } from '../../../services/eventBus.service';
 import { createModuleLogger } from '../../../core/logger';
+import { EVOLUTION_TOPICS } from '../../../../shared/evolution-topics';
 
 const log = createModuleLogger('evo-event-consumers');
 
@@ -87,6 +88,9 @@ export class EvolutionEventConsumers {
     if (this.config.enableDivergenceConsumer) {
       this.registerDivergenceConsumer();
     }
+
+    // 策略插件执行事件消费者
+    this.registerStrategyExecutedConsumer();
 
     this.started = true;
     log.info(`进化引擎业务消费者已启动，注册 ${this.unsubscribers.length} 个事件监听器`);
@@ -307,6 +311,41 @@ export class EvolutionEventConsumers {
       log.error('[分歧消费者] 难例标记失败', err);
       throw err;
     }
+  }
+
+  // ============================================================
+  // 5. 策略插件执行事件消费者
+  // ============================================================
+
+  private registerStrategyExecutedConsumer(): void {
+    const unsub = subscribe(EVOLUTION_TOPICS.STRATEGY_EXECUTED, async (event: any) => {
+      const { strategy, jobId, hypothesesCount, durationMs } = event.payload || {};
+      log.info(`[策略消费者] 策略插件执行完成: strategy=${strategy}, jobId=${jobId}, 假设数=${hypothesesCount}, 耗时=${durationMs}ms`);
+
+      // 更新 Prometheus 指标
+      this.withRetry(
+        async () => {
+          const { FSDMetrics } = await import('../fsd/fsd-metrics');
+          FSDMetrics.flywheelCycles.inc(strategy || 'unknown');
+        },
+        '策略执行指标记录',
+      );
+    });
+    this.unsubscribers.push(unsub);
+
+    // 策略插件禁用事件
+    const unsub2 = subscribe(EVOLUTION_TOPICS.STRATEGY_DISABLED, async (event: any) => {
+      const { pluginId, reason } = event.payload || {};
+      log.warn(`[策略消费者] 策略插件已禁用: pluginId=${pluginId}, reason=${reason}`);
+    });
+    this.unsubscribers.push(unsub2);
+
+    // 世界模型降级事件
+    const unsub3 = subscribe(EVOLUTION_TOPICS.WORLD_MODEL_DEGRADED, async (event: any) => {
+      const { reason, fallbackMode } = event.payload || {};
+      log.warn(`[世界模型消费者] 世界模型已降级: reason=${reason}, fallbackMode=${fallbackMode}`);
+    });
+    this.unsubscribers.push(unsub3);
   }
 
   // ============================================================
