@@ -65,7 +65,7 @@ export default function EvolutionAdaptiveParams() {
   const generateMut = trpc.evoEvolution.deepAI.adaptiveRecommend.triggerRecommendation.useMutation({
     onSuccess: () => { listQuery.refetch(); statsQuery.refetch(); setShowCreate(false); },
   });
-  const applyMut = trpc.evoEvolution.deepAI.adaptiveRecommend.apply.useMutation({
+  const applyMut = trpc.evoEvolution.deepAI.adaptiveRecommend.applyRecommendation.useMutation({
     onSuccess: () => { listQuery.refetch(); statsQuery.refetch(); },
   });
   const rollbackMut = trpc.evoEvolution.deepAI.adaptiveRecommend.revert.useMutation({

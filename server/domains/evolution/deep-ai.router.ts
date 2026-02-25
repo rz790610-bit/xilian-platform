@@ -686,7 +686,7 @@ const adaptiveRecommendRouter = router({
     }),
 
   /** 应用推荐（将推荐参数写入引擎配置） */
-  apply: protectedProcedure
+  applyRecommendation: protectedProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
       const db = await getDb();
