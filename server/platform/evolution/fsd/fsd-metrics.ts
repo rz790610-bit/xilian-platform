@@ -95,6 +95,13 @@ const worldModelAccuracy = safeGauge({
   labelNames: ['model_version'] as const,
 });
 
+/** 世界模型 ONNX 推理延迟 (ms) */
+const worldModelInferenceLatencyMs = safeHistogram({
+  name: 'evo_world_model_inference_latency_ms',
+  help: '世界模型 ONNX 推理延迟 (ms)',
+  buckets: [5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000],
+});
+
 // ============================================================================
 // RLfI 指标
 // ============================================================================
@@ -294,6 +301,11 @@ export const FSDMetrics = {
       worldModelAccuracy.set({ model_version: modelVersion }, accuracy),
   },
 
+  // ── 世界模型推理延迟 ──
+  worldModelInferenceLatency: {
+    observe: (latencyMs: number) => worldModelInferenceLatencyMs.observe(latencyMs),
+  },
+
   // ── RLfI 奖励 ──
   rlfiReward: {
     inc: (value = 1, modelId = 'default') =>
@@ -398,4 +410,4 @@ export const FSDMetrics = {
   },
 };
 
-log.info('FSD Metrics 已注册到 prom-client Registry（共 21 个指标，含 evo_engine_up 健康探针）');
+log.info('FSD Metrics 已注册到 prom-client Registry（共 22 个指标，含 evo_engine_up 健康探针 + evo_world_model_inference_latency_ms）');

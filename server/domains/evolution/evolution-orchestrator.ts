@@ -31,6 +31,8 @@ import { pluginEngine } from '../../services/plugin.engine';
 import { bayesianOptimizationPlugin } from '../../platform/evolution/plugins/strategies/bayesian-strategy.plugin';
 import { geneticAlgorithmPlugin } from '../../platform/evolution/plugins/strategies/genetic-strategy.plugin';
 import type { StrategyPlugin } from '../../platform/evolution/plugins/strategies/strategy-plugin.interface';
+import { WorldModelEngine } from '../../platform/evolution/models/world-model-engine';
+import type { WorldModelInput, WorldModelPrediction, WorldModelTrainingJob } from '../../platform/evolution/models/world-model-types';
 
 // ── 事件 Topic 常量 ──
 export const EVOLUTION_TOPICS = {
@@ -117,6 +119,7 @@ export class EvolutionOrchestrator {
   private metricsCollector: EvolutionMetricsCollector;
   private closedLoopTracker: ClosedLoopTracker;
   private flywheel: EvolutionFlywheel | null = null;
+  private worldModel: WorldModelEngine;
 
   // 引擎模块状态
   private moduleStates: Map<EngineModule, EngineModuleState> = new Map();
@@ -134,6 +137,7 @@ export class EvolutionOrchestrator {
     this.autoCodeGen = new AutoCodeGenerator();
     this.metricsCollector = new EvolutionMetricsCollector();
     this.closedLoopTracker = new ClosedLoopTracker();
+    this.worldModel = new WorldModelEngine();
 
     // 初始化所有模块状态为 stopped
     for (const mod of ENGINE_MODULES) {
@@ -653,8 +657,48 @@ export class EvolutionOrchestrator {
     });
   }
 
-  // ── 世界模型事件 ──
+   // ── 世界模型引擎 API ──
 
+  /** 获取 WorldModelEngine 实例 */
+  getWorldModel(): WorldModelEngine {
+    return this.worldModel;
+  }
+
+  /** 启动世界模型训练任务（通过 Dojo 碳感知调度） */
+  async startWorldModelTraining(jobId: string, data: Partial<WorldModelTrainingJob> = {}): Promise<boolean> {
+    try {
+      const engine = this.getWorldModel();
+      return await engine.train({
+        id: jobId,
+        type: 'world_model',
+        carbonAware: data.carbonAware ?? true,
+        modelId: data.modelId,
+        datasetPath: data.datasetPath,
+        config: data.config,
+        submittedBy: data.submittedBy || 'orchestrator',
+      });
+    } catch (error: any) {
+      await this.publishEvent(EVOLUTION_TOPICS.ENGINE_ERROR, {
+        type: 'world_model_training',
+        jobId,
+        error: error.message,
+      });
+      return false;
+    }
+  }
+
+  /** 使用世界模型预测未来状态 */
+  async predictWithWorldModel(input: WorldModelInput): Promise<WorldModelPrediction> {
+    const engine = this.getWorldModel();
+    return engine.predictFuture(input);
+  }
+
+  /** 获取世界模型引擎状态 */
+  getWorldModelStatus() {
+    return this.worldModel.getStatus();
+  }
+
+  // ── 世界模型事件 ──
   async recordWorldModelTraining(params: {
     versionId: string;
     architecture: string;
