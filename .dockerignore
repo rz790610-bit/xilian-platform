@@ -9,3 +9,8 @@ dist
 .DS_Store
 .vscode
 .idea
+tests
+monitoring
+scripts
+!scripts/verify-onnx.mjs
+!server/platform/evolution/models/world-model-lstm.onnx
