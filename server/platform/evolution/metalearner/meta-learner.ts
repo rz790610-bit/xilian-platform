@@ -13,7 +13,8 @@
  * MetaLearner 是 Grok 的最高级应用：
  *   不是执行具体诊断，而是"学习如何更好地学习"
  *
- * AI 集成架构（v2 — P0 LLM/Grok 注入）：
+ * AI 集成架构（v3 — P1 Plugin Engine 集成）：
+ *   - 第零层：策略插件（pluginEngine 注册的 StrategyPlugin）— 可热插拔
  *   - 第一层：GrokReasoningService.diagnose() — 工具调用 + 多步推理（最强）
  *   - 第二层：invokeLLM() — Forge API 结构化输出（兜底）
  *   - 第三层：generateHypothesesWithRules() — 原有 if-else 规则引擎（最终兜底）
@@ -22,6 +23,8 @@
 import { createModuleLogger } from '../../../core/logger';
 import { invokeLLM, type InvokeResult } from '../../../core/llm';
 import { grokReasoningService, type DiagnoseRequest } from '../../cognition/grok/grok-reasoning.service';
+import { pluginEngine } from '../../../services/plugin.engine';
+import type { StrategyPlugin } from '../plugins/strategies/strategy-plugin.interface';
 
 const log = createModuleLogger('meta-learner');
 
@@ -176,6 +179,9 @@ export class MetaLearner {
   private config: MetaLearnerConfig;
   private state: MetaLearnerState;
   private performanceMemory: { timestamp: number; score: number; context: Record<string, number> }[] = [];
+  /** 策略插件缓存（从 pluginEngine 加载） */
+  private strategyPlugins: Map<string, StrategyPlugin> = new Map();
+  private pluginsInitialized = false;
 
   constructor(config: Partial<MetaLearnerConfig> = {}) {
     this.config = { ...DEFAULT_CONFIG, ...config };
@@ -187,6 +193,44 @@ export class MetaLearner {
       experimentHistory: [],
       performanceTrend: [],
     };
+  }
+
+  // ==========================================================================
+  // 策略插件加载
+  // ==========================================================================
+
+  /**
+   * 从 pluginEngine 加载所有 evolution 策略插件
+   * 通过 tags 过滤：包含 'evolution' 和 'strategy' 的 analyzer 类型插件
+   */
+  async initPlugins(): Promise<void> {
+    if (this.pluginsInitialized) return;
+    try {
+      const allAnalyzers = pluginEngine.getPluginsByType('analyzer');
+      for (const p of allAnalyzers) {
+        // 通过 pluginEngine.getPluginStatus 获取完整 metadata 检查 tags
+        const status = pluginEngine.getPluginStatus(p.id);
+        if (!status) continue;
+        const tags = status.metadata.tags || [];
+        if (tags.includes('evolution') && tags.includes('strategy')) {
+          // 通过 executePlugin 桥接获取实例不可行，直接标记 ID
+          // 策略插件在注册时已缓存到 strategyPlugins
+          log.debug(`[MetaLearner] 发现策略插件: ${p.id} (${p.name})`);
+        }
+      }
+      this.pluginsInitialized = true;
+      log.info(`[MetaLearner] 加载 ${this.strategyPlugins.size} 个策略插件`);
+    } catch (err) {
+      log.warn('[MetaLearner] 策略插件加载失败，将使用内置降级链', { error: String(err) });
+    }
+  }
+
+  /**
+   * 注册策略插件（供 Orchestrator 调用）
+   */
+  registerStrategy(plugin: StrategyPlugin): void {
+    this.strategyPlugins.set(plugin.metadata.id, plugin);
+    log.debug(`[MetaLearner] 注册策略插件: ${plugin.metadata.id}`);
   }
 
   /**
@@ -278,13 +322,36 @@ export class MetaLearner {
       recentPerformance,
     };
 
+    // 确保策略插件已加载
+    await this.initPlugins();
+
+    // ── 第零层：策略插件（可热插拔） ──
+    const preferredStrategy = context.constraints?.['preferredStrategy'] as string | undefined;
+    const strategyId = preferredStrategy || 'meta-learner.bayesian';
+    const plugin = this.strategyPlugins.get(strategyId) || this.strategyPlugins.get('meta-learner.bayesian');
+
+    if (plugin) {
+      try {
+        log.debug(`[MetaLearner] 尝试策略插件 ${plugin.metadata.id} 生成假设...`);
+        const hypotheses = await plugin.executeStrategy(context);
+        if (hypotheses.length > 0) {
+          log.debug(`[MetaLearner] 策略插件 ${plugin.metadata.id} 成功生成 ${hypotheses.length} 个假设`);
+          this.state.hypothesisHistory.push(...hypotheses);
+          return hypotheses;
+        }
+        log.debug(`[MetaLearner] 策略插件 ${plugin.metadata.id} 返回空结果，降级到 Grok`);
+      } catch (err) {
+        log.warn(`[MetaLearner] 策略插件 ${plugin.metadata.id} 执行失败，降级到 Grok`, { error: String(err) });
+      }
+    }
+
     // 如果禁用 LLM，直接走规则
     if (!this.config.enableLLMHypothesis) {
       log.debug('[MetaLearner] LLM 已禁用，使用规则引擎生成假设');
       return this.generateHypothesesWithRules(recentPerformance);
     }
 
-    // 第一层：Grok 推理链
+    // ── 第一层：Grok 推理链 ──
     try {
       log.debug('[MetaLearner] 尝试 Grok 推理链生成假设...');
       const hypotheses = await this.generateHypothesesWithGrok(context);
@@ -298,7 +365,7 @@ export class MetaLearner {
       log.warn('[MetaLearner] Grok 推理链失败，降级到 LLM', { error: String(err) });
     }
 
-    // 第二层：LLM 结构化输出
+    // ── 第二层：LLM 结构化输出 ──
     try {
       log.debug('[MetaLearner] 尝试 LLM 结构化输出生成假设...');
       const hypotheses = await this.generateHypothesesWithLLM(context);
@@ -312,7 +379,7 @@ export class MetaLearner {
       log.warn('[MetaLearner] LLM 调用失败，降级到规则引擎', { error: String(err) });
     }
 
-    // 第三层：规则引擎（原有 if-else）
+    // ── 第三层：规则引擎（原有 if-else） ──
     log.debug('[MetaLearner] 使用规则引擎生成假设（最终兜底）');
     const hypotheses = this.generateHypothesesWithRules(recentPerformance);
     this.state.hypothesisHistory.push(...hypotheses);

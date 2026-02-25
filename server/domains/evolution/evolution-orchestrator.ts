@@ -27,6 +27,10 @@ import { ClosedLoopTracker, type ClosedLoop } from '../../platform/evolution/clo
 import { EvolutionFlywheel, type FlywheelConfig, type FlywheelCycleReport } from '../../platform/evolution/flywheel/evolution-flywheel';
 import { type EngineModule, ENGINE_MODULES, ENGINE_MODULE_LABELS, normalizeModuleName } from '../../../shared/evolution-modules';
 import { GrokLabelProvider } from '../../platform/evolution/labeling/grok-label-provider';
+import { pluginEngine } from '../../services/plugin.engine';
+import { bayesianOptimizationPlugin } from '../../platform/evolution/plugins/strategies/bayesian-strategy.plugin';
+import { geneticAlgorithmPlugin } from '../../platform/evolution/plugins/strategies/genetic-strategy.plugin';
+import type { StrategyPlugin } from '../../platform/evolution/plugins/strategies/strategy-plugin.interface';
 
 // ── 事件 Topic 常量 ──
 export const EVOLUTION_TOPICS = {
@@ -35,6 +39,10 @@ export const EVOLUTION_TOPICS = {
   ENGINE_STOPPED: 'evolution.engine.stopped',
   ENGINE_ERROR: 'evolution.engine.error',
   ENGINE_HEALTH_CHECK: 'evolution.engine.healthCheck',
+
+  // 策略插件
+  STRATEGY_REGISTERED: 'evolution.strategy.registered',
+  STRATEGY_EXECUTED: 'evolution.strategy.executed',
 
   // 进化周期
   CYCLE_STARTED: 'evolution.cycle.started',
@@ -191,11 +199,58 @@ export class EvolutionOrchestrator {
     if (this.initialized) return;
     this.initialized = true;
 
+    // ── 注册策略插件到 pluginEngine + MetaLearner ──
+    await this.registerStrategyPlugins();
+
     await this.publishEvent(EVOLUTION_TOPICS.ENGINE_STARTED, {
       message: '进化引擎编排器已初始化',
       moduleCount: ENGINE_MODULES.length,
+      strategyPlugins: this.registeredStrategies.length,
       timestamp: Date.now(),
     });
+  }
+
+  /** 已注册的策略插件 ID 列表 */
+  private registeredStrategies: string[] = [];
+
+  /**
+   * 注册内置策略插件到 pluginEngine 和 MetaLearner
+   * 支持热注册：未来新增策略只需在此追加一行
+   */
+  private async registerStrategyPlugins(): Promise<void> {
+    const strategies: StrategyPlugin[] = [
+      bayesianOptimizationPlugin,
+      geneticAlgorithmPlugin,
+      // 未来新增策略在此追加：
+      // newReinforcementLearningPlugin,
+    ];
+
+    for (const strategy of strategies) {
+      try {
+        // 注册到 pluginEngine（统一管理生命周期）
+        await pluginEngine.installPlugin(strategy);
+        await pluginEngine.enablePlugin(strategy.metadata.id);
+
+        // 注册到 MetaLearner（直接引用，避免序列化开销）
+        this.metaLearner.registerStrategy(strategy);
+
+        this.registeredStrategies.push(strategy.metadata.id);
+
+        await this.publishEvent(EVOLUTION_TOPICS.STRATEGY_REGISTERED, {
+          pluginId: strategy.metadata.id,
+          name: strategy.metadata.name,
+          version: strategy.metadata.version,
+        });
+      } catch (err) {
+        // 插件已安装时跳过（幂等）
+        const msg = err instanceof Error ? err.message : String(err);
+        if (msg.includes('already installed')) {
+          this.registeredStrategies.push(strategy.metadata.id);
+        } else {
+          console.warn(`[EvolutionOrchestrator] 策略插件 ${strategy.metadata.id} 注册失败:`, msg);
+        }
+      }
+    }
   }
 
   // ── EventBus 集成 ──
