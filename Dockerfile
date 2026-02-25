@@ -7,7 +7,7 @@
 # ============================================================
 
 # ── Stage 1: 构建阶段 ──
-FROM node:22-slim AS builder
+FROM node:25-slim AS builder
 
 WORKDIR /app
 
@@ -33,7 +33,7 @@ COPY . .
 RUN pnpm build
 
 # ── Stage 2: 生产阶段 ──
-FROM node:22-slim AS production
+FROM node:25-slim AS production
 
 WORKDIR /app
 
