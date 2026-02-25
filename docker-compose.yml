@@ -159,7 +159,7 @@ services:
       CLICKHOUSE_DB: portai_timeseries
       CLICKHOUSE_USER: portai
       # P0-DOCKER-2: ClickHouse 密码改为环境变量
-      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:?CLICKHOUSE_PASSWORD must be set}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-}
       CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
     volumes:
       - clickhouse_data:/var/lib/clickhouse
