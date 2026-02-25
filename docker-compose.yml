@@ -70,6 +70,10 @@ services:
       - VAULT_ADDR=http://vault:8200
       - VAULT_TOKEN=${VAULT_DEV_TOKEN:-xilian-dev-root-token}
       - LOG_LEVEL=${LOG_LEVEL:-info}
+      # 安全配置（生产环境必填）
+      - JWT_SECRET=${JWT_SECRET:-xilian-portai-nexus-docker-deploy-secret-2026}
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD:-portai123}
     depends_on:
       mysql:
         condition: service_healthy
