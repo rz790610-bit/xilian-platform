@@ -1,0 +1,234 @@
+{
+  "$schema": "../schemas/diagnostic_rules.schema.json",
+  "rules_version": "1.1.0",
+  "updated_at": "2026-02-27",
+  "update_reason": "添加制动器故障鉴别规则 (CASE-20260227-001)",
+
+  "feature_rules": {
+    "sideband_analysis": {
+      "rule_id": "SIDEBAND_ANALYSIS_V2",
+      "description": "转频边频带综合诊断规则",
+      "version": "2.0.0",
+
+      "input_features": [
+        {
+          "name": "sideband_interval",
+          "description": "边频带间隔频率",
+          "unit": "Hz"
+        },
+        {
+          "name": "rotation_frequency",
+          "description": "转频",
+          "unit": "Hz"
+        },
+        {
+          "name": "center_frequency",
+          "description": "边频带中心频率",
+          "unit": "Hz"
+        },
+        {
+          "name": "1x_amplitude",
+          "description": "转频幅值",
+          "unit": "g"
+        },
+        {
+          "name": "gmf_amplitude",
+          "description": "啮合频率幅值",
+          "unit": "g"
+        }
+      ],
+
+      "decision_logic": [
+        {
+          "condition_id": "COND_001",
+          "condition": "sideband_interval ≈ rotation_frequency",
+          "possible_faults": [
+            {
+              "fault_type": "gear_eccentricity",
+              "base_probability": 0.35,
+              "description": "齿轮偏心"
+            },
+            {
+              "fault_type": "brake_fault",
+              "base_probability": 0.30,
+              "description": "制动器故障"
+            },
+            {
+              "fault_type": "coupling_misalignment",
+              "base_probability": 0.20,
+              "description": "联轴器不对中"
+            },
+            {
+              "fault_type": "gear_mesh_fault",
+              "base_probability": 0.15,
+              "description": "齿轮啮合故障"
+            }
+          ]
+        },
+        {
+          "condition_id": "COND_002",
+          "condition": "1x_amplitude > gmf_amplitude",
+          "adjustment": {
+            "gear_eccentricity": -0.10,
+            "brake_fault": +0.20,
+            "coupling_misalignment": +0.15,
+            "gear_mesh_fault": -0.20
+          },
+          "rationale": "1X主导时，更可能是制动器或联轴器问题而非纯齿轮故障"
+        },
+        {
+          "condition_id": "COND_003",
+          "condition": "gmf_amplitude > 1x_amplitude AND 2x_gmf_present",
+          "adjustment": {
+            "gear_eccentricity": +0.15,
+            "brake_fault": -0.15,
+            "coupling_misalignment": -0.10,
+            "gear_mesh_fault": +0.25
+          },
+          "rationale": "GMF及其谐波主导时，更可能是齿轮本身问题"
+        },
+        {
+          "condition_id": "COND_004",
+          "condition": "verified_gear_teeth_match",
+          "adjustment": {
+            "gear_mesh_fault": +0.20,
+            "brake_fault": -0.10
+          },
+          "rationale": "齿数验证通过时，增加齿轮故障概率"
+        }
+      ]
+    }
+  },
+
+  "fault_signatures": {
+    "brake_fault": {
+      "signature_id": "SIG_BRAKE_001",
+      "name": "制动器故障特征",
+      "typical_features": {
+        "spectral": [
+          "1X转频为最强峰值",
+          "边频带间隔 = 转频",
+          "高次谐波 (3X, 5X, 7X) 明显"
+        ],
+        "vibration": [
+          "峭度升高 (>4)",
+          "存在周期性冲击",
+          "运行/停止状态频谱差异大"
+        ],
+        "operational": [
+          "制动时振动加剧",
+          "可能伴随异响",
+          "制动距离变化"
+        ]
+      },
+      "confidence_boosters": [
+        {
+          "feature": "制动/非制动状态频谱对比差异 > 30%",
+          "boost": 0.25
+        },
+        {
+          "feature": "存在摩擦片磨损历史",
+          "boost": 0.15
+        }
+      ],
+      "similar_patterns": ["coupling_misalignment", "gear_eccentricity"],
+      "differentiation_key": "需运行状态对比确认"
+    },
+
+    "gear_eccentricity": {
+      "signature_id": "SIG_GEAR_ECC_001",
+      "name": "齿轮偏心特征",
+      "typical_features": {
+        "spectral": [
+          "GMF周围对称边频带",
+          "边频带间隔 = 转频",
+          "GMF幅值与边频带幅值相近"
+        ],
+        "vibration": [
+          "振动随负载变化",
+          "周期性调制明显"
+        ]
+      },
+      "differentiation_key": "齿数验证 + 负载测试"
+    },
+
+    "gear_mesh_fault": {
+      "signature_id": "SIG_GEAR_MESH_001",
+      "name": "齿轮啮合故障特征",
+      "typical_features": {
+        "spectral": [
+          "GMF为主导频率",
+          "2X GMF, 3X GMF 明显",
+          "边频带可能不对称"
+        ],
+        "vibration": [
+          "冲击明显 (峭度 > 5)",
+          "高频能量占比高"
+        ]
+      },
+      "differentiation_key": "齿数验证 + GMF谐波分析"
+    }
+  },
+
+  "diagnostic_workflow": {
+    "workflow_id": "WF_SIDEBAND_001",
+    "name": "转频边频带诊断流程",
+    "steps": [
+      {
+        "step": 1,
+        "action": "检测边频带模式",
+        "output": "边频带间隔、中心频率、对称性"
+      },
+      {
+        "step": 2,
+        "action": "计算1X与GMF幅值比",
+        "decision": {
+          "if": "1X/GMF > 1.5",
+          "priority": ["brake_fault", "coupling_misalignment"],
+          "else_priority": ["gear_mesh_fault", "gear_eccentricity"]
+        }
+      },
+      {
+        "step": 3,
+        "action": "齿数验证",
+        "method": "查询设备台账或图纸",
+        "decision": {
+          "if": "center_freq / rotation_freq = 整数",
+          "note": "可能是齿轮啮合频率，但需确认齿数"
+        }
+      },
+      {
+        "step": 4,
+        "action": "运行状态对比（如可行）",
+        "method": "对比制动/非制动、空载/负载状态",
+        "decision": {
+          "if": "制动状态频谱变化明显",
+          "priority": ["brake_fault"]
+        }
+      },
+      {
+        "step": 5,
+        "action": "输出诊断结论",
+        "output": "故障类型、置信度、建议措施"
+      }
+    ]
+  },
+
+  "weight_history": [
+    {
+      "date": "2026-02-27",
+      "change": "initial",
+      "gear_mesh_fault_weight": 0.85,
+      "brake_fault_weight": 0.30,
+      "note": "初始权重，基于传统诊断经验"
+    },
+    {
+      "date": "2026-02-27",
+      "change": "adjustment",
+      "trigger_case": "CASE-20260227-001",
+      "gear_mesh_fault_weight": 0.70,
+      "brake_fault_weight": 0.55,
+      "note": "根据现场确认调整，制动器故障权重提升"
+    }
+  ]
+}

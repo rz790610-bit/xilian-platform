@@ -1,0 +1,196 @@
+{
+  "$schema": "../schemas/fault_pattern.schema.json",
+  "pattern_id": "FP-2026-0001",
+  "pattern_name": "制动器故障 vs 齿轮啮合异常鉴别",
+  "created_at": "2026-02-27",
+  "updated_at": "2026-02-27",
+  "version": "1.0.0",
+  "status": "verified",
+
+  "case_record": {
+    "case_id": "CASE-20260227-001",
+    "device_id": "1903000114",
+    "device_type": "港机减速箱",
+    "component": "输入轴制动器",
+    "occurrence_date": "2026-01-22",
+    "confirmation_date": "2026-02-27",
+    "confirmed_by": "现场维修确认"
+  },
+
+  "spectral_signature": {
+    "rotation_frequency_hz": 16.5,
+    "rotation_speed_rpm": 990,
+    "primary_features": [
+      {
+        "frequency_hz": 16.5,
+        "amplitude": 1.16,
+        "description": "转频强峰值 (1X)",
+        "significance": "high"
+      },
+      {
+        "frequency_hz": 264,
+        "amplitude": 0.355,
+        "description": "密集边频带中心",
+        "significance": "high"
+      }
+    ],
+    "sideband_pattern": {
+      "center_frequency_hz": 264,
+      "sideband_interval_hz": 16.5,
+      "sideband_count": 10,
+      "symmetry": "bilateral",
+      "description": "边频带间隔等于转频，双侧对称分布"
+    },
+    "harmonic_pattern": {
+      "harmonics_detected": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+      "dominant_harmonics": [1, 3, 6],
+      "description": "转频谐波丰富，1X、3X、6X较强"
+    }
+  },
+
+  "vibration_signature": {
+    "rms_g": 0.818,
+    "peak_g": 12.547,
+    "kurtosis": 6.485,
+    "crest_factor": 5.1,
+    "baseline_rms_g": 0.3,
+    "assessment": {
+      "rms_ratio": 2.7,
+      "kurtosis_deviation": 3.485,
+      "impact_indicator": "存在周期性冲击"
+    }
+  },
+
+  "initial_diagnosis": {
+    "fault_type": "齿轮啮合异常",
+    "confidence": 0.85,
+    "reasoning": [
+      "264Hz = 16.5Hz × 16，符合齿轮啮合频率计算",
+      "边频带间隔等于转频，符合齿轮调制特征",
+      "转频谐波丰富，符合旋转机械故障模式"
+    ],
+    "recommended_action": "检查齿轮啮合状态，测量齿侧间隙"
+  },
+
+  "actual_fault": {
+    "fault_type": "减速箱输入轴制动故障",
+    "root_cause": "制动器摩擦片磨损导致制动不完全，产生周期性滑动摩擦",
+    "failure_mechanism": [
+      "制动器摩擦片磨损不均匀",
+      "制动时产生周期性滑动",
+      "滑动频率与转频同步",
+      "激励齿轮系统产生边频带调制"
+    ],
+    "actual_repair": "更换制动器摩擦片，调整制动间隙"
+  },
+
+  "differentiation_rules": {
+    "rule_id": "DIFF-BRAKE-GEAR-001",
+    "description": "制动器故障 vs 齿轮故障鉴别规则",
+    "conditions": [
+      {
+        "feature": "转频边频带",
+        "pattern": "边频带间隔 = 转频",
+        "common_to": ["齿轮故障", "制动器故障", "联轴器故障"]
+      },
+      {
+        "feature": "1X幅值",
+        "pattern": "1X为最强峰值",
+        "favors": "制动器/联轴器故障",
+        "reason": "纯齿轮故障通常GMF最强"
+      },
+      {
+        "feature": "GMF与齿数关系",
+        "pattern": "GMF/转频 应为整数齿数",
+        "note": "264/16.5=16，可能是齿数，也可能是巧合"
+      }
+    ],
+    "differentiation_method": [
+      {
+        "step": 1,
+        "action": "验证齿数",
+        "description": "查阅设备图纸，确认齿轮齿数是否为16"
+      },
+      {
+        "step": 2,
+        "action": "检查制动器",
+        "description": "检查制动器状态，是否存在制动不完全"
+      },
+      {
+        "step": 3,
+        "action": "运行状态对比",
+        "description": "对比制动/非制动状态下的频谱变化"
+      },
+      {
+        "step": 4,
+        "action": "谐波分析",
+        "description": "齿轮故障通常2X GMF明显，制动器故障1X更突出"
+      }
+    ],
+    "decision_tree": {
+      "if": "1X幅值 > GMF幅值 且 边频带间隔=转频",
+      "then": "优先检查制动器/联轴器",
+      "else_if": "GMF幅值 > 1X幅值 且 2X_GMF明显",
+      "then": "优先检查齿轮啮合",
+      "confidence_adjustment": {
+        "gear_fault": -0.15,
+        "brake_fault": +0.20,
+        "coupling_fault": +0.10
+      }
+    }
+  },
+
+  "knowledge_crystal": {
+    "crystal_id": "KC-2026-0001",
+    "crystal_type": "diagnostic_correction",
+    "source": "field_confirmation",
+    "lesson_learned": [
+      "转频边频带不等于齿轮故障，需综合判断",
+      "1X为最强峰时，优先排查制动器/联轴器",
+      "齿数验证是确认齿轮故障的必要条件"
+    ],
+    "applicable_equipment": [
+      "减速箱",
+      "带制动器的传动系统",
+      "起重机构"
+    ],
+    "tags": [
+      "制动器故障",
+      "齿轮鉴别",
+      "边频带分析",
+      "误诊修正"
+    ]
+  },
+
+  "rule_weight_adjustment": {
+    "effective_from": "2026-02-27",
+    "adjustments": [
+      {
+        "rule_id": "GEAR_MESH_SIDEBAND",
+        "original_weight": 0.85,
+        "adjusted_weight": 0.70,
+        "reason": "边频带非齿轮故障独有特征"
+      },
+      {
+        "rule_id": "ROTATION_FREQ_DOMINANT",
+        "original_weight": 0.50,
+        "adjusted_weight": 0.65,
+        "reason": "1X主导时增加制动器/联轴器权重"
+      },
+      {
+        "rule_id": "BRAKE_FAULT_INDICATOR",
+        "original_weight": 0.30,
+        "adjusted_weight": 0.55,
+        "reason": "新增制动器故障识别权重",
+        "new_rule": true
+      }
+    ]
+  },
+
+  "validation": {
+    "similar_cases": 0,
+    "confidence_level": "single_case",
+    "needs_more_data": true,
+    "review_after_cases": 3
+  }
+}
