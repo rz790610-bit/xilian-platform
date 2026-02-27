@@ -1,0 +1,106 @@
+{
+  "device_id": "1903000114",
+  "channel": "05_N",
+  "sample_rate": 12800,
+  "duration": 4.0,
+  "time_features": {
+    "rms": 0.818,
+    "peak": 4.1774,
+    "peak_to_peak": 8.3168,
+    "kurtosis": 5.842,
+    "skewness": 0.215,
+    "crest_factor": 5.107,
+    "shape_factor": 1.472,
+    "impulse_factor": 7.519,
+    "clearance_factor": 9.775,
+    "mean": 0.0229,
+    "std": 0.8177
+  },
+  "frequency_features": {
+    "dominant_freqs": [
+      [
+        2506.25,
+        0.6392
+      ],
+      [
+        2416.75,
+        0.4195
+      ],
+      [
+        2595.75,
+        0.3595
+      ],
+      [
+        2327.25,
+        0.2475
+      ],
+      [
+        2685.25,
+        0.2044
+      ],
+      [
+        2964.25,
+        0.2027
+      ],
+      [
+        16.75,
+        0.1808
+      ],
+      [
+        2237.75,
+        0.1746
+      ],
+      [
+        3099.0,
+        0.1479
+      ],
+      [
+        2774.75,
+        0.1347
+      ]
+    ],
+    "total_power": 1.3393,
+    "low_freq_power": 4.85,
+    "mid_freq_power": 1.52,
+    "high_freq_power": 93.64,
+    "spectral_centroid": 2996.4,
+    "spectral_spread": 1718.13
+  },
+  "bearing_analysis": {
+    "bpfo_detected": 1,
+    "bpfo_amplitude": 0.741,
+    "bpfi_detected": 1,
+    "bpfi_amplitude": 0.1339,
+    "bsf_detected": 1,
+    "bsf_amplitude": 0.0046,
+    "ftf_detected": 1,
+    "ftf_amplitude": 0.0105,
+    "fault_type": "外圈故障、内圈故障、滚动体故障、保持架故障",
+    "confidence": 1.0
+  },
+  "health_assessment": {
+    "health_score": 30.0,
+    "severity": "critical",
+    "status": "严重：存在故障风险",
+    "risk_factors": [
+      "RMS轻微偏高: 0.818g",
+      "峭度偏高: 5.84，可能存在早期冲击",
+      "检测到外圈故障频率 (BPFO=89.2Hz)",
+      "检测到内圈故障频率 (BPFI=134.5Hz)",
+      "检测到滚动体故障频率",
+      "检测到保持架故障频率"
+    ],
+    "recommendations": [
+      "立即安排停机检查",
+      "安排轴承检查，准备备件",
+      "内圈故障发展较快，优先处理",
+      "检查前避免重载运行"
+    ]
+  },
+  "analysis_notes": [
+    "采样率: 12800Hz, 数据点: 51200, 时长: 4.0秒",
+    "频率分辨率: 0.25Hz",
+    "高峭度(5.84)表明信号中存在明显冲击成分，典型轴承早期故障特征",
+    "包络谱在89.2Hz附近检测到能量集中，符合外圈故障特征频率"
+  ]
+}
