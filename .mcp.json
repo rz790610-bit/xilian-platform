@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "ollama-local": {
+      "command": "npx",
+      "args": ["tsx", "mcp-servers/ollama-server.ts"],
+      "env": {
+        "OLLAMA_BASE_URL": "http://localhost:11434",
+        "OLLAMA_MODEL": "llama3.1:70b",
+        "OLLAMA_TIMEOUT": "300000"
+      }
+    }
+  }
+}
