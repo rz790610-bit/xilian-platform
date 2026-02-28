@@ -13,7 +13,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-export type TwinTab = 'status' | 'simulation' | 'replay' | 'worldmodel';
+export type TwinTab = 'status' | 'simulation' | 'replay' | 'worldmodel' | '3d';
 
 interface SimulationTaskProgress {
   taskId: string;
@@ -27,6 +27,10 @@ interface TwinStore {
   // 设备选择
   selectedEquipmentId: string | null;
   setSelectedEquipment: (id: string | null) => void;
+
+  // 传感器选择（用于图表弹窗）
+  selectedSensorId: string | null;
+  setSelectedSensorId: (id: string | null) => void;
 
   // Tab 状态
   activeTab: TwinTab;
@@ -57,6 +61,10 @@ export const useTwinStore = create<TwinStore>()(
       // 设备选择
       selectedEquipmentId: null,
       setSelectedEquipment: (id) => set({ selectedEquipmentId: id }),
+
+      // 传感器选择
+      selectedSensorId: null,
+      setSelectedSensorId: (id) => set({ selectedSensorId: id }),
 
       // Tab 状态
       activeTab: 'status',

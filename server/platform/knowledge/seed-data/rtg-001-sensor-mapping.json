@@ -1,0 +1,688 @@
+{
+  "$schema": "RTG双悬臂轨道吊传感器-部件映射表",
+  "$version": "1.0.0",
+  "$device": "PORT.RTG.ZPMC.DCRG-45t.SN20260001",
+  "$description": "平台第一台真实设备 — 双悬臂轨道吊（Double-Cantilever Rail-mounted Gantry）知识图谱种子数据",
+
+  "device": {
+    "code": "PORT.RTG.ZPMC.DCRG-45t.SN20260001",
+    "name": "1号双悬臂轨道吊",
+    "type": "RTG",
+    "manufacturer": "ZPMC",
+    "model": "DCRG-45t",
+    "serialNumber": "SN20260001",
+    "location": "堆场A区",
+    "installDate": "2024-06-15"
+  },
+
+  "components": {
+    "HOIST": {
+      "code": "HOIST",
+      "name": "起升机构",
+      "children": {
+        "HOIST.MOTOR": {
+          "code": "HOIST.MOTOR",
+          "name": "起升电机",
+          "specs": { "power_kw": 200, "rpm": 1480, "voltage_v": 380 }
+        },
+        "HOIST.GBX": {
+          "code": "HOIST.GBX",
+          "name": "起升减速箱",
+          "specs": { "ratio": 31.5, "stages": 3, "type": "helical" }
+        }
+      }
+    },
+    "TROLLEY": {
+      "code": "TROLLEY",
+      "name": "小车运行机构",
+      "children": {
+        "TROLLEY.MOTOR": {
+          "code": "TROLLEY.MOTOR",
+          "name": "小车电机",
+          "specs": { "power_kw": 30, "rpm": 1460, "voltage_v": 380 }
+        },
+        "TROLLEY.GBX": {
+          "code": "TROLLEY.GBX",
+          "name": "小车减速箱",
+          "specs": { "ratio": 25, "stages": 2, "type": "helical" }
+        }
+      }
+    },
+    "GANTRY": {
+      "code": "GANTRY",
+      "name": "大车运行机构",
+      "children": {
+        "GANTRY.MOTOR_A": {
+          "code": "GANTRY.MOTOR_A",
+          "name": "大车电机A（海侧）",
+          "specs": { "power_kw": 22, "rpm": 1460, "voltage_v": 380 }
+        },
+        "GANTRY.MOTOR_B": {
+          "code": "GANTRY.MOTOR_B",
+          "name": "大车电机B（陆侧）",
+          "specs": { "power_kw": 22, "rpm": 1460, "voltage_v": 380 }
+        }
+      }
+    },
+    "STRUCTURE": {
+      "code": "STRUCTURE",
+      "name": "钢结构",
+      "children": {
+        "STRUCTURE.FBEAM": {
+          "code": "STRUCTURE.FBEAM",
+          "name": "前大梁"
+        },
+        "STRUCTURE.RBEAM": {
+          "code": "STRUCTURE.RBEAM",
+          "name": "后大梁"
+        },
+        "STRUCTURE.SLEG": {
+          "code": "STRUCTURE.SLEG",
+          "name": "海侧门腿"
+        },
+        "STRUCTURE.LLEG": {
+          "code": "STRUCTURE.LLEG",
+          "name": "陆侧门腿"
+        },
+        "STRUCTURE.FCANT": {
+          "code": "STRUCTURE.FCANT",
+          "name": "前悬臂"
+        },
+        "STRUCTURE.RCANT": {
+          "code": "STRUCTURE.RCANT",
+          "name": "后悬臂"
+        },
+        "STRUCTURE.JUNCT": {
+          "code": "STRUCTURE.JUNCT",
+          "name": "大梁-门腿连接节点"
+        }
+      }
+    }
+  },
+
+  "collectors": [
+    {
+      "id": "DAQ-VT-01",
+      "name": "1#振温采集器",
+      "type": "vibration_temperature",
+      "channels": 8,
+      "connectedPoints": ["VT-01", "VT-02", "VT-03", "VT-04", "VT-05", "VT-06", "VT-07", "VT-08"]
+    },
+    {
+      "id": "DAQ-VT-02",
+      "name": "2#振温采集器",
+      "type": "vibration_temperature",
+      "channels": 8,
+      "connectedPoints": ["VT-09", "VT-10", "VT-11", "VT-12", "VT-13", "VT-14", "VT-15", "VT-16"]
+    },
+    {
+      "id": "DAQ-ST-01",
+      "name": "应力采集器",
+      "type": "stress",
+      "channels": 16,
+      "connectedPoints": ["ST-01", "ST-02", "ST-03", "ST-04", "ST-05", "ST-06", "ST-07", "ST-08", "ST-09", "ST-10", "ST-11", "ST-12", "ST-13", "ST-14", "ST-15"]
+    }
+  ],
+
+  "vibrationTemperaturePoints": [
+    {
+      "pointId": "VT-01",
+      "index": 1,
+      "name": "起升电机驱动端振动",
+      "component": "HOIST.MOTOR",
+      "position": "驱动端水平",
+      "measurementType": "vibration",
+      "physicalQuantity": "acceleration",
+      "unit": "mm/s",
+      "sampleRate": 12800,
+      "sensorModel": "KL-ACC-100",
+      "collectorId": "DAQ-VT-01",
+      "channel": "CH1",
+      "warningThreshold": 7.1,
+      "criticalThreshold": 11.2,
+      "algorithms": ["fft_spectrum", "envelope_demod", "time_domain_features", "spectral_kurtosis"]
+    },
+    {
+      "pointId": "VT-02",
+      "index": 2,
+      "name": "起升电机非驱动端振动",
+      "component": "HOIST.MOTOR",
+      "position": "非驱动端水平",
+      "measurementType": "vibration",
+      "physicalQuantity": "acceleration",
+      "unit": "mm/s",
+      "sampleRate": 12800,
+      "sensorModel": "KL-ACC-100",
+      "collectorId": "DAQ-VT-01",
+      "channel": "CH2",
+      "warningThreshold": 7.1,
+      "criticalThreshold": 11.2,
+      "algorithms": ["fft_spectrum", "envelope_demod", "time_domain_features", "spectral_kurtosis"]
+    },
+    {
+      "pointId": "VT-03",
+      "index": 3,
+      "name": "起升电机绕组温度",
+      "component": "HOIST.MOTOR",
+      "position": "定子绕组",
+      "measurementType": "temperature",
+      "physicalQuantity": "temperature",
+      "unit": "°C",
+      "sampleRate": 1,
+      "sensorModel": "PT100",
+      "collectorId": "DAQ-VT-01",
+      "channel": "CH3",
+      "warningThreshold": 75,
+      "criticalThreshold": 90,
+      "algorithms": ["spc_control", "statistical_features"]
+    },
+    {
+      "pointId": "VT-04",
+      "index": 4,
+      "name": "起升减速箱高速轴振动",
+      "component": "HOIST.GBX",
+      "position": "输入端（高速轴）",
+      "measurementType": "vibration",
+      "physicalQuantity": "acceleration",
+      "unit": "mm/s",
+      "sampleRate": 12800,
+      "sensorModel": "KL-ACC-100",
+      "collectorId": "DAQ-VT-01",
+      "channel": "CH4",
+      "warningThreshold": 7.1,
+      "criticalThreshold": 11.2,
+      "algorithms": ["fft_spectrum", "cepstrum_analysis", "envelope_demod", "order_tracking"]
+    },
+    {
+      "pointId": "VT-05",
+      "index": 5,
+      "name": "起升减速箱低速轴振动",
+      "component": "HOIST.GBX",
+      "position": "输出端（低速轴）",
+      "measurementType": "vibration",
+      "physicalQuantity": "acceleration",
+      "unit": "mm/s",
+      "sampleRate": 12800,
+      "sensorModel": "KL-ACC-100",
+      "collectorId": "DAQ-VT-01",
+      "channel": "CH5",
+      "warningThreshold": 7.1,
+      "criticalThreshold": 11.2,
+      "algorithms": ["fft_spectrum", "cepstrum_analysis", "envelope_demod", "order_tracking"]
+    },
+    {
+      "pointId": "VT-06",
+      "index": 6,
+      "name": "起升减速箱油温",
+      "component": "HOIST.GBX",
+      "position": "油池",
+      "measurementType": "temperature",
+      "physicalQuantity": "temperature",
+      "unit": "°C",
+      "sampleRate": 1,
+      "sensorModel": "PT100",
+      "collectorId": "DAQ-VT-01",
+      "channel": "CH6",
+      "warningThreshold": 70,
+      "criticalThreshold": 85,
+      "algorithms": ["spc_control", "statistical_features"]
+    },
+    {
+      "pointId": "VT-07",
+      "index": 7,
+      "name": "小车电机驱动端振动",
+      "component": "TROLLEY.MOTOR",
+      "position": "驱动端水平",
+      "measurementType": "vibration",
+      "physicalQuantity": "acceleration",
+      "unit": "mm/s",
+      "sampleRate": 12800,
+      "sensorModel": "KL-ACC-100",
+      "collectorId": "DAQ-VT-01",
+      "channel": "CH7",
+      "warningThreshold": 7.1,
+      "criticalThreshold": 11.2,
+      "algorithms": ["fft_spectrum", "envelope_demod", "time_domain_features", "spectral_kurtosis"]
+    },
+    {
+      "pointId": "VT-08",
+      "index": 8,
+      "name": "小车电机非驱动端振动",
+      "component": "TROLLEY.MOTOR",
+      "position": "非驱动端水平",
+      "measurementType": "vibration",
+      "physicalQuantity": "acceleration",
+      "unit": "mm/s",
+      "sampleRate": 12800,
+      "sensorModel": "KL-ACC-100",
+      "collectorId": "DAQ-VT-01",
+      "channel": "CH8",
+      "warningThreshold": 7.1,
+      "criticalThreshold": 11.2,
+      "algorithms": ["fft_spectrum", "envelope_demod", "time_domain_features", "spectral_kurtosis"]
+    },
+    {
+      "pointId": "VT-09",
+      "index": 9,
+      "name": "小车电机绕组温度",
+      "component": "TROLLEY.MOTOR",
+      "position": "定子绕组",
+      "measurementType": "temperature",
+      "physicalQuantity": "temperature",
+      "unit": "°C",
+      "sampleRate": 1,
+      "sensorModel": "PT100",
+      "collectorId": "DAQ-VT-02",
+      "channel": "CH1",
+      "warningThreshold": 75,
+      "criticalThreshold": 90,
+      "algorithms": ["spc_control", "statistical_features"]
+    },
+    {
+      "pointId": "VT-10",
+      "index": 10,
+      "name": "小车减速箱高速轴振动",
+      "component": "TROLLEY.GBX",
+      "position": "输入端（高速轴）",
+      "measurementType": "vibration",
+      "physicalQuantity": "acceleration",
+      "unit": "mm/s",
+      "sampleRate": 12800,
+      "sensorModel": "KL-ACC-100",
+      "collectorId": "DAQ-VT-02",
+      "channel": "CH2",
+      "warningThreshold": 7.1,
+      "criticalThreshold": 11.2,
+      "algorithms": ["fft_spectrum", "cepstrum_analysis", "envelope_demod", "order_tracking"]
+    },
+    {
+      "pointId": "VT-11",
+      "index": 11,
+      "name": "小车减速箱低速轴振动",
+      "component": "TROLLEY.GBX",
+      "position": "输出端（低速轴）",
+      "measurementType": "vibration",
+      "physicalQuantity": "acceleration",
+      "unit": "mm/s",
+      "sampleRate": 12800,
+      "sensorModel": "KL-ACC-100",
+      "collectorId": "DAQ-VT-02",
+      "channel": "CH3",
+      "warningThreshold": 7.1,
+      "criticalThreshold": 11.2,
+      "algorithms": ["fft_spectrum", "cepstrum_analysis", "envelope_demod", "order_tracking"]
+    },
+    {
+      "pointId": "VT-12",
+      "index": 12,
+      "name": "小车减速箱油温",
+      "component": "TROLLEY.GBX",
+      "position": "油池",
+      "measurementType": "temperature",
+      "physicalQuantity": "temperature",
+      "unit": "°C",
+      "sampleRate": 1,
+      "sensorModel": "PT100",
+      "collectorId": "DAQ-VT-02",
+      "channel": "CH4",
+      "warningThreshold": 70,
+      "criticalThreshold": 85,
+      "algorithms": ["spc_control", "statistical_features"]
+    },
+    {
+      "pointId": "VT-13",
+      "index": 13,
+      "name": "大车电机A驱动端振动",
+      "component": "GANTRY.MOTOR_A",
+      "position": "驱动端水平",
+      "measurementType": "vibration",
+      "physicalQuantity": "acceleration",
+      "unit": "mm/s",
+      "sampleRate": 12800,
+      "sensorModel": "KL-ACC-100",
+      "collectorId": "DAQ-VT-02",
+      "channel": "CH5",
+      "warningThreshold": 7.1,
+      "criticalThreshold": 11.2,
+      "algorithms": ["fft_spectrum", "envelope_demod", "time_domain_features"]
+    },
+    {
+      "pointId": "VT-14",
+      "index": 14,
+      "name": "大车电机A绕组温度",
+      "component": "GANTRY.MOTOR_A",
+      "position": "定子绕组",
+      "measurementType": "temperature",
+      "physicalQuantity": "temperature",
+      "unit": "°C",
+      "sampleRate": 1,
+      "sensorModel": "PT100",
+      "collectorId": "DAQ-VT-02",
+      "channel": "CH6",
+      "warningThreshold": 75,
+      "criticalThreshold": 90,
+      "algorithms": ["spc_control", "statistical_features"]
+    },
+    {
+      "pointId": "VT-15",
+      "index": 15,
+      "name": "大车电机B驱动端振动",
+      "component": "GANTRY.MOTOR_B",
+      "position": "驱动端水平",
+      "measurementType": "vibration",
+      "physicalQuantity": "acceleration",
+      "unit": "mm/s",
+      "sampleRate": 12800,
+      "sensorModel": "KL-ACC-100",
+      "collectorId": "DAQ-VT-02",
+      "channel": "CH7",
+      "warningThreshold": 7.1,
+      "criticalThreshold": 11.2,
+      "algorithms": ["fft_spectrum", "envelope_demod", "time_domain_features"]
+    },
+    {
+      "pointId": "VT-16",
+      "index": 16,
+      "name": "大车电机B绕组温度",
+      "component": "GANTRY.MOTOR_B",
+      "position": "定子绕组",
+      "measurementType": "temperature",
+      "physicalQuantity": "temperature",
+      "unit": "°C",
+      "sampleRate": 1,
+      "sensorModel": "PT100",
+      "collectorId": "DAQ-VT-02",
+      "channel": "CH8",
+      "warningThreshold": 75,
+      "criticalThreshold": 90,
+      "algorithms": ["spc_control", "statistical_features"]
+    }
+  ],
+
+  "stressPoints": [
+    {
+      "pointId": "ST-01",
+      "index": 1,
+      "name": "前大梁跨中上翼缘",
+      "component": "STRUCTURE.FBEAM",
+      "position": "跨中-上翼缘",
+      "measurementType": "stress",
+      "physicalQuantity": "strain",
+      "unit": "MPa",
+      "sampleRate": 100,
+      "sensorModel": "BX120-3AA",
+      "collectorId": "DAQ-ST-01",
+      "channel": "CH1",
+      "warningThreshold": 120,
+      "criticalThreshold": 160,
+      "algorithms": ["rainflow_counting", "miner_damage", "hot_spot_stress", "statistical_features"]
+    },
+    {
+      "pointId": "ST-02",
+      "index": 2,
+      "name": "前大梁跨中下翼缘",
+      "component": "STRUCTURE.FBEAM",
+      "position": "跨中-下翼缘",
+      "measurementType": "stress",
+      "physicalQuantity": "strain",
+      "unit": "MPa",
+      "sampleRate": 100,
+      "sensorModel": "BX120-3AA",
+      "collectorId": "DAQ-ST-01",
+      "channel": "CH2",
+      "warningThreshold": 120,
+      "criticalThreshold": 160,
+      "algorithms": ["rainflow_counting", "miner_damage", "hot_spot_stress", "statistical_features"]
+    },
+    {
+      "pointId": "ST-03",
+      "index": 3,
+      "name": "前大梁1/4跨",
+      "component": "STRUCTURE.FBEAM",
+      "position": "1/4跨-腹板",
+      "measurementType": "stress",
+      "physicalQuantity": "strain",
+      "unit": "MPa",
+      "sampleRate": 100,
+      "sensorModel": "BX120-3AA",
+      "collectorId": "DAQ-ST-01",
+      "channel": "CH3",
+      "warningThreshold": 100,
+      "criticalThreshold": 140,
+      "algorithms": ["rainflow_counting", "miner_damage", "statistical_features"]
+    },
+    {
+      "pointId": "ST-04",
+      "index": 4,
+      "name": "后大梁跨中上翼缘",
+      "component": "STRUCTURE.RBEAM",
+      "position": "跨中-上翼缘",
+      "measurementType": "stress",
+      "physicalQuantity": "strain",
+      "unit": "MPa",
+      "sampleRate": 100,
+      "sensorModel": "BX120-3AA",
+      "collectorId": "DAQ-ST-01",
+      "channel": "CH4",
+      "warningThreshold": 120,
+      "criticalThreshold": 160,
+      "algorithms": ["rainflow_counting", "miner_damage", "hot_spot_stress", "statistical_features"]
+    },
+    {
+      "pointId": "ST-05",
+      "index": 5,
+      "name": "后大梁跨中下翼缘",
+      "component": "STRUCTURE.RBEAM",
+      "position": "跨中-下翼缘",
+      "measurementType": "stress",
+      "physicalQuantity": "strain",
+      "unit": "MPa",
+      "sampleRate": 100,
+      "sensorModel": "BX120-3AA",
+      "collectorId": "DAQ-ST-01",
+      "channel": "CH5",
+      "warningThreshold": 120,
+      "criticalThreshold": 160,
+      "algorithms": ["rainflow_counting", "miner_damage", "hot_spot_stress", "statistical_features"]
+    },
+    {
+      "pointId": "ST-06",
+      "index": 6,
+      "name": "后大梁1/4跨",
+      "component": "STRUCTURE.RBEAM",
+      "position": "1/4跨-腹板",
+      "measurementType": "stress",
+      "physicalQuantity": "strain",
+      "unit": "MPa",
+      "sampleRate": 100,
+      "sensorModel": "BX120-3AA",
+      "collectorId": "DAQ-ST-01",
+      "channel": "CH6",
+      "warningThreshold": 100,
+      "criticalThreshold": 140,
+      "algorithms": ["rainflow_counting", "miner_damage", "statistical_features"]
+    },
+    {
+      "pointId": "ST-07",
+      "index": 7,
+      "name": "海侧门腿上端",
+      "component": "STRUCTURE.SLEG",
+      "position": "上端连接处",
+      "measurementType": "stress",
+      "physicalQuantity": "strain",
+      "unit": "MPa",
+      "sampleRate": 100,
+      "sensorModel": "BX120-3AA",
+      "collectorId": "DAQ-ST-01",
+      "channel": "CH7",
+      "warningThreshold": 100,
+      "criticalThreshold": 140,
+      "algorithms": ["rainflow_counting", "miner_damage", "hot_spot_stress", "modal_analysis"]
+    },
+    {
+      "pointId": "ST-08",
+      "index": 8,
+      "name": "海侧门腿下端",
+      "component": "STRUCTURE.SLEG",
+      "position": "下端根部",
+      "measurementType": "stress",
+      "physicalQuantity": "strain",
+      "unit": "MPa",
+      "sampleRate": 100,
+      "sensorModel": "BX120-3AA",
+      "collectorId": "DAQ-ST-01",
+      "channel": "CH8",
+      "warningThreshold": 100,
+      "criticalThreshold": 140,
+      "algorithms": ["rainflow_counting", "miner_damage", "hot_spot_stress", "modal_analysis"]
+    },
+    {
+      "pointId": "ST-09",
+      "index": 9,
+      "name": "陆侧门腿上端",
+      "component": "STRUCTURE.LLEG",
+      "position": "上端连接处",
+      "measurementType": "stress",
+      "physicalQuantity": "strain",
+      "unit": "MPa",
+      "sampleRate": 100,
+      "sensorModel": "BX120-3AA",
+      "collectorId": "DAQ-ST-01",
+      "channel": "CH9",
+      "warningThreshold": 100,
+      "criticalThreshold": 140,
+      "algorithms": ["rainflow_counting", "miner_damage", "hot_spot_stress", "modal_analysis"]
+    },
+    {
+      "pointId": "ST-10",
+      "index": 10,
+      "name": "陆侧门腿下端",
+      "component": "STRUCTURE.LLEG",
+      "position": "下端根部",
+      "measurementType": "stress",
+      "physicalQuantity": "strain",
+      "unit": "MPa",
+      "sampleRate": 100,
+      "sensorModel": "BX120-3AA",
+      "collectorId": "DAQ-ST-01",
+      "channel": "CH10",
+      "warningThreshold": 100,
+      "criticalThreshold": 140,
+      "algorithms": ["rainflow_counting", "miner_damage", "hot_spot_stress", "modal_analysis"]
+    },
+    {
+      "pointId": "ST-11",
+      "index": 11,
+      "name": "前悬臂根部",
+      "component": "STRUCTURE.FCANT",
+      "position": "根部连接焊缝",
+      "measurementType": "stress",
+      "physicalQuantity": "strain",
+      "unit": "MPa",
+      "sampleRate": 100,
+      "sensorModel": "BX120-3AA",
+      "collectorId": "DAQ-ST-01",
+      "channel": "CH11",
+      "warningThreshold": 80,
+      "criticalThreshold": 120,
+      "algorithms": ["rainflow_counting", "miner_damage", "hot_spot_stress"]
+    },
+    {
+      "pointId": "ST-12",
+      "index": 12,
+      "name": "前悬臂中部",
+      "component": "STRUCTURE.FCANT",
+      "position": "中部上翼缘",
+      "measurementType": "stress",
+      "physicalQuantity": "strain",
+      "unit": "MPa",
+      "sampleRate": 100,
+      "sensorModel": "BX120-3AA",
+      "collectorId": "DAQ-ST-01",
+      "channel": "CH12",
+      "warningThreshold": 80,
+      "criticalThreshold": 120,
+      "algorithms": ["rainflow_counting", "miner_damage", "statistical_features"]
+    },
+    {
+      "pointId": "ST-13",
+      "index": 13,
+      "name": "后悬臂根部",
+      "component": "STRUCTURE.RCANT",
+      "position": "根部连接焊缝",
+      "measurementType": "stress",
+      "physicalQuantity": "strain",
+      "unit": "MPa",
+      "sampleRate": 100,
+      "sensorModel": "BX120-3AA",
+      "collectorId": "DAQ-ST-01",
+      "channel": "CH13",
+      "warningThreshold": 80,
+      "criticalThreshold": 120,
+      "algorithms": ["rainflow_counting", "miner_damage", "hot_spot_stress"]
+    },
+    {
+      "pointId": "ST-14",
+      "index": 14,
+      "name": "后悬臂中部",
+      "component": "STRUCTURE.RCANT",
+      "position": "中部上翼缘",
+      "measurementType": "stress",
+      "physicalQuantity": "strain",
+      "unit": "MPa",
+      "sampleRate": 100,
+      "sensorModel": "BX120-3AA",
+      "collectorId": "DAQ-ST-01",
+      "channel": "CH14",
+      "warningThreshold": 80,
+      "criticalThreshold": 120,
+      "algorithms": ["rainflow_counting", "miner_damage", "statistical_features"]
+    },
+    {
+      "pointId": "ST-15",
+      "index": 15,
+      "name": "大梁与门腿连接节点",
+      "component": "STRUCTURE.JUNCT",
+      "position": "节点板焊缝",
+      "measurementType": "stress",
+      "physicalQuantity": "strain",
+      "unit": "MPa",
+      "sampleRate": 100,
+      "sensorModel": "BX120-3AA",
+      "collectorId": "DAQ-ST-01",
+      "channel": "CH15",
+      "warningThreshold": 90,
+      "criticalThreshold": 130,
+      "algorithms": ["rainflow_counting", "miner_damage", "hot_spot_stress", "modal_analysis"]
+    }
+  ],
+
+  "algorithmMapping": {
+    "$description": "测量类型 → 适用算法分类映射",
+    "vibration": {
+      "category": "mechanical",
+      "primary": ["fft_spectrum", "envelope_demod", "time_domain_features"],
+      "advanced": ["cepstrum_analysis", "spectral_kurtosis", "order_tracking", "wavelet_packet"],
+      "anomaly": ["isolation_forest", "lstm_anomaly", "spc_control"],
+      "bearing_specific": {
+        "description": "轴承特征频率需要转速计算：BPFO/BPFI/BSF/FTF",
+        "requires": "rotation_speed",
+        "formulas": ["bearing_defect_frequency"]
+      }
+    },
+    "temperature": {
+      "category": "comprehensive",
+      "primary": ["spc_control", "statistical_features"],
+      "anomaly": ["lstm_anomaly"]
+    },
+    "stress": {
+      "category": "structural",
+      "primary": ["rainflow_counting", "miner_damage"],
+      "advanced": ["hot_spot_stress", "modal_analysis"],
+      "fatigue": {
+        "description": "疲劳寿命评估基于 S-N 曲线 + Miner 线性累积损伤",
+        "standard": "IIW-2259"
+      }
+    }
+  }
+}

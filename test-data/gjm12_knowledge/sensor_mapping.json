@@ -1,0 +1,173 @@
+{
+  "deviceModel": "GJM12",
+  "assembly": "03-小车总成",
+  "mappings": [
+    {
+      "componentCode": "TROLLEY.HOIST",
+      "partCodes": [
+        "GJM120304"
+      ],
+      "description": "起升机构 → 电机振动",
+      "sensors": [
+        {
+          "id": "VT-01",
+          "type": "vibration",
+          "position": "hoist motor DE",
+          "sampleRate": 12800
+        },
+        {
+          "id": "VT-02",
+          "type": "vibration",
+          "position": "hoist motor NDE",
+          "sampleRate": 12800
+        }
+      ],
+      "algorithms": [
+        "fft_spectrum",
+        "envelope_demod",
+        "cepstrum"
+      ]
+    },
+    {
+      "componentCode": "TROLLEY.HOIST.DRUM",
+      "partCodes": [
+        "GJM12030404"
+      ],
+      "description": "卷筒 → 减速器/卷筒轴承振动",
+      "sensors": [
+        {
+          "id": "VT-03",
+          "type": "vibration",
+          "position": "hoist gearbox HS",
+          "sampleRate": 12800
+        },
+        {
+          "id": "VT-04",
+          "type": "vibration",
+          "position": "hoist gearbox LS",
+          "sampleRate": 12800
+        }
+      ],
+      "algorithms": [
+        "gear_mesh_analysis",
+        "bearing_defect_frequency"
+      ]
+    },
+    {
+      "componentCode": "TROLLEY.HOIST.BEARING_SEAT",
+      "partCodes": [
+        "GJM12030409",
+        "GJM1203040902"
+      ],
+      "description": "轴承座总成 → 轴承振动",
+      "sensors": [
+        {
+          "id": "VT-05",
+          "type": "vibration",
+          "position": "drum bearing DE",
+          "sampleRate": 12800
+        },
+        {
+          "id": "VT-06",
+          "type": "vibration",
+          "position": "drum bearing NDE",
+          "sampleRate": 12800
+        }
+      ],
+      "algorithms": [
+        "bearing_defect_frequency",
+        "envelope_demod",
+        "kurtosis"
+      ]
+    },
+    {
+      "componentCode": "TROLLEY.TRAVEL",
+      "partCodes": [
+        "GJM120303"
+      ],
+      "description": "小车运行机构 → 电机振动",
+      "sensors": [
+        {
+          "id": "VT-07",
+          "type": "vibration",
+          "position": "trolley motor DE",
+          "sampleRate": 12800
+        },
+        {
+          "id": "VT-08",
+          "type": "vibration",
+          "position": "trolley motor NDE",
+          "sampleRate": 12800
+        }
+      ],
+      "algorithms": [
+        "fft_spectrum",
+        "envelope_demod",
+        "cepstrum"
+      ]
+    },
+    {
+      "componentCode": "TROLLEY.TRAVEL.WHEEL_ASSY",
+      "partCodes": [
+        "GJM12030301",
+        "GJM12030302"
+      ],
+      "description": "车轮总成 → 车轮轴承振动",
+      "sensors": [
+        {
+          "id": "VT-09",
+          "type": "vibration",
+          "position": "trolley wheel bearing",
+          "sampleRate": 12800
+        }
+      ],
+      "algorithms": [
+        "bearing_defect_frequency",
+        "envelope_demod"
+      ]
+    },
+    {
+      "componentCode": "TROLLEY.TRAVEL.GBX_MOUNT",
+      "partCodes": [
+        "GJM12030303"
+      ],
+      "description": "减速器固定座 → 减速器振动",
+      "sensors": [
+        {
+          "id": "VT-10",
+          "type": "vibration",
+          "position": "trolley gearbox HS",
+          "sampleRate": 12800
+        },
+        {
+          "id": "VT-11",
+          "type": "vibration",
+          "position": "trolley gearbox LS",
+          "sampleRate": 12800
+        }
+      ],
+      "algorithms": [
+        "gear_mesh_analysis",
+        "bearing_defect_frequency"
+      ]
+    }
+  ],
+  "unmappedParts": [
+    "GJM12030",
+    "GJM120301",
+    "GJM1203030",
+    "GJM1203040",
+    "GJM1203041",
+    "GJM1203042",
+    "GJM120305",
+    "GJM1203050",
+    "GJM120306",
+    "GJM1203060",
+    "GJM120307",
+    "GJM120308",
+    "GJM120309",
+    "GJM12031",
+    "GJM120310"
+  ],
+  "notes": "传感器映射基于 RTG 标准布点方案（VT-01~VT-16），此处仅列出与小车总成相关的测点。"
+}

@@ -76,6 +76,9 @@ import {
 } from "./pages/settings/design";
 // V4.0 新增页面 - Monitoring
 import ClickHouseDashboard from "./pages/monitoring/ClickHouseDashboard";
+// 统一观测中枢
+import OperationsDashboard from "./pages/monitoring/OperationsDashboard";
+import StatusDashboard from "./pages/monitoring/StatusDashboard";
 
 // 平台管理 - 配置中心（精简：移除 ResourcesOverview、DbManagement）
 import {
@@ -288,6 +291,8 @@ function Router() {
 
       {/* 监控大屏 */}
       <Route path="/monitoring/clickhouse" component={ClickHouseDashboard} />
+      <Route path="/monitoring/operations" component={OperationsDashboard} />
+      <Route path="/monitoring/status" component={StatusDashboard} />
 
       {/* Settings redirect */}
       <Route path="/settings">
@@ -394,6 +399,7 @@ function Router() {
       <Route path="/digital-twin/simulation" component={DigitalTwinLayout} />
       <Route path="/digital-twin/replay" component={DigitalTwinLayout} />
       <Route path="/digital-twin/worldmodel" component={DigitalTwinLayout} />
+      <Route path="/digital-twin/3d" component={DigitalTwinLayout} />
       <Route path="/digital-twin/config" component={DigitalTwinLayout} />
       {/* 旧路由重定向 */}
       <Route path="/v5/digital-twin"><Redirect to="/digital-twin" /></Route>

@@ -20,6 +20,7 @@
 import { createModuleLogger } from '../../core/logger';
 import { eventBus } from '../../services/eventBus.service';
 import { EVOLUTION_TOPICS } from '../../../shared/evolution-topics';
+import { DynamicConfigEngine } from '../config/dynamic-config';
 
 const log = createModuleLogger('evolution-config');
 
@@ -98,19 +99,41 @@ export interface EvolutionEngineConfig {
 }
 
 // ============================================================================
+// DynamicConfigEngine 集成 — 优先从动态配置读取 Grok 参数
+// ============================================================================
+
+/** 延迟初始化的 DynamicConfigEngine 单例 */
+let _dynamicConfig: DynamicConfigEngine | null = null;
+
+function getDynamicConfig(): DynamicConfigEngine {
+  if (!_dynamicConfig) {
+    _dynamicConfig = new DynamicConfigEngine();
+  }
+  return _dynamicConfig;
+}
+
+/**
+ * 从 DynamicConfigEngine 读取 Grok 配置，fallback 到硬编码默认值
+ */
+function getGrokDefaults(): GrokConfig {
+  const dc = getDynamicConfig();
+  return {
+    model: dc.get<string>('cognition.grok.model') ?? 'grok-3',
+    maxSteps: dc.get<number>('cognition.grok.maxSteps') ?? 8,
+    temperature: dc.get<number>('cognition.grok.temperature') ?? 0.3,
+    timeoutMs: dc.get<number>('cognition.grok.timeoutMs') ?? 30000,
+    maxTokens: dc.get<number>('cognition.grok.maxTokens') ?? 4096,
+    maxTokensCodeGen: dc.get<number>('cognition.grok.maxTokensCodeGen') ?? 2000,
+    maxTokensLabeling: dc.get<number>('cognition.grok.maxTokensLabeling') ?? 800,
+  };
+}
+
+// ============================================================================
 // 默认配置
 // ============================================================================
 
 const DEFAULT_CONFIG: EvolutionEngineConfig = {
-  grok: {
-    model: 'grok-2-1212',
-    maxSteps: 5,
-    temperature: 0.3,
-    timeoutMs: 30000,
-    maxTokens: 1500,
-    maxTokensCodeGen: 2000,
-    maxTokensLabeling: 800,
-  },
+  grok: getGrokDefaults(),
   worldModel: {
     modelPath: 'server/platform/evolution/models/world-model-lstm.onnx',
     executionProvider: 'cpu',

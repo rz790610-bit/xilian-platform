@@ -18,6 +18,7 @@
 import { createModuleLogger } from "../../../core/logger";
 const log = createModuleLogger("grok-engine");
 import { BUILTIN_GROK_TOOLS, GROK_TOOL_MAP, toGrokApiToolDef, type GrokTool, type ToolContext } from './grok-tools';
+import { DynamicConfigEngine } from '../../config/dynamic-config';
 
 // ============================================================================
 // 类型定义
@@ -84,16 +85,27 @@ export interface ReasoningConfig {
 }
 
 // ============================================================================
-// 默认配置
+// 默认配置 — 从 DynamicConfigEngine 读取，fallback 到硬编码
 // ============================================================================
 
-const DEFAULT_CONFIG: ReasoningConfig = {
-  maxSteps: 8,
-  timeoutMs: 60000,
-  temperature: 0.1,
-  model: 'grok-3',
-  allowedTools: undefined, // undefined = 全部可用
-};
+/** 延迟初始化的 DynamicConfigEngine 单例 */
+let _dynamicConfig: DynamicConfigEngine | null = null;
+
+function getDefaultConfig(): ReasoningConfig {
+  if (!_dynamicConfig) {
+    _dynamicConfig = new DynamicConfigEngine();
+  }
+  return {
+    maxSteps: _dynamicConfig.get<number>('cognition.grok.maxSteps') ?? 8,
+    timeoutMs: _dynamicConfig.get<number>('cognition.grok.timeoutMs') ?? 60000,
+    temperature: _dynamicConfig.get<number>('cognition.grok.temperature') ?? 0.1,
+    model: _dynamicConfig.get<string>('cognition.grok.model') ?? 'grok-3',
+    allowedTools: undefined,
+  };
+}
+
+// Keep backward compat reference (evaluated lazily via getDefaultConfig)
+const DEFAULT_CONFIG: ReasoningConfig = getDefaultConfig();
 
 // ============================================================================
 // Grok Tool Calling 引擎
@@ -154,7 +166,7 @@ export class GrokToolCallingEngine {
     config: Partial<ReasoningConfig> = {},
     onStep?: (step: ReasoningStep) => void
   ): Promise<ReasoningResult> {
-    const cfg = { ...DEFAULT_CONFIG, ...config };
+    const cfg = { ...getDefaultConfig(), ...config };
     const startTime = Date.now();
     const steps: ReasoningStep[] = [];
     let tokensUsed = 0;

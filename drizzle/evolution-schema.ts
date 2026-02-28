@@ -2438,3 +2438,42 @@ export const evolutionEngineInstances = mysqlTable('evolution_engine_instances',
 ]);
 export type EvolutionEngineInstance = typeof evolutionEngineInstances.$inferSelect;
 export type InsertEvolutionEngineInstance = typeof evolutionEngineInstances.$inferInsert;
+
+// ============================================================================
+// ⑥ 策略插件状态持久化
+// ============================================================================
+
+/**
+ * MetaLearner 策略插件运行状态 — 解决重启后状态丢失问题
+ *
+ * 持久化内容：插件执行计数、成功/失败率、假设历史、性能趋势
+ * 写入时机：每次策略执行后 upsert
+ * 读取时机：MetaLearner 启动时 restoreState()
+ */
+export const strategyPluginStates = mysqlTable('strategy_plugin_states', {
+  id: bigint('id', { mode: 'number' }).autoincrement().primaryKey(),
+  pluginId: varchar('plugin_id', { length: 100 }).notNull(),
+  pluginName: varchar('plugin_name', { length: 200 }).notNull(),
+  pluginVersion: varchar('plugin_version', { length: 50 }).notNull(),
+  enabled: boolean('enabled').notNull().default(true),
+  executionCount: int('execution_count').notNull().default(0),
+  lastExecutedAt: timestamp('last_executed_at', { fsp: 3 }),
+  successCount: int('success_count').notNull().default(0),
+  failureCount: int('failure_count').notNull().default(0),
+  avgLatencyMs: double('avg_latency_ms'),
+  lastHypotheses: json('last_hypotheses').$type<Array<{
+    id: string; type: string; description: string;
+    expectedImprovement: number; confidence: number;
+  }>>(),
+  performanceHistory: json('performance_history').$type<Array<{
+    timestamp: number; score: number;
+  }>>(),
+  config: json('config').$type<Record<string, unknown>>(),
+  createdAt: timestamp('created_at', { fsp: 3 }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { fsp: 3 }).defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex('uq_sps_plugin_id').on(table.pluginId),
+  index('idx_sps_enabled').on(table.enabled),
+]);
+export type StrategyPluginState = typeof strategyPluginStates.$inferSelect;
+export type InsertStrategyPluginState = typeof strategyPluginStates.$inferInsert;

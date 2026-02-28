@@ -29,6 +29,8 @@ import { readReplicaRouter } from '../../api/readReplica.router';
 import { microserviceRouter } from '../../api/microservice.router';
 import { platformHealthRouter } from '../../api/platformHealth.router';
 import { pluginRouter } from '../../api/plugin.router';
+import { orchestratorHubRouter } from '../../api/orchestratorHub.router';
+import { businessConfigRouter } from '../../api/businessConfig.router';
 
 export const platformDomainRouter = router({
   /** 系统核心 */
@@ -77,4 +79,8 @@ export const platformDomainRouter = router({
   platformHealth: platformHealthRouter,
   /** 插件 */
   plugin: pluginRouter,
+  /** 统一编排调度层 */
+  orchestratorHub: orchestratorHubRouter,
+  /** 业务配置入口 */
+  businessConfig: businessConfigRouter,
 });

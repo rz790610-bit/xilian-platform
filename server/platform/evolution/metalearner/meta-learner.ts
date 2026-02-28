@@ -28,6 +28,9 @@ import type { StrategyPlugin } from '../plugins/strategies/strategy-plugin.inter
 import { eventBus } from '../../../services/eventBus.service';
 import { EVOLUTION_TOPICS } from '../../../../shared/evolution-topics';
 import { evolutionConfig } from '../evolution.config';
+import { getProtectedDb as getDb } from '../infra/protected-clients';
+import { strategyPluginStates } from '../../../../drizzle/evolution-schema';
+import { eq, sql } from 'drizzle-orm';
 
 const log = createModuleLogger('meta-learner');
 
@@ -320,8 +323,138 @@ export class MetaLearner {
       }
       this.pluginsInitialized = true;
       log.info(`[MetaLearner] 加载 ${this.strategyPlugins.size} 个策略插件`);
+
+      // 从 DB 恢复持久化状态
+      await this.restoreState();
     } catch (err) {
       log.warn('[MetaLearner] 策略插件加载失败，将使用内置降级链', { error: String(err) });
+    }
+  }
+
+  // ==========================================================================
+  // 状态持久化 — 解决重启后状态丢失
+  // ==========================================================================
+
+  /**
+   * 从 DB 恢复策略插件状态（启动时调用）
+   */
+  async restoreState(): Promise<void> {
+    try {
+      const db = await getDb();
+      if (!db) {
+        log.warn('[MetaLearner] DB 不可用，跳过状态恢复');
+        return;
+      }
+
+      const rows = await db
+        .select()
+        .from(strategyPluginStates)
+        .where(eq(strategyPluginStates.enabled, true));
+
+      if (rows.length === 0) {
+        log.debug('[MetaLearner] 无历史策略状态需要恢复');
+        return;
+      }
+
+      // 恢复性能趋势到 MetaLearner 全局 state
+      for (const row of rows) {
+        if (row.performanceHistory && Array.isArray(row.performanceHistory)) {
+          for (const entry of row.performanceHistory) {
+            // 避免重复（按 timestamp 去重）
+            const exists = this.state.performanceTrend.some(p => p.timestamp === entry.timestamp);
+            if (!exists) {
+              this.state.performanceTrend.push(entry);
+            }
+          }
+        }
+        // 恢复假设历史
+        if (row.lastHypotheses && Array.isArray(row.lastHypotheses)) {
+          for (const h of row.lastHypotheses) {
+            this.state.hypothesisHistory.push({
+              hypothesisId: h.id,
+              timestamp: Date.now(),
+              description: h.description,
+              type: h.type as Hypothesis['type'],
+              expectedImprovement: h.expectedImprovement,
+              confidence: h.confidence,
+              parameters: {},
+              status: 'proposed',
+              generatedBy: 'rules',
+            });
+          }
+        }
+        // 恢复累积经验
+        this.state.totalExperiences += row.executionCount;
+      }
+
+      // 按时间排序性能趋势
+      this.state.performanceTrend.sort((a, b) => a.timestamp - b.timestamp);
+
+      log.info(`[MetaLearner] 从 DB 恢复 ${rows.length} 个策略插件状态，` +
+        `${this.state.performanceTrend.length} 条性能趋势，` +
+        `${this.state.hypothesisHistory.length} 条假设历史`);
+    } catch (err) {
+      log.warn('[MetaLearner] 状态恢复失败（不影响正常运行）', { error: String(err) });
+    }
+  }
+
+  /**
+   * 持久化策略插件执行状态（每次策略执行后调用）
+   */
+  async persistState(pluginId: string, success: boolean, latencyMs: number): Promise<void> {
+    try {
+      const db = await getDb();
+      if (!db) return;
+
+      const plugin = this.strategyPlugins.get(pluginId);
+      const pluginName = plugin?.metadata?.name || pluginId;
+      const pluginVersion = plugin?.metadata?.version || '0.0.0';
+
+      // 最近的假设（保留最新 20 条）
+      const recentHypotheses = this.state.hypothesisHistory.slice(-20).map(h => ({
+        id: h.hypothesisId,
+        type: h.type,
+        description: h.description,
+        expectedImprovement: h.expectedImprovement,
+        confidence: h.confidence,
+      }));
+
+      // 最近的性能趋势（保留最新 100 条）
+      const recentPerformance = this.state.performanceTrend.slice(-100);
+
+      await db.insert(strategyPluginStates).values({
+        pluginId,
+        pluginName,
+        pluginVersion,
+        enabled: true,
+        executionCount: 1,
+        lastExecutedAt: new Date(),
+        successCount: success ? 1 : 0,
+        failureCount: success ? 0 : 1,
+        avgLatencyMs: latencyMs,
+        lastHypotheses: recentHypotheses,
+        performanceHistory: recentPerformance,
+        config: {},
+        updatedAt: new Date(),
+      }).onDuplicateKeyUpdate({
+        set: {
+          pluginName,
+          pluginVersion,
+          enabled: true,
+          executionCount: sql`execution_count + 1`,
+          lastExecutedAt: new Date(),
+          successCount: success ? sql`success_count + 1` : sql`success_count`,
+          failureCount: success ? sql`failure_count` : sql`failure_count + 1`,
+          avgLatencyMs: sql`(COALESCE(avg_latency_ms, 0) * execution_count + ${latencyMs}) / (execution_count + 1)`,
+          lastHypotheses: recentHypotheses,
+          performanceHistory: recentPerformance,
+          updatedAt: new Date(),
+        },
+      });
+
+      log.debug(`[MetaLearner] 策略状态已持久化: ${pluginId}`);
+    } catch (err) {
+      log.warn(`[MetaLearner] 策略状态持久化失败（不影响运行）: ${pluginId}`, { error: String(err) });
     }
   }
 
@@ -441,16 +574,19 @@ export class MetaLearner {
     }
 
     if (plugin) {
+      const pluginStart = Date.now();
       try {
         log.debug(`[MetaLearner] 尝试策略插件 ${plugin.metadata.id} 生成假设...`);
         const hypotheses = await plugin.executeStrategy(context);
         if (hypotheses.length > 0) {
           log.debug(`[MetaLearner] 策略插件 ${plugin.metadata.id} 成功生成 ${hypotheses.length} 个假设`);
           this.state.hypothesisHistory.push(...hypotheses);
+          this.persistState(plugin.metadata.id, true, Date.now() - pluginStart).catch(() => {});
           return hypotheses;
         }
         log.debug(`[MetaLearner] 策略插件 ${plugin.metadata.id} 返回空结果，降级到 Grok`);
       } catch (err) {
+        this.persistState(plugin.metadata.id, false, Date.now() - pluginStart).catch(() => {});
         log.warn(`[MetaLearner] 策略插件 ${plugin.metadata.id} 执行失败，降级到 Grok`, { error: String(err) });
       }
     }
@@ -462,37 +598,45 @@ export class MetaLearner {
     }
 
     // ── 第一层：Grok 推理链 ──
+    const grokStart = Date.now();
     try {
       log.debug('[MetaLearner] 尝试 Grok 推理链生成假设...');
       const hypotheses = await this.generateHypothesesWithGrok(context);
       if (hypotheses.length > 0) {
         log.debug(`[MetaLearner] Grok 成功生成 ${hypotheses.length} 个假设`);
         this.state.hypothesisHistory.push(...hypotheses);
+        this.persistState('grok-reasoning', true, Date.now() - grokStart).catch(() => {});
         return hypotheses;
       }
       log.debug('[MetaLearner] Grok 返回空结果，降级到 LLM');
     } catch (err) {
+      this.persistState('grok-reasoning', false, Date.now() - grokStart).catch(() => {});
       log.warn('[MetaLearner] Grok 推理链失败，降级到 LLM', { error: String(err) });
     }
 
     // ── 第二层：LLM 结构化输出 ──
+    const llmStart = Date.now();
     try {
       log.debug('[MetaLearner] 尝试 LLM 结构化输出生成假设...');
       const hypotheses = await this.generateHypothesesWithLLM(context);
       if (hypotheses.length > 0) {
         log.debug(`[MetaLearner] LLM 成功生成 ${hypotheses.length} 个假设`);
         this.state.hypothesisHistory.push(...hypotheses);
+        this.persistState('llm-structured', true, Date.now() - llmStart).catch(() => {});
         return hypotheses;
       }
       log.debug('[MetaLearner] LLM 返回空结果，降级到规则引擎');
     } catch (err) {
+      this.persistState('llm-structured', false, Date.now() - llmStart).catch(() => {});
       log.warn('[MetaLearner] LLM 调用失败，降级到规则引擎', { error: String(err) });
     }
 
     // ── 第三层：规则引擎（原有 if-else） ──
     log.debug('[MetaLearner] 使用规则引擎生成假设（最终兜底）');
+    const rulesStart = Date.now();
     const hypotheses = this.generateHypothesesWithRules(recentPerformance);
     this.state.hypothesisHistory.push(...hypotheses);
+    this.persistState('rules-engine', true, Date.now() - rulesStart).catch(() => {});
     return hypotheses;
   }
 

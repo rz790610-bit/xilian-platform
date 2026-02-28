@@ -56,6 +56,11 @@ import { advancedDistillationRouter } from "./api/advancedDistillation.router";
 import { conditionNormalizerRouter } from "./api/conditionNormalizer.router";
 // ============ v3.1 自适应智能架构 — 平台健康 ============
 import { platformHealthRouter } from "./api/platformHealth.router";
+// ============ 统一编排调度层 + 业务配置入口 ============
+import { orchestratorHubRouter } from "./api/orchestratorHub.router";
+import { businessConfigRouter } from "./api/businessConfig.router";
+// ============ 统一观测中枢 ============
+import { observabilityHubRouter } from "./api/observability-hub.router";
 
 // ============ v5.0 深度进化 — 8 域路由 ============
 import { perceptionDomainRouter } from "./domains/perception/perception.domain-router";
@@ -182,6 +187,12 @@ export const appRouter = router({
   conditionNormalizer: conditionNormalizerRouter,
   // ============ v3.1 自适应智能架构 — L1 契约基层 + L2 自省层 ============
   platformHealth: platformHealthRouter,
+  // ============ 统一编排调度层（Pipeline/KG/DB 三引擎协调） ============
+  orchestratorHub: orchestratorHubRouter,
+  // ============ 业务配置入口（设备类型→三引擎配置自动生成） ============
+  businessConfig: businessConfigRouter,
+  // ============ 统一观测中枢（运维仪表盘 + 客户状态大屏） ============
+  observabilityHub: observabilityHubRouter,
 
   // ============ v5.0 深度进化 — 8 域路由 ============
   // 感知域（采集/融合/编码/工况管理）

@@ -11,7 +11,7 @@
  * 使用 refetchInterval 实现近实时更新（5 秒轮询）。
  * 未来升级到 splitLink + wsLink 后可启用真正的 tRPC Subscription。
  */
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { PageCard } from '@/components/common/PageCard';
 import { trpc } from '@/lib/trpc';
 import { Badge } from '@/components/ui/badge';
@@ -22,6 +22,8 @@ import { Separator } from '@/components/ui/separator';
 import { stateLabels, stateUnits, syncStatusMap } from './constants';
 import { ScoreGauge } from './ScoreGauge';
 import TwinTopology from './TwinTopology';
+import { SensorChartDialog } from '@/components/digital-twin';
+import { RTG_SENSORS, type RTGSensor } from '@/components/digital-twin/rtg-model/rtg-constants';
 import {
   Chart as ChartJS,
   CategoryScale, LinearScale, PointElement, LineElement,
@@ -55,6 +57,15 @@ export default function EquipmentStatusPage({ equipmentId }: { equipmentId: stri
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
   const [showSyncLogs, setShowSyncLogs] = useState(false);
   const [activeSubTab, setActiveSubTab] = useState<'monitor' | 'topology'>('monitor');
+  const [chartDialogOpen, setChartDialogOpen] = useState(false);
+  const [selectedSensor, setSelectedSensor] = useState<RTGSensor | null>(null);
+
+  const handleSensorRowClick = useCallback((channelKey: string, channelIndex: number) => {
+    if (channelIndex >= 0 && channelIndex < RTG_SENSORS.length) {
+      setSelectedSensor(RTG_SENSORS[channelIndex]);
+      setChartDialogOpen(true);
+    }
+  }, []);
 
   // tRPC 轮询（替代 Subscription）
   const stateQuery = trpc.evoPipeline.getEquipmentTwinState.useQuery(
@@ -157,8 +168,12 @@ export default function EquipmentStatusPage({ equipmentId }: { equipmentId: stri
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {Object.entries(stateVector).map(([key, value]) => (
-                  <TableRow key={key}>
+                {Object.entries(stateVector).map(([key, value], idx) => (
+                  <TableRow
+                    key={key}
+                    className="cursor-pointer hover:bg-muted/50"
+                    onClick={() => handleSensorRowClick(key, idx)}
+                  >
                     <TableCell className="text-[10px] py-0.5 font-medium">{stateLabels[key] ?? key}</TableCell>
                     <TableCell className="text-[10px] py-0.5 font-mono">
                       {typeof value === 'number' ? value.toFixed(3) : String(value)}
@@ -347,6 +362,13 @@ export default function EquipmentStatusPage({ equipmentId }: { equipmentId: stri
           )}
         </div>
       </PageCard>
+
+      {/* 传感器图表弹窗 */}
+      <SensorChartDialog
+        open={chartDialogOpen}
+        onOpenChange={setChartDialogOpen}
+        sensor={selectedSensor}
+      />
     </div>
   );
 }

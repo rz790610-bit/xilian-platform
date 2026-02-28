@@ -1,0 +1,855 @@
+{
+  "code": "GJM12-03",
+  "name": "小车总成",
+  "componentCode": "TROLLEY",
+  "drawingFile": "GJM12-03R1 小车总成.dwg",
+  "children": [
+    {
+      "code": "GJM120301",
+      "name": "小车架",
+      "componentCode": "TROLLEY.FRAME.MAIN",
+      "drawingFile": "GJM120301R1 小车架/GJM120301R1 小车架-2(2024.10.18).dwg",
+      "children": []
+    },
+    {
+      "code": "GJM120303",
+      "name": "小车运行机构",
+      "componentCode": "TROLLEY.TRAVEL",
+      "drawingFile": "GJM120303 小车运行机构/GJM120303小车运行机构.dwg",
+      "children": [
+        {
+          "code": "GJM12030301",
+          "name": "小车车轮总成1",
+          "componentCode": "TROLLEY.TRAVEL.WHEEL_ASSY.SET_01",
+          "drawingFile": "GJM120303 小车运行机构/GJM12030301小车车轮总成1/GJM12030301    小车车轮总成1.dwg",
+          "children": [
+            {
+              "code": "GJM1203030101",
+              "name": "车轮轴",
+              "componentCode": "TROLLEY.TRAVEL.WHEEL_ASSY.SET_01.PART_01",
+              "drawingFile": "GJM120303 小车运行机构/GJM12030301小车车轮总成1/GJM1203030101    车轮轴.dwg",
+              "children": []
+            },
+            {
+              "code": "GJM1203030102",
+              "name": "轴承套",
+              "componentCode": "TROLLEY.TRAVEL.WHEEL_ASSY.SET_01.PART_02",
+              "drawingFile": "GJM120303 小车运行机构/GJM12030301小车车轮总成1/GJM1203030102    轴承套.dwg",
+              "children": []
+            },
+            {
+              "code": "GJM1203030103",
+              "name": "通盖1",
+              "componentCode": "TROLLEY.TRAVEL.WHEEL_ASSY.SET_01.PART_03",
+              "drawingFile": "GJM120303 小车运行机构/GJM12030301小车车轮总成1/GJM1203030103    通盖1.dwg",
+              "children": []
+            },
+            {
+              "code": "GJM1203030104",
+              "name": "车轮",
+              "componentCode": "TROLLEY.TRAVEL.WHEEL_ASSY.SET_01.PART_04",
+              "drawingFile": "GJM120303 小车运行机构/GJM12030301小车车轮总成1/GJM1203030104 车轮.dwg",
+              "children": []
+            },
+            {
+              "code": "GJM1203030105",
+              "name": "闷盖",
+              "componentCode": "TROLLEY.TRAVEL.WHEEL_ASSY.SET_01.PART_05",
+              "drawingFile": "GJM120303 小车运行机构/GJM12030301小车车轮总成1/GJM1203030105    闷盖.dwg",
+              "children": []
+            },
+            {
+              "code": "GJM1203030106",
+              "name": "通盖2",
+              "componentCode": "TROLLEY.TRAVEL.WHEEL_ASSY.SET_01.PART_06",
+              "drawingFile": "GJM120303 小车运行机构/GJM12030301小车车轮总成1/GJM1203030106    通盖2.dwg",
+              "children": []
+            }
+          ]
+        },
+        {
+          "code": "GJM12030302",
+          "name": "小车车轮总成2",
+          "componentCode": "TROLLEY.TRAVEL.WHEEL_ASSY.SET_02",
+          "drawingFile": "GJM120303 小车运行机构/GJM12030302小车车轮总成2/GJM12030302小车车轮总成2.dwg",
+          "children": [
+            {
+              "code": "GJM1203030201",
+              "name": "车轮轴",
+              "componentCode": "TROLLEY.TRAVEL.WHEEL_ASSY.SET_02.PART_01",
+              "drawingFile": "GJM120303 小车运行机构/GJM12030302小车车轮总成2/GJM1203030201车轮轴.dwg",
+              "children": []
+            },
+            {
+              "code": "GJM1203030205",
+              "name": "闷盖",
+              "componentCode": "TROLLEY.TRAVEL.WHEEL_ASSY.SET_02.PART_05",
+              "drawingFile": "GJM120303 小车运行机构/GJM12030302小车车轮总成2/GJM1203030205闷盖.dwg",
+              "children": []
+            },
+            {
+              "code": "GJM1203030208",
+              "name": "轴",
+              "componentCode": "TROLLEY.TRAVEL.WHEEL_ASSY.SET_02.PART_08",
+              "drawingFile": "GJM120303 小车运行机构/GJM12030302小车车轮总成2/GJM1203030208 轴.dwg",
+              "children": []
+            },
+            {
+              "code": "GJM1203030209",
+              "name": "支架",
+              "componentCode": "TROLLEY.TRAVEL.WHEEL_ASSY.SET_02.PART_09",
+              "drawingFile": "GJM120303 小车运行机构/GJM12030302小车车轮总成2/GJM1203030209支架.dwg",
+              "children": []
+            },
+            {
+              "code": "GJM1203030210",
+              "name": "罩壳",
+              "componentCode": "TROLLEY.TRAVEL.WHEEL_ASSY.SET_02.PART_10",
+              "drawingFile": "GJM120303 小车运行机构/GJM12030302小车车轮总成2/GJM1203030210  罩壳.dwg",
+              "children": []
+            }
+          ]
+        },
+        {
+          "code": "GJM1203030107",
+          "name": "调整垫",
+          "componentCode": "TROLLEY.TRAVEL.WHEEL_ASSY.SET_01.PART_07",
+          "drawingFile": "GJM120303 小车运行机构/GJM1203030107    调整垫.dwg",
+          "children": []
+        },
+        {
+          "code": "GJM1203030301",
+          "name": "支撑架",
+          "componentCode": "TROLLEY.TRAVEL.GBX_MOUNT.PART_01",
+          "drawingFile": "GJM120303 小车运行机构/GJM1203030301支撑架.dwg",
+          "children": []
+        },
+        {
+          "code": "GJM1203030302",
+          "name": "连接板",
+          "componentCode": "TROLLEY.TRAVEL.GBX_MOUNT.PART_02",
+          "drawingFile": "GJM120303 小车运行机构/GJM1203030302连接板.dwg",
+          "children": []
+        },
+        {
+          "code": "GJM1203030303",
+          "name": "铰接座",
+          "componentCode": "TROLLEY.TRAVEL.GBX_MOUNT.PART_03",
+          "drawingFile": "GJM120303 小车运行机构/GJM1203030303铰接座.dwg",
+          "children": []
+        },
+        {
+          "code": "GJM12030303",
+          "name": "减速器固定座",
+          "componentCode": "TROLLEY.TRAVEL.GBX_MOUNT",
+          "drawingFile": "GJM120303 小车运行机构/GJM12030303减速器固定座.dwg",
+          "children": []
+        },
+        {
+          "code": "GJM12030304",
+          "name": "联轴器MLPK6",
+          "componentCode": "TROLLEY.TRAVEL.COUPLING",
+          "drawingFile": "GJM120303 小车运行机构/GJM12030304联轴器MLPK6.dwg",
+          "children": []
+        },
+        {
+          "code": "GJM1203030501",
+          "name": "连接壳",
+          "componentCode": "TROLLEY.TRAVEL.CONNECTOR.PART_01",
+          "drawingFile": "GJM120303 小车运行机构/GJM1203030501连接壳.dwg",
+          "children": []
+        },
+        {
+          "code": "GJM1203030502",
+          "name": "轴套",
+          "componentCode": "TROLLEY.TRAVEL.CONNECTOR.PART_02",
+          "drawingFile": "GJM120303 小车运行机构/GJM1203030502轴套.dwg",
+          "children": []
+        },
+        {
+          "code": "GJM1203030503",
+          "name": "电机连接法兰",
+          "componentCode": "TROLLEY.TRAVEL.CONNECTOR.PART_03",
+          "drawingFile": "GJM120303 小车运行机构/GJM1203030503电机连接法兰.dwg",
+          "children": []
+        },
+        {
+          "code": "GJM12030305",
+          "name": "连接座",
+          "componentCode": "TROLLEY.TRAVEL.CONNECTOR",
+          "drawingFile": "GJM120303 小车运行机构/GJM12030305连接座.dwg",
+          "children": []
+        },
+        {
+          "code": "GJM1203030601",
+          "name": "罩壳",
+          "componentCode": "TROLLEY.TRAVEL.BRAKE_COVER.PART_01",
+          "drawingFile": "GJM120303 小车运行机构/GJM1203030601罩壳.dwg",
+          "children": []
+        },
+        {
+          "code": "GJM12030306",
+          "name": "制动器罩壳",
+          "componentCode": "TROLLEY.TRAVEL.BRAKE_COVER",
+          "drawingFile": "GJM120303 小车运行机构/GJM12030306制动器罩壳.dwg",
+          "children": []
+        }
+      ]
+    },
+    {
+      "code": "GJM120304",
+      "name": "起升机构",
+      "componentCode": "TROLLEY.HOIST",
+      "drawingFile": "GJM120304 起升机构/GJM120304起升机构.dwg",
+      "children": [
+        {
+          "code": "GJM12030409",
+          "name": "轴承座总成",
+          "componentCode": "TROLLEY.HOIST.BEARING_SEAT",
+          "drawingFile": "GJM120304 起升机构/GJM12030409轴承座总成/GJM12030409轴承座总成.dwg",
+          "children": [
+            {
+              "code": "GJM1203040901",
+              "name": "透盖Ⅰ",
+              "componentCode": "TROLLEY.HOIST.BEARING_SEAT.PART_01",
+              "drawingFile": "GJM120304 起升机构/GJM12030409轴承座总成/GJM1203040901透盖Ⅰ.dwg",
+              "children": []
+            },
+            {
+              "code": "GJM1203040902",
+              "name": "轴承座",
+              "componentCode": "TROLLEY.HOIST.BEARING_SEAT.PART_02",
+              "drawingFile": "GJM120304 起升机构/GJM12030409轴承座总成/GJM1203040902轴承座.dwg",
+              "children": []
+            },
+            {
+              "code": "GJM1203040903",
+              "name": "透盖Ⅱ",
+              "componentCode": "TROLLEY.HOIST.BEARING_SEAT.PART_03",
+              "drawingFile": "GJM120304 起升机构/GJM12030409轴承座总成/GJM1203040903透盖Ⅱ.dwg",
+              "children": []
+            },
+            {
+              "code": "GJM1203040904",
+              "name": "压板轴",
+              "componentCode": "TROLLEY.HOIST.BEARING_SEAT.PART_04",
+              "drawingFile": "GJM120304 起升机构/GJM12030409轴承座总成/GJM1203040904压板轴.dwg",
+              "children": []
+            },
+            {
+              "code": "GJM1203040905",
+              "name": "调节板",
+              "componentCode": "TROLLEY.HOIST.BEARING_SEAT.PART_05",
+              "drawingFile": "GJM120304 起升机构/GJM12030409轴承座总成/GJM1203040905调节板.dwg",
+              "children": []
+            },
+            {
+              "code": "GJM1203040906",
+              "name": "接头",
+              "componentCode": "TROLLEY.HOIST.BEARING_SEAT.PART_06",
+              "drawingFile": "GJM120304 起升机构/GJM12030409轴承座总成/GJM1203040906接头.dwg",
+              "children": []
+            }
+          ]
+        },
+        {
+          "code": "GJM12030410",
+          "name": "限位装置",
+          "componentCode": "TROLLEY.HOIST.LIMIT_DEVICE",
+          "drawingFile": "GJM120304 起升机构/GJM12030410限位装置/GJM12030410限位装置.dwg",
+          "children": [
+            {
+              "code": "GJM1203041001",
+              "name": "连接座",
+              "componentCode": "TROLLEY.HOIST.LIMIT_DEVICE.PART_01",
+              "drawingFile": "GJM120304 起升机构/GJM12030410限位装置/GJM1203041001连接座.dwg",
+              "children": []
+            },
+            {
+              "code": "GJM1203041002",
+              "name": "罩壳",
+              "componentCode": "TROLLEY.HOIST.LIMIT_DEVICE.PART_02",
+              "drawingFile": "GJM120304 起升机构/GJM12030410限位装置/GJM1203041002罩壳.dwg",
+              "children": []
+            }
+          ]
+        },
+        {
+          "code": "GJM12030420",
+          "name": "止动块布置",
+          "componentCode": "TROLLEY.HOIST.STOP_BLOCK",
+          "drawingFile": "GJM120304 起升机构/GJM12030420止动块布置/GJM12030420止动块布置.dwg",
+          "children": [
+            {
+              "code": "GJM1203042001",
+              "name": "止动块",
+              "componentCode": "TROLLEY.HOIST.STOP_BLOCK.PART_01",
+              "drawingFile": "GJM120304 起升机构/GJM12030420止动块布置/GJM1203042001止动块.dwg",
+              "children": []
+            },
+            {
+              "code": "GJM1203042002",
+              "name": "止动块",
+              "componentCode": "TROLLEY.HOIST.STOP_BLOCK.PART_02",
+              "drawingFile": "GJM120304 起升机构/GJM12030420止动块布置/GJM1203042002止动块.dwg",
+              "children": []
+            },
+            {
+              "code": "GJM1203042003",
+              "name": "止动块",
+              "componentCode": "TROLLEY.HOIST.STOP_BLOCK.PART_03",
+              "drawingFile": "GJM120304 起升机构/GJM12030420止动块布置/GJM1203042003止动块.dwg",
+              "children": []
+            },
+            {
+              "code": "GJM1203042004",
+              "name": "调整座",
+              "componentCode": "TROLLEY.HOIST.STOP_BLOCK.PART_04",
+              "drawingFile": "GJM120304 起升机构/GJM12030420止动块布置/GJM1203042004调整座.dwg",
+              "children": []
+            }
+          ]
+        },
+        {
+          "code": "GJM12030422",
+          "name": "应急装置",
+          "componentCode": "TROLLEY.HOIST.EMERGENCY",
+          "drawingFile": "GJM120304 起升机构/GJM12030422应急装置/GJM12030422应急装置.dwg",
+          "children": [
+            {
+              "code": "GJM1203042201",
+              "name": "底板",
+              "componentCode": "TROLLEY.HOIST.EMERGENCY.PART_01",
+              "drawingFile": "GJM120304 起升机构/GJM12030422应急装置/GJM1203042201底板.dwg",
+              "children": []
+            },
+            {
+              "code": "GJM1203042202",
+              "name": "接近开关支架",
+              "componentCode": "TROLLEY.HOIST.EMERGENCY.PART_02",
+              "drawingFile": "GJM120304 起升机构/GJM12030422应急装置/GJM1203042202接近开关支架.dwg",
+              "children": []
+            },
+            {
+              "code": "GJM1203042203",
+              "name": "链轮",
+              "componentCode": "TROLLEY.HOIST.EMERGENCY.PART_03",
+              "drawingFile": "GJM120304 起升机构/GJM12030422应急装置/GJM1203042203链轮.dwg",
+              "children": []
+            },
+            {
+              "code": "GJM1203042204",
+              "name": "轴端挡板",
+              "componentCode": "TROLLEY.HOIST.EMERGENCY.PART_04",
+              "drawingFile": "GJM120304 起升机构/GJM12030422应急装置/GJM1203042204轴端挡板.dwg",
+              "children": []
+            }
+          ]
+        },
+        {
+          "code": "GJM12030401",
+          "name": "接头",
+          "componentCode": "TROLLEY.HOIST.JOINT",
+          "drawingFile": "GJM120304 起升机构/GJM12030401接头.dwg",
+          "children": []
+        },
+        {
+          "code": "GJM12030402",
+          "name": "卷筒联轴器",
+          "componentCode": "TROLLEY.HOIST.DRUM_COUPLING",
+          "drawingFile": "GJM120304 起升机构/GJM12030402卷筒联轴器.dwg",
+          "children": []
+        },
+        {
+          "code": "GJM12030403",
+          "name": "轴端挡板Ⅰ",
+          "componentCode": "TROLLEY.HOIST.END_PLATE_I",
+          "drawingFile": "GJM120304 起升机构/GJM12030403轴端挡板Ⅰ.dwg",
+          "children": []
+        },
+        {
+          "code": "GJM12030404",
+          "name": "卷筒",
+          "componentCode": "TROLLEY.HOIST.DRUM",
+          "drawingFile": "GJM120304 起升机构/GJM12030404卷筒.dwg",
+          "children": []
+        },
+        {
+          "code": "GJM12030405",
+          "name": "钢丝绳压板",
+          "componentCode": "TROLLEY.HOIST.ROPE_CLAMP",
+          "drawingFile": "GJM120304 起升机构/GJM12030405钢丝绳压板.dwg",
+          "children": []
+        },
+        {
+          "code": "GJM12030406",
+          "name": "集油盘",
+          "componentCode": "TROLLEY.HOIST.OIL_PAN",
+          "drawingFile": "GJM120304 起升机构/GJM12030406集油盘.dwg",
+          "children": []
+        },
+        {
+          "code": "GJM12030407",
+          "name": "挡绳器",
+          "componentCode": "TROLLEY.HOIST.ROPE_GUARD",
+          "drawingFile": "GJM120304 起升机构/GJM12030407挡绳器.dwg",
+          "children": []
+        },
+        {
+          "code": "GJM12030408",
+          "name": "轴承座底座",
+          "componentCode": "TROLLEY.HOIST.BEARING_BASE",
+          "drawingFile": "GJM120304 起升机构/GJM12030408轴承座底座.dwg",
+          "children": []
+        },
+        {
+          "code": "GJM12030411",
+          "name": "制动器罩壳Ⅰ",
+          "componentCode": "TROLLEY.HOIST.BRAKE_COVER_I",
+          "drawingFile": "GJM120304 起升机构/GJM12030411制动器罩壳Ⅰ.dwg",
+          "children": []
+        },
+        {
+          "code": "GJM12030412",
+          "name": "公共底座",
+          "componentCode": "TROLLEY.HOIST.BASE",
+          "drawingFile": "GJM120304 起升机构/GJM12030412公共底座.dwg",
+          "children": []
+        },
+        {
+          "code": "GJM12030413",
+          "name": "高速轴带链轮制动盘半联轴器",
+          "componentCode": "TROLLEY.HOIST.HSS_COUPLING",
+          "drawingFile": "GJM120304 起升机构/GJM12030413高速轴带链轮制动盘半联轴器20250113.dwg",
+          "children": []
+        },
+        {
+          "code": "GJM12030414",
+          "name": "制动器罩壳Ⅱ",
+          "componentCode": "TROLLEY.HOIST.BRAKE_COVER_II",
+          "drawingFile": "GJM120304 起升机构/GJM12030414制动器罩壳Ⅱ20250117.dwg",
+          "children": []
+        },
+        {
+          "code": "GJM12030415",
+          "name": "轴端挡板Ⅱ",
+          "componentCode": "TROLLEY.HOIST.END_PLATE_II",
+          "drawingFile": "GJM120304 起升机构/GJM12030415轴端挡板Ⅱ.dwg",
+          "children": []
+        },
+        {
+          "code": "GJM12030416",
+          "name": "高速轴制动盘联轴器",
+          "componentCode": "TROLLEY.HOIST.HSS_BRAKE_COUPLING",
+          "drawingFile": "GJM120304 起升机构/GJM12030416高速轴制动盘联轴器20250113.dwg",
+          "children": []
+        },
+        {
+          "code": "GJM12030417",
+          "name": "电机罩壳",
+          "componentCode": "TROLLEY.HOIST.MOTOR_COVER",
+          "drawingFile": "GJM120304 起升机构/GJM12030417电机罩壳.dwg",
+          "children": []
+        },
+        {
+          "code": "GJM12030418",
+          "name": "楔块",
+          "componentCode": "TROLLEY.HOIST.WEDGE",
+          "drawingFile": "GJM120304 起升机构/GJM12030418楔块.dwg",
+          "children": []
+        },
+        {
+          "code": "GJM12030419",
+          "name": "楔形挡块",
+          "componentCode": "TROLLEY.HOIST.WEDGE_BLOCK",
+          "drawingFile": "GJM120304 起升机构/GJM12030419楔形挡块.dwg",
+          "children": []
+        },
+        {
+          "code": "GJM12030421",
+          "name": "挡油板",
+          "componentCode": "TROLLEY.HOIST.OIL_BAFFLE",
+          "drawingFile": "GJM120304 起升机构/GJM12030421挡油板.dwg",
+          "children": []
+        }
+      ]
+    },
+    {
+      "code": "GJM120305",
+      "name": "钢丝绳缠绕",
+      "componentCode": "TROLLEY.ROPE",
+      "drawingFile": "GJM120305钢丝绳缠绕/GJM120305 钢丝绳缠绕.dwg",
+      "children": [
+        {
+          "code": "GJM12030501",
+          "name": "滑轮装配1",
+          "componentCode": "TROLLEY.ROPE.SHEAVE_ASSY.SET_01",
+          "drawingFile": "GJM120305钢丝绳缠绕/GJM12030501 滑轮装配1/GJM12030501 滑轮装配1.dwg",
+          "children": [
+            {
+              "code": "GJM1203050101",
+              "name": "滑轮装配D800",
+              "componentCode": "TROLLEY.ROPE.SHEAVE_ASSY.SET_01.PART_01",
+              "drawingFile": "GJM120305钢丝绳缠绕/GJM12030501 滑轮装配1/GJM1203050101 滑轮装配D800.dwg",
+              "children": []
+            },
+            {
+              "code": "GJM120305010101",
+              "name": "滑轮体A",
+              "componentCode": "TROLLEY.ROPE.SHEAVE_ASSY.SET_01.PART_0101",
+              "drawingFile": "GJM120305钢丝绳缠绕/GJM12030501 滑轮装配1/GJM120305010101 滑轮体A.dwg",
+              "children": []
+            },
+            {
+              "code": "GJM120305010102",
+              "name": "(A23) 端盖",
+              "componentCode": "TROLLEY.ROPE.SHEAVE_ASSY.SET_01.PART_0102",
+              "drawingFile": "GJM120305钢丝绳缠绕/GJM12030501 滑轮装配1/GJM120305010102(A23) 端盖.dwg",
+              "children": []
+            },
+            {
+              "code": "GJM120305010103",
+              "name": "内卡圈",
+              "componentCode": "TROLLEY.ROPE.SHEAVE_ASSY.SET_01.PART_0103",
+              "drawingFile": "GJM120305钢丝绳缠绕/GJM12030501 滑轮装配1/GJM120305010103 内卡圈.dwg",
+              "children": []
+            },
+            {
+              "code": "GJM120305010104",
+              "name": "外卡圈",
+              "componentCode": "TROLLEY.ROPE.SHEAVE_ASSY.SET_01.PART_0104",
+              "drawingFile": "GJM120305钢丝绳缠绕/GJM12030501 滑轮装配1/GJM120305010104 外卡圈.dwg",
+              "children": []
+            },
+            {
+              "code": "GJM1203050102",
+              "name": "滑轮轴1",
+              "componentCode": "TROLLEY.ROPE.SHEAVE_ASSY.SET_01.PART_02",
+              "drawingFile": "GJM120305钢丝绳缠绕/GJM12030501 滑轮装配1/GJM1203050102 滑轮轴1.dwg",
+              "children": []
+            },
+            {
+              "code": "GJM1203050103",
+              "name": "卡轴板",
+              "componentCode": "TROLLEY.ROPE.SHEAVE_ASSY.SET_01.PART_03",
+              "drawingFile": "GJM120305钢丝绳缠绕/GJM12030501 滑轮装配1/GJM1203050103 卡轴板.dwg",
+              "children": []
+            },
+            {
+              "code": "GJM1203050104",
+              "name": "挡绳装置1",
+              "componentCode": "TROLLEY.ROPE.SHEAVE_ASSY.SET_01.PART_04",
+              "drawingFile": "GJM120305钢丝绳缠绕/GJM12030501 滑轮装配1/GJM1203050104 挡绳装置1.dwg",
+              "children": []
+            },
+            {
+              "code": "GJM120305010401",
+              "name": "销轴",
+              "componentCode": "TROLLEY.ROPE.SHEAVE_ASSY.SET_01.PART_0401",
+              "drawingFile": "GJM120305钢丝绳缠绕/GJM12030501 滑轮装配1/GJM120305010401 销轴.dwg",
+              "children": []
+            },
+            {
+              "code": "GJM120305010402",
+              "name": "轴套",
+              "componentCode": "TROLLEY.ROPE.SHEAVE_ASSY.SET_01.PART_0402",
+              "drawingFile": "GJM120305钢丝绳缠绕/GJM12030501 滑轮装配1/GJM120305010402 轴套.dwg",
+              "children": []
+            },
+            {
+              "code": "GJM120305010403",
+              "name": "滚轮",
+              "componentCode": "TROLLEY.ROPE.SHEAVE_ASSY.SET_01.PART_0403",
+              "drawingFile": "GJM120305钢丝绳缠绕/GJM12030501 滑轮装配1/GJM120305010403 滚轮.dwg",
+              "children": []
+            },
+            {
+              "code": "GJM120305010404",
+              "name": "卡轴板",
+              "componentCode": "TROLLEY.ROPE.SHEAVE_ASSY.SET_01.PART_0404",
+              "drawingFile": "GJM120305钢丝绳缠绕/GJM12030501 滑轮装配1/GJM120305010404 卡轴板.dwg",
+              "children": []
+            },
+            {
+              "code": "GJM1203050105",
+              "name": "滑轮罩",
+              "componentCode": "TROLLEY.ROPE.SHEAVE_ASSY.SET_01.PART_05",
+              "drawingFile": "GJM120305钢丝绳缠绕/GJM12030501 滑轮装配1/GJM1203050105滑轮罩.dwg",
+              "children": []
+            },
+            {
+              "code": "GJM1203050106",
+              "name": "轴套",
+              "componentCode": "TROLLEY.ROPE.SHEAVE_ASSY.SET_01.PART_06",
+              "drawingFile": "GJM120305钢丝绳缠绕/GJM12030501 滑轮装配1/GJM1203050106 轴套.dwg",
+              "children": []
+            }
+          ]
+        },
+        {
+          "code": "GJM12030502",
+          "name": "滑轮装配2",
+          "componentCode": "TROLLEY.ROPE.SHEAVE_ASSY.SET_02",
+          "drawingFile": "GJM120305钢丝绳缠绕/GJM12030502 滑轮装配2/GJM12030502 滑轮装配2.dwg",
+          "children": [
+            {
+              "code": "GJM1203050201",
+              "name": "滑轮轴2",
+              "componentCode": "TROLLEY.ROPE.SHEAVE_ASSY.SET_02.PART_01",
+              "drawingFile": "GJM120305钢丝绳缠绕/GJM12030502 滑轮装配2/GJM1203050201 滑轮轴2.dwg",
+              "children": []
+            },
+            {
+              "code": "GJM1203050202",
+              "name": "支撑座",
+              "componentCode": "TROLLEY.ROPE.SHEAVE_ASSY.SET_02.PART_02",
+              "drawingFile": "GJM120305钢丝绳缠绕/GJM12030502 滑轮装配2/GJM1203050202 支撑座.dwg",
+              "children": []
+            },
+            {
+              "code": "GJM1203050203",
+              "name": "挡绳装置2",
+              "componentCode": "TROLLEY.ROPE.SHEAVE_ASSY.SET_02.PART_03",
+              "drawingFile": "GJM120305钢丝绳缠绕/GJM12030502 滑轮装配2/GJM1203050203 挡绳装置2.dwg",
+              "children": []
+            },
+            {
+              "code": "GJM1203050204",
+              "name": "轴套",
+              "componentCode": "TROLLEY.ROPE.SHEAVE_ASSY.SET_02.PART_04",
+              "drawingFile": "GJM120305钢丝绳缠绕/GJM12030502 滑轮装配2/GJM1203050204 轴套.dwg",
+              "children": []
+            },
+            {
+              "code": "GJM1203050205",
+              "name": "挡绳装置3",
+              "componentCode": "TROLLEY.ROPE.SHEAVE_ASSY.SET_02.PART_05",
+              "drawingFile": "GJM120305钢丝绳缠绕/GJM12030502 滑轮装配2/GJM1203050205 挡绳装置3.dwg",
+              "children": []
+            }
+          ]
+        },
+        {
+          "code": "GJM12030503",
+          "name": "滑轮装配3",
+          "componentCode": "TROLLEY.ROPE.SHEAVE_ASSY.SET_03",
+          "drawingFile": "GJM120305钢丝绳缠绕/GJM12030503 滑轮装配3/GJM12030503 滑轮装配3.dwg",
+          "children": [
+            {
+              "code": "GJM1203050301",
+              "name": "滑轮轴3",
+              "componentCode": "TROLLEY.ROPE.SHEAVE_ASSY.SET_03.PART_01",
+              "drawingFile": "GJM120305钢丝绳缠绕/GJM12030503 滑轮装配3/GJM1203050301 滑轮轴3.dwg",
+              "children": []
+            },
+            {
+              "code": "GJM1203050302",
+              "name": "端盖",
+              "componentCode": "TROLLEY.ROPE.SHEAVE_ASSY.SET_03.PART_02",
+              "drawingFile": "GJM120305钢丝绳缠绕/GJM12030503 滑轮装配3/GJM1203050302 端盖.dwg",
+              "children": []
+            },
+            {
+              "code": "GJM1203050303",
+              "name": "挡雨罩",
+              "componentCode": "TROLLEY.ROPE.SHEAVE_ASSY.SET_03.PART_03",
+              "drawingFile": "GJM120305钢丝绳缠绕/GJM12030503 滑轮装配3/GJM1203050303 挡雨罩.dwg",
+              "children": []
+            },
+            {
+              "code": "GJM1203050304",
+              "name": "挡雨罩支架",
+              "componentCode": "TROLLEY.ROPE.SHEAVE_ASSY.SET_03.PART_04",
+              "drawingFile": "GJM120305钢丝绳缠绕/GJM12030503 滑轮装配3/GJM1203050304 挡雨罩支架.dwg",
+              "children": []
+            },
+            {
+              "code": "GJM1203050305",
+              "name": "滑轮支架",
+              "componentCode": "TROLLEY.ROPE.SHEAVE_ASSY.SET_03.PART_05",
+              "drawingFile": "GJM120305钢丝绳缠绕/GJM12030503 滑轮装配3/GJM1203050305 滑轮支架.dwg",
+              "children": []
+            },
+            {
+              "code": "GJM1203050306",
+              "name": "挡绳装置4",
+              "componentCode": "TROLLEY.ROPE.SHEAVE_ASSY.SET_03.PART_06",
+              "drawingFile": "GJM120305钢丝绳缠绕/GJM12030503 滑轮装配3/GJM1203050306 挡绳装置4.dwg",
+              "children": []
+            },
+            {
+              "code": "GJM1203050307",
+              "name": "滑轮罩1",
+              "componentCode": "TROLLEY.ROPE.SHEAVE_ASSY.SET_03.PART_07",
+              "drawingFile": "GJM120305钢丝绳缠绕/GJM12030503 滑轮装配3/GJM1203050307滑轮罩1.dwg",
+              "children": []
+            },
+            {
+              "code": "GJM1203050308",
+              "name": "油管接长头",
+              "componentCode": "TROLLEY.ROPE.SHEAVE_ASSY.SET_03.PART_08",
+              "drawingFile": "GJM120305钢丝绳缠绕/GJM12030503 滑轮装配3/GJM1203050308 油管接长头.dwg",
+              "children": []
+            }
+          ]
+        },
+        {
+          "code": "GJM12030504",
+          "name": "滑轮装配4",
+          "componentCode": "TROLLEY.ROPE.SHEAVE_ASSY.SET_04",
+          "drawingFile": "GJM120305钢丝绳缠绕/GJM12030504 滑轮装配4/GJM12030504 滑轮装配4.dwg",
+          "children": []
+        },
+        {
+          "code": "GJM12030505",
+          "name": "滑轮装配5",
+          "componentCode": "TROLLEY.ROPE.SHEAVE_ASSY.SET_05",
+          "drawingFile": "GJM120305钢丝绳缠绕/GJM12030505 滑轮装配5/GJM12030505 滑轮装配5.dwg",
+          "children": [
+            {
+              "code": "GJM1203050501",
+              "name": "滑轮支架",
+              "componentCode": "TROLLEY.ROPE.SHEAVE_ASSY.SET_05.PART_01",
+              "drawingFile": "GJM120305钢丝绳缠绕/GJM12030505 滑轮装配5/GJM1203050501 滑轮支架.dwg",
+              "children": []
+            },
+            {
+              "code": "GJM1203050502",
+              "name": "滑轮罩2",
+              "componentCode": "TROLLEY.ROPE.SHEAVE_ASSY.SET_05.PART_02",
+              "drawingFile": "GJM120305钢丝绳缠绕/GJM12030505 滑轮装配5/GJM1203050502滑轮罩2.dwg",
+              "children": []
+            }
+          ]
+        },
+        {
+          "code": "GJM12030506",
+          "name": "调节螺杆装配图",
+          "componentCode": "TROLLEY.ROPE.ADJ_SCREW",
+          "drawingFile": "GJM120305钢丝绳缠绕/GJM12030506 调节螺杆装配图.dwg",
+          "children": []
+        },
+        {
+          "code": "GJM12030507",
+          "name": "钢丝绳契型接头 #28",
+          "componentCode": "TROLLEY.ROPE.WEDGE_SOCKET",
+          "drawingFile": "GJM120305钢丝绳缠绕/GJM12030507 钢丝绳契型接头 #28.dwg",
+          "children": []
+        },
+        {
+          "code": "GJM12030508",
+          "name": "销轴1",
+          "componentCode": "TROLLEY.ROPE.PIN",
+          "drawingFile": "GJM120305钢丝绳缠绕/GJM12030508 销轴1.dwg",
+          "children": []
+        },
+        {
+          "code": "GJM12030509",
+          "name": "螺母",
+          "componentCode": "TROLLEY.ROPE.NUT",
+          "drawingFile": "GJM120305钢丝绳缠绕/GJM12030509螺母.dwg",
+          "children": []
+        }
+      ]
+    },
+    {
+      "code": "GJM120306",
+      "name": "水平轮",
+      "componentCode": "TROLLEY.H_WHEEL",
+      "drawingFile": "GJM120306水平轮/GJM120306 水平轮装置.dwg",
+      "children": [
+        {
+          "code": "GJM12030601",
+          "name": "支架",
+          "componentCode": "TROLLEY.H_WHEEL.BRACKET",
+          "drawingFile": "GJM120306水平轮/GJM12030601 支架.dwg",
+          "children": []
+        },
+        {
+          "code": "GJM12030602",
+          "name": "水平滚轮",
+          "componentCode": "TROLLEY.H_WHEEL.ROLLER",
+          "drawingFile": "GJM120306水平轮/GJM12030602 水平滚轮.dwg",
+          "children": []
+        },
+        {
+          "code": "GJM1203060201",
+          "name": "挡板1",
+          "componentCode": "TROLLEY.H_WHEEL.ROLLER.PART_01",
+          "drawingFile": "GJM120306水平轮/GJM1203060201 挡板1.dwg",
+          "children": []
+        },
+        {
+          "code": "GJM1203060202",
+          "name": "通盖",
+          "componentCode": "TROLLEY.H_WHEEL.ROLLER.PART_02",
+          "drawingFile": "GJM120306水平轮/GJM1203060202 通盖.dwg",
+          "children": []
+        },
+        {
+          "code": "GJM1203060203",
+          "name": "水平滚轮",
+          "componentCode": "TROLLEY.H_WHEEL.ROLLER.PART_03",
+          "drawingFile": "GJM120306水平轮/GJM1203060203 水平滚轮.dwg",
+          "children": []
+        },
+        {
+          "code": "GJM1203060204",
+          "name": "偏心轴",
+          "componentCode": "TROLLEY.H_WHEEL.ROLLER.PART_04",
+          "drawingFile": "GJM120306水平轮/GJM1203060204 偏心轴.dwg",
+          "children": []
+        },
+        {
+          "code": "GJM1203060205",
+          "name": "挡板2",
+          "componentCode": "TROLLEY.H_WHEEL.ROLLER.PART_05",
+          "drawingFile": "GJM120306水平轮/GJM1203060205 挡板2.dwg",
+          "children": []
+        },
+        {
+          "code": "GJM12030603",
+          "name": "楔块",
+          "componentCode": "TROLLEY.H_WHEEL.WEDGE",
+          "drawingFile": "GJM120306水平轮/GJM12030603 楔块.dwg",
+          "children": []
+        },
+        {
+          "code": "GJM12030604",
+          "name": "防护罩",
+          "componentCode": "TROLLEY.H_WHEEL.GUARD",
+          "drawingFile": "GJM120306水平轮/GJM12030604 防护罩.dwg",
+          "children": []
+        }
+      ]
+    },
+    {
+      "code": "GJM120307",
+      "name": "小车锚定装置",
+      "componentCode": "TROLLEY.ANCHOR",
+      "drawingFile": "GJM120307小车锚定装置.dwg",
+      "children": []
+    },
+    {
+      "code": "GJM120308",
+      "name": "吊具电缆固定装置",
+      "componentCode": "TROLLEY.CABLE_FIX",
+      "drawingFile": "GJM120308 吊具电缆固定装置.dwg",
+      "children": []
+    },
+    {
+      "code": "GJM120309",
+      "name": "润滑站底座",
+      "componentCode": "TROLLEY.LUBE_BASE",
+      "drawingFile": "GJM120309 润滑站底座.dwg",
+      "children": []
+    },
+    {
+      "code": "GJM120310",
+      "name": "悬臂吊",
+      "componentCode": "TROLLEY.JIB_CRANE",
+      "drawingFile": "GJM120310悬臂吊.dwg",
+      "children": []
+    }
+  ]
+}
