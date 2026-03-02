@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-03-02T12:10:46.426Z",
+  "timestamp": "2026-03-02T14:08:29.175Z",
   "passed": true,
   "results": [
     {
@@ -8,7 +8,7 @@
       "details": [
         "零编译错误"
       ],
-      "duration": 2647
+      "duration": 2562
     },
     {
       "name": "单元测试 (pnpm test)",
@@ -16,7 +16,7 @@
       "details": [
         "1517 测试全部通过"
       ],
-      "duration": 2638
+      "duration": 3520
     },
     {
       "name": "契约守门员 (tRPC 路由引用 shared/contracts)",
@@ -59,7 +59,7 @@
         "server/api/microservice.router.ts:121 — Math.random() 用于业务逻辑",
         "... 还有 193 处"
       ],
-      "duration": 86
+      "duration": 101
     },
     {
       "name": "any 类型检测 (基线: 2750)",
@@ -79,7 +79,7 @@
         "  client/src/pages/algorithm/AlgorithmDetail.tsx: 30 处",
         "  client/src/pages/cognitive/DigitalTwinView.tsx: 30 处"
       ],
-      "duration": 36
+      "duration": 43
     },
     {
       "name": "死参数检测 (config 声明未使用)",
@@ -98,7 +98,7 @@
         "config.defaultTemperature — 声明但未在 server/ 中引用",
         "config.requestTimeoutMs — 声明但未在 server/ 中引用"
       ],
-      "duration": 825
+      "duration": 883
     }
   ]
 }
