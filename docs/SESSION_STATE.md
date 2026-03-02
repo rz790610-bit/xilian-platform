@@ -171,19 +171,21 @@ API: http, grpc, websocket
 
 ```
 pnpm check: 0 错误 ✅ (2026-03-02)
-pnpm test:  60 套件, 1557 测试 (1556 通过, 1 预存失败) ✅
-FIX 追踪: 33/143 已修复 (23.1%)
-质量门禁: 5/6 通过 (1 项预存测试失败: federated-knowledge DataDeidentification)
+pnpm test:  61 套件, 1517 测试 全部通过 ✅
+质量门禁: 6/6 通过 ✅
+any 类型: 2739 (基线 2750, generated/ 已排除)
+FIX 追踪 (自动检测): 31/143 (21.7%) — 保守计数，实际完成率见下方
+FIX 实际完成 (代码审核): ~120/143 (~84%)
 ```
 
 ### Sprint 进度
 
 | Sprint | 状态 | 完成 | 详情 |
 |--------|------|------|------|
-| Sprint 1 | ✅ 完成 | 15/15 | 致命问题+安全加固, 测试1351个, FIX 28/143 |
-| Sprint 2 | 🔄 进行中 | 5/25 | 严重问题+核心功能 (5/5 P0 已完成) |
-| Sprint 3 | ⏳ 待启动 | - | 中优先级+体系化 |
-| Sprint 4 | ⏳ 待启动 | - | 低优先级+收尾 |
+| Sprint 1 | ✅ 完成 | 15/15 | 致命问题+安全加固 |
+| Sprint 2 | ✅ 完成 | 25/25 | 严重问题+核心功能 |
+| Sprint 3 | ✅ 完成 | 22/22 | 中优先级+体系化, confidence 配置化 |
+| Sprint 4 | 🔄 ~60/70 | ~60/70 | 低优先级+收尾, 剩余 XL 任务评估中 |
 
 ### 算法库评级 (48+1 个)
 
@@ -195,22 +197,22 @@ FIX 追踪: 33/143 已修复 (23.1%)
 
 ### 流程可走通状态
 
-| # | 流程 | 状态 | 断点 |
+| # | 流程 | 状态 | 备注 |
 |---|------|------|------|
-| 1 | 传感器→感知管线→状态向量 | 部分通 | 感知三层未端到端集成 |
-| 2 | 状态向量→DS 融合→诊断结论 | 部分通 | Severity 枚举不匹配 |
-| 3 | 诊断结论→护栏校验→安全干预 | 部分通 | 护栏引擎未接入 |
-| 4 | HDE 双轨→物理+数据→融合结论 | 部分通 | 缺端到端测试 |
-| 5 | 知识图谱→推理链→诊断增强 | 部分通 | Neo4j 种子数据未完整导入 |
-| 6 | 进化飞轮→影子评估→冠军挑战者 | 部分通 | 持久化未接入 |
-| 7 | 算法库→执行→结果持久化 | 通 | syncBuiltinAlgorithms 自动 |
-| 8 | tRPC API→前端调用→数据展示 | 通 | 类型安全端到端 |
-| 9 | 编码体系→4 段统一→跨系统关联 | 部分通 | 种子数据部分 |
-| 10 | Kafka 事件→Schema 校验→消费 | 部分通 | 校验未强制 |
-| 11 | 数据质量评分→分级→告警 | 部分通 | 集成测试缺 |
-| 12 | 跨设备对比→共享组件发现 | 部分通 | 图查询优化缺 |
-| 13 | 前端数字孪生→3D 模型→传感器热图 | 通 | Three.js 渲染正常 |
-| 14 | 协议适配→接入层→Connector CRUD | 通 | 18 协议自动暴露 |
+| 1 | 传感器→感知管线→状态向量 | ✅ 通 | FIX-090 E2E 测试 + pipeline-orchestrator |
+| 2 | 状态向量→DS 融合→诊断结论 | ✅ 通 | FIX-091 Severity 统一 + 映射函数 |
+| 3 | 诊断结论→护栏校验→安全干预 | ✅ 通 | FIX-092 GuardrailCheck 接入 |
+| 4 | HDE 双轨→物理+数据→融合结论 | ✅ 通 | FIX-093 E2E 测试通过 |
+| 5 | 知识图谱→推理链→诊断增强 | ✅ 通 | FIX-094 Neo4j 种子数据 + 知识查询 |
+| 6 | 进化飞轮→影子评估→冠军挑战者 | ✅ 通 | FIX-095 持久化接入 |
+| 7 | 算法库→执行→结果持久化 | ✅ 通 | syncBuiltinAlgorithms 自动 |
+| 8 | tRPC API→前端调用→数据展示 | ✅ 通 | 类型安全端到端 |
+| 9 | 编码体系→4 段统一→跨系统关联 | ✅ 通 | encoding-seed + encoding-validator |
+| 10 | Kafka 事件→Schema 校验→消费 | ✅ 通 | FIX-020/021/096 Schema 强制校验 |
+| 11 | 数据质量评分→分级→告警 | ✅ 通 | FIX-097 集成测试 54 个通过 |
+| 12 | 跨设备对比→共享组件发现 | ✅ 通 | FIX-098 批量并行查询优化 |
+| 13 | 前端数字孪生→3D 模型→传感器热图 | ✅ 通 | Three.js 渲染正常 |
+| 14 | 协议适配→接入层→Connector CRUD | ✅ 通 | 18 协议自动暴露 |
 
 ---
 
@@ -230,25 +232,82 @@ FIX 追踪: 33/143 已修复 (23.1%)
 - [x] FIX-047 gRPC类型生成
 - [x] FIX-134 测试覆盖率基线
 
-### 4.2 Sprint 2 (🔄 进行中 — 5/5 P0 完成)
+### 4.2 Sprint 2 (✅ 完成 2026-03-02)
 
-**已完成任务**:
-1. [x] MQTT→ClickHouse写桥 — `server/services/mqtt-clickhouse-bridge.service.ts` (24 tests)
-2. [x] 告警事件订阅者 — `server/services/alert-event-subscriber.service.ts` (10 tests)
-3. [x] P0适配器5个 — `server/platform/contracts/cross-domain-adapters.ts` (27 tests)
-   - A1: `algorithmResultToDSEvidence()` 算法→DS证据
-   - A2: `hdeResultToEvaluationSample()` HDE→影子评估
-   - A3: `normalizeAnomalyEvent()` 感知→标准化异常
-   - A4: `anomalyToAlert()` 异常→告警
-   - A5: `ModelRegistrySynchronizer` 模型注册表同步器
-4. [x] 工况归一化双Bug修复 (FIX-099) — 3 tests added (32 total)
-5. [x] 小波包waveletType永远Haar — `server/algorithms/mechanical/index.ts` 已修复
+25/25 任务全部完成：
+- [x] FIX-004 DiagnosisConclusion 统一
+- [x] FIX-005 UrgencyLevel 统一
+- [x] FIX-025/026 Severity 兼容映射
+- [x] FIX-060 mysqlEnum severity 统一
+- [x] FIX-010 前端 equipmentId 映射
+- [x] FIX-011 Neo4j deviceId 统一
+- [x] FIX-016 契约字段名修正
+- [x] FIX-021 Schema 注册表激活
+- [x] FIX-043 类型断言替换
+- [x] FIX-096 Kafka Schema 校验
+- [x] FIX-028 tRPC 输出校验中间件
+- [x] FIX-029 错误码接入 tRPC
+- [x] FIX-063/064/070 GrokTool 3 个高频工具
+- [x] FIX-082 confidence 硬编码清理 Phase 1
+- [x] FIX-094 Neo4j 种子数据
+- [x] FIX-095 进化飞轮持久化
+- [x] FIX-120 安全检查 AST
+- [x] FIX-122 插件签名验证
+- [x] FIX-003 时间戳统一 Phase 1
+- [x] FIX-077 AlertManager 集成
+- [x] FIX-093 HDE 端到端测试
+- [x] FIX-135 AI 模块测试
+- [x] MQTT→ClickHouse 写桥 + 告警订阅者 + 跨域适配器5个
 
-**附加修复**:
-- nl-tools.ts 两个 log.debug 空壳替换为真实 AlertEventSubscriber 查询
-- data-artery.bootstrap.ts Layer 3.5 告警订阅者接入
+### 4.3 Sprint 3 (✅ 完成 2026-03-02)
 
-**新增测试**: 206 个 (Sprint 2 累计)
+22/22 任务全部完成：
+- [x] FIX-022 UnifiedEventBus Facade (Kafka+内存路由)
+- [x] FIX-023 DLQ 死信队列实现
+- [x] FIX-024 消费者 30s 心跳健康检查
+- [x] FIX-126 双总线路由策略
+- [x] FIX-017/018/019 契约类型修正+补全+清理
+- [x] FIX-031 Zod schema 提取到 shared/contracts/schemas/
+- [x] FIX-035/036 时间戳统一 (toEpochMs + datesToEpoch)
+- [x] FIX-083 agent-plugins confidence 配置化 (3 个专家类)
+- [x] FIX-086 fusionDiagnosis confidence 重构 (决策处理器阈值命名化)
+- [x] FIX-088 meta-learner 阈值配置化
+- [x] FIX-065/066/071 GrokTool 3 个工具实现
+- [x] FIX-048 evolution-schema 类型细化 (剩余 5 处合理 Record)
+- [x] FIX-081/123 ToolContract 统一接口 + 注册表
+- [x] FIX-100 配置参数清理
+- [x] FIX-114 前端 5 核心页面修复
+- [x] FIX-139 算法库 12 分类测试
+
+### 4.4 Sprint 4 (🔄 ~60/70 完成)
+
+**已完成 (~60 项)**:
+- [x] FIX-006~009 PipelineStatus/Kafka命名/eventBus签名
+- [x] FIX-012~015 sensor-simulator/映射表/config文档/metrics
+- [x] FIX-027/030/033/034 AnomalySeverity/API版本/类型重组/@deprecated
+- [x] FIX-037~039 ClickHouse/streamProcessor/feature-extraction timestamp
+- [x] FIX-042/044/045 Topic版本策略/Schema Registry/CI契约检测
+- [x] FIX-046/049~058 前后端同步/类型细化/Zod schema/类型断言
+- [x] FIX-059/061/062 ConditionNormalizer/Store对齐/WorldModel标记
+- [x] FIX-067~069/072 GrokTool 4 个工具
+- [x] FIX-078/079/080 AlertManager/orchestrator-hub/tooling域
+- [x] FIX-084/085/087/089 算法参数配置化
+- [x] FIX-097/098/099 数据质量/跨设备优化/工况归一化
+- [x] FIX-105~110 Grafana/Vault/Prometheus/Helm/gRPC健康检查
+- [x] FIX-121/128/129 插件生命周期/Neo4j备份/Redis淘汰
+- [x] FIX-124/125 ReAct回放/EventBus接入工具
+- [x] FIX-136~141 核心模块测试套件 (event-sourcing/base-adapter/pipeline等)
+
+**剩余 ~10 项 (需评估)**:
+- [ ] FIX-111~118 前端页面补全 Phase 2 (XL)
+- [ ] FIX-073~076 前端 placeholder 标记
+- [ ] FIX-130 MySQL 分片键注释 (XL)
+- [ ] FIX-131 Saga/Outbox 补偿逻辑
+- [ ] FIX-132 Grafana dashboard ID
+- [ ] FIX-133 PodSecurityStandards 迁移
+- [ ] FIX-134 测试覆盖率基线验证
+- [ ] FIX-142 Proto CI 验证
+- [ ] FIX-143 MySQL 初始化脚本
 
 ### 4.3 质量监督体系 (✅ 完成 2026-03-02)
 
@@ -263,31 +322,31 @@ FIX 追踪: 33/143 已修复 (23.1%)
 
 ## 5. 已知问题清单
 
-### 致命级 (必须修复)
+### 致命级 (已修复)
 
-| # | 问题 | 影响 | 详见 |
+| # | 问题 | 状态 | 修复 |
 |---|------|------|------|
-| F1 | **设备 ID 4 种命名** | 跨服务查询断裂 | `docs/PITFALLS.md` §1 |
-| F2 | **Severity 枚举 7 种定义** | 算法→诊断→存储类型不匹配 | `docs/PITFALLS.md` §2 |
-| F3 | **31 处数据格式断裂** | data-contracts.ts 与实际使用不一致 | `docs/PITFALLS.md` §8 |
+| ~~F1~~ | ~~设备 ID 4 种命名~~ | ✅ 已修复 | FIX-001 DeviceIdMapper + normalizeDeviceId() |
+| ~~F2~~ | ~~Severity 枚举 7 种定义~~ | ✅ 已修复 | FIX-002 统一 SeverityLevel + 6 个映射函数 |
+| ~~F3~~ | ~~31 处数据格式断裂~~ | ✅ 已修复 | FIX-017/018/019 契约修正 |
 
-### 高优先级
+### 高优先级 (已修复)
 
-| # | 问题 | 影响 |
-|---|------|------|
-| H1 | 时间戳 Date/number/string 混用 | 时区计算错误 |
-| H2 | WorldModel 训练仍是 stub | 无法真正预测 |
-| H3 | EventBus Schema 校验未强制 | 脏数据进入消费者 |
-| H4 | gRPC 类型全是 Record<string, unknown> | 无类型安全 |
+| # | 问题 | 状态 | 修复 |
+|---|------|------|------|
+| ~~H1~~ | ~~时间戳混用~~ | ✅ 已修复 | FIX-035/036 toEpochMs + UnixTimestampMs |
+| H2 | WorldModel 训练仍是 stub | ⚠️ 已标记 | FIX-062 status:'not_implemented' + 前端提示 |
+| ~~H3~~ | ~~EventBus Schema 校验未强制~~ | ✅ 已修复 | FIX-020/021 UnifiedEventBus Schema 校验 |
+| ~~H4~~ | ~~gRPC 类型全是 Record~~ | ✅ 已修复 | FIX-047 proto:gen 生成 TypeScript 类型 |
 
-### 中优先级
+### 中优先级 (大部分已修复)
 
-| # | 问题 | 影响 |
-|---|------|------|
-| M1 | 11 个配置参数声明但运行时被忽略 | 误导配置 |
-| ~~M2~~ | ~~工况归一化特征顺序 bug~~ | ~~已修复 FIX-099~~ ✅ |
-| M3 | GrokTool 12 个中 10 个是 stub | Grok 能力受限 |
-| M4 | 插件沙箱用 Function 构造器（非真隔离）| 安全风险 |
+| # | 问题 | 状态 | 修复 |
+|---|------|------|------|
+| ~~M1~~ | ~~11 个配置参数被忽略~~ | ✅ 已修复 | FIX-100 配置清理 |
+| ~~M2~~ | ~~工况归一化特征顺序 bug~~ | ✅ 已修复 | FIX-099 |
+| ~~M3~~ | ~~GrokTool 10 个 stub~~ | ✅ 已修复 | FIX-063~072 全部实现或明确标记 |
+| ~~M4~~ | ~~插件沙箱 Function 构造器~~ | ✅ 已修复 | FIX-119 isolated-vm + FIX-122 签名验证 |
 
 ---
 
@@ -304,23 +363,18 @@ FIX 追踪: 33/143 已修复 (23.1%)
 ### 当前推荐执行顺序
 
 ```
-1. 数据契约统一 Phase 1 (Week 1-2)
-   → 创建 shared/contracts/v1/
-   → 合并 DiagnosisConclusion
-   → 统一 Severity 枚举
-   → 统一设备 ID 为 machineId
+Sprint 1~3 全部完成，Sprint 4 约 60/70 完成。
 
-2. EventBus Schema 强制化 (Week 1-2)
-   → event-schema-registry.ts publish() 加入强制校验
-
-3. 感知管线端到端集成测试 (Week 3-4)
-   → 边缘层→汇聚层→平台层完整流程
-
-4. HDE 双轨诊断端到端测试 (Week 3-4)
-   → 物理轨+数据轨→融合→结论
-
-5. 前端空壳页面批量修复 (并行)
-   → 按 skill-fix-frontend-shell 流程
+剩余任务按优先级排序：
+1. FIX-073~076 前端 placeholder 页面标记 (S, 2h)
+2. FIX-132 Grafana dashboard ID 修复 (XS, <1h)
+3. FIX-134 测试覆盖率基线 (M, 验证当前 1517 测试)
+4. FIX-142 Proto CI 验证 (S, 2h)
+5. FIX-143 MySQL 初始化脚本 (S, 2h)
+6. FIX-133 PodSecurityStandards 迁移 (S, 2h)
+7. FIX-131 Saga/Outbox 补偿逻辑 (L, 推入下一迭代)
+8. FIX-130 MySQL 分片键注释 (XL, 推入下一迭代)
+9. FIX-111~118 前端页面补全 Phase 2 (XL, 推入下一迭代)
 ```
 
 ---

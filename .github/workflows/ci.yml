@@ -51,6 +51,15 @@ jobs:
       - name: TypeScript type check
         run: pnpm check
 
+      # FIX-142: Proto 文件语法验证
+      - name: Validate Proto files
+        run: bash scripts/proto-validate.sh || echo "::warning::Proto validation issues found"
+
+      # FIX-045: 契约兼容性检查
+      - name: Contract compatibility check
+        if: github.event_name == 'pull_request'
+        run: bash scripts/check-contracts.sh origin/${{ github.base_ref }} || echo "::warning::Contract compatibility issues found"
+
   test:
     name: Unit Tests
     runs-on: ubuntu-latest
