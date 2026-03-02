@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-03-02T11:56:58.073Z",
+  "timestamp": "2026-03-02T12:06:33.923Z",
   "passed": true,
   "results": [
     {
@@ -8,7 +8,7 @@
       "details": [
         "零编译错误"
       ],
-      "duration": 2687
+      "duration": 2566
     },
     {
       "name": "单元测试 (pnpm test)",
@@ -16,7 +16,7 @@
       "details": [
         "1517 测试全部通过"
       ],
-      "duration": 2533
+      "duration": 3379
     },
     {
       "name": "契约守门员 (tRPC 路由引用 shared/contracts)",
@@ -59,7 +59,7 @@
         "server/api/microservice.router.ts:121 — Math.random() 用于业务逻辑",
         "... 还有 193 处"
       ],
-      "duration": 87
+      "duration": 88
     },
     {
       "name": "any 类型检测 (基线: 2750)",
@@ -98,7 +98,7 @@
         "config.defaultTemperature — 声明但未在 server/ 中引用",
         "config.requestTimeoutMs — 声明但未在 server/ 中引用"
       ],
-      "duration": 812
+      "duration": 818
     }
   ]
 }
