@@ -2,10 +2,10 @@
   "date": "2026-03-02",
   "fixProgress": {
     "total": 143,
-    "fixed": 28,
+    "fixed": 31,
     "partial": 4,
-    "open": 111,
-    "completionRate": "19.6",
+    "open": 108,
+    "completionRate": "21.7",
     "bySeverity": {
       "致命": {
         "total": 18,
@@ -13,11 +13,11 @@
       },
       "严重": {
         "total": 47,
-        "fixed": 9
+        "fixed": 10
       },
       "中等": {
         "total": 54,
-        "fixed": 7
+        "fixed": 9
       },
       "低": {
         "total": 24,
@@ -44,12 +44,15 @@
       "FIX-070",
       "FIX-071",
       "FIX-072",
+      "FIX-077",
+      "FIX-079",
       "FIX-090",
       "FIX-091",
       "FIX-092",
       "FIX-101",
       "FIX-102",
       "FIX-104",
+      "FIX-105",
       "FIX-106",
       "FIX-119",
       "FIX-141"
@@ -57,10 +60,10 @@
   },
   "codeHealth": {
     "tsErrors": 0,
-    "testSuites": 53,
-    "testsPassed": 1351,
+    "testSuites": 61,
+    "testsPassed": 1517,
     "testsFailed": 0,
-    "anyCount": 2687,
+    "anyCount": 3613,
     "anyBaseline": 2600
   },
   "flowStatus": {
@@ -71,8 +74,8 @@
   },
   "techDebt": {
     "deadParams": 0,
-    "mockResidual": 7,
-    "contractViolation": 150,
+    "mockResidual": 4,
+    "contractViolation": 159,
     "namingIssues": 160,
     "shellPages": 395,
     "brokenFlows": 7

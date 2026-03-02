@@ -1,10 +1,10 @@
 {
-  "timestamp": "2026-03-02T02:59:49.317Z",
+  "timestamp": "2026-03-02T11:46:16.580Z",
   "total": 143,
-  "fixed": 28,
+  "fixed": 31,
   "partial": 4,
-  "open": 111,
-  "completionRate": "19.6",
+  "open": 108,
+  "completionRate": "21.7",
   "bySeverity": {
     "致命": {
       "total": 18,
@@ -12,11 +12,11 @@
     },
     "严重": {
       "total": 47,
-      "fixed": 9
+      "fixed": 10
     },
     "中等": {
       "total": 54,
-      "fixed": 7
+      "fixed": 9
     },
     "低": {
       "total": 24,
@@ -38,7 +38,7 @@
     },
     "D-Stub": {
       "total": 20,
-      "fixed": 10
+      "fixed": 12
     },
     "E-算法": {
       "total": 8,
@@ -50,7 +50,7 @@
     },
     "G-配置": {
       "total": 11,
-      "fixed": 4
+      "fixed": 5
     },
     "H-前端": {
       "total": 8,
@@ -167,7 +167,6 @@
       "status": "open",
       "method": "待修复",
       "files": [
-        "server/platform/ai/diagnostic-enhancer/diagnostic-enhancer.ts",
         "server/platform/events/event-bus.ts",
         "server/lib/clients/kafkaEventBus.ts"
       ]
@@ -858,7 +857,7 @@
       "description": "observability createAlertRule返回mock",
       "severity": "严重",
       "category": "D-Stub",
-      "status": "open",
+      "status": "fixed",
       "method": "mock扫描",
       "files": [
         "server/services/observability.service.ts"
@@ -880,12 +879,12 @@
       "description": "orchestrator-hub多处返回{stub:true}",
       "severity": "中等",
       "category": "D-Stub",
-      "status": "open",
+      "status": "fixed",
       "method": "stub扫描",
       "files": [
         "server/platform/orchestrator/orchestrator-hub.ts"
       ],
-      "detail": "3处stub"
+      "detail": "0处stub"
     },
     {
       "id": "FIX-080",
@@ -923,7 +922,7 @@
         "server/domains/evolution/observability.router.ts",
         "server/domains/evolution/evolution.domain-router.ts"
       ],
-      "detail": "207处hardcoded"
+      "detail": "205处hardcoded"
     },
     {
       "id": "FIX-083",
@@ -1165,7 +1164,7 @@
       "description": "Grafana admin123",
       "severity": "中等",
       "category": "G-配置",
-      "status": "open",
+      "status": "fixed",
       "method": "密码扫描",
       "files": [
         "docker-compose.yml"
