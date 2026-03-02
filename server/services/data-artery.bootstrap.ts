@@ -105,6 +105,17 @@ export async function startDataArtery(): Promise<void> {
     log.warn('[DataArtery] 数据动脉降级运行：遥测数据将不会写入 ClickHouse');
   }
 
+  // ---- 第 1.5 层：MQTT→ClickHouse 直写桥接（Kafka 降级路径）----
+  try {
+    const { getMqttClickHouseBridge } = await import('./mqtt-clickhouse-bridge.service');
+    const chBridge = getMqttClickHouseBridge();
+    await chBridge.start();
+    log.info('[DataArtery] ✓ Layer 1.5: MQTT→ClickHouse 直写桥接已启动');
+  } catch (error) {
+    log.warn('[DataArtery] ✗ Layer 1.5: MQTT→ClickHouse 直写桥接启动失败:', error);
+    log.warn('[DataArtery] Kafka 降级路径不可用（遥测数据仅通过 Kafka 写入）');
+  }
+
   // ---- 第 2 层：特征提取服务 ----
   try {
     const { startFeatureExtraction } = await import('./feature-extraction');
@@ -126,6 +137,17 @@ export async function startDataArtery(): Promise<void> {
   } catch (error) {
     log.warn('[DataArtery] ✗ Layer 3: 网关桥接启动失败:', error);
     log.warn('[DataArtery] 数据动脉降级运行：网关数据需通过其他方式接入');
+  }
+
+  // ---- 第 3.5 层：告警事件订阅者 ----
+  try {
+    const { getAlertEventSubscriber } = await import('./alert-event-subscriber.service');
+    const alertSub = getAlertEventSubscriber();
+    await alertSub.start();
+    log.info('[DataArtery] ✓ Layer 3.5: 告警事件订阅者已启动');
+  } catch (error) {
+    log.warn('[DataArtery] ✗ Layer 3.5: 告警事件订阅者启动失败:', error);
+    log.warn('[DataArtery] 数据动脉降级运行：EventBus 告警事件将不会被处理');
   }
 
   log.info('[DataArtery] ═══════════════════════════════════════');
@@ -157,6 +179,13 @@ export async function stopDataArtery(): Promise<void> {
     log.info('[DataArtery] ✓ Layer 4: 连接器健康巡检已停止');
   } catch { /* 服务未加载 */ }
 
+  // 停止告警事件订阅者
+  try {
+    const { resetAlertEventSubscriber } = await import('./alert-event-subscriber.service');
+    resetAlertEventSubscriber();
+    log.info('[DataArtery] ✓ Layer 3.5: 告警事件订阅者已停止');
+  } catch { /* 服务未加载 */ }
+
   // 上游先关闭
   try {
     const { stopGatewayBridge } = await import('./gateway-kafka-bridge.service');
@@ -182,6 +211,13 @@ export async function stopDataArtery(): Promise<void> {
   } catch (error) {
     log.warn('[DataArtery] ✗ Layer 2 关闭失败:', error);
   }
+
+  // 关闭 MQTT→ClickHouse 直写桥接
+  try {
+    const { resetMqttClickHouseBridge } = await import('./mqtt-clickhouse-bridge.service');
+    resetMqttClickHouseBridge();
+    log.info('[DataArtery] ✓ Layer 1.5: MQTT→ClickHouse 直写桥接已关闭');
+  } catch { /* 服务未加载 */ }
 
   // 轮询等待 Sink 缓冲区刷写完毕（最多 5 秒）
   await waitForDrain(async () => {

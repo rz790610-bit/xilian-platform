@@ -605,9 +605,16 @@ export class ConditionNormalizerEngine {
 
   /**
    * 提取特征
+   *
+   * FIX-099: 特征按确定性顺序提取
+   *   1. 先按 FEATURE_KEYS 标准顺序提取已知特征
+   *   2. 额外数值字段按 key 字母序排序后追加
+   *   确保相同输入在任何 JS 运行时版本下产生相同的特征顺序
    */
   private extractFeatures(dataSlice: DataSlice): Record<string, number> {
     const features: Record<string, number> = {};
+
+    // 标准特征顺序（确定性）
     const featureKeys = [
       'vibrationSpeed', '振动速度', '振动速度(mm/s)',
       'current', '电流', '电流比(%)',
@@ -623,12 +630,14 @@ export class ConditionNormalizerEngine {
       }
     }
 
-    // 也包含任何额外的数值字段（排除已存在的和非特征字段）
+    // 额外数值字段：按 key 字母序排列，确保顺序确定性
     const excludeKeys = new Set(['plcCode', 'timestamp', 'id', 'nodeId', 'deviceCode']);
-    for (const [key, value] of Object.entries(dataSlice)) {
-      if (typeof value === 'number' && !excludeKeys.has(key) && !(key in features)) {
-        features[key] = value;
-      }
+    const extraKeys = Object.keys(dataSlice)
+      .filter(key => typeof dataSlice[key] === 'number' && !excludeKeys.has(key) && !(key in features))
+      .sort(); // FIX-099: 字母序排列
+
+    for (const key of extraKeys) {
+      features[key] = dataSlice[key] as number;
     }
 
     return features;

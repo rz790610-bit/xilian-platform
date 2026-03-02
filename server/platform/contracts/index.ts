@@ -61,3 +61,16 @@ export {
   physicsEngine,
   BUILTIN_FORMULAS,
 } from './physics-formulas';
+
+// 跨域适配器
+export {
+  algorithmResultToDSEvidence,
+  hdeResultToEvaluationSample,
+  normalizeAnomalyEvent,
+  anomalyToAlert,
+  ModelRegistrySynchronizer,
+  getModelRegistrySynchronizer,
+  resetModelRegistrySynchronizer,
+  type NormalizedAnomalyEvent,
+  type AlertRecord,
+} from './cross-domain-adapters';

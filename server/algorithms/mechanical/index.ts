@@ -1691,9 +1691,9 @@ export class WaveletPacketAnalyzer implements IAlgorithmExecutor {
     const signal = getSignalData(input);
     const fs = input.sampleRate || 1;
 
-    // 简化的小波包分解 (使用 Haar 近似 db4)
+    // 小波包分解 (使用 cfg.waveletType 指定的滤波器)
     const level = cfg.decompositionLevel;
-    const nodes = waveletPacketDecompose(signal, level);
+    const nodes = waveletPacketDecompose(signal, level, cfg.waveletType);
 
     // 计算各节点能量
     const totalEnergy = signal.reduce((s, v) => s + v * v, 0);
@@ -1755,26 +1755,75 @@ export class WaveletPacketAnalyzer implements IAlgorithmExecutor {
   }
 }
 
-/** 简化的小波包分解 */
-function waveletPacketDecompose(signal: number[], level: number): number[][] {
+/**
+ * 小波滤波器系数表
+ * 低通分解滤波器 (h0)，高通 (h1) 由 QMF 关系导出：h1[n] = (-1)^n * h0[L-1-n]
+ *
+ * 参考：
+ *   - db4: Daubechies 4-tap (Daubechies 1992)
+ *   - db8: Daubechies 8-tap
+ *   - sym5: Symlet 5-tap (近对称 Daubechies)
+ *   - haar: Haar wavelet (2-tap)
+ */
+const WAVELET_FILTERS: Record<string, number[]> = {
+  haar: [1 / Math.SQRT2, 1 / Math.SQRT2],
+  db4: [
+    -0.010597401785069,  0.032883011666983,  0.030841381835987, -0.187034811719093,
+    -0.027983769416984,  0.630880767929590,  0.714846570552542,  0.230377813308855,
+  ],
+  db8: [
+    -0.000117476784002, 0.000677259783573, -0.000391740373377, -0.004870352993452,
+     0.008746094047406, 0.013981027917016, -0.044088253931065, -0.017369301002022,
+     0.128747426620186, 0.000472484574816, -0.284015542962428, -0.015829105256024,
+     0.585354683654868, 0.675630736297700,  0.312871590914466,  0.054415842243082,
+  ],
+  sym5: [
+     0.027333068345078,  0.029519490925775, -0.039134249302383,  0.199397533977394,
+     0.723407690402421,  0.633978963456949,  0.016602105764522, -0.175328089908450,
+    -0.021101834024759,  0.019538882735287,
+  ],
+};
+
+/**
+ * 获取低通和高通分解滤波器
+ */
+function getWaveletFilters(waveletType: string): { lo: number[]; hi: number[] } {
+  const lo = WAVELET_FILTERS[waveletType] || WAVELET_FILTERS['db4'];
+  const L = lo.length;
+  const hi = lo.map((v, n) => (n % 2 === 0 ? 1 : -1) * lo[L - 1 - n]);
+  return { lo, hi };
+}
+
+/**
+ * 小波包分解 — 使用指定小波类型的滤波器
+ *
+ * 对信号做卷积-下采样（分析滤波器组），递归到指定层数。
+ * waveletType 会选择不同的 QMF 滤波器系数。
+ */
+function waveletPacketDecompose(signal: number[], level: number, waveletType: string = 'db4'): number[][] {
   if (level === 0) return [signal];
 
-  // Haar小波分解
+  const { lo, hi } = getWaveletFilters(waveletType);
   const N = signal.length;
+
+  // 卷积-下采样
   const halfN = Math.floor(N / 2);
-  const approx = new Array(halfN);
-  const detail = new Array(halfN);
+  const approx = new Array(halfN).fill(0);
+  const detail = new Array(halfN).fill(0);
 
   for (let i = 0; i < halfN; i++) {
-    approx[i] = (signal[2 * i] + signal[2 * i + 1]) / Math.SQRT2;
-    detail[i] = (signal[2 * i] - signal[2 * i + 1]) / Math.SQRT2;
+    for (let k = 0; k < lo.length; k++) {
+      const idx = (2 * i + k) % N; // 周期延拓
+      approx[i] += lo[k] * signal[idx];
+      detail[i] += hi[k] * signal[idx];
+    }
   }
 
   if (level === 1) return [approx, detail];
 
   // 递归分解
-  const approxNodes = waveletPacketDecompose(approx, level - 1);
-  const detailNodes = waveletPacketDecompose(detail, level - 1);
+  const approxNodes = waveletPacketDecompose(approx, level - 1, waveletType);
+  const detailNodes = waveletPacketDecompose(detail, level - 1, waveletType);
 
   return [...approxNodes, ...detailNodes];
 }

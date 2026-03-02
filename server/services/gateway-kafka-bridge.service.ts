@@ -31,6 +31,7 @@ import { kafkaClient, KAFKA_TOPICS } from '../lib/clients/kafka.client';
 import { createModuleLogger } from '../core/logger';
 import { config as appConfig } from '../core/config';
 import type { RawTelemetryMessage } from './feature-extraction/types';
+import { getMqttClickHouseBridge, type TelemetryMessage } from './mqtt-clickhouse-bridge.service';
 
 const log = createModuleLogger('gateway-bridge');
 
@@ -629,12 +630,32 @@ export class GatewayKafkaBridge {
         this.metrics.totalMessagesPublished += messages.length;
       } catch (error) {
         this.metrics.totalMessagesFailed += messages.length;
-        log.warn(`[GatewayBridge] Kafka 写入失败 [${topic}]:`, error);
+        log.warn(`[GatewayBridge] Kafka 写入失败 [${topic}]，尝试 ClickHouse 直写降级`, { error });
 
-        // 放回缓冲区
-        if (this.buffer.length + messages.length <= this.config.maxBufferSize) {
-          for (const msg of messages) {
-            this.buffer.push({ topic, ...msg });
+        // === ClickHouse 直写降级路径 ===
+        // 当 Kafka 不可用时，将遥测数据直接写入 ClickHouse
+        try {
+          const chBridge = getMqttClickHouseBridge();
+          const telemetryMsgs: TelemetryMessage[] = messages.map(m => {
+            try { return JSON.parse(m.value); } catch { return null; }
+          }).filter((m): m is TelemetryMessage => m !== null);
+
+          if (telemetryMsgs.length > 0) {
+            const result = chBridge.ingest(telemetryMsgs);
+            if (result.accepted > 0) {
+              log.info(`[GatewayBridge] ClickHouse 降级写入: ${result.accepted} 条已缓冲`);
+              // 计入已发布（降级路径也算成功）
+              this.metrics.totalMessagesPublished += result.accepted;
+              this.metrics.totalMessagesFailed -= result.accepted;
+            }
+          }
+        } catch (chError) {
+          log.warn('[GatewayBridge] ClickHouse 降级写入也失败', { chError });
+          // 放回缓冲区
+          if (this.buffer.length + messages.length <= this.config.maxBufferSize) {
+            for (const msg of messages) {
+              this.buffer.push({ topic, ...msg });
+            }
           }
         }
       }

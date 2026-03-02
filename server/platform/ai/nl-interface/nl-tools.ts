@@ -107,18 +107,21 @@ const queryDeviceStatusSummary: GrokTool = {
     })).describe('当前活跃故障列表'),
     lastMaintenance: z.string().optional().describe('最后维保时间 ISO8601'),
   }),
-  execute: async (input: { machineId: string }, context: ToolContext) => {
+  execute: async (input: { machineId: string }, _context: ToolContext) => {
     const startMs = Date.now();
     try {
-      // TODO: Phase 4 实现 — 从 MySQL devices 表 + ClickHouse 实时数据查询
-      // 当前返回占位数据，不阻塞上层集成
-      log.debug({ machineId: input.machineId, durationMs: Date.now() - startMs }, '设备状态查询（占位）');
+      // Phase 4 实现 — 从 AlertEventSubscriber 查询实时告警数据
+      const { getAlertEventSubscriber } = await import('../../../services/alert-event-subscriber.service');
+      const subscriber = getAlertEventSubscriber();
+      const summary = await subscriber.getDeviceAlertSummary(input.machineId);
+
+      log.debug({ machineId: input.machineId, durationMs: Date.now() - startMs, alerts: summary.recentAlerts }, '设备状态查询完成');
 
       return {
-        status: 'running',
-        healthScore: 85,
-        recentAlerts: 0,
-        activeFaults: [],
+        status: summary.activeFaults.length > 0 ? 'warning' : 'running',
+        healthScore: Math.max(0, 100 - summary.activeFaults.length * 15 - summary.recentAlerts * 2),
+        recentAlerts: summary.recentAlerts,
+        activeFaults: summary.activeFaults,
         lastMaintenance: undefined,
       };
     } catch (err: any) {
@@ -171,14 +174,20 @@ const queryAlertSummary: GrokTool = {
   ) => {
     const startMs = Date.now();
     try {
-      // TODO: Phase 4 实现 — 从 MySQL alert_records 表查询
-      log.debug({ machineId: input.machineId, severity: input.severity, durationMs: Date.now() - startMs }, '告警摘要查询（占位）');
+      // Phase 4 实现 — 从 AlertEventSubscriber 查询实时告警数据
+      const { getAlertEventSubscriber } = await import('../../../services/alert-event-subscriber.service');
+      const subscriber = getAlertEventSubscriber();
+      const result = await subscriber.queryAlertRecords({
+        deviceCode: input.machineId,
+        severity: input.severity,
+        startTime: input.timeRange?.start ? new Date(input.timeRange.start) : undefined,
+        endTime: input.timeRange?.end ? new Date(input.timeRange.end) : undefined,
+        limit: 20,
+      });
 
-      return {
-        totalAlerts: 0,
-        bySeverity: { info: 0, warning: 0, error: 0, critical: 0 },
-        recentAlerts: [],
-      };
+      log.debug({ machineId: input.machineId, severity: input.severity, total: result.totalAlerts, durationMs: Date.now() - startMs }, '告警摘要查询完成');
+
+      return result;
     } catch (err: any) {
       log.warn({ machineId: input.machineId, err: err.message }, '告警摘要查询失败');
       return {
