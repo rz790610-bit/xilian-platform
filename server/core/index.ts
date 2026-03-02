@@ -134,15 +134,14 @@ async function startServer() {
     log.warn('[REST Bridge] Failed to register REST API (non-blocking):', err);
   }
 
-  // tRPC API
-  app.use(
-    "/api/trpc",
-    createApiLimiter(),
-    createExpressMiddleware({
-      router: appRouter,
-      createContext,
-    })
-  );
+  // tRPC API — 版本化端点（FIX-030）
+  const trpcMiddleware = createExpressMiddleware({
+    router: appRouter,
+    createContext,
+  });
+  app.use("/api/v1/trpc", createApiLimiter(), trpcMiddleware);
+  // 向后兼容：旧路径继续可用
+  app.use("/api/trpc", createApiLimiter(), trpcMiddleware);
 
   // ── 阶段 0c: 端口发现与 Vite/静态文件 ──
   const preferredPort = config.app.port;

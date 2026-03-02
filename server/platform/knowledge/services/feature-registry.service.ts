@@ -12,8 +12,10 @@
  */
 
 import { createModuleLogger } from '../../../core/logger';
-const log = createModuleLogger('feature-registry');
+import { getDb } from '../../../lib/db';
+import { featureRegistry } from '../../../../drizzle/schema';
 
+const log = createModuleLogger('feature-registry');
 
 // ============================================================================
 // 特征类型
@@ -125,7 +127,11 @@ export class FeatureRegistryService {
       producers: [],
     });
 
-    // TODO: INSERT INTO feature_registry ...
+    // 持久化到 MySQL
+    this.persistRegister(feature).catch(err =>
+      log.warn({ err, featureName: feature.name }, '[feature-registry] DB persist failed'),
+    );
+
     return feature;
   }
 
@@ -301,5 +307,32 @@ export class FeatureRegistryService {
     }
 
     return true;
+  }
+
+  // --------------------------------------------------------------------------
+  // DB 持久化（异步，失败不阻塞）
+  // --------------------------------------------------------------------------
+
+  private async persistRegister(feature: FeatureDefinition): Promise<void> {
+    const db = await getDb();
+    if (!db) return;
+
+    await db.insert(featureRegistry).values({
+      name: feature.name,
+      displayName: feature.displayName,
+      description: feature.description,
+      dataType: feature.dataType,
+      unit: feature.unit,
+      sourceType: feature.source.type,
+      expression: feature.source.expression,
+      dependencies: feature.source.dependencies as any,
+      statistics: feature.statistics as any,
+      qualityScore: feature.qualityScore,
+      version: feature.version,
+      tags: feature.tags as any,
+      conditionProfiles: feature.conditionProfiles as any,
+      isActive: feature.isActive ? 1 : 0,
+    });
+    log.info({ featureName: feature.name }, '[feature-registry] Persisted to DB');
   }
 }

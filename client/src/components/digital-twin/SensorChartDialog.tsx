@@ -1,27 +1,33 @@
 /**
  * 传感器图表弹窗
  *
- * 根据传感器测量类型自动选择合适的图表：
- *   vibration  → [频谱图, 包络谱, 瀑布图, 时频图]
- *   temperature → [时域趋势, 热力图]
- *   stress     → [时域趋势, 频谱图, 热力图]
+ * P1-5 增强:
+ *   - tRPC 查询 getEquipmentWaveform 获取真实/演示波形
+ *   - ClickHouse 不可用时自动降级，UI 显示"演示数据"标签
+ *   - 频谱/包络谱基于服务端波形渲染，BPFO/BPFI 标注线位置由服务端计算
  *
- * Phase 1: 使用客户端生成的演示波形数据
+ * 图表类型自动选择:
+ *   vibration  → [频谱图, 包络谱, 瀑布图, 时频图]
+ *   temperature → [时域趋势]
+ *   stress     → [频谱图, 时域趋势]
  */
 import { useState, useMemo } from 'react';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
+import { Badge } from '@/components/ui/badge';
 import {
   SpectrumChart, EnvelopeChart, WaterfallChart, TimeFrequencyChart,
   type SpectrumPoint,
 } from '@/components/charts/industrial';
 import { type RTGSensor, type SensorMeasurementType } from './rtg-model/rtg-constants';
+import { trpc } from '@/lib/trpc';
 
 interface SensorChartDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   sensor: RTGSensor | null;
+  equipmentId?: string;
 }
 
 type ChartTab = 'spectrum' | 'envelope' | 'waterfall' | 'timefreq' | 'trend' | 'heatmap';
@@ -42,57 +48,16 @@ const TABS_BY_TYPE: Record<SensorMeasurementType, { key: ChartTab; label: string
   ],
 };
 
-/** 生成演示波形（含物理特征的合成信号） */
-function generateDemoWaveform(type: SensorMeasurementType, n = 2048, rpm = 1470): number[] {
-  const fs = 12800; // 采样率
-  const dt = 1 / fs;
-  const signal: number[] = [];
-
-  if (type === 'vibration') {
-    const rotFreq = rpm / 60; // 转频
-    // 模拟轴承参数（6208 轴承，8 滚动体，接触角 0°）
-    const BPFO = rotFreq * 3.06;
-    const BPFI = rotFreq * 4.94;
-
-    for (let i = 0; i < n; i++) {
-      const t = i * dt;
-      let v = 0;
-      // 转频及谐波
-      v += 1.2 * Math.sin(2 * Math.PI * rotFreq * t);
-      v += 0.6 * Math.sin(2 * Math.PI * 2 * rotFreq * t);
-      v += 0.3 * Math.sin(2 * Math.PI * 3 * rotFreq * t);
-      // 轴承外圈缺陷 — BPFO 及谐波
-      v += 0.4 * Math.sin(2 * Math.PI * BPFO * t);
-      v += 0.15 * Math.sin(2 * Math.PI * 2 * BPFO * t);
-      // 轴承内圈 — BPFI（较弱信号）
-      v += 0.2 * Math.sin(2 * Math.PI * BPFI * t);
-      // 噪声
-      v += (Math.random() - 0.5) * 0.3;
-      signal.push(v);
-    }
-  } else {
-    // 温度/应力 — 缓慢变化
-    const base = type === 'temperature' ? 65 : 120;
-    for (let i = 0; i < n; i++) {
-      const t = i / n;
-      signal.push(base + 5 * Math.sin(2 * Math.PI * t * 2) + (Math.random() - 0.5) * 1.5);
-    }
-  }
-  return signal;
-}
-
 /** 简单 FFT（Cooley-Tukey radix-2） */
 function fft(signal: number[]): SpectrumPoint[] {
   const n = signal.length;
   const fs = 12800;
-  // 零填充到 2^N
   let N = 1;
   while (N < n) N <<= 1;
   const re = new Float64Array(N);
   const im = new Float64Array(N);
   for (let i = 0; i < n; i++) re[i] = signal[i];
 
-  // 位反转
   for (let i = 1, j = 0; i < N; i++) {
     let bit = N >> 1;
     for (; j & bit; bit >>= 1) j ^= bit;
@@ -103,7 +68,6 @@ function fft(signal: number[]): SpectrumPoint[] {
     }
   }
 
-  // Butterfly
   for (let len = 2; len <= N; len <<= 1) {
     const angle = -2 * Math.PI / len;
     const wRe = Math.cos(angle);
@@ -124,7 +88,6 @@ function fft(signal: number[]): SpectrumPoint[] {
     }
   }
 
-  // 取单边幅值谱
   const halfN = N / 2;
   const result: SpectrumPoint[] = [];
   for (let i = 1; i < halfN; i++) {
@@ -136,7 +99,6 @@ function fft(signal: number[]): SpectrumPoint[] {
 
 /** 简单包络处理 — Hilbert 变换近似 */
 function envelope(signal: number[]): number[] {
-  // 简化：取绝对值 + 低通平滑
   const abs = signal.map(Math.abs);
   const smoothed = [];
   const win = 5;
@@ -158,7 +120,6 @@ function stft(signal: number[], windowSize = 256, hopSize = 128): { matrix: numb
 
   for (let start = 0; start + windowSize <= signal.length; start += hopSize) {
     const frame = signal.slice(start, start + windowSize);
-    // Hanning 窗
     for (let i = 0; i < frame.length; i++) {
       frame[i] *= 0.5 * (1 - Math.cos(2 * Math.PI * i / (frame.length - 1)));
     }
@@ -167,43 +128,59 @@ function stft(signal: number[], windowSize = 256, hopSize = 128): { matrix: numb
     times.push((start + windowSize / 2) / fs);
   }
 
-  const freqs = frames[0]?.length
-    ? Array.from({ length: frames[0].length }, (_, i) => ((i + 1) * fs) / (windowSize * 2) * 2)
-    : [];
-
-  // 简化频率轴
   const halfN = windowSize;
   const correctedFreqs = Array.from({ length: frames[0]?.length ?? 0 }, (_, i) => ((i + 1) * fs) / halfN);
-
   return { matrix: frames, freqs: correctedFreqs, times };
 }
 
-export default function SensorChartDialog({ open, onOpenChange, sensor }: SensorChartDialogProps) {
+export default function SensorChartDialog({ open, onOpenChange, sensor, equipmentId = 'EQ-001' }: SensorChartDialogProps) {
   if (!sensor) return null;
 
   const tabs = TABS_BY_TYPE[sensor.measurementType] ?? TABS_BY_TYPE.vibration;
   const [activeTab, setActiveTab] = useState<ChartTab>(tabs[0].key);
 
-  // 生成演示数据（稳定引用）
-  const demoData = useMemo(() => {
-    const waveform = generateDemoWaveform(sensor.measurementType);
+  // P1-5: tRPC 查询波形数据（含降级）
+  const waveformQuery = trpc.evoPipeline.getEquipmentWaveform.useQuery(
+    { equipmentId, sensorId: sensor.id, sampleCount: 2048 },
+    { enabled: open, retry: 1, staleTime: 10000 },
+  );
+
+  const waveformData = waveformQuery.data;
+  const isDemoData = waveformData?.isDemoData ?? true;
+
+  // 从服务端波形或查询结果计算图表数据
+  const chartData = useMemo(() => {
+    const waveform = waveformData?.waveform ?? [];
+    if (waveform.length === 0) return null;
+
     const spectrum = fft(waveform);
     const env = envelope(waveform);
     const envSpectrum = fft(env.slice(0, 2048));
     const stftResult = stft(waveform);
 
-    // 瀑布图 — 模拟多个时间片
+    // 瀑布图 — 基于同一波形的不同窗位置
     const waterfallMatrix: number[][] = [];
     const waterfallLabels: string[] = [];
+    const wfWindowSize = Math.floor(waveform.length / 10);
     for (let t = 0; t < 10; t++) {
-      const wave = generateDemoWaveform(sensor.measurementType);
-      const spec = fft(wave);
-      waterfallMatrix.push(spec.map(p => p.amplitude));
-      waterfallLabels.push(`T-${10 - t}`);
+      const start = t * Math.floor(waveform.length / 10);
+      const end = Math.min(start + wfWindowSize, waveform.length);
+      const segment = waveform.slice(start, end);
+      if (segment.length > 0) {
+        const spec = fft(segment);
+        waterfallMatrix.push(spec.map(p => p.amplitude));
+        waterfallLabels.push(`T-${10 - t}`);
+      }
     }
 
-    const rpm = 1470;
+    const rpm = waveformData?.rpm ?? 1470;
     const rotFreq = rpm / 60;
+    const bf = waveformData?.bearingFrequencies ?? {
+      BPFO: rotFreq * 3.06,
+      BPFI: rotFreq * 4.94,
+      BSF: rotFreq * 1.98,
+      FTF: rotFreq * 0.39,
+    };
 
     return {
       spectrum,
@@ -214,15 +191,10 @@ export default function SensorChartDialog({ open, onOpenChange, sensor }: Sensor
       stftMatrix: stftResult.matrix,
       stftFreqs: stftResult.freqs,
       stftTimes: stftResult.times,
-      bearingFreqs: {
-        BPFO: rotFreq * 3.06,
-        BPFI: rotFreq * 4.94,
-        BSF: rotFreq * 1.98,
-        FTF: rotFreq * 0.39,
-      },
+      bearingFreqs: bf,
       rotFreq,
     };
-  }, [sensor.measurementType]);
+  }, [waveformData]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -231,6 +203,19 @@ export default function SensorChartDialog({ open, onOpenChange, sensor }: Sensor
           <DialogTitle className="text-sm flex items-center gap-2">
             <span className="font-mono text-muted-foreground">{sensor.id}</span>
             {sensor.label}
+            {/* P1-5: 数据来源标签 */}
+            {isDemoData ? (
+              <Badge variant="outline" className="text-[9px] ml-2 border-amber-500/50 text-amber-400">
+                演示数据
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="text-[9px] ml-2 border-emerald-500/50 text-emerald-400">
+                实时数据
+              </Badge>
+            )}
+            {waveformQuery.isLoading && (
+              <span className="text-[9px] text-muted-foreground animate-pulse">加载中...</span>
+            )}
           </DialogTitle>
         </DialogHeader>
 
@@ -253,46 +238,52 @@ export default function SensorChartDialog({ open, onOpenChange, sensor }: Sensor
 
         {/* 图表内容 */}
         <div className="mt-2">
-          {activeTab === 'spectrum' && (
+          {!chartData && (
+            <div className="text-center py-8 text-xs text-muted-foreground">
+              {waveformQuery.isLoading ? '正在加载波形数据...' : '无可用数据'}
+            </div>
+          )}
+
+          {chartData && activeTab === 'spectrum' && (
             <SpectrumChart
-              data={demoData.spectrum}
+              data={chartData.spectrum}
               title={`${sensor.label} — 频谱图`}
               yUnit={sensor.unit}
               characteristicFrequencies={[
-                { frequency: demoData.rotFreq, label: '1X', color: '#3b82f6', harmonics: 3 },
-                { frequency: demoData.bearingFreqs.BPFO, label: 'BPFO', color: '#ef4444' },
-                { frequency: demoData.bearingFreqs.BPFI, label: 'BPFI', color: '#f97316' },
+                { frequency: chartData.rotFreq, label: '1X', color: '#3b82f6', harmonics: 3 },
+                { frequency: chartData.bearingFreqs.BPFO, label: 'BPFO', color: '#ef4444' },
+                { frequency: chartData.bearingFreqs.BPFI, label: 'BPFI', color: '#f97316' },
               ]}
               height={280}
             />
           )}
 
-          {activeTab === 'envelope' && (
+          {chartData && activeTab === 'envelope' && (
             <EnvelopeChart
-              data={demoData.envSpectrum}
+              data={chartData.envSpectrum}
               title={`${sensor.label} — 包络谱`}
               yUnit="g"
-              bearingFrequencies={demoData.bearingFreqs}
+              bearingFrequencies={chartData.bearingFreqs}
               harmonicCount={4}
               height={280}
             />
           )}
 
-          {activeTab === 'waterfall' && (
+          {chartData && activeTab === 'waterfall' && (
             <WaterfallChart
-              matrix={demoData.waterfallMatrix}
-              frequencies={demoData.waterfallFreqs}
-              timeLabels={demoData.waterfallLabels}
+              matrix={chartData.waterfallMatrix}
+              frequencies={chartData.waterfallFreqs}
+              timeLabels={chartData.waterfallLabels}
               title={`${sensor.label} — 瀑布图`}
               height={320}
             />
           )}
 
-          {activeTab === 'timefreq' && (
+          {chartData && activeTab === 'timefreq' && (
             <TimeFrequencyChart
-              matrix={demoData.stftMatrix}
-              frequencies={demoData.stftFreqs}
-              times={demoData.stftTimes}
+              matrix={chartData.stftMatrix}
+              frequencies={chartData.stftFreqs}
+              times={chartData.stftTimes}
               title={`${sensor.label} — 时频图 (STFT)`}
               height={320}
             />
@@ -311,8 +302,18 @@ export default function SensorChartDialog({ open, onOpenChange, sensor }: Sensor
           )}
         </div>
 
-        <div className="text-[9px] text-muted-foreground mt-2 border-t border-border pt-2">
-          演示数据 — 合成信号含转频谐波 + 轴承缺陷特征频率 (RPM=1470, 6208 轴承)
+        {/* P1-5: 数据来源信息栏 */}
+        <div className="text-[9px] text-muted-foreground mt-2 border-t border-border pt-2 flex items-center justify-between">
+          <span>
+            {isDemoData
+              ? `演示数据 — ${waveformData?.fallbackReason ?? '合成信号含转频谐波 + 轴承缺陷特征频率'}`
+              : `实时数据 — ClickHouse 查询 ${Math.round(waveformData?.queryTimeMs ?? 0)}ms`
+            }
+          </span>
+          <span>
+            {waveformData?.sampleRate ?? 12800} Hz / {waveformData?.sampleCount ?? 2048} pts
+            {waveformData?.rpm ? ` / RPM=${waveformData.rpm}` : ''}
+          </span>
         </div>
       </DialogContent>
     </Dialog>

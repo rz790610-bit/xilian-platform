@@ -2,6 +2,9 @@
  * Prometheus 指标收集器 - 平台基础设施层
  * 
  * 基于 prom-client 实现应用级指标暴露，供 Prometheus 抓取。
+ *
+ * FIX-015: 所有指标名和标签名使用 snake_case，遵循 Prometheus 官方命名规范。
+ * @see https://prometheus.io/docs/practices/naming/
  * 暴露 /api/metrics 端点（与 docker/prometheus/prometheus.yml 配置对齐）。
  * 
  * 指标覆盖：

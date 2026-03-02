@@ -84,6 +84,8 @@ export class MinerDamageAnalyzer implements IAlgorithmExecutor {
     return {
       snCurveC: 1e12, snCurveM: 3, fatigueLimit: 50,
       damageThreshold: 1.0, safetyFactor: 2.0, materialType: 'steel',
+      /** FIX-084: 严重度判定阈值 — 损伤度达到 damageThreshold × 此比例时为 'attention' */
+      attentionRatio: 0.3,
     };
   }
 
@@ -122,7 +124,7 @@ export class MinerDamageAnalyzer implements IAlgorithmExecutor {
 
     return createOutput(this.id, this.version, input, cfg, t0, {
       summary: `Miner D=${totalDamage.toFixed(6)}(阈值${cfg.damageThreshold}), ${cycles.length}循环, 剩余寿命${safeRemLife > 1000 ? '>1000' : safeRemLife.toFixed(0)}%(SF=${cfg.safetyFactor})`,
-      severity: totalDamage > cfg.damageThreshold ? 'critical' : isDangerous ? 'warning' : totalDamage > cfg.damageThreshold * 0.3 ? 'attention' : 'normal',
+      severity: totalDamage > cfg.damageThreshold ? 'critical' : isDangerous ? 'warning' : totalDamage > cfg.damageThreshold * cfg.attentionRatio ? 'attention' : 'normal',
       urgency: totalDamage > cfg.damageThreshold ? 'immediate' : isDangerous ? 'scheduled' : 'monitoring',
       confidence,
       referenceStandard: 'Palmgren-Miner Rule / ASTM E1049',
@@ -372,6 +374,8 @@ export class HotSpotStressAnalyzer implements IAlgorithmExecutor {
     return {
       extrapolationType: 'linear', gaugePositions: [4, 8, 12],
       plateThickness: 10, fatigueCurveClass: 90, designLife: 1e7,
+      /** FIX-084: 利用率严重度阈值 */
+      warningUtilization: 0.8, attentionUtilization: 0.5,
     };
   }
 
@@ -428,8 +432,8 @@ export class HotSpotStressAnalyzer implements IAlgorithmExecutor {
 
     return createOutput(this.id, this.version, input, cfg, t0, {
       summary: `热点应力: max=${maxHS.toFixed(1)}MPa, min=${minHS.toFixed(1)}MPa, range=${sr.toFixed(1)}MPa, SCF=${avgSCF.toFixed(2)}, FAT${fatClass}利用率=${(utilRatio * 100).toFixed(1)}%`,
-      severity: utilRatio > 1 ? 'critical' : utilRatio > 0.8 ? 'warning' : utilRatio > 0.5 ? 'attention' : 'normal',
-      urgency: utilRatio > 1 ? 'immediate' : utilRatio > 0.8 ? 'scheduled' : 'monitoring', confidence,
+      severity: utilRatio > 1 ? 'critical' : utilRatio > cfg.warningUtilization ? 'warning' : utilRatio > cfg.attentionUtilization ? 'attention' : 'normal',
+      urgency: utilRatio > 1 ? 'immediate' : utilRatio > cfg.warningUtilization ? 'scheduled' : 'monitoring', confidence,
       referenceStandard: 'IIW Doc. XIII-2460-13 / EN 1993-1-9',
       recommendations: utilRatio > 0.8 ? ['评估焊接质量', '考虑焊后处理', '降低载荷或加强结构'] : ['继续监测应力趋势'],
     }, {
@@ -556,6 +560,7 @@ export function getStructuralAlgorithms(): AlgorithmRegistration[] {
         configFields: [
           { name: 'threshold', type: 'number', default: 40, description: '检测阈值dB' },
           { name: 'hitDefinitionTime', type: 'number', default: 800, description: '事件定义时间μs' },
+          { name: 'waveSpeed', type: 'number', default: 5000, description: '波速m/s（材料相关）' },
         ],
         applicableDeviceTypes: ['vessel', 'pipeline', 'bridge', 'structure', '*'],
         applicableScenarios: ['结构健康监测', '压力容器检测', '焊缝检测'],

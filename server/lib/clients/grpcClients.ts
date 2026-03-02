@@ -46,15 +46,15 @@ const SERVICE_CONFIGS: Record<string, ServiceConfig> = {
   device: {
     host: appConfig.grpc.deviceServiceHost,
     port: appConfig.grpc.deviceServicePort,
-    protoPath: path.resolve(__dirname, '../../../services/device-service/proto/device_service.proto'),
-    packageName: 'xilian.device.v1',
+    protoPath: path.resolve(__dirname, '../../../proto/device/device.proto'),
+    packageName: 'xilian.device',
     serviceName: 'DeviceService',
   },
   algorithm: {
     host: appConfig.grpc.algorithmServiceHost,
     port: appConfig.grpc.algorithmServicePort,
-    protoPath: path.resolve(__dirname, '../../../services/algorithm-service/proto/algorithm_service.proto'),
-    packageName: 'xilian.algorithm.v1',
+    protoPath: path.resolve(__dirname, '../../../proto/algorithm/algorithm.proto'),
+    packageName: 'xilian.algorithm',
     serviceName: 'AlgorithmService',
   },
 };

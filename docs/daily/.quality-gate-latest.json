@@ -1,0 +1,104 @@
+{
+  "timestamp": "2026-03-02T05:26:38.647Z",
+  "passed": true,
+  "results": [
+    {
+      "name": "TypeScript 编译 (pnpm check)",
+      "passed": true,
+      "details": [
+        "零编译错误"
+      ],
+      "duration": 2595
+    },
+    {
+      "name": "单元测试 (pnpm test)",
+      "passed": true,
+      "details": [
+        "1415 测试全部通过"
+      ],
+      "duration": 2469
+    },
+    {
+      "name": "契约守门员 (tRPC 路由引用 shared/contracts)",
+      "passed": true,
+      "details": [
+        "扫描 71 个路由文件",
+        "⚠️  60 个路由有大量内联 schema（建议迁移）",
+        "server/api/accessLayer.router.ts: 22 个内联 Zod schema，建议迁移到 shared/contracts",
+        "server/api/advancedDistillation.router.ts: 7 个内联 Zod schema，建议迁移到 shared/contracts",
+        "server/api/ai.router.ts: 21 个内联 Zod schema，建议迁移到 shared/contracts",
+        "server/api/algorithm.router.ts: 34 个内联 Zod schema，建议迁移到 shared/contracts",
+        "server/api/businessConfig.router.ts: 4 个内联 Zod schema，建议迁移到 shared/contracts",
+        "server/api/clickhouse.router.ts: 9 个内联 Zod schema，建议迁移到 shared/contracts",
+        "server/api/conditionNormalizer.router.ts: 11 个内联 Zod schema，建议迁移到 shared/contracts",
+        "server/api/dataPipeline.router.ts: 20 个内联 Zod schema，建议迁移到 shared/contracts",
+        "server/api/database/asset.router.ts: 16 个内联 Zod schema，建议迁移到 shared/contracts",
+        "server/api/database/clean.router.ts: 12 个内联 Zod schema，建议迁移到 shared/contracts"
+      ],
+      "duration": 6
+    },
+    {
+      "name": "Mock 残留检测",
+      "passed": true,
+      "details": [
+        "发现 214 处 mock/stub 残留（逐步清理中）",
+        "server/algorithms/optimization/index.ts:71 — Math.random() 用于业务逻辑",
+        "server/algorithms/optimization/index.ts:204 — Math.random() 用于业务逻辑",
+        "server/algorithms/optimization/index.ts:225 — Math.random() 用于业务逻辑",
+        "server/algorithms/optimization/index.ts:270 — Math.random() 用于业务逻辑",
+        "server/algorithms/optimization/index.ts:272 — Math.random() 用于业务逻辑",
+        "server/algorithms/optimization/index.ts:281 — Math.random() 用于业务逻辑",
+        "server/algorithms/optimization/index.ts:296 — Math.random() 用于业务逻辑",
+        "server/algorithms/optimization/index.ts:349 — Math.random() 用于业务逻辑",
+        "server/algorithms/optimization/index.ts:400 — Math.random() 用于业务逻辑",
+        "server/algorithms/optimization/index.ts:404 — Math.random() 用于业务逻辑",
+        "server/algorithms/optimization/index.ts:531 — Math.random() 用于业务逻辑",
+        "server/algorithms/optimization/index.ts:553 — Math.random() 用于业务逻辑",
+        "server/algorithms/rule-learning/index.ts:176 — hardcoded confidence 值",
+        "server/api/hdeDiagnostic.router.ts:99 — Math.random() 用于业务逻辑",
+        "server/api/microservice.router.ts:121 — Math.random() 用于业务逻辑",
+        "... 还有 199 处"
+      ],
+      "duration": 92
+    },
+    {
+      "name": "any 类型检测 (基线: 2750)",
+      "passed": true,
+      "details": [
+        "any 总数: 2723 (基线: 2750)",
+        "✅ 未超过基线",
+        "Top any 文件:",
+        "  server/services/algorithm.service.ts: 64 处",
+        "  client/src/pages/settings/PluginSandboxManager.tsx: 51 处",
+        "  server/services/pipeline.engine.ts: 45 处",
+        "  server/services/gateway.service.ts: 42 处",
+        "  server/api/algorithm.router.ts: 40 处",
+        "  client/src/pages/settings/config/Infrastructure.tsx: 38 处",
+        "  client/src/pages/evolution/FSDInterventionPanel.tsx: 34 处",
+        "  server/platform/algorithm/algorithm-grpc-server.ts: 32 处",
+        "  client/src/pages/algorithm/AlgorithmDetail.tsx: 30 处",
+        "  client/src/pages/cognitive/DigitalTwinView.tsx: 30 处"
+      ],
+      "duration": 38
+    },
+    {
+      "name": "死参数检测 (config 声明未使用)",
+      "passed": true,
+      "details": [
+        "扫描 218 个配置属性",
+        "18 个疑似未使用",
+        "config.logBufferSize — 声明但未在 server/ 中引用",
+        "config.rootPassword — 声明但未在 server/ 中引用",
+        "config.nativePort — 声明但未在 server/ 中引用",
+        "config.opcua — 声明但未在 server/ 中引用",
+        "config.modbus — 声明但未在 server/ 中引用",
+        "config.reasoningModel — 声明但未在 server/ 中引用",
+        "config.defaultMaxTokens — 声明但未在 server/ 中引用",
+        "config.defaultTemperature — 声明但未在 server/ 中引用",
+        "config.requestTimeoutMs — 声明但未在 server/ 中引用",
+        "config.tokenLimitPerMinute — 声明但未在 server/ 中引用"
+      ],
+      "duration": 845
+    }
+  ]
+}

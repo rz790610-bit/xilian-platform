@@ -25,10 +25,30 @@ import {
   HIGH_RISK_PERMISSIONS,
 } from './plugin.manifest';
 
+const log = createModuleLogger('plugin-sandbox');
+
 // ==================== 类型定义 ====================
 
 /** 沙箱状态 */
 export type SandboxState = 'idle' | 'initializing' | 'running' | 'suspended' | 'terminated' | 'error';
+
+/**
+ * FIX-121: 插件生命周期状态机
+ * 定义合法的状态转换，防止非法状态跳转
+ */
+const VALID_TRANSITIONS: Record<SandboxState, SandboxState[]> = {
+  idle:         ['initializing'],
+  initializing: ['running', 'error'],
+  running:      ['suspended', 'terminated', 'error'],
+  suspended:    ['running', 'terminated'],
+  terminated:   [],                        // 终态，不可再转换
+  error:        ['initializing', 'terminated'],  // 允许重试或终止
+};
+
+/** 校验状态转换是否合法 */
+function validateTransition(from: SandboxState, to: SandboxState): boolean {
+  return VALID_TRANSITIONS[from]?.includes(to) ?? false;
+}
 
 /** 执行请求 */
 export interface ExecutionRequest {
@@ -632,9 +652,21 @@ export class PluginSandbox extends EventEmitter {
     this.resourceLimits = resourceMonitor.resolveResourceLimits(manifest.resourceLimits);
   }
 
+  /** FIX-121: 安全的状态转换（带校验） */
+  private transitionTo(newState: SandboxState): void {
+    if (!validateTransition(this.state, newState)) {
+      const msg = `Invalid state transition: ${this.state} → ${newState} (plugin: ${this.manifest.id})`;
+      log.error(msg);
+      throw new Error(msg);
+    }
+    const oldState = this.state;
+    this.state = newState;
+    this.emit('sandbox:stateChange', { pluginId: this.manifest.id, from: oldState, to: newState });
+  }
+
   /** 初始化沙箱 */
   async initialize(): Promise<void> {
-    this.state = 'initializing';
+    this.transitionTo('initializing');
     this.emit('sandbox:initializing', { pluginId: this.manifest.id });
 
     try {
@@ -730,10 +762,10 @@ export class PluginSandbox extends EventEmitter {
 
       script.runInContext(this.vmContext, { timeout: 10000 });
 
-      this.state = 'running';
+      this.transitionTo('running');
       this.emit('sandbox:ready', { pluginId: this.manifest.id });
     } catch (err) {
-      this.state = 'error';
+      this.transitionTo('error');
       this.emit('sandbox:error', {
         pluginId: this.manifest.id,
         error: err instanceof Error ? err.message : 'Unknown initialization error',
@@ -881,29 +913,25 @@ export class PluginSandbox extends EventEmitter {
 
   /** 暂停沙箱 */
   suspend(): void {
-    if (this.state === 'running') {
-      this.state = 'suspended';
-      // 取消所有活跃执行
-      for (const [reqId, active] of this.activeExecutions) {
-        clearTimeout(active.timer);
-      }
-      this.activeExecutions.clear();
-      this.emit('sandbox:suspended', { pluginId: this.manifest.id });
+    this.transitionTo('suspended');
+    // 取消所有活跃执行
+    for (const [_reqId, active] of this.activeExecutions) {
+      clearTimeout(active.timer);
     }
+    this.activeExecutions.clear();
+    this.emit('sandbox:suspended', { pluginId: this.manifest.id });
   }
 
   /** 恢复沙箱 */
   resume(): void {
-    if (this.state === 'suspended') {
-      this.state = 'running';
-      this.emit('sandbox:resumed', { pluginId: this.manifest.id });
-    }
+    this.transitionTo('running');
+    this.emit('sandbox:resumed', { pluginId: this.manifest.id });
   }
 
   /** 终止沙箱 */
   terminate(): void {
     // 清理所有活跃执行
-    for (const [reqId, active] of this.activeExecutions) {
+    for (const [_reqId, active] of this.activeExecutions) {
       clearTimeout(active.timer);
     }
     this.activeExecutions.clear();
@@ -914,7 +942,7 @@ export class PluginSandbox extends EventEmitter {
 
     // 销毁 VM 上下文
     this.vmContext = null;
-    this.state = 'terminated';
+    this.transitionTo('terminated');
     this.emit('sandbox:terminated', { pluginId: this.manifest.id });
   }
 

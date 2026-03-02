@@ -1,6 +1,7 @@
 {{- if .Values.microservices.enabled }}
 # ============================================================
-# 微服务部署模板 — device-service + algorithm-service
+# 微服务部署模板 — Strangler Fig 渐进式拆分
+# 支持: configCenter / device / algorithm / aiInference / diagnosis
 # 仅在 microservices.enabled=true 时渲染
 # ============================================================
 
@@ -11,6 +12,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ include "xilian.fullname" $ }}-{{ $name }}
+  namespace: {{ include "xilian.namespace" $ }}
   labels:
     {{- include "xilian.labels" $ | nindent 4 }}
     app.kubernetes.io/component: {{ $name }}
@@ -20,17 +22,24 @@ spec:
     matchLabels:
       {{- include "xilian.selectorLabels" $ | nindent 6 }}
       app.kubernetes.io/component: {{ $name }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
   template:
     metadata:
       labels:
         {{- include "xilian.selectorLabels" $ | nindent 8 }}
         app.kubernetes.io/component: {{ $name }}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: {{ ($svc.healthPort | default $svc.port) | quote }}
     spec:
       serviceAccountName: {{ include "xilian.serviceAccountName" $ }}
       securityContext:
-        runAsNonRoot: true
-        runAsUser: 1001
-        fsGroup: 1001
+        {{- include "xilian.podSecurityContext" $ | nindent 8 }}
+      terminationGracePeriodSeconds: 30
       containers:
         - name: {{ $name }}
           image: "{{ $svc.image.repository }}:{{ $svc.image.tag }}"
@@ -39,6 +48,11 @@ spec:
             - name: grpc
               containerPort: {{ $svc.port }}
               protocol: TCP
+            {{- if $svc.healthPort }}
+            - name: health
+              containerPort: {{ $svc.healthPort }}
+              protocol: TCP
+            {{- end }}
           env:
             {{- range $key, $val := $svc.env }}
             - name: {{ $key }}
@@ -47,6 +61,32 @@ spec:
             {{- include "xilian.commonEnv" $ | nindent 12 }}
           resources:
             {{- toYaml $svc.resources | nindent 12 }}
+          # ── 健康检查：有 healthPort 用 HTTP，否则用 gRPC exec ──
+          {{- if $svc.healthPort }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: health
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /healthz/ready
+              port: health
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: health
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            failureThreshold: 30
+          {{- else }}
           livenessProbe:
             exec:
               command:
@@ -62,6 +102,7 @@ spec:
             initialDelaySeconds: 30
             periodSeconds: 15
             timeoutSeconds: 5
+            failureThreshold: 3
           readinessProbe:
             exec:
               command:
@@ -77,23 +118,52 @@ spec:
             initialDelaySeconds: 10
             periodSeconds: 10
             timeoutSeconds: 5
+            failureThreshold: 3
+          startupProbe:
+            exec:
+              command:
+                - node
+                - -e
+                - |
+                  const grpc = require('@grpc/grpc-js');
+                  const c = new grpc.Client('localhost:{{ $svc.port }}', grpc.credentials.createInsecure());
+                  c.getChannel().getConnectivityState(true);
+                  setTimeout(() => {
+                    process.exit(c.getChannel().getConnectivityState(false) === 2 ? 0 : 1);
+                  }, 3000);
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            failureThreshold: 30
+          {{- end }}
           securityContext:
-            allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: true
-            capabilities:
-              drop: ["ALL"]
+            {{- include "xilian.containerSecurityContext" $ | nindent 12 }}
+          lifecycle:
+            preStop:
+              exec:
+                command: ["sh", "-c", "sleep 5"]
           volumeMounts:
             - name: tmp
               mountPath: /tmp
+            {{- if $.Values.configMap.enabled }}
+            - name: config
+              mountPath: /etc/xilian
+              readOnly: true
+            {{- end }}
       volumes:
         - name: tmp
           emptyDir:
             sizeLimit: 256Mi
+        {{- if $.Values.configMap.enabled }}
+        - name: config
+          configMap:
+            name: {{ include "xilian.fullname" $ }}-config
+        {{- end }}
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: {{ include "xilian.fullname" $ }}-{{ $name }}
+  namespace: {{ include "xilian.namespace" $ }}
   labels:
     {{- include "xilian.labels" $ | nindent 4 }}
     app.kubernetes.io/component: {{ $name }}
@@ -104,6 +174,12 @@ spec:
       targetPort: grpc
       protocol: TCP
       name: grpc
+    {{- if $svc.healthPort }}
+    - port: {{ $svc.healthPort }}
+      targetPort: health
+      protocol: TCP
+      name: health
+    {{- end }}
   selector:
     {{- include "xilian.selectorLabels" $ | nindent 4 }}
     app.kubernetes.io/component: {{ $name }}
@@ -112,8 +188,10 @@ apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
   name: {{ include "xilian.fullname" $ }}-{{ $name }}
+  namespace: {{ include "xilian.namespace" $ }}
   labels:
     {{- include "xilian.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $name }}
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
@@ -127,13 +205,26 @@ spec:
         name: cpu
         target:
           type: Utilization
-          averageUtilization: 75
+          averageUtilization: 70
     - type: Resource
       resource:
         name: memory
         target:
           type: Utilization
           averageUtilization: 80
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+        - type: Pods
+          value: 2
+          periodSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 120
 {{- end }}
 {{- end }}
 {{- end }}

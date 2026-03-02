@@ -61,6 +61,20 @@ import { orchestratorHubRouter } from "./api/orchestratorHub.router";
 import { businessConfigRouter } from "./api/businessConfig.router";
 // ============ 统一观测中枢 ============
 import { observabilityHubRouter } from "./api/observability-hub.router";
+// ============ HDE 双轨诊断引擎（物理轨+数据轨 → DS融合 → 物理约束校验） ============
+import { hdeDiagnosticRouter } from "./api/hdeDiagnostic.router";
+// ============ P1-4 跨设备横向对比（共享部件发现 + 故障传播预警） ============
+import { crossDeviceRouter } from "./api/crossDevice.router";
+// ============ P0-1 统一编码注册表（4类编码校验 + Seed + 字典查询） ============
+import { encodingRouter } from "./api/encoding.router";
+// ============ P2-9 大模型价值发挥（诊断增强/NL交互/技术情报/进化实验室） ============
+import { aiRouter } from "./api/ai.router";
+// ============ P2-10 评估与组合优化体系（四维评估/模块排行/组合推荐） ============
+import { evaluationRouter } from "./api/evaluation.router";
+// ============ P3-1 联邦知识蒸馏（跨客户脱敏图谱融合） ============
+import { federatedRouter } from "./api/federated.router";
+// ============ 进化 UI（反馈中心/标注管理/主动学习） ============
+import { evolutionUIRouter } from "./api/evolution-ui.router";
 
 // ============ v5.0 深度进化 — 8 域路由 ============
 import { perceptionDomainRouter } from "./domains/perception/perception.domain-router";
@@ -71,6 +85,7 @@ import { knowledgeDomainRouter } from "./domains/knowledge/knowledge.domain-rout
 import { toolingDomainRouter } from "./domains/tooling/tooling.domain-router";
 import { pipelineDomainRouter } from "./domains/pipeline/pipeline.domain-router";
 import { platformDomainRouter } from "./domains/platform/platform.domain-router";
+import { qualityRouter } from "./api/quality.router";
 
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/core/index.ts, all api should start with '/api/' so that the gateway can route correctly
@@ -193,6 +208,20 @@ export const appRouter = router({
   businessConfig: businessConfigRouter,
   // ============ 统一观测中枢（运维仪表盘 + 客户状态大屏） ============
   observabilityHub: observabilityHubRouter,
+  // ============ HDE 双轨诊断引擎（物理轨+数据轨 → DS融合 → 物理约束校验） ============
+  hdeDiagnostic: hdeDiagnosticRouter,
+  // ============ P1-4 跨设备横向对比（共享部件发现 + 故障传播预警） ============
+  crossDevice: crossDeviceRouter,
+  // ============ P0-1 统一编码注册表（4类编码校验 + Seed + 字典查询） ============
+  encoding: encodingRouter,
+  // ============ P2-9 大模型价值发挥（诊断增强/NL交互/技术情报/进化实验室） ============
+  ai: aiRouter,
+  // ============ P2-10 评估与组合优化体系（四维评估/模块排行/组合推荐） ============
+  evaluation: evaluationRouter,
+  // ============ P3-1 联邦知识蒸馏（跨客户脱敏图谱融合） ============
+  federated: federatedRouter,
+  // ============ 进化 UI（反馈中心/标注管理/主动学习） ============
+  evolutionUI: evolutionUIRouter,
 
   // ============ v5.0 深度进化 — 8 域路由 ============
   // 感知域（采集/融合/编码/工况管理）
@@ -211,6 +240,9 @@ export const appRouter = router({
   evoPipeline: pipelineDomainRouter,
   // 平台域（编排器/仪表盘/健康检查/配置）
   evoPlatform: platformDomainRouter,
+
+  // ============ 质量看板 ============
+  quality: qualityRouter,
 });
 
 export type AppRouter = typeof appRouter;

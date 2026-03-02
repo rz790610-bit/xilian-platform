@@ -1,10 +1,13 @@
 /**
  * 知识图谱编排器 — 共享类型定义
  * 定义节点类型、关系类型、场景模板等
+ *
+ * @deprecated FIX-033: 通用类型（SeverityLevel, MachineId 等）请从
+ *   `@shared/contracts/v1` 导入。本文件仅保留知识图谱域专属类型。
  */
 
 // ============ 节点大类 ============
-export type KGNodeCategory = 'equipment' | 'fault' | 'diagnosis' | 'solution' | 'data' | 'mechanism';
+export type KGNodeCategory = 'equipment' | 'fault' | 'diagnosis' | 'solution' | 'data' | 'mechanism' | 'condition' | 'case';
 
 // ============ 节点子类型 ============
 export type EquipmentSubType = 'device' | 'component' | 'sensor' | 'berth';
@@ -13,6 +16,10 @@ export type DiagnosisSubType = 'diagnosis_rule' | 'decision_node' | 'inference_e
 export type SolutionSubType = 'repair' | 'emergency' | 'prevention';
 export type DataSubType = 'historical_data' | 'realtime_data' | 'knowledge_base';
 export type MechanismSubType = 'physical_model' | 'degradation_model' | 'threshold_model';
+/** P0-4: 工况条件子类型 */
+export type ConditionSubType = 'operating_condition' | 'environmental_condition' | 'load_condition';
+/** P0-4: 历史案例子类型 */
+export type CaseSubType = 'diagnosis_case' | 'maintenance_case' | 'failure_case';
 
 export type KGNodeSubType =
   | EquipmentSubType
@@ -20,7 +27,9 @@ export type KGNodeSubType =
   | DiagnosisSubType
   | SolutionSubType
   | DataSubType
-  | MechanismSubType;
+  | MechanismSubType
+  | ConditionSubType
+  | CaseSubType;
 
 // ============ 关系类型 ============
 export type KGRelationType =
@@ -35,7 +44,13 @@ export type KGRelationType =
   | 'DEGRADES_TO'
   | 'TRIGGERS'
   | 'FEEDS'
-  | 'REFERENCES';
+  | 'REFERENCES'
+  /** P0-4: 故障 → 工况条件 (Fault)-[:UNDER_CONDITION]->(Condition) */
+  | 'UNDER_CONDITION'
+  /** P0-4: 历史案例 → 故障验证 (Case)-[:VALIDATES]->(Fault) */
+  | 'VALIDATES'
+  /** P0-4: 跨设备共享部件 (Component)-[:SHARED_COMPONENT]->(Component) */
+  | 'SHARED_COMPONENT';
 
 // ============ 节点类型信息（组件面板用） ============
 export interface KGNodeTypeInfo {
@@ -495,6 +510,136 @@ const MECHANISM_NODES: KGNodeTypeInfo[] = [
   },
 ];
 
+/** P0-4: 工况条件节点 */
+const CONDITION_NODES: KGNodeTypeInfo[] = [
+  {
+    category: 'condition',
+    subType: 'operating_condition',
+    label: '作业工况',
+    description: '设备运行时的作业状态（满载/空载/启停等）',
+    icon: '⚙️',
+    color: '#0EA5E9',
+    configSchema: [
+      { key: 'encoding', label: '工况编码', type: 'string', required: true, placeholder: '如: HOIST.FULL_LOAD' },
+      { key: 'description', label: '工况描述', type: 'string' },
+      { key: 'parameters', label: '参数阈值', type: 'json', placeholder: '如: {"loadPercent": [80, 100]}' },
+    ],
+    allowedOutRelations: [],
+    allowedInRelations: ['UNDER_CONDITION'],
+  },
+  {
+    category: 'condition',
+    subType: 'environmental_condition',
+    label: '环境工况',
+    description: '设备运行的环境条件（高风/高温/腐蚀等）',
+    icon: '🌊',
+    color: '#0EA5E9',
+    configSchema: [
+      { key: 'encoding', label: '工况编码', type: 'string', required: true, placeholder: '如: HIGH_WIND' },
+      { key: 'description', label: '环境描述', type: 'string' },
+      { key: 'thresholds', label: '环境阈值', type: 'json', placeholder: '如: {"windSpeed": [15, 25]}' },
+    ],
+    allowedOutRelations: [],
+    allowedInRelations: ['UNDER_CONDITION'],
+  },
+  {
+    category: 'condition',
+    subType: 'load_condition',
+    label: '载荷工况',
+    description: '设备承载条件（起吊重量/偏载/冲击载荷等）',
+    icon: '🏋️',
+    color: '#0EA5E9',
+    configSchema: [
+      { key: 'encoding', label: '载荷编码', type: 'string', required: true, placeholder: '如: FULL_LOAD' },
+      { key: 'description', label: '载荷描述', type: 'string' },
+      { key: 'loadRange', label: '载荷范围', type: 'string', placeholder: '如: 30-45t' },
+    ],
+    allowedOutRelations: [],
+    allowedInRelations: ['UNDER_CONDITION'],
+  },
+];
+
+/** P0-4: 历史案例节点 */
+const CASE_NODES: KGNodeTypeInfo[] = [
+  {
+    category: 'case',
+    subType: 'diagnosis_case',
+    label: '诊断案例',
+    description: '历史诊断记录（含诊断过程和结论）',
+    icon: '📋',
+    color: '#F59E0B',
+    configSchema: [
+      { key: 'caseId', label: '案例编号', type: 'string', required: true },
+      { key: 'deviceId', label: '设备ID', type: 'string', required: true },
+      { key: 'occurredAt', label: '发生时间', type: 'string' },
+      { key: 'diagnosisMethod', label: '诊断方法', type: 'select', options: [
+        { label: '频谱分析', value: 'spectrum' },
+        { label: '包络分析', value: 'envelope' },
+        { label: '趋势分析', value: 'trend' },
+        { label: '专家经验', value: 'expert' },
+      ] },
+      { key: 'outcome', label: '诊断结果', type: 'select', options: [
+        { label: '确认', value: 'confirmed' },
+        { label: '否决', value: 'rejected' },
+        { label: '待定', value: 'pending' },
+      ] },
+      { key: 'confidence', label: '置信度', type: 'number' },
+      { key: 'notes', label: '备注', type: 'string' },
+    ],
+    allowedOutRelations: ['VALIDATES'],
+    allowedInRelations: [],
+  },
+  {
+    category: 'case',
+    subType: 'maintenance_case',
+    label: '维护案例',
+    description: '历史维护记录（含维修过程和效果）',
+    icon: '🔩',
+    color: '#F59E0B',
+    configSchema: [
+      { key: 'caseId', label: '案例编号', type: 'string', required: true },
+      { key: 'deviceId', label: '设备ID', type: 'string', required: true },
+      { key: 'maintenanceType', label: '维护类型', type: 'select', options: [
+        { label: '预防性维护', value: 'preventive' },
+        { label: '纠正性维护', value: 'corrective' },
+        { label: '紧急维修', value: 'emergency' },
+      ] },
+      { key: 'outcome', label: '维护效果', type: 'select', options: [
+        { label: '恢复正常', value: 'restored' },
+        { label: '部分恢复', value: 'partial' },
+        { label: '无效', value: 'ineffective' },
+      ] },
+      { key: 'duration', label: '维护耗时(h)', type: 'number' },
+      { key: 'cost', label: '维护成本', type: 'number' },
+    ],
+    allowedOutRelations: ['VALIDATES'],
+    allowedInRelations: [],
+  },
+  {
+    category: 'case',
+    subType: 'failure_case',
+    label: '故障案例',
+    description: '历史故障事件记录',
+    icon: '💥',
+    color: '#F59E0B',
+    configSchema: [
+      { key: 'caseId', label: '案例编号', type: 'string', required: true },
+      { key: 'deviceId', label: '设备ID', type: 'string', required: true },
+      { key: 'failureMode', label: '故障模式', type: 'string' },
+      { key: 'severity', label: '严重程度', type: 'select', options: [
+        { label: '轻微', value: 'minor' },
+        { label: '中等', value: 'moderate' },
+        { label: '严重', value: 'severe' },
+        { label: '致命', value: 'critical' },
+      ] },
+      { key: 'rootCause', label: '根因', type: 'string' },
+      { key: 'resolution', label: '解决措施', type: 'string' },
+    ],
+    allowedOutRelations: ['VALIDATES'],
+    allowedInRelations: [],
+  },
+];
+
 /** 所有节点类型注册表 */
 export const ALL_KG_NODE_TYPES: KGNodeTypeInfo[] = [
   ...EQUIPMENT_NODES,
@@ -503,6 +648,8 @@ export const ALL_KG_NODE_TYPES: KGNodeTypeInfo[] = [
   ...SOLUTION_NODES,
   ...DATA_NODES,
   ...MECHANISM_NODES,
+  ...CONDITION_NODES,
+  ...CASE_NODES,
 ];
 
 /** 按类别分组 */
@@ -513,6 +660,8 @@ export const KG_NODE_CATEGORIES: { category: KGNodeCategory; label: string; icon
   { category: 'solution', label: '解决方案层', icon: '🔧', color: '#10B981', nodes: SOLUTION_NODES },
   { category: 'data', label: '数据层', icon: '📁', color: '#64748B', nodes: DATA_NODES },
   { category: 'mechanism', label: '机理层', icon: '📐', color: '#78716C', nodes: MECHANISM_NODES },
+  { category: 'condition', label: '工况层', icon: '⚙️', color: '#0EA5E9', nodes: CONDITION_NODES },
+  { category: 'case', label: '案例层', icon: '📋', color: '#F59E0B', nodes: CASE_NODES },
 ];
 
 /** 所有关系类型注册表 */
@@ -529,6 +678,10 @@ export const ALL_KG_RELATION_TYPES: KGRelationTypeInfo[] = [
   { type: 'TRIGGERS', label: '触发', description: '触发应急措施或动作', color: '#B91C1C', directed: true, allowedSources: ['fault', 'diagnosis', 'mechanism'], allowedTargets: ['solution'] },
   { type: 'FEEDS', label: '数据供给', description: '提供数据输入', color: '#64748B', directed: true, allowedSources: ['equipment', 'data', 'mechanism', 'diagnosis'], allowedTargets: ['diagnosis', 'fault'] },
   { type: 'REFERENCES', label: '引用知识', description: '引用知识库/文档', color: '#334155', directed: true, allowedSources: ['data', 'mechanism'], allowedTargets: ['diagnosis'] },
+  // P0-4: 3 new relation types
+  { type: 'UNDER_CONDITION', label: '在...工况下', description: '故障在特定工况条件下发生', color: '#0EA5E9', directed: true, allowedSources: ['fault'], allowedTargets: ['condition'] },
+  { type: 'VALIDATES', label: '案例验证', description: '历史案例验证/确认某故障模式', color: '#F59E0B', directed: true, allowedSources: ['case'], allowedTargets: ['fault'] },
+  { type: 'SHARED_COMPONENT', label: '共享部件', description: '跨设备共享同类部件', color: '#6366F1', directed: false, allowedSources: ['equipment'], allowedTargets: ['equipment'] },
 ];
 
 /** 根据subType获取节点类型信息 */

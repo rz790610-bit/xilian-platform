@@ -5,6 +5,27 @@ import { sql } from "drizzle-orm";
  * Core user table backing auth flow.
  * Extend this file with additional tables as your product grows.
  * Columns use camelCase to match both database fields and generated types.
+ *
+ * FIX-130: TiDB 分片键标注
+ * 以下高写入量表需要在 TiDB 环境中配置分片键（SHARD_ROW_ID_BITS 或 AUTO_RANDOM）：
+ *
+ * | 表名                           | 推荐分片键            | 原因                         |
+ * |--------------------------------|-----------------------|------------------------------|
+ * | device_alerts                  | device_code           | 按设备分散写入热点           |
+ * | anomaly_detections             | device_code           | 高频异常检测结果             |
+ * | device_operation_logs          | device_code           | 操作日志按设备均匀分布       |
+ * | device_kpis                    | device_code           | KPI 指标按设备分片           |
+ * | diagnosis_tasks                | device_code           | 诊断任务按设备绑定           |
+ * | event_logs                     | aggregate_id          | 事件溯源按聚合ID分片         |
+ * | event_store                    | aggregate_id          | 同上                         |
+ * | data_slices                    | device_code           | 数据切片按设备分片           |
+ * | realtime_telemetry             | device_code           | 实时遥测（MySQL 缓存表）     |
+ * | asset_measurement_points       | node_code             | 测点按设备节点分片           |
+ * | model_usage_logs               | (id AUTO_RANDOM)      | 模型调用日志，无自然分片键   |
+ *
+ * TiDB 配置示例：
+ *   ALTER TABLE device_alerts SET TIFLASH REPLICA 1;
+ *   ALTER TABLE device_alerts SHARD_ROW_ID_BITS = 4;
  */
 export const users = mysqlTable("users", {
   /**
@@ -411,6 +432,7 @@ export type InsertModelUsageLog = typeof modelUsageLogs.$inferInsert;
 
 /**
  * 事件日志表 - 存储系统事件
+ * @shardKey topic — TiDB 分片键：按事件主题分散
  */
 export const eventLogs = mysqlTable("event_logs", {
   id: int("id").autoincrement().primaryKey(),
@@ -433,6 +455,7 @@ export type InsertEventLog = typeof eventLogs.$inferInsert;
 
 /**
  * 异常检测结果表 - 存储异常检测结果
+ * @shardKey deviceCode — TiDB 分片键：按设备分散写入
  */
 export const anomalyDetections = mysqlTable("anomaly_detections", {
   id: int("id").autoincrement().primaryKey(),
@@ -497,6 +520,7 @@ export type InsertDiagnosisRule = typeof diagnosisRules.$inferInsert;
 
 /**
  * 诊断任务表 - 存储诊断任务
+ * @shardKey deviceCode — TiDB 分片键：按设备分散写入
  */
 export const diagnosisTasks = mysqlTable("diagnosis_tasks", {
   id: int("id").autoincrement().primaryKey(),
@@ -622,6 +646,7 @@ export type InsertDeviceOperationLog = typeof deviceOperationLogs.$inferInsert;
 
 /**
  * 设备告警表 - 存储设备告警信息
+ * @shardKey nodeId — TiDB 分片键：按设备节点分散写入
  */
 export const deviceAlerts = mysqlTable("device_alerts", {
   id: int("id").autoincrement().primaryKey(),
@@ -652,6 +677,7 @@ export type InsertDeviceAlert = typeof deviceAlerts.$inferInsert;
 
 /**
  * 设备性能指标表 - 存储设备 KPI 指标
+ * @shardKey deviceCode — TiDB 分片键：按设备分散写入
  */
 export const deviceKpis = mysqlTable("device_kpis", {
   id: int("id").autoincrement().primaryKey(),
@@ -3108,6 +3134,121 @@ export const algorithmRoutingRules = mysqlTable("algorithm_routing_rules", {
 ]);
 export type AlgorithmRoutingRule = typeof algorithmRoutingRules.$inferSelect;
 export type InsertAlgorithmRoutingRule = typeof algorithmRoutingRules.$inferInsert;
+
+// ============================================================================
+// §31 知识结晶 (knowledge_crystals)
+// ============================================================================
+export const knowledgeCrystals = mysqlTable("knowledge_crystals", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  type: varchar("type", { length: 32 }).notNull(),
+  name: varchar("name", { length: 200 }).notNull(),
+  description: text("description"),
+  content: json("content").$type<Record<string, unknown>>().notNull(),
+  version: int("version").notNull().default(1),
+  status: varchar("status", { length: 32 }).notNull().default("draft"),
+  applicationCount: int("application_count").notNull().default(0),
+  lastAppliedAt: datetime("last_applied_at", { fsp: 3 }),
+  createdBy: varchar("created_by", { length: 64 }),
+  createdAt: timestamp("created_at", { fsp: 3 }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { fsp: 3 }).defaultNow().notNull(),
+}, (table) => [
+  index("idx_kc_type").on(table.type),
+  index("idx_kc_status").on(table.status),
+]);
+export type KnowledgeCrystal = typeof knowledgeCrystals.$inferSelect;
+export type InsertKnowledgeCrystal = typeof knowledgeCrystals.$inferInsert;
+
+// ============================================================================
+// §32 Grok 推理链 (grok_reasoning_chains)
+// ============================================================================
+export const grokReasoningChains = mysqlTable("grok_reasoning_chains", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  sessionId: varchar("session_id", { length: 128 }).notNull(),
+  stepIndex: int("step_index").notNull(),
+  toolName: varchar("tool_name", { length: 128 }),
+  toolInput: json("tool_input").$type<Record<string, unknown>>(),
+  toolOutput: json("tool_output").$type<Record<string, unknown>>(),
+  reasoning: text("reasoning"),
+  durationMs: int("duration_ms").notNull().default(0),
+  createdAt: timestamp("created_at", { fsp: 3 }).defaultNow().notNull(),
+}, (table) => [
+  index("idx_grc_session").on(table.sessionId),
+  index("idx_grc_tool").on(table.toolName),
+]);
+export type GrokReasoningChain = typeof grokReasoningChains.$inferSelect;
+export type InsertGrokReasoningChain = typeof grokReasoningChains.$inferInsert;
+
+// ============================================================================
+// §33 知识三元组 (knowledge_triples)
+// ============================================================================
+export const knowledgeTriples = mysqlTable("knowledge_triples", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  subject: varchar("subject", { length: 200 }).notNull(),
+  predicate: varchar("predicate", { length: 128 }).notNull(),
+  object: varchar("object", { length: 200 }).notNull(),
+  confidence: double("confidence").notNull().default(1.0),
+  source: varchar("source", { length: 64 }).notNull().default("manual"),
+  metadata: json("metadata").$type<Record<string, unknown>>(),
+  createdAt: timestamp("created_at", { fsp: 3 }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { fsp: 3 }).defaultNow().notNull(),
+}, (table) => [
+  index("idx_kt_subject").on(table.subject),
+  index("idx_kt_predicate").on(table.predicate),
+  index("idx_kt_object").on(table.object),
+]);
+export type KnowledgeTriple = typeof knowledgeTriples.$inferSelect;
+export type InsertKnowledgeTriple = typeof knowledgeTriples.$inferInsert;
+
+// ============================================================================
+// §34 特征注册表 (feature_registry)
+// ============================================================================
+export const featureRegistry = mysqlTable("feature_registry", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  name: varchar("name", { length: 128 }).notNull(),
+  displayName: varchar("display_name", { length: 200 }).notNull(),
+  description: text("description"),
+  dataType: varchar("data_type", { length: 32 }).notNull(),
+  unit: varchar("unit", { length: 32 }),
+  sourceType: varchar("source_type", { length: 32 }).notNull(),
+  expression: text("expression"),
+  dependencies: json("dependencies").$type<string[]>(),
+  statistics: json("statistics").$type<Record<string, unknown>>(),
+  qualityScore: double("quality_score").notNull().default(1.0),
+  version: int("version").notNull().default(1),
+  tags: json("tags").$type<string[]>(),
+  conditionProfiles: json("condition_profiles").$type<string[]>(),
+  isActive: tinyint("is_active").notNull().default(1),
+  createdAt: timestamp("created_at", { fsp: 3 }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { fsp: 3 }).defaultNow().notNull(),
+}, (table) => [
+  index("idx_fr_name").on(table.name),
+  index("idx_fr_dt").on(table.dataType),
+  index("idx_fr_active").on(table.isActive),
+]);
+export type FeatureRegistryEntry = typeof featureRegistry.$inferSelect;
+export type InsertFeatureRegistryEntry = typeof featureRegistry.$inferInsert;
+
+// ============================================================================
+// 业务配置快照表 — 持久化 generateConfig 结果
+// ============================================================================
+
+export const businessConfigs = mysqlTable("business_configs", {
+  id: int("id").autoincrement().primaryKey(),
+  deviceType: varchar("device_type", { length: 64 }).notNull(),
+  scenario: varchar("scenario", { length: 64 }).notNull(),
+  configPayload: json("config_payload").$type<Record<string, unknown>>().notNull(),
+  version: int("version").notNull().default(1),
+  isActive: tinyint("is_active").notNull().default(1),
+  createdBy: int("created_by"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("idx_bc_device_scenario").on(table.deviceType, table.scenario),
+  index("idx_bc_active").on(table.isActive),
+]);
+
+export type BusinessConfig = typeof businessConfigs.$inferSelect;
+export type InsertBusinessConfig = typeof businessConfigs.$inferInsert;
 
 // ============================================================================
 // v5.0 深度进化 — 新增 24 张表

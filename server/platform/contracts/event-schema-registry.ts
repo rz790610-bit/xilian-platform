@@ -56,6 +56,16 @@ export function formatSemVer(v: SchemaVersion): string {
 /** 闭环阶段 */
 export type LoopStage = 'perception' | 'diagnosis' | 'guardrail' | 'evolution';
 
+/**
+ * FIX-042: Schema 兼容性策略
+ *
+ * - BACKWARD: 新 Schema 可读旧消息（推荐，消费者先升级）
+ * - FORWARD: 旧 Schema 可读新消息（生产者先升级）
+ * - FULL: 同时满足 BACKWARD + FORWARD
+ * - NONE: 无兼容性保证（仅限内部/调试 topic）
+ */
+export type SchemaCompatibility = 'BACKWARD' | 'FORWARD' | 'FULL' | 'NONE';
+
 /** Schema 注册条目 */
 export interface SchemaRegistryEntry {
   /** 事件类型 */
@@ -68,6 +78,8 @@ export interface SchemaRegistryEntry {
   stage: LoopStage;
   /** 描述 */
   description: string;
+  /** FIX-042: 兼容性策略（默认 BACKWARD） */
+  compatibility: SchemaCompatibility;
   /** 注册时间 */
   registeredAt: Date;
   /** 最后更新时间 */
@@ -187,6 +199,7 @@ export class EventSchemaRegistry {
    * @param stage 闭环阶段
    * @param description 描述
    * @param keyFields 关键字段列表
+   * @param compatibility FIX-042: 兼容性策略（默认 BACKWARD）
    */
   register(
     eventType: string,
@@ -194,7 +207,8 @@ export class EventSchemaRegistry {
     schema: ZodSchema,
     stage: LoopStage,
     description: string,
-    keyFields: string[] = []
+    keyFields: string[] = [],
+    compatibility: SchemaCompatibility = 'BACKWARD',
   ): void {
     // 验证版本号格式
     parseSemVer(version);
@@ -239,6 +253,7 @@ export class EventSchemaRegistry {
         versions: new Map([[version, schema]]),
         stage,
         description,
+        compatibility,
         registeredAt: new Date(),
         lastUpdatedAt: new Date(),
         keyFields,

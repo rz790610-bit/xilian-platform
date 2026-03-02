@@ -1,0 +1,137 @@
+syntax = "proto3";
+
+package xilian.ai;
+
+option java_package = "com.xilian.ai.grpc";
+option go_package = "github.com/xilian/platform/proto/ai";
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/struct.proto";
+import "common/types.proto";
+
+// ============================================================
+// AI 推理服务 — gRPC 接口
+// 映射: server/core/llm.ts + server/services/grokDiagnosticAgent.service.ts
+// ============================================================
+
+service AIInferenceService {
+  // LLM 通用推理
+  rpc InvokeLLM(InvokeLLMRequest) returns (InvokeLLMResponse);
+  // 设备故障诊断（Grok Agent）
+  rpc Diagnose(DiagnoseRequest) returns (DiagnoseResponse);
+  // 批量设备诊断
+  rpc BatchDiagnose(BatchDiagnoseRequest) returns (BatchDiagnoseResponse);
+  // 获取 Agent 状态
+  rpc GetAgentStatus(GetAgentStatusRequest) returns (AgentStatusResponse);
+  // 健康检查
+  rpc HealthCheck(xilian.common.HealthCheckRequest) returns (xilian.common.HealthCheckResponse);
+}
+
+// ── LLM 推理消息 ──
+
+message LLMMessage {
+  string role = 1;     // system | user | assistant | tool
+  string content = 2;
+  string name = 3;
+  string tool_call_id = 4;
+}
+
+message LLMTool {
+  string name = 1;
+  string description = 2;
+  google.protobuf.Struct parameters = 3;
+}
+
+message InvokeLLMRequest {
+  repeated LLMMessage messages = 1;
+  repeated LLMTool tools = 2;
+  string tool_choice = 3;
+  string model = 4;
+  int32 max_tokens = 5;
+  int32 thinking_budget = 6;
+  string correlation_id = 7;
+}
+
+message LLMToolCall {
+  string id = 1;
+  string function_name = 2;
+  string function_arguments = 3;
+}
+
+message InvokeLLMResponse {
+  string id = 1;
+  string model = 2;
+  string content = 3;
+  repeated LLMToolCall tool_calls = 4;
+  string finish_reason = 5;
+  int32 prompt_tokens = 6;
+  int32 completion_tokens = 7;
+  int32 total_tokens = 8;
+  string error_message = 9;
+}
+
+// ── 设备诊断消息 ──
+
+message DiagnoseRequest {
+  string device_code = 1;
+  string description = 2;
+  map<string, double> sensor_readings = 3;
+  int32 time_range_hours = 4;
+  string session_id = 5;
+  string mode = 6;  // quick | deep | predictive
+  string correlation_id = 7;
+}
+
+message DiagnoseResponse {
+  string id = 1;
+  string device_code = 2;
+  string fault_type = 3;
+  string severity = 4;      // critical | high | medium | low | info
+  double confidence = 5;
+  string root_cause = 6;
+  string analysis = 7;
+  repeated string recommendations = 8;
+  string impact = 9;
+  repeated string data_sources = 10;
+  ModelInfo model_info = 11;
+  string error_message = 12;
+}
+
+message ModelInfo {
+  string model = 1;
+  string provider = 2;      // xai | ollama
+  int32 tokens_used = 3;
+  int32 latency_ms = 4;
+}
+
+message BatchDiagnoseRequest {
+  repeated DiagnoseRequest devices = 1;
+  string mode = 2;
+  int32 max_concurrency = 3;
+}
+
+message BatchDiagnoseResponse {
+  int32 total = 1;
+  int32 succeeded = 2;
+  int32 failed = 3;
+  repeated DiagnoseResult results = 4;
+}
+
+message DiagnoseResult {
+  string device_code = 1;
+  string status = 2;  // fulfilled | rejected
+  DiagnoseResponse data = 3;
+  string error = 4;
+}
+
+// ── Agent 状态 ──
+
+message GetAgentStatusRequest {}
+
+message AgentStatusResponse {
+  bool enabled = 1;
+  string provider = 2;
+  string model = 3;
+  int32 active_sessions = 4;
+  google.protobuf.Struct config = 5;
+}

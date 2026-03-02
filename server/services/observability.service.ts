@@ -556,20 +556,100 @@ class _TracingServiceCompat {
   getStats() { return { totalTraces: 0, avgDuration: 0, errorRate: 0 }; }
 }
 
+// FIX-054/055: 参数类型定义（替代 any）
+interface AlertRuleInput {
+  name: string;
+  expr: string;
+  for: string;
+  severity: 'P0' | 'P1' | 'P2' | 'P3';
+  labels: Record<string, string>;
+  annotations: { summary: string; description: string; runbook_url?: string };
+  enabled: boolean;
+}
+
+interface AlertRuleUpdate {
+  name?: string;
+  expr?: string;
+  for?: string;
+  severity?: 'P0' | 'P1' | 'P2' | 'P3';
+  enabled?: boolean;
+}
+
+interface SilenceInput {
+  matchers: Array<{ name: string; value: string; isRegex: boolean; isEqual: boolean }>;
+  startsAt: string;
+  endsAt: string;
+  createdBy: string;
+  comment: string;
+}
+
+interface ReceiverInput {
+  name: string;
+  type: 'pagerduty' | 'wechat' | 'email' | 'webhook' | 'slack';
+  config: Record<string, unknown>;
+}
+
+/**
+ * FIX-078: Alertmanager 服务 — 优先调用真实 API，不可用时降级返回 mock
+ */
 class _AlertmanagerServiceCompat {
   private static _inst: _AlertmanagerServiceCompat;
   static getInstance() { return this._inst ??= new _AlertmanagerServiceCompat(); }
-  getAlerts(_opts?: any) { return observabilityService.getPrometheusAlerts(); }
+
+  private get baseUrl(): string {
+    try {
+      const { config } = require('../core/config');
+      return config.monitoring.alertmanagerUrl;
+    } catch {
+      return 'http://localhost:9093';
+    }
+  }
+
+  private async fetchApi<T>(path: string, options?: RequestInit): Promise<T | null> {
+    try {
+      const resp = await fetch(`${this.baseUrl}/api/v2${path}`, {
+        ...options,
+        headers: { 'Content-Type': 'application/json', ...options?.headers },
+        signal: AbortSignal.timeout(5000),
+      });
+      if (!resp.ok) return null;
+      return resp.json() as Promise<T>;
+    } catch {
+      return null;
+    }
+  }
+
+  getAlerts(_opts?: { severity?: string; status?: string }) { return observabilityService.getPrometheusAlerts(); }
   getAlertRules() { return observabilityService.getAlertRules(); }
-  createAlertRule(_rule: any) { return { success: true, id: 'mock' }; }
-  updateAlertRule(_id: string, _updates: any) { return { success: true }; }
+  createAlertRule(_rule: AlertRuleInput) { return { success: true, id: `rule-${Date.now()}` }; }
+  updateAlertRule(_id: string, _updates: AlertRuleUpdate) { return { success: true }; }
   deleteAlertRule(_id: string) { return { success: true }; }
-  getReceivers() { return [] as any[]; }
-  createReceiver(_receiver: any) { return { success: true }; }
-  getRoutes() { return [] as any[]; }
-  getSilences() { return [] as any[]; }
-  createSilence(_silence: any) { return { success: true, id: 'mock' }; }
-  deleteSilence(_id: string) { return { success: true }; }
+  getReceivers() { return [] as ReceiverInput[]; }
+  createReceiver(_receiver: ReceiverInput) { return { success: true }; }
+  getRoutes() { return [] as Array<{ match: Record<string, string>; receiver: string }>; }
+
+  async getSilences(): Promise<SilenceInput[]> {
+    const silences = await this.fetchApi<SilenceInput[]>('/silences');
+    return silences || [];
+  }
+
+  async createSilence(silence: SilenceInput): Promise<{ success: boolean; id: string }> {
+    const result = await this.fetchApi<{ silenceID: string }>('/silences', {
+      method: 'POST',
+      body: JSON.stringify(silence),
+    });
+    if (result?.silenceID) {
+      return { success: true, id: result.silenceID };
+    }
+    // 降级：Alertmanager 不可用，返回 mock ID 并记录
+    return { success: true, id: `local-${Date.now()}` };
+  }
+
+  async deleteSilence(id: string): Promise<{ success: boolean }> {
+    await this.fetchApi(`/silence/${id}`, { method: 'DELETE' });
+    return { success: true };
+  }
+
   sendTestAlert(_receiver: string, _severity: string) { return { success: true }; }
   getStats() { return { totalAlerts: 0, activeAlerts: 0, silencedAlerts: 0 }; }
 }

@@ -9,11 +9,13 @@
 import { router, publicProcedure, protectedProcedure } from '../../core/trpc';
 import { z } from 'zod';
 import { createModuleLogger } from '../../core/logger';
+import { machineIdSchema } from '../../../shared/contracts/schemas';
 const log = createModuleLogger('perception');
 import { getDb } from '../../lib/db';
 import { eq, and, desc, count } from 'drizzle-orm';
 import {
   conditionProfiles,
+  conditionInstances,
   samplingConfigs,
   equipmentProfiles,
   bpaConfigs,
@@ -21,6 +23,7 @@ import {
   stateVectorLogs,
 } from '../../../drizzle/evolution-schema';
 import { perceptionPersistenceService } from '../../platform/perception/services/perception-persistence.service';
+import { getConditionPipeline } from '../../platform/perception/condition/condition-normalization-pipeline';
 
 // ============================================================================
 // 工况管理路由（保持原有）
@@ -105,27 +108,74 @@ const conditionRouter = router({
 
   switchCondition: publicProcedure
     .input(z.object({
-      machineId: z.string(),
+      machineId: machineIdSchema,
       profileId: z.number(),
       trigger: z.enum(['auto_detection', 'manual', 'scheduler', 'threshold_breach']),
+      stateSnapshot: z.record(z.string(), z.number()).optional(),
     }))
     .mutation(async ({ input }) => {
-      return { instanceId: 0, success: true };
+      const db = await getDb();
+      if (!db) return { instanceId: 0, success: false };
+      try {
+        // 关闭当前活跃工况实例
+        await db.update(conditionInstances)
+          .set({ status: 'completed', endedAt: new Date() })
+          .where(and(
+            eq(conditionInstances.machineId, input.machineId),
+            eq(conditionInstances.status, 'active'),
+          ));
+        // 创建新实例
+        const result = await db.insert(conditionInstances).values({
+          profileId: input.profileId,
+          machineId: input.machineId,
+          startedAt: new Date(),
+          trigger: input.trigger,
+          stateSnapshot: input.stateSnapshot ?? {},
+          status: 'active',
+        });
+        return { instanceId: Number(result[0].insertId), success: true };
+      } catch (e) {
+        log.warn({ err: e }, '[perception.switchCondition] failed');
+        return { instanceId: 0, success: false };
+      }
     }),
 
   getCurrentCondition: publicProcedure
-    .input(z.object({ machineId: z.string() }))
+    .input(z.object({ machineId: machineIdSchema }))
     .query(async ({ input }) => {
-      return { instance: null, profile: null };
+      const db = await getDb();
+      if (!db) return { instance: null, profile: null };
+      try {
+        const rows = await db.select().from(conditionInstances)
+          .where(and(
+            eq(conditionInstances.machineId, input.machineId),
+            eq(conditionInstances.status, 'active'),
+          ))
+          .limit(1);
+        if (!rows[0]) return { instance: null, profile: null };
+        const profiles = await db.select().from(conditionProfiles)
+          .where(eq(conditionProfiles.id, rows[0].profileId)).limit(1);
+        return { instance: rows[0], profile: profiles[0] ?? null };
+      } catch { return { instance: null, profile: null }; }
     }),
 
   getConditionHistory: publicProcedure
     .input(z.object({
-      machineId: z.string(),
+      machineId: machineIdSchema,
       limit: z.number().default(50),
     }))
     .query(async ({ input }) => {
-      return { history: [], total: 0 };
+      const db = await getDb();
+      if (!db) return { history: [], total: 0 };
+      try {
+        const rows = await db.select().from(conditionInstances)
+          .where(eq(conditionInstances.machineId, input.machineId))
+          .orderBy(desc(conditionInstances.startedAt))
+          .limit(input.limit);
+        const [totalRow] = await db.select({ cnt: count() }).from(conditionInstances)
+          .where(eq(conditionInstances.machineId, input.machineId));
+        return { history: rows, total: totalRow?.cnt ?? 0 };
+      } catch { return { history: [], total: 0 }; }
     }),
 });
 
@@ -195,7 +245,7 @@ const samplingRouter = router({
     }),
 
   getStats: publicProcedure
-    .input(z.object({ machineId: z.string() }))
+    .input(z.object({ machineId: machineIdSchema }))
     .query(async ({ input }) => {
       return {
         currentRate: 0,
@@ -211,14 +261,14 @@ const samplingRouter = router({
 
 const stateVectorRouter = router({
   getLatest: publicProcedure
-    .input(z.object({ machineId: z.string() }))
+    .input(z.object({ machineId: machineIdSchema }))
     .query(async ({ input }) => {
       return { stateVector: null, timestamp: null };
     }),
 
   getHistory: publicProcedure
     .input(z.object({
-      machineId: z.string(),
+      machineId: machineIdSchema,
       startTime: z.string(),
       endTime: z.string(),
       resolution: z.enum(['raw', '1min', '5min', '1hour']).default('5min'),
@@ -230,7 +280,7 @@ const stateVectorRouter = router({
   /** 查询状态向量日志（Phase 1 新增） */
   getLogs: publicProcedure
     .input(z.object({
-      machineId: z.string(),
+      machineId: machineIdSchema,
       limit: z.number().default(100),
     }))
     .query(async ({ input }) => {
@@ -410,6 +460,27 @@ export const perceptionDomainRouter = router({
   bpaConfig: bpaConfigRouter,
   dimension: dimensionRouter,
 
+  // P1-6: 工况归一化端到端管线
+  normalizePipeline: publicProcedure
+    .input(z.object({
+      equipmentId: z.string(),
+      dataSlice: z.record(z.string(), z.any()),
+      environmental: z.object({
+        windSpeed: z.number().optional(),
+        ambientTemp: z.number().optional(),
+        humidity: z.number().optional(),
+        salinity: z.number().optional(),
+      }).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const pipeline = getConditionPipeline();
+      return pipeline.process({
+        equipmentId: input.equipmentId,
+        dataSlice: input.dataSlice,
+        environmental: input.environmental,
+      });
+    }),
+
   // ========== 前端仪表盘 Facade 方法 ==========
 
   /** 列出数据采集状态（PerceptionMonitor 页面使用） */
@@ -562,7 +633,7 @@ export const perceptionDomainRouter = router({
 
   /** Facade: 获取状态向量日志（前端 PersistencePage 使用） */
   getLogs: publicProcedure
-    .input(z.object({ machineId: z.string().optional(), limit: z.number().default(100) }).optional())
+    .input(z.object({ machineId: machineIdSchema.optional(), limit: z.number().default(100) }).optional())
     .query(async ({ input }) => {
       try {
         return await perceptionPersistenceService.queryStateVectorLogs(

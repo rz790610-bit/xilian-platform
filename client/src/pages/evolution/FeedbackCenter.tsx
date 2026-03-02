@@ -1,6 +1,6 @@
 /**
  * 反馈中心 — 进化引擎
- * 
+ *
  * 功能：
  * 1. 反馈统计概览（总反馈、待处理、已采纳、采纳率）
  * 2. 反馈列表（按类型/状态/优先级过滤）
@@ -26,14 +26,15 @@ import {
   TrendingUp, BarChart3, XCircle, Eye
 } from 'lucide-react';
 import { useToast } from '@/components/common/Toast';
+import { trpc } from '@/lib/trpc';
 
-// ==================== 类型 ====================
+// ==================== 类型（从 DB eventData 映射） ====================
 
-interface FeedbackItem {
-  id: string;
-  type: 'correction' | 'suggestion' | 'false_positive' | 'false_negative' | 'label_error';
-  status: 'pending' | 'reviewing' | 'accepted' | 'rejected' | 'implemented';
-  priority: 'low' | 'medium' | 'high' | 'critical';
+interface MappedFeedback {
+  id: number;
+  type: string;
+  status: string;
+  priority: string;
   title: string;
   description: string;
   diagnosisId?: string;
@@ -49,91 +50,6 @@ interface FeedbackItem {
   correctedLabel?: string;
   confidence?: number;
 }
-
-// ==================== Mock 数据 ====================
-
-const mockFeedbacks: FeedbackItem[] = [
-  {
-    id: 'fb-001', type: 'false_positive', status: 'pending', priority: 'high',
-    title: '轴承外圈故障误报',
-    description: '振动分析器在设备 CNC-A03 上报了轴承外圈故障，但现场检查确认轴承状态良好。频谱中的 BPFO 特征峰可能是由齿轮啮合频率的谐波引起的混叠。',
-    diagnosisId: 'diag-20260217-001', deviceName: 'CNC-A03 数控铣床',
-    algorithmName: '振动频谱分析 v2.1', modelVersion: 'bearing-fault-v3.2',
-    submittedBy: '张工', submittedAt: '2026-02-17T09:15:00Z',
-    tags: ['轴承', '误报', '频谱混叠'],
-    originalPrediction: '轴承外圈故障 (BPFO)', correctedLabel: '正常', confidence: 0.78,
-  },
-  {
-    id: 'fb-002', type: 'false_negative', status: 'reviewing', priority: 'critical',
-    title: '电机绝缘劣化漏检',
-    description: '电机 MOT-B12 在例行巡检中发现绝缘电阻偏低，但异常检测模型未能捕获此异常。建议增加电气参数的多变量关联分析。',
-    diagnosisId: 'diag-20260216-045', deviceName: 'MOT-B12 主驱动电机',
-    algorithmName: '多模态异常检测 v3.0', modelVersion: 'anomaly-v4.1',
-    submittedBy: '李工', submittedAt: '2026-02-16T16:30:00Z',
-    reviewedBy: '王主任', reviewedAt: '2026-02-17T08:00:00Z',
-    tags: ['电机', '漏检', '绝缘', '电气'],
-    originalPrediction: '正常', correctedLabel: '绝缘劣化', confidence: 0.92,
-  },
-  {
-    id: 'fb-003', type: 'correction', status: 'accepted', priority: 'medium',
-    title: '齿轮箱故障类型修正',
-    description: '模型将齿轮箱异常诊断为"齿面磨损"，但拆检后确认是"齿根裂纹"。两种故障的频谱特征相似，但齿根裂纹在低频段有更明显的调制边带。',
-    diagnosisId: 'diag-20260215-023', deviceName: 'GB-C07 齿轮箱',
-    algorithmName: '齿轮箱故障诊断 v1.8', modelVersion: 'gearbox-v2.5',
-    submittedBy: '赵工', submittedAt: '2026-02-15T14:20:00Z',
-    reviewedBy: '王主任', reviewedAt: '2026-02-16T09:30:00Z',
-    tags: ['齿轮箱', '分类错误', '频谱'],
-    originalPrediction: '齿面磨损', correctedLabel: '齿根裂纹', confidence: 0.65,
-  },
-  {
-    id: 'fb-004', type: 'suggestion', status: 'implemented', priority: 'medium',
-    title: '增加温度-振动联合特征',
-    description: '建议在轴承故障诊断中增加温度和振动的联合特征。单独看振动频谱可能误判，但结合温度趋势可以显著提高诊断准确率。',
-    deviceName: '全局',
-    algorithmName: '振动频谱分析 v2.1',
-    submittedBy: '陈博士', submittedAt: '2026-02-10T11:00:00Z',
-    reviewedBy: '算法组', reviewedAt: '2026-02-12T15:00:00Z',
-    tags: ['特征工程', '多模态', '温度'],
-  },
-  {
-    id: 'fb-005', type: 'label_error', status: 'accepted', priority: 'high',
-    title: '训练数据标签错误批次',
-    description: '发现 2025-Q4 采集的 CNC 系列设备振动数据中，约 15 个样本的故障标签存在错误（将"不对中"标记为"不平衡"）。这批数据已用于 v3.2 模型训练。',
-    algorithmName: '振动频谱分析 v2.1', modelVersion: 'bearing-fault-v3.2',
-    submittedBy: '数据组', submittedAt: '2026-02-14T10:00:00Z',
-    reviewedBy: '王主任', reviewedAt: '2026-02-14T16:00:00Z',
-    tags: ['标签错误', '训练数据', '批量'],
-  },
-  {
-    id: 'fb-006', type: 'false_positive', status: 'rejected', priority: 'low',
-    title: '泵体振动告警（正常启停）',
-    description: '泵 PMP-D01 在启动阶段触发了振动异常告警，但这是正常的启动瞬态过程。',
-    diagnosisId: 'diag-20260217-012', deviceName: 'PMP-D01 冷却泵',
-    algorithmName: '异常检测 v3.0',
-    submittedBy: '周工', submittedAt: '2026-02-17T07:45:00Z',
-    tags: ['泵', '启停', '瞬态'],
-    originalPrediction: '振动异常', correctedLabel: '正常（启动瞬态）', confidence: 0.55,
-  },
-  {
-    id: 'fb-007', type: 'correction', status: 'pending', priority: 'medium',
-    title: '风机叶片故障严重度修正',
-    description: '模型将风机叶片不平衡评估为"轻微"，但实际振幅已超过 ISO 10816 的 Zone C 阈值，应为"中等"。',
-    diagnosisId: 'diag-20260216-089', deviceName: 'FAN-E03 引风机',
-    algorithmName: '旋转机械诊断 v2.0', modelVersion: 'rotating-v1.8',
-    submittedBy: '孙工', submittedAt: '2026-02-16T20:10:00Z',
-    tags: ['风机', '严重度', 'ISO标准'],
-    originalPrediction: '叶片不平衡(轻微)', correctedLabel: '叶片不平衡(中等)', confidence: 0.71,
-  },
-  {
-    id: 'fb-008', type: 'suggestion', status: 'reviewing', priority: 'low',
-    title: '增加季节性基线调整',
-    description: '夏季环境温度升高导致设备运行温度整体偏高，建议异常检测模型增加季节性基线自动调整功能。',
-    deviceName: '全局',
-    algorithmName: '多模态异常检测 v3.0',
-    submittedBy: '李工', submittedAt: '2026-02-13T09:00:00Z',
-    tags: ['季节性', '基线', '温度补偿'],
-  },
-];
 
 // ==================== 工具 ====================
 
@@ -168,39 +84,168 @@ function formatTime(ts: string): string {
 
 export default function FeedbackCenter() {
   const toast = useToast();
+  const utils = trpc.useUtils();
+
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [filterPriority, setFilterPriority] = useState<string>('all');
-  const [selectedFeedback, setSelectedFeedback] = useState<FeedbackItem | null>(null);
+  const [selectedFeedback, setSelectedFeedback] = useState<MappedFeedback | null>(null);
   const [showNewDialog, setShowNewDialog] = useState(false);
   const [activeTab, setActiveTab] = useState('list');
 
-  // 统计
-  const stats = useMemo(() => {
-    const total = mockFeedbacks.length;
-    const pending = mockFeedbacks.filter(f => f.status === 'pending').length;
-    const accepted = mockFeedbacks.filter(f => f.status === 'accepted' || f.status === 'implemented').length;
-    const rate = total > 0 ? Math.round((accepted / total) * 100) : 0;
-    return { total, pending, accepted, rate };
-  }, []);
+  // ---------- 新建反馈表单状态 ----------
+  const [newType, setNewType] = useState('correction');
+  const [newPriority, setNewPriority] = useState('medium');
+  const [newTitle, setNewTitle] = useState('');
+  const [newDescription, setNewDescription] = useState('');
+  const [newDiagnosisId, setNewDiagnosisId] = useState('');
+  const [newDeviceName, setNewDeviceName] = useState('');
+  const [newAlgorithmName, setNewAlgorithmName] = useState('');
+  const [newModelVersion, setNewModelVersion] = useState('');
+  const [newOriginalPrediction, setNewOriginalPrediction] = useState('');
+  const [newCorrectedLabel, setNewCorrectedLabel] = useState('');
+  const [newConfidence, setNewConfidence] = useState('');
+  const [newTags, setNewTags] = useState('');
 
-  // 过滤
+  // ---------- tRPC 查询 ----------
+  const statsQuery = trpc.evolutionUI.feedback.getStats.useQuery();
+  const listQuery = trpc.evolutionUI.feedback.list.useQuery({ limit: 200, offset: 0 });
+
+  const createMutation = trpc.evolutionUI.feedback.create.useMutation({
+    onSuccess: () => {
+      toast.success('反馈已提交');
+      setShowNewDialog(false);
+      resetNewForm();
+      utils.evolutionUI.feedback.list.invalidate();
+      utils.evolutionUI.feedback.getStats.invalidate();
+    },
+    onError: (err) => {
+      toast.error(`提交失败: ${err.message}`);
+    },
+  });
+
+  const updateStatusMutation = trpc.evolutionUI.feedback.updateStatus.useMutation({
+    onSuccess: (_data, variables) => {
+      const label = variables.status === 'accepted' ? '已采纳' : variables.status === 'rejected' ? '已驳回' : '审核中';
+      toast.success(`反馈${label}`);
+      setSelectedFeedback(null);
+      utils.evolutionUI.feedback.list.invalidate();
+      utils.evolutionUI.feedback.getStats.invalidate();
+    },
+    onError: (err) => {
+      toast.error(`操作失败: ${err.message}`);
+    },
+  });
+
+  // ---------- 映射 DB 行 → 前端模型 ----------
+  const feedbacks: MappedFeedback[] = useMemo(() => {
+    return (listQuery.data?.items ?? []).map(row => {
+      const d = (row.eventData ?? {}) as Record<string, any>;
+      return {
+        id: row.id,
+        type: d.type ?? 'correction',
+        status: d.status ?? 'pending',
+        priority: d.priority ?? 'medium',
+        title: d.title ?? '',
+        description: d.description ?? '',
+        diagnosisId: d.diagnosisId,
+        deviceName: d.deviceName,
+        algorithmName: d.algorithmName,
+        modelVersion: d.modelVersion,
+        submittedBy: d.submittedBy ?? '系统',
+        submittedAt: d.createdAt ?? row.createdAt,
+        reviewedBy: d.reviewedBy,
+        reviewedAt: d.reviewedAt,
+        tags: Array.isArray(d.tags) ? d.tags : [],
+        originalPrediction: d.originalPrediction,
+        correctedLabel: d.correctedLabel,
+        confidence: d.confidence,
+      };
+    });
+  }, [listQuery.data]);
+
+  // ---------- 统计（来自服务端） ----------
+  const stats = {
+    total: statsQuery.data?.total ?? 0,
+    pending: statsQuery.data?.pending ?? 0,
+    accepted: statsQuery.data?.accepted ?? 0,
+    rate: statsQuery.data?.rate ?? 0,
+  };
+
+  // ---------- 客户端过滤 ----------
   const filtered = useMemo(() => {
-    let list = mockFeedbacks;
+    let list = feedbacks;
     if (search) list = list.filter(f => f.title.includes(search) || f.description.includes(search) || f.tags.some(t => t.includes(search)));
     if (filterType !== 'all') list = list.filter(f => f.type === filterType);
     if (filterStatus !== 'all') list = list.filter(f => f.status === filterStatus);
     if (filterPriority !== 'all') list = list.filter(f => f.priority === filterPriority);
     return list;
-  }, [search, filterType, filterStatus, filterPriority]);
+  }, [feedbacks, search, filterType, filterStatus, filterPriority]);
 
-  // 按类型统计
+  // 按类型统计（基于实际数据）
   const typeStats = useMemo(() => {
     const map: Record<string, number> = {};
-    mockFeedbacks.forEach(f => { map[f.type] = (map[f.type] || 0) + 1; });
+    feedbacks.forEach(f => { map[f.type] = (map[f.type] || 0) + 1; });
     return map;
-  }, []);
+  }, [feedbacks]);
+
+  // ---------- 新建表单重置 ----------
+  function resetNewForm() {
+    setNewType('correction');
+    setNewPriority('medium');
+    setNewTitle('');
+    setNewDescription('');
+    setNewDiagnosisId('');
+    setNewDeviceName('');
+    setNewAlgorithmName('');
+    setNewModelVersion('');
+    setNewOriginalPrediction('');
+    setNewCorrectedLabel('');
+    setNewConfidence('');
+    setNewTags('');
+  }
+
+  // ---------- 提交新反馈 ----------
+  function handleCreateSubmit() {
+    if (!newTitle.trim()) {
+      toast.warning('请输入标题');
+      return;
+    }
+    if (!newDescription.trim()) {
+      toast.warning('请输入描述');
+      return;
+    }
+    const tags = newTags.split(/[,，]/).map(t => t.trim()).filter(Boolean);
+    const confidenceNum = newConfidence ? parseFloat(newConfidence) : undefined;
+
+    createMutation.mutate({
+      type: newType,
+      priority: newPriority,
+      title: newTitle.trim(),
+      description: newDescription.trim(),
+      diagnosisId: newDiagnosisId.trim() || undefined,
+      deviceName: newDeviceName.trim() || undefined,
+      algorithmName: newAlgorithmName.trim() || undefined,
+      modelVersion: newModelVersion.trim() || undefined,
+      originalPrediction: newOriginalPrediction.trim() || undefined,
+      correctedLabel: newCorrectedLabel.trim() || undefined,
+      confidence: confidenceNum && !isNaN(confidenceNum) ? confidenceNum : undefined,
+      tags,
+    });
+  }
+
+  // ---------- 处理反馈状态更新 ----------
+  function handleAccept(fb: MappedFeedback) {
+    updateStatusMutation.mutate({ id: fb.id, status: 'accepted', reviewedBy: '当前用户' });
+  }
+
+  function handleReject(fb: MappedFeedback) {
+    updateStatusMutation.mutate({ id: fb.id, status: 'rejected', reviewedBy: '当前用户' });
+  }
+
+  // ---------- 加载中 ----------
+  const isLoading = listQuery.isLoading || statsQuery.isLoading;
 
   return (
     <MainLayout title="反馈中心">
@@ -208,7 +253,7 @@ export default function FeedbackCenter() {
         {/* 页头 */}
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h2 className="text-base font-bold mb-1">📥 反馈中心</h2>
+            <h2 className="text-base font-bold mb-1">反馈中心</h2>
             <p className="text-xs text-muted-foreground">收集诊断结果反馈，驱动模型持续进化</p>
           </div>
           <Button size="sm" className="gap-1.5 h-7 text-xs" onClick={() => setShowNewDialog(true)}>
@@ -219,10 +264,10 @@ export default function FeedbackCenter() {
 
         {/* 统计卡片 */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
-          <StatCard value={stats.total} label="总反馈" icon="📥" />
-          <StatCard value={stats.pending} label="待处理" icon="⏳" />
-          <StatCard value={stats.accepted} label="已采纳" icon="✅" />
-          <StatCard value={`${stats.rate}%`} label="采纳率" icon="📊" />
+          <StatCard value={isLoading ? '...' : stats.total} label="总反馈" icon="📥" />
+          <StatCard value={isLoading ? '...' : stats.pending} label="待处理" icon="⏳" />
+          <StatCard value={isLoading ? '...' : stats.accepted} label="已采纳" icon="✅" />
+          <StatCard value={isLoading ? '...' : `${stats.rate}%`} label="采纳率" icon="📊" />
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -275,83 +320,91 @@ export default function FeedbackCenter() {
             </PageCard>
 
             {/* 反馈列表 */}
-            <div className="space-y-2">
-              {filtered.map(fb => (
-                <PageCard
-                  key={fb.id}
-                  className="cursor-pointer hover:border-primary/30 transition-all"
-                  onClick={() => setSelectedFeedback(fb)}
-                >
-                  <div className="flex items-start gap-3">
-                    {/* 优先级指示器 */}
-                    <div className={cn(
-                      "w-1 self-stretch rounded-full shrink-0",
-                      fb.priority === 'critical' ? 'bg-red-500' :
-                      fb.priority === 'high' ? 'bg-orange-500' :
-                      fb.priority === 'medium' ? 'bg-blue-500' : 'bg-zinc-600'
-                    )} />
+            {listQuery.isLoading ? (
+              <PageCard>
+                <div className="text-center py-8 text-muted-foreground text-xs">
+                  加载反馈数据中...
+                </div>
+              </PageCard>
+            ) : (
+              <div className="space-y-2">
+                {filtered.map(fb => (
+                  <PageCard
+                    key={fb.id}
+                    className="cursor-pointer hover:border-primary/30 transition-all"
+                    onClick={() => setSelectedFeedback(fb)}
+                  >
+                    <div className="flex items-start gap-3">
+                      {/* 优先级指示器 */}
+                      <div className={cn(
+                        "w-1 self-stretch rounded-full shrink-0",
+                        fb.priority === 'critical' ? 'bg-red-500' :
+                        fb.priority === 'high' ? 'bg-orange-500' :
+                        fb.priority === 'medium' ? 'bg-blue-500' : 'bg-zinc-600'
+                      )} />
 
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <Badge variant="outline" className={cn("text-[10px] gap-1", typeConfig[fb.type]?.color)}>
-                          {typeConfig[fb.type]?.icon}
-                          {typeConfig[fb.type]?.label}
-                        </Badge>
-                        <Badge variant="outline" className={cn("text-[10px]", statusConfig[fb.status]?.color)}>
-                          {statusConfig[fb.status]?.label}
-                        </Badge>
-                        <span className={cn("text-[10px] font-medium", priorityConfig[fb.priority]?.color)}>
-                          P:{priorityConfig[fb.priority]?.label}
-                        </span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Badge variant="outline" className={cn("text-[10px] gap-1", typeConfig[fb.type]?.color)}>
+                            {typeConfig[fb.type]?.icon}
+                            {typeConfig[fb.type]?.label}
+                          </Badge>
+                          <Badge variant="outline" className={cn("text-[10px]", statusConfig[fb.status]?.color)}>
+                            {statusConfig[fb.status]?.label}
+                          </Badge>
+                          <span className={cn("text-[10px] font-medium", priorityConfig[fb.priority]?.color)}>
+                            P:{priorityConfig[fb.priority]?.label}
+                          </span>
+                        </div>
+
+                        <h4 className="text-xs font-semibold text-foreground mb-1">{fb.title}</h4>
+                        <p className="text-[11px] text-muted-foreground line-clamp-2 mb-2">{fb.description}</p>
+
+                        <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+                          {fb.deviceName && <span>🔧 {fb.deviceName}</span>}
+                          {fb.algorithmName && <span>⚙️ {fb.algorithmName}</span>}
+                          <span>👤 {fb.submittedBy}</span>
+                          <span><Clock className="w-2.5 h-2.5 inline mr-0.5" />{formatTime(fb.submittedAt)}</span>
+                        </div>
+
+                        {/* 预测修正对比 */}
+                        {fb.originalPrediction && fb.correctedLabel && (
+                          <div className="flex items-center gap-2 mt-2 p-1.5 bg-secondary/50 rounded text-[10px]">
+                            <span className="text-red-400 line-through">{fb.originalPrediction}</span>
+                            <ArrowUpRight className="w-3 h-3 text-muted-foreground" />
+                            <span className="text-emerald-400 font-medium">{fb.correctedLabel}</span>
+                            {fb.confidence && (
+                              <span className="text-muted-foreground ml-auto">置信度: {(fb.confidence * 100).toFixed(0)}%</span>
+                            )}
+                          </div>
+                        )}
+
+                        {/* 标签 */}
+                        {fb.tags.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-2">
+                            {fb.tags.map(tag => (
+                              <span key={tag} className="px-1.5 py-0.5 bg-secondary rounded text-[10px] text-muted-foreground">
+                                #{tag}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                       </div>
 
-                      <h4 className="text-xs font-semibold text-foreground mb-1">{fb.title}</h4>
-                      <p className="text-[11px] text-muted-foreground line-clamp-2 mb-2">{fb.description}</p>
-
-                      <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
-                        {fb.deviceName && <span>🔧 {fb.deviceName}</span>}
-                        {fb.algorithmName && <span>⚙️ {fb.algorithmName}</span>}
-                        <span>👤 {fb.submittedBy}</span>
-                        <span><Clock className="w-2.5 h-2.5 inline mr-0.5" />{formatTime(fb.submittedAt)}</span>
-                      </div>
-
-                      {/* 预测修正对比 */}
-                      {fb.originalPrediction && fb.correctedLabel && (
-                        <div className="flex items-center gap-2 mt-2 p-1.5 bg-secondary/50 rounded text-[10px]">
-                          <span className="text-red-400 line-through">{fb.originalPrediction}</span>
-                          <ArrowUpRight className="w-3 h-3 text-muted-foreground" />
-                          <span className="text-emerald-400 font-medium">{fb.correctedLabel}</span>
-                          {fb.confidence && (
-                            <span className="text-muted-foreground ml-auto">置信度: {(fb.confidence * 100).toFixed(0)}%</span>
-                          )}
-                        </div>
-                      )}
-
-                      {/* 标签 */}
-                      {fb.tags.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mt-2">
-                          {fb.tags.map(tag => (
-                            <span key={tag} className="px-1.5 py-0.5 bg-secondary rounded text-[10px] text-muted-foreground">
-                              #{tag}
-                            </span>
-                          ))}
-                        </div>
-                      )}
+                      <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0 mt-1" />
                     </div>
+                  </PageCard>
+                ))}
 
-                    <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0 mt-1" />
-                  </div>
-                </PageCard>
-              ))}
-
-              {filtered.length === 0 && (
-                <PageCard>
-                  <div className="text-center py-8 text-muted-foreground text-xs">
-                    暂无匹配的反馈记录
-                  </div>
-                </PageCard>
-              )}
-            </div>
+                {filtered.length === 0 && (
+                  <PageCard>
+                    <div className="text-center py-8 text-muted-foreground text-xs">
+                      暂无匹配的反馈记录
+                    </div>
+                  </PageCard>
+                )}
+              </div>
+            )}
           </TabsContent>
 
           <TabsContent value="analysis">
@@ -361,7 +414,8 @@ export default function FeedbackCenter() {
                 <div className="space-y-2">
                   {Object.entries(typeConfig).map(([key, cfg]) => {
                     const count = typeStats[key] || 0;
-                    const pct = mockFeedbacks.length > 0 ? (count / mockFeedbacks.length) * 100 : 0;
+                    const total = feedbacks.length;
+                    const pct = total > 0 ? (count / total) * 100 : 0;
                     return (
                       <div key={key} className="flex items-center gap-2">
                         <Badge variant="outline" className={cn("text-[10px] gap-1 w-20 justify-center", cfg.color)}>
@@ -384,8 +438,9 @@ export default function FeedbackCenter() {
               <PageCard title="按状态分布" icon="📈">
                 <div className="space-y-2">
                   {Object.entries(statusConfig).map(([key, cfg]) => {
-                    const count = mockFeedbacks.filter(f => f.status === key).length;
-                    const pct = mockFeedbacks.length > 0 ? (count / mockFeedbacks.length) * 100 : 0;
+                    const count = feedbacks.filter(f => f.status === key).length;
+                    const total = feedbacks.length;
+                    const pct = total > 0 ? (count / total) * 100 : 0;
                     return (
                       <div key={key} className="flex items-center gap-2">
                         <Badge variant="outline" className={cn("text-[10px] w-16 justify-center", cfg.color)}>
@@ -407,7 +462,7 @@ export default function FeedbackCenter() {
               {/* 高影响反馈 */}
               <PageCard title="高影响反馈" icon="🔥" className="md:col-span-2">
                 <div className="space-y-2">
-                  {mockFeedbacks
+                  {feedbacks
                     .filter(f => f.priority === 'critical' || f.priority === 'high')
                     .map(fb => (
                       <div
@@ -427,10 +482,13 @@ export default function FeedbackCenter() {
                         </Badge>
                       </div>
                     ))}
+                  {feedbacks.filter(f => f.priority === 'critical' || f.priority === 'high').length === 0 && (
+                    <div className="text-center py-4 text-muted-foreground text-xs">暂无高影响反馈</div>
+                  )}
                 </div>
               </PageCard>
 
-              {/* 模型影响评估 */}
+              {/* 模型影响评估（静态派生分析视图） */}
               <PageCard title="受影响模型" icon="🧠" className="md:col-span-2">
                 <div className="overflow-x-auto">
                   <table className="w-full text-[11px]">
@@ -548,10 +606,22 @@ export default function FeedbackCenter() {
             <DialogFooter className="gap-2">
               {selectedFeedback?.status === 'pending' && (
                 <>
-                  <Button size="sm" variant="outline" className="text-xs h-7 gap-1 text-emerald-400 border-emerald-500/30" onClick={() => { toast.success('反馈已采纳'); setSelectedFeedback(null); }}>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-xs h-7 gap-1 text-emerald-400 border-emerald-500/30"
+                    disabled={updateStatusMutation.isPending}
+                    onClick={() => handleAccept(selectedFeedback)}
+                  >
                     <ThumbsUp className="w-3 h-3" /> 采纳
                   </Button>
-                  <Button size="sm" variant="outline" className="text-xs h-7 gap-1 text-red-400 border-red-500/30" onClick={() => { toast.warning('反馈已驳回'); setSelectedFeedback(null); }}>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-xs h-7 gap-1 text-red-400 border-red-500/30"
+                    disabled={updateStatusMutation.isPending}
+                    onClick={() => handleReject(selectedFeedback)}
+                  >
                     <ThumbsDown className="w-3 h-3" /> 驳回
                   </Button>
                 </>
@@ -564,7 +634,7 @@ export default function FeedbackCenter() {
         </Dialog>
 
         {/* 新建反馈弹窗 */}
-        <Dialog open={showNewDialog} onOpenChange={setShowNewDialog}>
+        <Dialog open={showNewDialog} onOpenChange={(open) => { setShowNewDialog(open); if (!open) resetNewForm(); }}>
           <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle className="text-sm flex items-center gap-2">
@@ -575,7 +645,7 @@ export default function FeedbackCenter() {
             <div className="space-y-3">
               <div>
                 <label className="text-[11px] text-muted-foreground mb-1 block">反馈类型</label>
-                <Select defaultValue="correction">
+                <Select value={newType} onValueChange={setNewType}>
                   <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {Object.entries(typeConfig).map(([k, v]) => (
@@ -586,7 +656,7 @@ export default function FeedbackCenter() {
               </div>
               <div>
                 <label className="text-[11px] text-muted-foreground mb-1 block">优先级</label>
-                <Select defaultValue="medium">
+                <Select value={newPriority} onValueChange={setNewPriority}>
                   <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {Object.entries(priorityConfig).map(([k, v]) => (
@@ -597,41 +667,62 @@ export default function FeedbackCenter() {
               </div>
               <div>
                 <label className="text-[11px] text-muted-foreground mb-1 block">标题</label>
-                <Input className="h-7 text-xs" placeholder="简要描述反馈内容..." />
+                <Input className="h-7 text-xs" placeholder="简要描述反馈内容..." value={newTitle} onChange={e => setNewTitle(e.target.value)} />
               </div>
               <div>
                 <label className="text-[11px] text-muted-foreground mb-1 block">详细描述</label>
-                <Textarea className="text-xs min-h-[80px]" placeholder="请详细描述问题现象、现场情况和修正建议..." />
+                <Textarea className="text-xs min-h-[80px]" placeholder="请详细描述问题现象、现场情况和修正建议..." value={newDescription} onChange={e => setNewDescription(e.target.value)} />
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="text-[11px] text-muted-foreground mb-1 block">关联诊断ID</label>
-                  <Input className="h-7 text-xs" placeholder="diag-..." />
+                  <Input className="h-7 text-xs" placeholder="diag-..." value={newDiagnosisId} onChange={e => setNewDiagnosisId(e.target.value)} />
                 </div>
                 <div>
                   <label className="text-[11px] text-muted-foreground mb-1 block">设备名称</label>
-                  <Input className="h-7 text-xs" placeholder="设备名称..." />
+                  <Input className="h-7 text-xs" placeholder="设备名称..." value={newDeviceName} onChange={e => setNewDeviceName(e.target.value)} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[11px] text-muted-foreground mb-1 block">算法名称</label>
+                  <Input className="h-7 text-xs" placeholder="算法名称..." value={newAlgorithmName} onChange={e => setNewAlgorithmName(e.target.value)} />
+                </div>
+                <div>
+                  <label className="text-[11px] text-muted-foreground mb-1 block">模型版本</label>
+                  <Input className="h-7 text-xs" placeholder="模型版本..." value={newModelVersion} onChange={e => setNewModelVersion(e.target.value)} />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="text-[11px] text-muted-foreground mb-1 block">原始预测</label>
-                  <Input className="h-7 text-xs" placeholder="模型原始预测..." />
+                  <Input className="h-7 text-xs" placeholder="模型原始预测..." value={newOriginalPrediction} onChange={e => setNewOriginalPrediction(e.target.value)} />
                 </div>
                 <div>
                   <label className="text-[11px] text-muted-foreground mb-1 block">修正标签</label>
-                  <Input className="h-7 text-xs" placeholder="正确标签..." />
+                  <Input className="h-7 text-xs" placeholder="正确标签..." value={newCorrectedLabel} onChange={e => setNewCorrectedLabel(e.target.value)} />
                 </div>
               </div>
-              <div>
-                <label className="text-[11px] text-muted-foreground mb-1 block">标签（逗号分隔）</label>
-                <Input className="h-7 text-xs" placeholder="轴承, 误报, ..." />
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[11px] text-muted-foreground mb-1 block">置信度 (0-1)</label>
+                  <Input className="h-7 text-xs" placeholder="0.85" value={newConfidence} onChange={e => setNewConfidence(e.target.value)} />
+                </div>
+                <div>
+                  <label className="text-[11px] text-muted-foreground mb-1 block">标签（逗号分隔）</label>
+                  <Input className="h-7 text-xs" placeholder="轴承, 误报, ..." value={newTags} onChange={e => setNewTags(e.target.value)} />
+                </div>
               </div>
             </div>
             <DialogFooter>
-              <Button size="sm" variant="secondary" className="text-xs h-7" onClick={() => setShowNewDialog(false)}>取消</Button>
-              <Button size="sm" className="text-xs h-7 gap-1" onClick={() => { toast.success('反馈已提交'); setShowNewDialog(false); }}>
-                <Send className="w-3 h-3" /> 提交
+              <Button size="sm" variant="secondary" className="text-xs h-7" onClick={() => { setShowNewDialog(false); resetNewForm(); }}>取消</Button>
+              <Button
+                size="sm"
+                className="text-xs h-7 gap-1"
+                disabled={createMutation.isPending}
+                onClick={handleCreateSubmit}
+              >
+                <Send className="w-3 h-3" /> {createMutation.isPending ? '提交中...' : '提交'}
               </Button>
             </DialogFooter>
           </DialogContent>

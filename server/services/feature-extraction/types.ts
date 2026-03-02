@@ -96,8 +96,8 @@ export interface RawTelemetryMessage {
   mp_code: string;
   /** 网关ID */
   gateway_id: string;
-  /** 采集时间戳（毫秒 epoch 或 ISO 字符串） */
-  timestamp: number | string;
+  /** 采集时间戳（毫秒 epoch） — FIX-039: 统一为 number */
+  timestamp: number;
   /** 数据类型（如果网关不提供，从测点配置查询） */
   data_type?: string;
   /** 采样率（Hz，波形数据必填） */
@@ -133,8 +133,8 @@ export interface FeatureMessage {
   mp_code: string;
   /** 网关ID */
   gateway_id: string;
-  /** 原始采集时间戳 */
-  timestamp: string;
+  /** 原始采集时间戳（毫秒 epoch） — FIX-039: 统一为 number */
+  timestamp: number;
   /** 数据类型 */
   data_type: DataType;
   /** 提取器名称 */

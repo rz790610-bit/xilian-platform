@@ -1,6 +1,6 @@
 /**
  * 插件安全沙箱管理页面
- * 
+ *
  * 6 个 Tab：
  * 1. 沙箱概览 - 全局安全仪表盘 + 沙箱状态
  * 2. 插件市场 - 安装/审查/审批
@@ -9,213 +9,13 @@
  * 5. 安全事件 - 安全事件查询 + 熔断器状态
  * 6. 受信任签名者 - 签名者管理
  */
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
+import { trpc } from '@/lib/trpc';
 
 // ==================== 类型定义 ====================
 
 type TabId = 'overview' | 'marketplace' | 'permissions' | 'resources' | 'events' | 'signers';
-
-interface SandboxStatus {
-  pluginId: string;
-  state: string;
-  manifest: {
-    id: string;
-    name: string;
-    version: string;
-    type: string;
-    permissions: string[];
-    description: string;
-    author: { name: string; email?: string };
-  };
-  resources: {
-    memoryUsedMB: number;
-    cpuTimeMs: number;
-    activeExecutions: number;
-    totalExecutions: number;
-    networkRequestsThisMin: number;
-    eventsThisMin: number;
-  } | null;
-}
-
-interface SecurityEvent {
-  id: string;
-  timestamp: string;
-  pluginId: string;
-  type: string;
-  severity: string;
-  description: string;
-  resolved: boolean;
-}
-
-interface CircuitBreakerState {
-  pluginId: string;
-  state: string;
-  failureCount: number;
-  lastFailureTime: string | null;
-  openedAt: string | null;
-  cooldownMs: number;
-}
-
-interface AuditEntry {
-  timestamp: string;
-  pluginId: string;
-  permission: string;
-  action: string;
-  allowed: boolean;
-}
-
-interface TrustSigner {
-  id: string;
-  name: string;
-  fingerprint: string;
-  addedAt: string;
-  addedBy: string;
-}
-
-// ==================== Mock 数据 ====================
-
-const mockSandboxes: SandboxStatus[] = [
-  {
-    pluginId: 'xilian.vibration-analyzer',
-    state: 'running',
-    manifest: {
-      id: 'xilian.vibration-analyzer',
-      name: '振动分析器',
-      version: '2.1.0',
-      type: 'analyzer',
-      permissions: ['data:sensor:read', 'data:alert:write', 'model:inference', 'event:publish', 'storage:write'],
-      description: '基于FFT的振动频谱分析，支持轴承故障特征提取',
-      author: { name: '西联算法团队', email: 'algo@xilian.com' },
-    },
-    resources: {
-      memoryUsedMB: 87.3,
-      cpuTimeMs: 12450,
-      activeExecutions: 2,
-      totalExecutions: 1847,
-      networkRequestsThisMin: 0,
-      eventsThisMin: 12,
-    },
-  },
-  {
-    pluginId: 'xilian.modbus-collector',
-    state: 'running',
-    manifest: {
-      id: 'xilian.modbus-collector',
-      name: 'Modbus 采集器',
-      version: '1.5.2',
-      type: 'source',
-      permissions: ['network:http', 'data:device:read', 'event:publish', 'storage:write', 'system:log'],
-      description: 'Modbus TCP/RTU 协议数据采集，支持批量寄存器读取',
-      author: { name: '西联IoT团队' },
-    },
-    resources: {
-      memoryUsedMB: 45.1,
-      cpuTimeMs: 8920,
-      activeExecutions: 1,
-      totalExecutions: 5623,
-      networkRequestsThisMin: 24,
-      eventsThisMin: 48,
-    },
-  },
-  {
-    pluginId: 'xilian.anomaly-detector',
-    state: 'running',
-    manifest: {
-      id: 'xilian.anomaly-detector',
-      name: '异常检测引擎',
-      version: '3.0.1',
-      type: 'analyzer',
-      permissions: ['data:sensor:read', 'data:alert:write', 'model:inference', 'model:embed', 'data:kg:write', 'event:publish'],
-      description: '多模态异常检测（统计+ML+DL），支持实时流式检测',
-      author: { name: '西联AI Lab' },
-    },
-    resources: {
-      memoryUsedMB: 256.8,
-      cpuTimeMs: 45200,
-      activeExecutions: 3,
-      totalExecutions: 892,
-      networkRequestsThisMin: 0,
-      eventsThisMin: 35,
-    },
-  },
-  {
-    pluginId: 'xilian.report-generator',
-    state: 'suspended',
-    manifest: {
-      id: 'xilian.report-generator',
-      name: '报告生成器',
-      version: '1.2.0',
-      type: 'utility',
-      permissions: ['data:device:read', 'data:alert:read', 'storage:write', 'ui:notification'],
-      description: '自动生成设备健康报告和诊断摘要',
-      author: { name: '西联产品团队' },
-    },
-    resources: {
-      memoryUsedMB: 12.4,
-      cpuTimeMs: 3200,
-      activeExecutions: 0,
-      totalExecutions: 156,
-      networkRequestsThisMin: 0,
-      eventsThisMin: 0,
-    },
-  },
-  {
-    pluginId: 'community.opcua-bridge',
-    state: 'running',
-    manifest: {
-      id: 'community.opcua-bridge',
-      name: 'OPC-UA 桥接器',
-      version: '0.9.3',
-      type: 'integration',
-      permissions: ['network:http', 'network:ws', 'data:device:read', 'event:publish', 'system:config:read'],
-      description: '第三方 OPC-UA 服务器连接桥接',
-      author: { name: 'OpenIoT Community' },
-    },
-    resources: {
-      memoryUsedMB: 68.2,
-      cpuTimeMs: 15600,
-      activeExecutions: 1,
-      totalExecutions: 3421,
-      networkRequestsThisMin: 18,
-      eventsThisMin: 22,
-    },
-  },
-];
-
-const mockSecurityEvents: SecurityEvent[] = [
-  { id: 'sec-a1b2c3', timestamp: '2026-02-17T08:45:12Z', pluginId: 'community.opcua-bridge', type: 'permission_denied', severity: 'medium', description: '权限被拒绝: system:config:read (writeConfig)', resolved: false },
-  { id: 'sec-d4e5f6', timestamp: '2026-02-17T08:32:05Z', pluginId: 'xilian.anomaly-detector', type: 'resource_exceeded', severity: 'high', description: '资源超限: memoryUsedMB (312/256)', resolved: true },
-  { id: 'sec-g7h8i9', timestamp: '2026-02-17T07:15:33Z', pluginId: 'community.opcua-bridge', type: 'network_violation', severity: 'high', description: 'Network policy violation: 192.168.1.100 不在白名单中', resolved: false },
-  { id: 'sec-j1k2l3', timestamp: '2026-02-17T06:50:18Z', pluginId: 'xilian.modbus-collector', type: 'execution_timeout', severity: 'medium', description: '执行超时: exec-4f2a (30000ms)', resolved: true },
-  { id: 'sec-m4n5o6', timestamp: '2026-02-17T05:22:41Z', pluginId: 'xilian.vibration-analyzer', type: 'permission_denied', severity: 'low', description: '权限被拒绝: data:kg:write (addNode)', resolved: true },
-  { id: 'sec-p7q8r9', timestamp: '2026-02-16T23:10:05Z', pluginId: 'community.opcua-bridge', type: 'circuit_breaker_open', severity: 'critical', description: '熔断器已打开: failure threshold reached (5)', resolved: true },
-  { id: 'sec-s1t2u3', timestamp: '2026-02-16T22:45:30Z', pluginId: 'xilian.report-generator', type: 'sandbox_error', severity: 'medium', description: '执行错误: Template rendering failed', resolved: true },
-];
-
-const mockCircuitBreakers: CircuitBreakerState[] = [
-  { pluginId: 'xilian.vibration-analyzer', state: 'closed', failureCount: 0, lastFailureTime: null, openedAt: null, cooldownMs: 60000 },
-  { pluginId: 'xilian.modbus-collector', state: 'closed', failureCount: 1, lastFailureTime: '2026-02-17T06:50:18Z', openedAt: null, cooldownMs: 60000 },
-  { pluginId: 'xilian.anomaly-detector', state: 'closed', failureCount: 0, lastFailureTime: null, openedAt: null, cooldownMs: 60000 },
-  { pluginId: 'community.opcua-bridge', state: 'half-open', failureCount: 4, lastFailureTime: '2026-02-17T07:15:33Z', openedAt: '2026-02-16T23:10:05Z', cooldownMs: 120000 },
-  { pluginId: 'xilian.report-generator', state: 'closed', failureCount: 1, lastFailureTime: '2026-02-16T22:45:30Z', openedAt: null, cooldownMs: 60000 },
-];
-
-const mockAuditLog: AuditEntry[] = [
-  { timestamp: '2026-02-17T08:45:12Z', pluginId: 'community.opcua-bridge', permission: 'system:config:read', action: 'writeConfig', allowed: false },
-  { timestamp: '2026-02-17T08:44:58Z', pluginId: 'xilian.vibration-analyzer', permission: 'data:sensor:read', action: 'getLatest', allowed: true },
-  { timestamp: '2026-02-17T08:44:45Z', pluginId: 'xilian.anomaly-detector', permission: 'model:inference', action: 'detect', allowed: true },
-  { timestamp: '2026-02-17T08:44:30Z', pluginId: 'xilian.modbus-collector', permission: 'network:http', action: 'http://10.0.1.50:502', allowed: true },
-  { timestamp: '2026-02-17T08:44:15Z', pluginId: 'xilian.vibration-analyzer', permission: 'event:publish', action: 'vibration.alarm', allowed: true },
-  { timestamp: '2026-02-17T08:44:00Z', pluginId: 'community.opcua-bridge', permission: 'network:ws', action: 'ws://opcua-server:4840', allowed: true },
-  { timestamp: '2026-02-17T08:43:45Z', pluginId: 'xilian.anomaly-detector', permission: 'data:alert:write', action: 'createAlert', allowed: true },
-  { timestamp: '2026-02-17T08:43:30Z', pluginId: 'xilian.vibration-analyzer', permission: 'data:kg:write', action: 'addNode', allowed: false },
-];
-
-const mockSigners: TrustSigner[] = [
-  { id: 'signer-a1b2c3d4', name: '西联官方签名', fingerprint: 'a1b2c3d4e5f6g7h8', addedAt: '2025-06-15T10:00:00Z', addedBy: 'admin' },
-  { id: 'signer-i9j0k1l2', name: 'OpenIoT 社区', fingerprint: 'i9j0k1l2m3n4o5p6', addedAt: '2025-09-20T14:30:00Z', addedBy: 'admin' },
-];
 
 // ==================== 工具函数 ====================
 
@@ -286,16 +86,63 @@ function StatCard({ label, value, sub, color = 'text-cyan-400' }: { label: strin
   );
 }
 
+function LoadingSpinner({ text = '加载中...' }: { text?: string }) {
+  return (
+    <div className="flex items-center justify-center py-12 text-zinc-500 text-sm">
+      <div className="animate-spin w-5 h-5 border-2 border-zinc-600 border-t-cyan-400 rounded-full mr-3" />
+      {text}
+    </div>
+  );
+}
+
+function ErrorBanner({ message, onRetry }: { message: string; onRetry?: () => void }) {
+  return (
+    <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 text-sm text-red-400 flex items-center justify-between">
+      <span>加载失败: {message}</span>
+      {onRetry && (
+        <button onClick={onRetry} className="px-3 py-1 text-[11px] bg-red-500/10 border border-red-500/30 rounded hover:bg-red-500/20 transition-colors">
+          重试
+        </button>
+      )}
+    </div>
+  );
+}
+
 // ==================== Tab: 沙箱概览 ====================
 
 function OverviewTab() {
-  const totalPlugins = mockSandboxes.length;
-  const runningPlugins = mockSandboxes.filter(s => s.state === 'running').length;
-  const totalMemory = mockSandboxes.reduce((sum, s) => sum + (s.resources?.memoryUsedMB || 0), 0);
-  const totalExecs = mockSandboxes.reduce((sum, s) => sum + (s.resources?.totalExecutions || 0), 0);
-  const unresolvedEvents = mockSecurityEvents.filter(e => !e.resolved).length;
-  const criticalEvents = mockSecurityEvents.filter(e => e.severity === 'critical' && !e.resolved).length;
-  const openBreakers = mockCircuitBreakers.filter(b => b.state === 'open' || b.state === 'half-open').length;
+  const utils = trpc.useUtils();
+  const { data: sandboxes, isLoading: sandboxLoading, error: sandboxError, refetch: refetchSandbox } = trpc.plugin.getSandboxStatus.useQuery();
+  const { data: securityEvents, isLoading: eventsLoading } = trpc.plugin.getSecurityEvents.useQuery({});
+  const { data: dashboard } = trpc.plugin.getSecurityDashboard.useQuery();
+  const { data: signers } = trpc.plugin.listTrustedSigners.useQuery();
+
+  const disableMut = trpc.plugin.disable.useMutation({
+    onSuccess: () => { utils.plugin.getSandboxStatus.invalidate(); },
+  });
+  const enableMut = trpc.plugin.enable.useMutation({
+    onSuccess: () => { utils.plugin.getSandboxStatus.invalidate(); },
+  });
+  const uninstallMut = trpc.plugin.secureUninstall.useMutation({
+    onSuccess: () => { utils.plugin.getSandboxStatus.invalidate(); },
+  });
+
+  if (sandboxLoading || eventsLoading) return <LoadingSpinner />;
+  if (sandboxError) return <ErrorBanner message={sandboxError.message} onRetry={() => refetchSandbox()} />;
+
+  const sandboxList = sandboxes ?? [];
+  const eventsList = securityEvents ?? [];
+  const signersList = signers ?? [];
+  const circuitBreakers = dashboard?.circuitBreakers ?? [];
+
+  const totalPlugins = sandboxList.length;
+  const runningPlugins = sandboxList.filter((s: any) => s.state === 'running').length;
+  const totalMemory = sandboxList.reduce((sum: number, s: any) => sum + (s.resources?.memoryUsedMB || 0), 0);
+  const totalExecs = sandboxList.reduce((sum: number, s: any) => sum + (s.resources?.totalExecutions || 0), 0);
+  const unresolvedEvents = eventsList.filter((e: any) => !e.resolved).length;
+  const criticalEvents = eventsList.filter((e: any) => e.severity === 'critical' && !e.resolved).length;
+  const openBreakers = circuitBreakers.filter((b: any) => b.state === 'open' || b.state === 'half-open').length;
+  const totalBreakers = circuitBreakers.length || sandboxList.length;
 
   return (
     <div className="space-y-6">
@@ -306,45 +153,57 @@ function OverviewTab() {
         <StatCard label="总执行次数" value={totalExecs.toLocaleString()} sub="累计" color="text-blue-400" />
         <StatCard label="未解决事件" value={unresolvedEvents} color={unresolvedEvents > 0 ? 'text-orange-400' : 'text-emerald-400'} />
         <StatCard label="严重告警" value={criticalEvents} color={criticalEvents > 0 ? 'text-red-400' : 'text-emerald-400'} />
-        <StatCard label="熔断器" value={`${openBreakers}/${mockCircuitBreakers.length}`} sub={openBreakers > 0 ? '有打开的' : '全部正常'} color={openBreakers > 0 ? 'text-red-400' : 'text-emerald-400'} />
-        <StatCard label="受信任签名者" value={mockSigners.length} color="text-purple-400" />
+        <StatCard label="熔断器" value={`${openBreakers}/${totalBreakers}`} sub={openBreakers > 0 ? '有打开的' : '全部正常'} color={openBreakers > 0 ? 'text-red-400' : 'text-emerald-400'} />
+        <StatCard label="受信任签名者" value={signersList.length} color="text-purple-400" />
       </div>
 
       {/* 沙箱列表 */}
       <div>
         <h3 className="text-sm font-semibold text-zinc-300 mb-3">活跃沙箱</h3>
         <div className="space-y-2">
-          {mockSandboxes.map(sandbox => (
+          {sandboxList.map((sandbox: any) => (
             <div key={sandbox.pluginId} className="bg-zinc-900/60 border border-zinc-800 rounded-lg p-4">
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
-                  <span className="text-xl">{typeIcons[sandbox.manifest.type] || '🧩'}</span>
+                  <span className="text-xl">{typeIcons[sandbox.manifest?.type] || '🧩'}</span>
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="font-medium text-zinc-200">{sandbox.manifest.name}</span>
-                      <span className="text-[11px] text-zinc-500">v{sandbox.manifest.version}</span>
-                      <Badge className={stateColors[sandbox.state]}>{sandbox.state}</Badge>
-                      {sandbox.pluginId.startsWith('xilian.') ? (
+                      <span className="font-medium text-zinc-200">{sandbox.manifest?.name || sandbox.pluginId}</span>
+                      <span className="text-[11px] text-zinc-500">v{sandbox.manifest?.version || '?'}</span>
+                      <Badge className={stateColors[sandbox.state] || stateColors.idle}>{sandbox.state}</Badge>
+                      {sandbox.pluginId?.startsWith('xilian.') ? (
                         <Badge className={trustLevelLabels.trusted.color}>受信任</Badge>
                       ) : (
                         <Badge className={trustLevelLabels.verified.color}>已验证</Badge>
                       )}
                     </div>
-                    <div className="text-[11px] text-zinc-500 mt-0.5">{sandbox.manifest.description}</div>
+                    <div className="text-[11px] text-zinc-500 mt-0.5">{sandbox.manifest?.description || ''}</div>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
                   {sandbox.state === 'running' && (
-                    <button className="px-2 py-1 text-[11px] bg-amber-500/10 text-amber-400 border border-amber-500/30 rounded hover:bg-amber-500/20 transition-colors">
+                    <button
+                      onClick={() => disableMut.mutate({ id: sandbox.pluginId })}
+                      disabled={disableMut.isPending}
+                      className="px-2 py-1 text-[11px] bg-amber-500/10 text-amber-400 border border-amber-500/30 rounded hover:bg-amber-500/20 transition-colors disabled:opacity-50"
+                    >
                       暂停
                     </button>
                   )}
                   {sandbox.state === 'suspended' && (
-                    <button className="px-2 py-1 text-[11px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 rounded hover:bg-emerald-500/20 transition-colors">
+                    <button
+                      onClick={() => enableMut.mutate({ id: sandbox.pluginId })}
+                      disabled={enableMut.isPending}
+                      className="px-2 py-1 text-[11px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 rounded hover:bg-emerald-500/20 transition-colors disabled:opacity-50"
+                    >
                       恢复
                     </button>
                   )}
-                  <button className="px-2 py-1 text-[11px] bg-red-500/10 text-red-400 border border-red-500/30 rounded hover:bg-red-500/20 transition-colors">
+                  <button
+                    onClick={() => uninstallMut.mutate({ pluginId: sandbox.pluginId })}
+                    disabled={uninstallMut.isPending}
+                    className="px-2 py-1 text-[11px] bg-red-500/10 text-red-400 border border-red-500/30 rounded hover:bg-red-500/20 transition-colors disabled:opacity-50"
+                  >
                     终止
                   </button>
                 </div>
@@ -387,21 +246,26 @@ function OverviewTab() {
               )}
 
               {/* 权限标签 */}
-              <div className="flex flex-wrap gap-1 mt-3 pt-3 border-t border-zinc-800">
-                {sandbox.manifest.permissions.map(perm => (
-                  <Badge
-                    key={perm}
-                    className={highRiskPerms.includes(perm)
-                      ? 'bg-orange-500/10 text-orange-400 border-orange-500/20'
-                      : 'bg-zinc-800 text-zinc-400 border-zinc-700'
-                    }
-                  >
-                    {highRiskPerms.includes(perm) && '⚠ '}{perm}
-                  </Badge>
-                ))}
-              </div>
+              {sandbox.manifest?.permissions && (
+                <div className="flex flex-wrap gap-1 mt-3 pt-3 border-t border-zinc-800">
+                  {sandbox.manifest.permissions.map((perm: string) => (
+                    <Badge
+                      key={perm}
+                      className={highRiskPerms.includes(perm)
+                        ? 'bg-orange-500/10 text-orange-400 border-orange-500/20'
+                        : 'bg-zinc-800 text-zinc-400 border-zinc-700'
+                      }
+                    >
+                      {highRiskPerms.includes(perm) && '⚠ '}{perm}
+                    </Badge>
+                  ))}
+                </div>
+              )}
             </div>
           ))}
+          {sandboxList.length === 0 && (
+            <div className="text-center text-zinc-600 py-8 text-sm">暂无活跃沙箱</div>
+          )}
         </div>
       </div>
     </div>
@@ -411,6 +275,9 @@ function OverviewTab() {
 // ==================== Tab: 插件市场 ====================
 
 function MarketplaceTab() {
+  const utils = trpc.useUtils();
+  const { data: plugins, isLoading: pluginsLoading } = trpc.plugin.list.useQuery();
+
   const [manifestYaml, setManifestYaml] = useState(`manifestVersion: "1.0"
 id: "my-org.custom-plugin"
 name: "自定义插件"
@@ -432,24 +299,35 @@ resourceLimits: "standard"
 `);
   const [validationResult, setValidationResult] = useState<null | { valid: boolean; errors: any[]; warnings: any[] }>(null);
 
+  const validateMut = trpc.plugin.validateManifest.useMutation({
+    onSuccess: (data) => {
+      setValidationResult(data as any);
+    },
+    onError: (err) => {
+      setValidationResult({ valid: false, errors: [{ field: 'manifest', message: err.message }], warnings: [] });
+    },
+  });
+
+  const reviewMut = trpc.plugin.reviewPlugin.useMutation();
+
+  const installMut = trpc.plugin.secureInstall.useMutation({
+    onSuccess: () => {
+      utils.plugin.list.invalidate();
+      utils.plugin.getSandboxStatus.invalidate();
+    },
+  });
+
   const handleValidate = () => {
-    // 模拟校验
-    setValidationResult({
-      valid: true,
-      errors: [],
-      warnings: [
-        { field: 'permissions', message: '包含高风险权限（需管理员审批）: 无', severity: 'warning' },
-      ],
-    });
+    validateMut.mutate({ manifest: manifestYaml });
   };
 
-  const availablePlugins = [
-    { id: 'xilian.thermal-analyzer', name: '热力学分析器', version: '1.3.0', type: 'analyzer', author: '西联AI Lab', trust: 'trusted', desc: '基于红外热成像的设备温度异常检测', riskScore: 15 },
-    { id: 'xilian.mqtt-bridge', name: 'MQTT 桥接器', version: '2.0.1', type: 'source', author: '西联IoT团队', trust: 'trusted', desc: 'MQTT v5 协议桥接，支持 TLS 双向认证', riskScore: 25 },
-    { id: 'community.grafana-sync', name: 'Grafana 同步器', version: '0.8.0', type: 'integration', author: 'OpenIoT', trust: 'verified', desc: '自动同步仪表盘和告警规则到 Grafana', riskScore: 42 },
-    { id: 'community.pdf-report', name: 'PDF 报告导出', version: '1.1.0', type: 'utility', author: 'Community', trust: 'basic', desc: '将诊断报告导出为专业 PDF 格式', riskScore: 8 },
-    { id: 'third-party.s7-connector', name: 'S7 连接器', version: '0.5.0', type: 'source', author: 'Industrial Plugins', trust: 'untrusted', desc: 'Siemens S7 PLC 直连采集', riskScore: 68 },
-  ];
+  const handleReview = () => {
+    // Parse YAML to object for review — the backend accepts manifest object
+    // For simplicity, we send the raw YAML for validation first
+    validateMut.mutate({ manifest: manifestYaml });
+  };
+
+  const availablePlugins = (plugins ?? []) as any[];
 
   return (
     <div className="space-y-6">
@@ -467,15 +345,23 @@ resourceLimits: "standard"
             <div className="flex gap-2 mt-2">
               <button
                 onClick={handleValidate}
-                className="px-3 py-1.5 text-[12px] bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 rounded hover:bg-cyan-500/20 transition-colors"
+                disabled={validateMut.isPending}
+                className="px-3 py-1.5 text-[12px] bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 rounded hover:bg-cyan-500/20 transition-colors disabled:opacity-50"
               >
-                校验 Manifest
+                {validateMut.isPending ? '校验中...' : '校验 Manifest'}
               </button>
-              <button className="px-3 py-1.5 text-[12px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 rounded hover:bg-emerald-500/20 transition-colors">
-                安全审查
+              <button
+                onClick={handleReview}
+                disabled={reviewMut.isPending}
+                className="px-3 py-1.5 text-[12px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 rounded hover:bg-emerald-500/20 transition-colors disabled:opacity-50"
+              >
+                {reviewMut.isPending ? '审查中...' : '安全审查'}
               </button>
-              <button className="px-3 py-1.5 text-[12px] bg-purple-500/10 text-purple-400 border border-purple-500/30 rounded hover:bg-purple-500/20 transition-colors">
-                安装到沙箱
+              <button
+                disabled={installMut.isPending}
+                className="px-3 py-1.5 text-[12px] bg-purple-500/10 text-purple-400 border border-purple-500/30 rounded hover:bg-purple-500/20 transition-colors disabled:opacity-50"
+              >
+                {installMut.isPending ? '安装中...' : '安装到沙箱'}
               </button>
             </div>
           </div>
@@ -485,25 +371,32 @@ resourceLimits: "standard"
                 <div className={`text-sm font-semibold mb-2 ${validationResult.valid ? 'text-emerald-400' : 'text-red-400'}`}>
                   {validationResult.valid ? '✅ 校验通过' : '❌ 校验失败'}
                 </div>
-                {validationResult.errors.map((e: any, i: number) => (
+                {validationResult.errors?.map((e: any, i: number) => (
                   <div key={i} className="text-[11px] text-red-400 mb-1">
                     ❌ [{e.field}] {e.message}
                   </div>
                 ))}
-                {validationResult.warnings.map((w: any, i: number) => (
+                {validationResult.warnings?.map((w: any, i: number) => (
                   <div key={i} className="text-[11px] text-amber-400 mb-1">
                     ⚠ [{w.field}] {w.message}
                   </div>
                 ))}
-                <div className="mt-3 pt-3 border-t border-zinc-800">
-                  <div className="text-[11px] text-zinc-500">风险评分</div>
-                  <div className="flex items-center gap-2 mt-1">
-                    <div className="flex-1 h-2 bg-zinc-800 rounded-full overflow-hidden">
-                      <div className="h-full bg-emerald-500 rounded-full" style={{ width: '12%' }} />
+                {(validationResult as any).riskScore != null && (
+                  <div className="mt-3 pt-3 border-t border-zinc-800">
+                    <div className="text-[11px] text-zinc-500">风险评分</div>
+                    <div className="flex items-center gap-2 mt-1">
+                      <div className="flex-1 h-2 bg-zinc-800 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full ${(validationResult as any).riskScore > 50 ? 'bg-red-500' : (validationResult as any).riskScore > 30 ? 'bg-amber-500' : 'bg-emerald-500'}`}
+                          style={{ width: `${(validationResult as any).riskScore}%` }}
+                        />
+                      </div>
+                      <span className={`text-sm font-mono ${(validationResult as any).riskScore > 50 ? 'text-red-400' : (validationResult as any).riskScore > 30 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                        {(validationResult as any).riskScore}/100
+                      </span>
                     </div>
-                    <span className="text-sm font-mono text-emerald-400">12/100</span>
                   </div>
-                </div>
+                )}
               </div>
             )}
             {!validationResult && (
@@ -518,42 +411,45 @@ resourceLimits: "standard"
       {/* 可用插件列表 */}
       <div>
         <h3 className="text-sm font-semibold text-zinc-300 mb-3">🏪 可用插件</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-          {availablePlugins.map(plugin => (
-            <div key={plugin.id} className="bg-zinc-900/60 border border-zinc-800 rounded-lg p-4 hover:border-zinc-700 transition-colors">
-              <div className="flex items-start justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-lg">{typeIcons[plugin.type]}</span>
-                  <div>
-                    <div className="font-medium text-zinc-200 text-sm">{plugin.name}</div>
-                    <div className="text-[11px] text-zinc-500">v{plugin.version} · {plugin.author}</div>
+        {pluginsLoading ? (
+          <LoadingSpinner text="加载插件列表..." />
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {availablePlugins.map((plugin: any) => (
+              <div key={plugin.id || plugin.pluginId} className="bg-zinc-900/60 border border-zinc-800 rounded-lg p-4 hover:border-zinc-700 transition-colors">
+                <div className="flex items-start justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">{typeIcons[plugin.type] || '🧩'}</span>
+                    <div>
+                      <div className="font-medium text-zinc-200 text-sm">{plugin.name}</div>
+                      <div className="text-[11px] text-zinc-500">v{plugin.version || '?'} · {plugin.author?.name || plugin.author || '未知'}</div>
+                    </div>
                   </div>
+                  {plugin.trustLevel && (
+                    <Badge className={trustLevelLabels[plugin.trustLevel]?.color || ''}>
+                      {trustLevelLabels[plugin.trustLevel]?.label || plugin.trustLevel}
+                    </Badge>
+                  )}
                 </div>
-                <Badge className={trustLevelLabels[plugin.trust]?.color || ''}>
-                  {trustLevelLabels[plugin.trust]?.label || plugin.trust}
-                </Badge>
-              </div>
-              <p className="text-[11px] text-zinc-400 mb-3">{plugin.desc}</p>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1">
-                  <span className="text-[10px] text-zinc-500">风险:</span>
-                  <div className="w-16 h-1.5 bg-zinc-800 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full rounded-full ${plugin.riskScore > 50 ? 'bg-red-500' : plugin.riskScore > 30 ? 'bg-amber-500' : 'bg-emerald-500'}`}
-                      style={{ width: `${plugin.riskScore}%` }}
-                    />
+                <p className="text-[11px] text-zinc-400 mb-3">{plugin.description || ''}</p>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1">
+                    <span className="text-[10px] text-zinc-500">状态:</span>
+                    <Badge className={stateColors[plugin.status || plugin.state] || 'bg-zinc-800 text-zinc-400 border-zinc-700'}>
+                      {plugin.status || plugin.state || '未知'}
+                    </Badge>
                   </div>
-                  <span className={`text-[10px] font-mono ${plugin.riskScore > 50 ? 'text-red-400' : plugin.riskScore > 30 ? 'text-amber-400' : 'text-emerald-400'}`}>
-                    {plugin.riskScore}
-                  </span>
+                  <button className="px-2 py-1 text-[11px] bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 rounded hover:bg-cyan-500/20 transition-colors">
+                    详情
+                  </button>
                 </div>
-                <button className="px-2 py-1 text-[11px] bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 rounded hover:bg-cyan-500/20 transition-colors">
-                  安装
-                </button>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+            {availablePlugins.length === 0 && (
+              <div className="col-span-full text-center text-zinc-600 py-8 text-sm">暂无可用插件</div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -562,94 +458,115 @@ resourceLimits: "standard"
 // ==================== Tab: 权限管理 ====================
 
 function PermissionsTab() {
+  const utils = trpc.useUtils();
   const [filterPlugin, setFilterPlugin] = useState('');
   const [filterAllowed, setFilterAllowed] = useState<'all' | 'allowed' | 'denied'>('all');
 
-  const filteredLog = useMemo(() => {
-    let log = mockAuditLog;
-    if (filterPlugin) log = log.filter(e => e.pluginId.includes(filterPlugin));
-    if (filterAllowed === 'allowed') log = log.filter(e => e.allowed);
-    if (filterAllowed === 'denied') log = log.filter(e => !e.allowed);
-    return log;
-  }, [filterPlugin, filterAllowed]);
+  const { data: sandboxes, isLoading: sandboxLoading } = trpc.plugin.getSandboxStatus.useQuery();
+  const { data: auditLog, isLoading: auditLoading, error: auditError, refetch: refetchAudit } = trpc.plugin.getAuditLog.useQuery({
+    pluginId: filterPlugin || undefined,
+    allowed: filterAllowed === 'all' ? undefined : filterAllowed === 'allowed',
+    limit: 200,
+  });
+
+  const grantMut = trpc.plugin.grantPermission.useMutation({
+    onSuccess: () => {
+      utils.plugin.getAuditLog.invalidate();
+      utils.plugin.getSandboxStatus.invalidate();
+    },
+  });
+
+  const revokeMut = trpc.plugin.revokePermission.useMutation({
+    onSuccess: () => {
+      utils.plugin.getAuditLog.invalidate();
+      utils.plugin.getSandboxStatus.invalidate();
+    },
+  });
+
+  const sandboxList = (sandboxes ?? []) as any[];
+  const auditEntries = (auditLog ?? []) as any[];
 
   return (
     <div className="space-y-6">
       {/* 权限矩阵 */}
       <div className="bg-zinc-900/60 border border-zinc-800 rounded-lg p-4">
         <h3 className="text-sm font-semibold text-zinc-300 mb-3">🔐 权限矩阵</h3>
-        <div className="overflow-x-auto">
-          <table className="w-full text-[11px]">
-            <thead>
-              <tr className="border-b border-zinc-800">
-                <th className="text-left py-2 px-2 text-zinc-500 font-medium">插件</th>
-                <th className="text-center py-2 px-1 text-zinc-500 font-medium">storage</th>
-                <th className="text-center py-2 px-1 text-zinc-500 font-medium">network</th>
-                <th className="text-center py-2 px-1 text-zinc-500 font-medium">event</th>
-                <th className="text-center py-2 px-1 text-zinc-500 font-medium">device</th>
-                <th className="text-center py-2 px-1 text-zinc-500 font-medium">sensor</th>
-                <th className="text-center py-2 px-1 text-zinc-500 font-medium">alert</th>
-                <th className="text-center py-2 px-1 text-zinc-500 font-medium">kg</th>
-                <th className="text-center py-2 px-1 text-zinc-500 font-medium">model</th>
-                <th className="text-center py-2 px-1 text-zinc-500 font-medium">ui</th>
-                <th className="text-center py-2 px-1 text-zinc-500 font-medium">system</th>
-              </tr>
-            </thead>
-            <tbody>
-              {mockSandboxes.map(sandbox => {
-                const perms = new Set(sandbox.manifest.permissions);
-                const permCheck = (prefix: string) => {
-                  const hasRead = perms.has(`${prefix}:read` as any);
-                  const hasWrite = perms.has(`${prefix}:write` as any);
-                  const hasHttp = perms.has(`${prefix}:http` as any);
-                  const hasWs = perms.has(`${prefix}:ws` as any);
-                  const hasSub = perms.has(`${prefix}:subscribe` as any);
-                  const hasPub = perms.has(`${prefix}:publish` as any);
-                  const hasInference = perms.has(`${prefix}:inference` as any);
-                  const hasEmbed = perms.has(`${prefix}:embed` as any);
-                  const hasNotif = perms.has(`${prefix}:notification` as any);
-                  const hasWidget = perms.has(`${prefix}:widget` as any);
-                  const hasLog = perms.has(`${prefix}:log` as any);
-                  const hasConfig = perms.has(`${prefix}:config:read` as any);
+        {sandboxLoading ? (
+          <LoadingSpinner text="加载权限矩阵..." />
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-[11px]">
+              <thead>
+                <tr className="border-b border-zinc-800">
+                  <th className="text-left py-2 px-2 text-zinc-500 font-medium">插件</th>
+                  <th className="text-center py-2 px-1 text-zinc-500 font-medium">storage</th>
+                  <th className="text-center py-2 px-1 text-zinc-500 font-medium">network</th>
+                  <th className="text-center py-2 px-1 text-zinc-500 font-medium">event</th>
+                  <th className="text-center py-2 px-1 text-zinc-500 font-medium">device</th>
+                  <th className="text-center py-2 px-1 text-zinc-500 font-medium">sensor</th>
+                  <th className="text-center py-2 px-1 text-zinc-500 font-medium">alert</th>
+                  <th className="text-center py-2 px-1 text-zinc-500 font-medium">kg</th>
+                  <th className="text-center py-2 px-1 text-zinc-500 font-medium">model</th>
+                  <th className="text-center py-2 px-1 text-zinc-500 font-medium">ui</th>
+                  <th className="text-center py-2 px-1 text-zinc-500 font-medium">system</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sandboxList.map((sandbox: any) => {
+                  const perms = new Set(sandbox.manifest?.permissions || []);
+                  const permCheck = (prefix: string) => {
+                    const hasRead = perms.has(`${prefix}:read`);
+                    const hasWrite = perms.has(`${prefix}:write`);
+                    const hasHttp = perms.has(`${prefix}:http`);
+                    const hasWs = perms.has(`${prefix}:ws`);
+                    const hasSub = perms.has(`${prefix}:subscribe`);
+                    const hasPub = perms.has(`${prefix}:publish`);
+                    const hasInference = perms.has(`${prefix}:inference`);
+                    const hasEmbed = perms.has(`${prefix}:embed`);
+                    const hasNotif = perms.has(`${prefix}:notification`);
+                    const hasWidget = perms.has(`${prefix}:widget`);
+                    const hasLog = perms.has(`${prefix}:log`);
+                    const hasConfig = perms.has(`${prefix}:config:read`);
 
-                  if (hasRead && hasWrite) return <span className="text-emerald-400">RW</span>;
-                  if (hasRead) return <span className="text-blue-400">R</span>;
-                  if (hasWrite) return <span className="text-amber-400">W</span>;
-                  if (hasHttp && hasWs) return <span className="text-orange-400">H+W</span>;
-                  if (hasHttp) return <span className="text-orange-400">HTTP</span>;
-                  if (hasWs) return <span className="text-orange-400">WS</span>;
-                  if (hasSub && hasPub) return <span className="text-emerald-400">S+P</span>;
-                  if (hasSub) return <span className="text-blue-400">Sub</span>;
-                  if (hasPub) return <span className="text-amber-400">Pub</span>;
-                  if (hasInference && hasEmbed) return <span className="text-purple-400">I+E</span>;
-                  if (hasInference) return <span className="text-purple-400">Inf</span>;
-                  if (hasEmbed) return <span className="text-purple-400">Emb</span>;
-                  if (hasNotif) return <span className="text-cyan-400">N</span>;
-                  if (hasWidget) return <span className="text-cyan-400">W</span>;
-                  if (hasLog) return <span className="text-zinc-400">Log</span>;
-                  if (hasConfig) return <span className="text-orange-400">Cfg</span>;
-                  return <span className="text-zinc-700">—</span>;
-                };
+                    if (hasRead && hasWrite) return <span className="text-emerald-400">RW</span>;
+                    if (hasRead) return <span className="text-blue-400">R</span>;
+                    if (hasWrite) return <span className="text-amber-400">W</span>;
+                    if (hasHttp && hasWs) return <span className="text-orange-400">H+W</span>;
+                    if (hasHttp) return <span className="text-orange-400">HTTP</span>;
+                    if (hasWs) return <span className="text-orange-400">WS</span>;
+                    if (hasSub && hasPub) return <span className="text-emerald-400">S+P</span>;
+                    if (hasSub) return <span className="text-blue-400">Sub</span>;
+                    if (hasPub) return <span className="text-amber-400">Pub</span>;
+                    if (hasInference && hasEmbed) return <span className="text-purple-400">I+E</span>;
+                    if (hasInference) return <span className="text-purple-400">Inf</span>;
+                    if (hasEmbed) return <span className="text-purple-400">Emb</span>;
+                    if (hasNotif) return <span className="text-cyan-400">N</span>;
+                    if (hasWidget) return <span className="text-cyan-400">W</span>;
+                    if (hasLog) return <span className="text-zinc-400">Log</span>;
+                    if (hasConfig) return <span className="text-orange-400">Cfg</span>;
+                    return <span className="text-zinc-700">—</span>;
+                  };
 
-                return (
-                  <tr key={sandbox.pluginId} className="border-b border-zinc-800/50 hover:bg-zinc-800/30">
-                    <td className="py-2 px-2 text-zinc-300 font-medium">{sandbox.manifest.name}</td>
-                    <td className="text-center py-2 px-1">{permCheck('storage')}</td>
-                    <td className="text-center py-2 px-1">{permCheck('network')}</td>
-                    <td className="text-center py-2 px-1">{permCheck('event')}</td>
-                    <td className="text-center py-2 px-1">{permCheck('data:device')}</td>
-                    <td className="text-center py-2 px-1">{permCheck('data:sensor')}</td>
-                    <td className="text-center py-2 px-1">{permCheck('data:alert')}</td>
-                    <td className="text-center py-2 px-1">{permCheck('data:kg')}</td>
-                    <td className="text-center py-2 px-1">{permCheck('model')}</td>
-                    <td className="text-center py-2 px-1">{permCheck('ui')}</td>
-                    <td className="text-center py-2 px-1">{permCheck('system')}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                  return (
+                    <tr key={sandbox.pluginId} className="border-b border-zinc-800/50 hover:bg-zinc-800/30">
+                      <td className="py-2 px-2 text-zinc-300 font-medium">{sandbox.manifest?.name || sandbox.pluginId}</td>
+                      <td className="text-center py-2 px-1">{permCheck('storage')}</td>
+                      <td className="text-center py-2 px-1">{permCheck('network')}</td>
+                      <td className="text-center py-2 px-1">{permCheck('event')}</td>
+                      <td className="text-center py-2 px-1">{permCheck('data:device')}</td>
+                      <td className="text-center py-2 px-1">{permCheck('data:sensor')}</td>
+                      <td className="text-center py-2 px-1">{permCheck('data:alert')}</td>
+                      <td className="text-center py-2 px-1">{permCheck('data:kg')}</td>
+                      <td className="text-center py-2 px-1">{permCheck('model')}</td>
+                      <td className="text-center py-2 px-1">{permCheck('ui')}</td>
+                      <td className="text-center py-2 px-1">{permCheck('system')}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* 审计日志 */}
@@ -675,24 +592,33 @@ function PermissionsTab() {
             </select>
           </div>
         </div>
-        <div className="space-y-1 max-h-72 overflow-y-auto">
-          {filteredLog.map((entry, i) => (
-            <div key={i} className="flex items-center gap-3 py-1.5 px-2 rounded hover:bg-zinc-800/30 text-[11px]">
-              <span className={`w-4 text-center ${entry.allowed ? 'text-emerald-400' : 'text-red-400'}`}>
-                {entry.allowed ? '✓' : '✗'}
-              </span>
-              <span className="text-zinc-500 font-mono w-28 shrink-0">{formatTime(entry.timestamp)}</span>
-              <span className="text-zinc-400 w-40 shrink-0 truncate">{entry.pluginId}</span>
-              <Badge className={highRiskPerms.includes(entry.permission)
-                ? 'bg-orange-500/10 text-orange-400 border-orange-500/20'
-                : 'bg-zinc-800 text-zinc-400 border-zinc-700'
-              }>
-                {entry.permission}
-              </Badge>
-              <span className="text-zinc-500 truncate">{entry.action}</span>
-            </div>
-          ))}
-        </div>
+        {auditLoading ? (
+          <LoadingSpinner text="加载审计日志..." />
+        ) : auditError ? (
+          <ErrorBanner message={auditError.message} onRetry={() => refetchAudit()} />
+        ) : (
+          <div className="space-y-1 max-h-72 overflow-y-auto">
+            {auditEntries.map((entry: any, i: number) => (
+              <div key={i} className="flex items-center gap-3 py-1.5 px-2 rounded hover:bg-zinc-800/30 text-[11px]">
+                <span className={`w-4 text-center ${entry.allowed ? 'text-emerald-400' : 'text-red-400'}`}>
+                  {entry.allowed ? '✓' : '✗'}
+                </span>
+                <span className="text-zinc-500 font-mono w-28 shrink-0">{formatTime(entry.timestamp)}</span>
+                <span className="text-zinc-400 w-40 shrink-0 truncate">{entry.pluginId}</span>
+                <Badge className={highRiskPerms.includes(entry.permission)
+                  ? 'bg-orange-500/10 text-orange-400 border-orange-500/20'
+                  : 'bg-zinc-800 text-zinc-400 border-zinc-700'
+                }>
+                  {entry.permission}
+                </Badge>
+                <span className="text-zinc-500 truncate">{entry.action}</span>
+              </div>
+            ))}
+            {auditEntries.length === 0 && (
+              <div className="text-center text-zinc-600 py-4 text-sm">暂无审计记录</div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -701,6 +627,17 @@ function PermissionsTab() {
 // ==================== Tab: 资源监控 ====================
 
 function ResourcesTab() {
+  const { data: sandboxes, isLoading: sandboxLoading, error: sandboxError, refetch } = trpc.plugin.getSandboxStatus.useQuery();
+  const { data: resourcePresets, isLoading: presetsLoading } = trpc.plugin.getResourcePresets.useQuery();
+
+  if (sandboxLoading) return <LoadingSpinner />;
+  if (sandboxError) return <ErrorBanner message={sandboxError.message} onRetry={() => refetch()} />;
+
+  const sandboxList = (sandboxes ?? []) as any[];
+  const presets = (resourcePresets ?? []) as any[];
+
+  const maxExec = Math.max(1, ...sandboxList.map((s: any) => s.resources?.totalExecutions || 0));
+
   return (
     <div className="space-y-6">
       {/* 资源使用排行 */}
@@ -709,12 +646,12 @@ function ResourcesTab() {
         <div className="bg-zinc-900/60 border border-zinc-800 rounded-lg p-4">
           <h3 className="text-sm font-semibold text-zinc-300 mb-3">💾 内存使用排行</h3>
           <div className="space-y-3">
-            {[...mockSandboxes]
-              .sort((a, b) => (b.resources?.memoryUsedMB || 0) - (a.resources?.memoryUsedMB || 0))
-              .map(sandbox => (
+            {[...sandboxList]
+              .sort((a: any, b: any) => (b.resources?.memoryUsedMB || 0) - (a.resources?.memoryUsedMB || 0))
+              .map((sandbox: any) => (
                 <div key={sandbox.pluginId}>
                   <div className="flex items-center justify-between text-[11px] mb-1">
-                    <span className="text-zinc-300">{sandbox.manifest.name}</span>
+                    <span className="text-zinc-300">{sandbox.manifest?.name || sandbox.pluginId}</span>
                     <span className="font-mono text-zinc-400">{formatMemory(sandbox.resources?.memoryUsedMB || 0)}</span>
                   </div>
                   <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
@@ -725,6 +662,7 @@ function ResourcesTab() {
                   </div>
                 </div>
               ))}
+            {sandboxList.length === 0 && <div className="text-center text-zinc-600 py-4 text-sm">暂无数据</div>}
           </div>
         </div>
 
@@ -732,25 +670,23 @@ function ResourcesTab() {
         <div className="bg-zinc-900/60 border border-zinc-800 rounded-lg p-4">
           <h3 className="text-sm font-semibold text-zinc-300 mb-3">⚡ 执行次数排行</h3>
           <div className="space-y-3">
-            {[...mockSandboxes]
-              .sort((a, b) => (b.resources?.totalExecutions || 0) - (a.resources?.totalExecutions || 0))
-              .map(sandbox => {
-                const maxExec = Math.max(...mockSandboxes.map(s => s.resources?.totalExecutions || 0));
-                return (
-                  <div key={sandbox.pluginId}>
-                    <div className="flex items-center justify-between text-[11px] mb-1">
-                      <span className="text-zinc-300">{sandbox.manifest.name}</span>
-                      <span className="font-mono text-zinc-400">{(sandbox.resources?.totalExecutions || 0).toLocaleString()}</span>
-                    </div>
-                    <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-blue-500 rounded-full transition-all"
-                        style={{ width: `${((sandbox.resources?.totalExecutions || 0) / maxExec) * 100}%` }}
-                      />
-                    </div>
+            {[...sandboxList]
+              .sort((a: any, b: any) => (b.resources?.totalExecutions || 0) - (a.resources?.totalExecutions || 0))
+              .map((sandbox: any) => (
+                <div key={sandbox.pluginId}>
+                  <div className="flex items-center justify-between text-[11px] mb-1">
+                    <span className="text-zinc-300">{sandbox.manifest?.name || sandbox.pluginId}</span>
+                    <span className="font-mono text-zinc-400">{(sandbox.resources?.totalExecutions || 0).toLocaleString()}</span>
                   </div>
-                );
-              })}
+                  <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-blue-500 rounded-full transition-all"
+                      style={{ width: `${((sandbox.resources?.totalExecutions || 0) / maxExec) * 100}%` }}
+                    />
+                  </div>
+                </div>
+              ))}
+            {sandboxList.length === 0 && <div className="text-center text-zinc-600 py-4 text-sm">暂无数据</div>}
           </div>
         </div>
       </div>
@@ -773,16 +709,16 @@ function ResourcesTab() {
               </tr>
             </thead>
             <tbody>
-              {mockSandboxes.map(sandbox => (
+              {sandboxList.map((sandbox: any) => (
                 <tr key={sandbox.pluginId} className="border-b border-zinc-800/50 hover:bg-zinc-800/30">
                   <td className="py-2 px-2">
                     <div className="flex items-center gap-2">
-                      <span>{typeIcons[sandbox.manifest.type]}</span>
-                      <span className="text-zinc-300">{sandbox.manifest.name}</span>
+                      <span>{typeIcons[sandbox.manifest?.type] || '🧩'}</span>
+                      <span className="text-zinc-300">{sandbox.manifest?.name || sandbox.pluginId}</span>
                     </div>
                   </td>
                   <td className={`text-right py-2 px-2 font-mono ${(sandbox.resources?.memoryUsedMB || 0) > 200 ? 'text-red-400' : 'text-zinc-300'}`}>
-                    {sandbox.resources?.memoryUsedMB.toFixed(1) || '—'}
+                    {sandbox.resources?.memoryUsedMB?.toFixed(1) || '—'}
                   </td>
                   <td className="text-right py-2 px-2 font-mono text-zinc-300">
                     {sandbox.resources ? (sandbox.resources.cpuTimeMs / 1000).toFixed(1) : '—'}
@@ -791,7 +727,7 @@ function ResourcesTab() {
                     {sandbox.resources?.activeExecutions || 0}
                   </td>
                   <td className="text-right py-2 px-2 font-mono text-zinc-300">
-                    {sandbox.resources?.totalExecutions.toLocaleString() || '—'}
+                    {sandbox.resources?.totalExecutions?.toLocaleString() || '—'}
                   </td>
                   <td className="text-right py-2 px-2 font-mono text-zinc-300">
                     {sandbox.resources?.networkRequestsThisMin || 0}
@@ -800,7 +736,7 @@ function ResourcesTab() {
                     {sandbox.resources?.eventsThisMin || 0}
                   </td>
                   <td className="text-center py-2 px-2">
-                    <Badge className={stateColors[sandbox.state]}>{sandbox.state}</Badge>
+                    <Badge className={stateColors[sandbox.state] || stateColors.idle}>{sandbox.state}</Badge>
                   </td>
                 </tr>
               ))}
@@ -812,24 +748,40 @@ function ResourcesTab() {
       {/* 资源限制预设 */}
       <div className="bg-zinc-900/60 border border-zinc-800 rounded-lg p-4">
         <h3 className="text-sm font-semibold text-zinc-300 mb-3">⚙️ 资源限制预设</h3>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-          {[
-            { name: 'minimal', label: '最小', mem: 32, cpu: 1, timeout: 5, conc: 1, color: 'border-zinc-600' },
-            { name: 'standard', label: '标准', mem: 128, cpu: 5, timeout: 30, conc: 3, color: 'border-cyan-500/30' },
-            { name: 'performance', label: '高性能', mem: 512, cpu: 30, timeout: 120, conc: 10, color: 'border-amber-500/30' },
-            { name: 'unlimited', label: '无限制', mem: 2048, cpu: 0, timeout: 0, conc: 50, color: 'border-red-500/30' },
-          ].map(preset => (
-            <div key={preset.name} className={`bg-zinc-950 border ${preset.color} rounded-lg p-3`}>
-              <div className="text-sm font-semibold text-zinc-300 mb-2">{preset.label}</div>
-              <div className="space-y-1 text-[11px] text-zinc-400">
-                <div className="flex justify-between"><span>内存</span><span className="font-mono">{preset.mem} MB</span></div>
-                <div className="flex justify-between"><span>CPU 时间</span><span className="font-mono">{preset.cpu || '∞'}s</span></div>
-                <div className="flex justify-between"><span>超时</span><span className="font-mono">{preset.timeout || '∞'}s</span></div>
-                <div className="flex justify-between"><span>并发</span><span className="font-mono">{preset.conc}</span></div>
-              </div>
-            </div>
-          ))}
-        </div>
+        {presetsLoading ? (
+          <LoadingSpinner text="加载预设..." />
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+            {presets.map((preset: any) => {
+              const colorMap: Record<string, string> = {
+                minimal: 'border-zinc-600',
+                standard: 'border-cyan-500/30',
+                performance: 'border-amber-500/30',
+                unlimited: 'border-red-500/30',
+              };
+              const labelMap: Record<string, string> = {
+                minimal: '最小',
+                standard: '标准',
+                performance: '高性能',
+                unlimited: '无限制',
+              };
+              return (
+                <div key={preset.name} className={`bg-zinc-950 border ${colorMap[preset.name] || 'border-zinc-600'} rounded-lg p-3`}>
+                  <div className="text-sm font-semibold text-zinc-300 mb-2">{labelMap[preset.name] || preset.name}</div>
+                  <div className="space-y-1 text-[11px] text-zinc-400">
+                    <div className="flex justify-between"><span>内存</span><span className="font-mono">{preset.maxMemoryMB || preset.mem || '?'} MB</span></div>
+                    <div className="flex justify-between"><span>CPU 时间</span><span className="font-mono">{preset.maxCpuTimeSeconds || preset.cpu || '∞'}s</span></div>
+                    <div className="flex justify-between"><span>超时</span><span className="font-mono">{preset.executionTimeoutMs ? preset.executionTimeoutMs / 1000 : '∞'}s</span></div>
+                    <div className="flex justify-between"><span>并发</span><span className="font-mono">{preset.maxConcurrentExecutions || preset.conc || '?'}</span></div>
+                  </div>
+                </div>
+              );
+            })}
+            {presets.length === 0 && (
+              <div className="col-span-full text-center text-zinc-600 py-4 text-sm">暂无预设配置</div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -838,37 +790,65 @@ function ResourcesTab() {
 // ==================== Tab: 安全事件 ====================
 
 function SecurityEventsTab() {
+  const utils = trpc.useUtils();
   const [filterSeverity, setFilterSeverity] = useState<string>('all');
   const [filterResolved, setFilterResolved] = useState<string>('all');
 
-  const filteredEvents = useMemo(() => {
-    let events = mockSecurityEvents;
-    if (filterSeverity !== 'all') events = events.filter(e => e.severity === filterSeverity);
-    if (filterResolved === 'unresolved') events = events.filter(e => !e.resolved);
-    if (filterResolved === 'resolved') events = events.filter(e => e.resolved);
-    return events;
-  }, [filterSeverity, filterResolved]);
+  const { data: securityEvents, isLoading: eventsLoading, error: eventsError, refetch: refetchEvents } = trpc.plugin.getSecurityEvents.useQuery({
+    severity: filterSeverity !== 'all' ? filterSeverity as any : undefined,
+    resolved: filterResolved === 'all' ? undefined : filterResolved === 'resolved',
+  });
+
+  const { data: securityStats } = trpc.plugin.getSecurityStats.useQuery();
+  const { data: dashboard } = trpc.plugin.getSecurityDashboard.useQuery();
+
+  const resolveMut = trpc.plugin.resolveSecurityEvent.useMutation({
+    onSuccess: () => {
+      utils.plugin.getSecurityEvents.invalidate();
+      utils.plugin.getSecurityStats.invalidate();
+      utils.plugin.getSecurityDashboard.invalidate();
+    },
+  });
+
+  const resetBreakerMut = trpc.plugin.resetCircuitBreaker.useMutation({
+    onSuccess: () => {
+      utils.plugin.getSandboxStatus.invalidate();
+      utils.plugin.getSecurityStats.invalidate();
+      utils.plugin.getSecurityDashboard.invalidate();
+      utils.plugin.getSecurityEvents.invalidate();
+    },
+  });
+
+  const eventsList = (securityEvents ?? []) as any[];
+  const circuitBreakers = dashboard?.circuitBreakers ?? [];
+
+  // Stats from backend or computed from events
+  const totalEvents = securityStats?.total ?? eventsList.length;
+  const unresolvedCount = securityStats?.unresolved ?? eventsList.filter((e: any) => !e.resolved).length;
+  const criticalCount = securityStats?.bySeverity?.critical ?? eventsList.filter((e: any) => e.severity === 'critical').length;
+  const highCount = securityStats?.bySeverity?.high ?? eventsList.filter((e: any) => e.severity === 'high').length;
+  const mediumCount = securityStats?.bySeverity?.medium ?? eventsList.filter((e: any) => e.severity === 'medium').length;
 
   return (
     <div className="space-y-6">
       {/* 安全统计 */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        <StatCard label="总事件" value={mockSecurityEvents.length} />
-        <StatCard label="未解决" value={mockSecurityEvents.filter(e => !e.resolved).length} color="text-orange-400" />
-        <StatCard label="严重" value={mockSecurityEvents.filter(e => e.severity === 'critical').length} color="text-red-400" />
-        <StatCard label="高危" value={mockSecurityEvents.filter(e => e.severity === 'high').length} color="text-orange-400" />
-        <StatCard label="中等" value={mockSecurityEvents.filter(e => e.severity === 'medium').length} color="text-amber-400" />
+        <StatCard label="总事件" value={totalEvents} />
+        <StatCard label="未解决" value={unresolvedCount} color="text-orange-400" />
+        <StatCard label="严重" value={criticalCount} color="text-red-400" />
+        <StatCard label="高危" value={highCount} color="text-orange-400" />
+        <StatCard label="中等" value={mediumCount} color="text-amber-400" />
       </div>
 
       {/* 熔断器状态 */}
       <div className="bg-zinc-900/60 border border-zinc-800 rounded-lg p-4">
         <h3 className="text-sm font-semibold text-zinc-300 mb-3">⚡ 熔断器状态</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-          {mockCircuitBreakers.map(cb => (
+          {circuitBreakers.map((cb: any) => (
             <div key={cb.pluginId} className="bg-zinc-950 border border-zinc-800 rounded-lg p-3">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-zinc-300">{cb.pluginId.split('.').pop()}</span>
-                <Badge className={cbStateColors[cb.state]}>{cb.state}</Badge>
+                <span className="text-sm text-zinc-300">{cb.pluginId?.split('.').pop() || cb.pluginId}</span>
+                <Badge className={cbStateColors[cb.state] || cbStateColors.closed}>{cb.state}</Badge>
               </div>
               <div className="space-y-1 text-[11px] text-zinc-400">
                 <div className="flex justify-between">
@@ -883,16 +863,23 @@ function SecurityEventsTab() {
                 )}
                 <div className="flex justify-between">
                   <span>冷却时间</span>
-                  <span className="font-mono">{cb.cooldownMs / 1000}s</span>
+                  <span className="font-mono">{(cb.cooldownMs || 60000) / 1000}s</span>
                 </div>
               </div>
               {(cb.state === 'open' || cb.state === 'half-open') && (
-                <button className="mt-2 w-full px-2 py-1 text-[11px] bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 rounded hover:bg-cyan-500/20 transition-colors">
-                  手动重置
+                <button
+                  onClick={() => resetBreakerMut.mutate({ pluginId: cb.pluginId })}
+                  disabled={resetBreakerMut.isPending}
+                  className="mt-2 w-full px-2 py-1 text-[11px] bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 rounded hover:bg-cyan-500/20 transition-colors disabled:opacity-50"
+                >
+                  {resetBreakerMut.isPending ? '重置中...' : '手动重置'}
                 </button>
               )}
             </div>
           ))}
+          {circuitBreakers.length === 0 && (
+            <div className="col-span-full text-center text-zinc-600 py-4 text-sm">暂无熔断器数据</div>
+          )}
         </div>
       </div>
 
@@ -923,32 +910,45 @@ function SecurityEventsTab() {
             </select>
           </div>
         </div>
-        <div className="space-y-2">
-          {filteredEvents.map(event => (
-            <div key={event.id} className={`flex items-start gap-3 p-3 rounded-lg border ${event.resolved ? 'bg-zinc-950/50 border-zinc-800/50' : 'bg-zinc-900/80 border-zinc-700'}`}>
-              <Badge className={severityColors[event.severity]}>{event.severity}</Badge>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 text-[11px]">
-                  <span className="text-zinc-400 font-mono">{formatTime(event.timestamp)}</span>
-                  <span className="text-zinc-500">{event.pluginId}</span>
-                  <Badge className="bg-zinc-800 text-zinc-400 border-zinc-700">{event.type}</Badge>
+        {eventsLoading ? (
+          <LoadingSpinner text="加载安全事件..." />
+        ) : eventsError ? (
+          <ErrorBanner message={eventsError.message} onRetry={() => refetchEvents()} />
+        ) : (
+          <div className="space-y-2">
+            {eventsList.map((event: any) => (
+              <div key={event.id} className={`flex items-start gap-3 p-3 rounded-lg border ${event.resolved ? 'bg-zinc-950/50 border-zinc-800/50' : 'bg-zinc-900/80 border-zinc-700'}`}>
+                <Badge className={severityColors[event.severity] || ''}>{event.severity}</Badge>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 text-[11px]">
+                    <span className="text-zinc-400 font-mono">{formatTime(event.timestamp)}</span>
+                    <span className="text-zinc-500">{event.pluginId}</span>
+                    <Badge className="bg-zinc-800 text-zinc-400 border-zinc-700">{event.type}</Badge>
+                  </div>
+                  <div className={`text-[12px] mt-1 ${event.resolved ? 'text-zinc-500' : 'text-zinc-300'}`}>
+                    {event.description}
+                  </div>
                 </div>
-                <div className={`text-[12px] mt-1 ${event.resolved ? 'text-zinc-500' : 'text-zinc-300'}`}>
-                  {event.description}
+                <div className="flex items-center gap-2 shrink-0">
+                  {event.resolved ? (
+                    <span className="text-[11px] text-emerald-500">✓ 已解决</span>
+                  ) : (
+                    <button
+                      onClick={() => resolveMut.mutate({ eventId: event.id })}
+                      disabled={resolveMut.isPending}
+                      className="px-2 py-1 text-[11px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 rounded hover:bg-emerald-500/20 transition-colors disabled:opacity-50"
+                    >
+                      {resolveMut.isPending ? '处理中...' : '标记解决'}
+                    </button>
+                  )}
                 </div>
               </div>
-              <div className="flex items-center gap-2 shrink-0">
-                {event.resolved ? (
-                  <span className="text-[11px] text-emerald-500">✓ 已解决</span>
-                ) : (
-                  <button className="px-2 py-1 text-[11px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 rounded hover:bg-emerald-500/20 transition-colors">
-                    标记解决
-                  </button>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+            {eventsList.length === 0 && (
+              <div className="text-center text-zinc-600 py-4 text-sm">暂无安全事件</div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -957,37 +957,126 @@ function SecurityEventsTab() {
 // ==================== Tab: 受信任签名者 ====================
 
 function SignersTab() {
+  const utils = trpc.useUtils();
+  const { data: signers, isLoading, error, refetch } = trpc.plugin.listTrustedSigners.useQuery();
+
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newSignerName, setNewSignerName] = useState('');
+  const [newSignerKey, setNewSignerKey] = useState('');
+
+  const addSignerMut = trpc.plugin.addTrustedSigner.useMutation({
+    onSuccess: () => {
+      utils.plugin.listTrustedSigners.invalidate();
+      setShowAddForm(false);
+      setNewSignerName('');
+      setNewSignerKey('');
+    },
+  });
+
+  const removeSignerMut = trpc.plugin.removeTrustedSigner.useMutation({
+    onSuccess: () => {
+      utils.plugin.listTrustedSigners.invalidate();
+    },
+  });
+
+  const signersList = (signers ?? []) as any[];
+
   return (
     <div className="space-y-6">
       <div className="bg-zinc-900/60 border border-zinc-800 rounded-lg p-4">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-sm font-semibold text-zinc-300">🔑 受信任签名者</h3>
-          <button className="px-3 py-1.5 text-[12px] bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 rounded hover:bg-cyan-500/20 transition-colors">
+          <button
+            onClick={() => setShowAddForm(!showAddForm)}
+            className="px-3 py-1.5 text-[12px] bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 rounded hover:bg-cyan-500/20 transition-colors"
+          >
             + 添加签名者
           </button>
         </div>
-        <div className="space-y-3">
-          {mockSigners.map(signer => (
-            <div key={signer.id} className="bg-zinc-950 border border-zinc-800 rounded-lg p-4">
-              <div className="flex items-start justify-between">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-zinc-200">{signer.name}</span>
-                    <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/30">受信任</Badge>
-                  </div>
-                  <div className="mt-1 space-y-1 text-[11px] text-zinc-400">
-                    <div>指纹: <span className="font-mono text-zinc-300">{signer.fingerprint}</span></div>
-                    <div>添加时间: {formatTime(signer.addedAt)}</div>
-                    <div>添加者: {signer.addedBy}</div>
-                  </div>
-                </div>
-                <button className="px-2 py-1 text-[11px] bg-red-500/10 text-red-400 border border-red-500/30 rounded hover:bg-red-500/20 transition-colors">
-                  移除
-                </button>
-              </div>
+
+        {/* 添加签名者表单 */}
+        {showAddForm && (
+          <div className="mb-4 p-3 bg-zinc-950 border border-zinc-700 rounded-lg space-y-3">
+            <div>
+              <label className="block text-[11px] text-zinc-500 mb-1">签名者名称</label>
+              <input
+                type="text"
+                value={newSignerName}
+                onChange={(e) => setNewSignerName(e.target.value)}
+                placeholder="例如: 西联官方签名"
+                className="w-full px-3 py-1.5 text-[12px] bg-zinc-900 border border-zinc-700 rounded text-zinc-300 focus:outline-none focus:border-cyan-500/50"
+              />
             </div>
-          ))}
-        </div>
+            <div>
+              <label className="block text-[11px] text-zinc-500 mb-1">公钥 (PEM)</label>
+              <textarea
+                value={newSignerKey}
+                onChange={(e) => setNewSignerKey(e.target.value)}
+                placeholder="-----BEGIN PUBLIC KEY-----..."
+                rows={4}
+                className="w-full px-3 py-1.5 text-[12px] bg-zinc-900 border border-zinc-700 rounded text-zinc-300 font-mono resize-none focus:outline-none focus:border-cyan-500/50"
+              />
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  if (newSignerName && newSignerKey) {
+                    addSignerMut.mutate({ name: newSignerName, publicKeyPem: newSignerKey, addedBy: 'admin' });
+                  }
+                }}
+                disabled={addSignerMut.isPending || !newSignerName || !newSignerKey}
+                className="px-3 py-1.5 text-[12px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 rounded hover:bg-emerald-500/20 transition-colors disabled:opacity-50"
+              >
+                {addSignerMut.isPending ? '添加中...' : '确认添加'}
+              </button>
+              <button
+                onClick={() => setShowAddForm(false)}
+                className="px-3 py-1.5 text-[12px] bg-zinc-800 text-zinc-400 border border-zinc-700 rounded hover:bg-zinc-700 transition-colors"
+              >
+                取消
+              </button>
+            </div>
+            {addSignerMut.error && (
+              <div className="text-[11px] text-red-400">添加失败: {addSignerMut.error.message}</div>
+            )}
+          </div>
+        )}
+
+        {isLoading ? (
+          <LoadingSpinner text="加载签名者列表..." />
+        ) : error ? (
+          <ErrorBanner message={error.message} onRetry={() => refetch()} />
+        ) : (
+          <div className="space-y-3">
+            {signersList.map((signer: any) => (
+              <div key={signer.id} className="bg-zinc-950 border border-zinc-800 rounded-lg p-4">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-zinc-200">{signer.name}</span>
+                      <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/30">受信任</Badge>
+                    </div>
+                    <div className="mt-1 space-y-1 text-[11px] text-zinc-400">
+                      <div>指纹: <span className="font-mono text-zinc-300">{signer.fingerprint}</span></div>
+                      <div>添加时间: {formatTime(signer.addedAt)}</div>
+                      <div>添加者: {signer.addedBy}</div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => removeSignerMut.mutate({ id: signer.id })}
+                    disabled={removeSignerMut.isPending}
+                    className="px-2 py-1 text-[11px] bg-red-500/10 text-red-400 border border-red-500/30 rounded hover:bg-red-500/20 transition-colors disabled:opacity-50"
+                  >
+                    {removeSignerMut.isPending ? '移除中...' : '移除'}
+                  </button>
+                </div>
+              </div>
+            ))}
+            {signersList.length === 0 && (
+              <div className="text-center text-zinc-600 py-8 text-sm">暂无受信任签名者</div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* 签名验证说明 */}
@@ -1030,6 +1119,13 @@ const tabs: { id: TabId; label: string; icon: string }[] = [
 
 export default function PluginSandboxManager() {
   const [activeTab, setActiveTab] = useState<TabId>('overview');
+  const { data: sandboxes } = trpc.plugin.getSandboxStatus.useQuery();
+  const { data: securityEvents } = trpc.plugin.getSecurityEvents.useQuery({});
+
+  const sandboxList = (sandboxes ?? []) as any[];
+  const eventsList = (securityEvents ?? []) as any[];
+  const runningCount = sandboxList.filter((s: any) => s.state === 'running').length;
+  const unresolvedCount = eventsList.filter((e: any) => !e.resolved).length;
 
   return (
     <MainLayout title="插件安全沙箱">
@@ -1045,13 +1141,13 @@ export default function PluginSandboxManager() {
           </div>
           <div className="flex items-center gap-2">
             <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/30">
-              {mockSandboxes.filter(s => s.state === 'running').length} 运行中
+              {runningCount} 运行中
             </Badge>
-            <Badge className={mockSecurityEvents.filter(e => !e.resolved).length > 0
+            <Badge className={unresolvedCount > 0
               ? 'bg-orange-500/15 text-orange-400 border-orange-500/30'
               : 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
             }>
-              {mockSecurityEvents.filter(e => !e.resolved).length} 未解决事件
+              {unresolvedCount} 未解决事件
             </Badge>
           </div>
         </div>

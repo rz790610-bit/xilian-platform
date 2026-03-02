@@ -532,7 +532,7 @@ export class GatewayKafkaBridge {
         device_code: msg.device_code,
         mp_code: msg.mp_code,
         gateway_id: gatewayId,
-        timestamp: msg.timestamp || Date.now(),
+        timestamp: typeof msg.timestamp === 'number' ? msg.timestamp : Date.now(),
         data_type: msg.data_type,
         sample_rate: msg.sample_rate,
         value: msg.value,

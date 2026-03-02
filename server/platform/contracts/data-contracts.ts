@@ -85,14 +85,18 @@ export interface SensorDataRawPayload {
   machineId: string;
   /** 测量值列表 */
   measurements: SensorMeasurement[];
-  /** 采样率（Hz） */
-  samplingRate: number;
-  /** 编码方式 */
-  encoding: 'raw' | 'compressed' | 'delta' | 'fft';
-  /** 数据质量综合评分 0-1 */
-  qualityScore: number;
-  /** 批次大小 */
-  batchSize: number;
+  /** 采样率（Hz）(FIX-017: optional for streamed data) */
+  samplingRate?: number;
+  /** 编码方式 (FIX-017: optional, defaults to 'raw') */
+  encoding?: 'raw' | 'compressed' | 'delta' | 'fft';
+  /** 数据质量综合评分 0-1 (FIX-017: optional) */
+  qualityScore?: number;
+  /** 批次大小 (FIX-017: optional) */
+  batchSize?: number;
+  /** FIX-018: 设备编码（实际协议适配器传递） */
+  deviceCode?: string;
+  /** FIX-018: 数据源协议 */
+  protocol?: string;
 }
 
 /** 周期聚合特征 */
@@ -159,18 +163,24 @@ export interface UnifiedStateVectorPayload {
   machineId: string;
   /** 时间戳 */
   timestamp: number;
-  /** 工况 ID */
-  conditionId: string;
-  /** 周期阶段 */
-  cyclePhase: 'idleUp' | 'idleDown' | 'loadedUp' | 'loadedDown' | 'loadedTraverse' | 'lockUnlock' | 'idle' | string;
+  /** 工况 ID (FIX-017: optional) */
+  conditionId?: string;
+  /** 周期阶段 (FIX-017: optional) */
+  cyclePhase?: 'idleUp' | 'idleDown' | 'loadedUp' | 'loadedDown' | 'loadedTraverse' | 'lockUnlock' | 'idle' | string;
   /** 周期聚合特征 */
-  features: CycleAggregateFeatures;
-  /** 不确定性因素 */
-  uncertainty: UncertaintyFactors;
-  /** 累积指标 */
-  cumulative: CumulativeMetrics;
-  /** 状态向量版本 */
-  vectorVersion: string;
+  features?: CycleAggregateFeatures;
+  /** FIX-019: 维度数据（pipeline-orchestrator 实际使用此字段） */
+  dimensions?: Record<string, number>;
+  /** 不确定性因素 (FIX-017: optional) */
+  uncertainty?: UncertaintyFactors;
+  /** 累积指标 (FIX-017: optional) */
+  cumulative?: CumulativeMetrics;
+  /** 状态向量版本 (FIX-017: optional) */
+  vectorVersion?: string;
+  /** FIX-019: 数据质量评分（pipeline-orchestrator 实际传递） */
+  qualityScore?: number;
+  /** FIX-019: 融合结果（pipeline-orchestrator 实际传递） */
+  fusion?: Record<string, unknown>;
 }
 
 /** 工况切换事件载荷 */
@@ -207,6 +217,10 @@ export interface CognitionSessionStartedPayload {
   conditionId?: string;
   /** 优先级 */
   priority: 'critical' | 'high' | 'normal';
+  /** FIX-018: 触发源事件 ID（实际代码中传递但契约未定义） */
+  sourceEventId?: string;
+  /** FIX-018: 设备类型（实际代码用于工况关联） */
+  equipmentType?: string;
 }
 
 /** 四维处理结果事件载荷 */
@@ -275,10 +289,10 @@ export interface DiagnosisReportPayload {
   machineId: string;
   /** 时间戳 */
   timestamp: number;
-  /** 工况 ID */
-  conditionId: string;
-  /** 周期阶段 */
-  cyclePhase: string;
+  /** 工况 ID (FIX-017: 实际代码中可能为空) */
+  conditionId?: string;
+  /** 周期阶段 (FIX-017: 实际代码中可能为空) */
+  cyclePhase?: string;
   /** 安全评分 0-1 (<0.85 触发安全护栏) */
   safetyScore: number;
   /** 健康评分 0-1 */
@@ -287,14 +301,18 @@ export interface DiagnosisReportPayload {
   efficiencyScore: number;
   /** 详细诊断条目 */
   diagnostics: DiagnosticItem[];
-  /** 预测信息 */
-  predictions: PredictionInfo;
+  /** 预测信息 (FIX-017: 实际代码中可能为空) */
+  predictions?: PredictionInfo;
   /** Grok 思考链（自然语言） */
   grokExplanation: string;
-  /** Grok 推理步数 */
+  /** Grok 推理步数 (FIX-017: 兼容 stepsCount 别名) */
   grokReasoningSteps: number;
-  /** 总处理耗时 (ms) */
+  /** 总处理耗时 (ms) (FIX-017: 兼容 durationMs 别名) */
   totalProcessingTimeMs: number;
+  /** FIX-019: 是否使用了降级策略 */
+  fallbackUsed?: boolean;
+  /** FIX-019: 诊断来源 */
+  source?: 'grok' | 'hde' | 'rule' | 'manual';
 }
 
 /** Grok 推理链步骤事件载荷 */
@@ -342,26 +360,30 @@ export interface GuardrailSafetyInterventionPayload {
   machineId: string;
   /** 干预动作 */
   action: GuardrailAction;
-  /** 动作参数（e.g., limitSpeed 的百分比） */
-  actionParams: Record<string, unknown>;
+  /** 动作参数（e.g., limitSpeed 的百分比）(FIX-017: optional) */
+  actionParams?: Record<string, unknown>;
   /** 干预原因 */
   reason: string;
-  /** 触发的规则 ID */
-  ruleId: string;
-  /** 违规详情 */
-  violations: Array<{
-    ruleId: string;
+  /** 触发的规则 ID (FIX-017: 兼容 number 和 string) */
+  ruleId: string | number;
+  /** 违规详情 (FIX-017: optional，部分触发器不提供完整明细) */
+  violations?: Array<{
+    ruleId: string | number;
     condition: string;
     actualValue: number;
     threshold: number;
     severity: 'critical' | 'high' | 'medium';
   }>;
-  /** Grok 解释 */
-  grokExplanation: string;
-  /** 关联的诊断会话 ID */
-  sessionId: string;
+  /** Grok 解释 (FIX-017: optional) */
+  grokExplanation?: string;
+  /** 关联的诊断会话 ID (FIX-017: optional) */
+  sessionId?: string;
   /** 时间戳 */
   timestamp: number;
+  /** FIX-019: 严重程度（实际代码中传递） */
+  severity?: 'critical' | 'high' | 'medium' | 'low';
+  /** FIX-019: 上升级别（实际代码中传递） */
+  escalationLevel?: number;
 }
 
 /** 健康干预事件载荷 */
@@ -420,8 +442,8 @@ export interface EdgeCaseDiscoveredPayload {
   caseId: string;
   /** 案例类型 */
   caseType: 'false_positive' | 'false_negative' | 'extreme_condition' | 'distribution_drift' | 'novel_pattern';
-  /** 数据时间范围 */
-  dataRange: { start: number; end: number };
+  /** 数据时间范围 (FIX-017: optional — 事件可能来自实时流无明确范围) */
+  dataRange?: { start: number; end: number };
   /** 异常评分 0-1 */
   anomalyScore: number;
   /** 关联的设备 ID 列表 */
@@ -430,6 +452,10 @@ export interface EdgeCaseDiscoveredPayload {
   description: string;
   /** 发现时间 */
   discoveredAt: number;
+  /** FIX-018: 关联的诊断会话 ID */
+  sessionId?: string;
+  /** FIX-018: 严重程度 */
+  severity?: 'critical' | 'high' | 'medium' | 'low';
 }
 
 /** 模型更新事件载荷 */

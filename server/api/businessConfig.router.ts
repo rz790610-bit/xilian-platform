@@ -27,4 +27,28 @@ export const businessConfigRouter = router({
       options: z.record(z.string(), z.unknown()).optional(),
     }))
     .mutation(({ input }) => service.generateConfig(input.deviceType, input.scenario, input.options)),
+
+  /** 保存生成的配置到数据库 */
+  saveConfig: protectedProcedure
+    .input(z.object({
+      deviceType: z.string().min(1),
+      scenario: z.string().min(1),
+      pipeline: z.any(),
+      kg: z.any(),
+      database: z.any(),
+      orchestration: z.any(),
+    }))
+    .mutation(({ input, ctx }) => {
+      const userId = (ctx as any).user?.id as number | undefined;
+      return service.saveConfig(input as any, userId);
+    }),
+
+  /** 查询已保存的配置列表 */
+  getSavedConfigs: protectedProcedure
+    .query(() => service.getSavedConfigs()),
+
+  /** 根据 ID 获取完整配置详情 */
+  getSavedConfigById: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .query(({ input }) => service.getSavedConfigById(input.id)),
 });

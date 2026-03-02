@@ -1,0 +1,1530 @@
+{
+  "timestamp": "2026-03-02T02:59:49.317Z",
+  "total": 143,
+  "fixed": 28,
+  "partial": 4,
+  "open": 111,
+  "completionRate": "19.6",
+  "bySeverity": {
+    "致命": {
+      "total": 18,
+      "fixed": 10
+    },
+    "严重": {
+      "total": 47,
+      "fixed": 9
+    },
+    "中等": {
+      "total": 54,
+      "fixed": 7
+    },
+    "低": {
+      "total": 24,
+      "fixed": 2
+    }
+  },
+  "byCategory": {
+    "A-命名": {
+      "total": 15,
+      "fixed": 3
+    },
+    "B-契约": {
+      "total": 31,
+      "fixed": 5
+    },
+    "C-类型": {
+      "total": 15,
+      "fixed": 1
+    },
+    "D-Stub": {
+      "total": 20,
+      "fixed": 10
+    },
+    "E-算法": {
+      "total": 8,
+      "fixed": 0
+    },
+    "F-流程": {
+      "total": 10,
+      "fixed": 3
+    },
+    "G-配置": {
+      "total": 11,
+      "fixed": 4
+    },
+    "H-前端": {
+      "total": 8,
+      "fixed": 0
+    },
+    "I-架构": {
+      "total": 15,
+      "fixed": 1
+    },
+    "J-测试": {
+      "total": 10,
+      "fixed": 1
+    }
+  },
+  "items": [
+    {
+      "id": "FIX-001",
+      "description": "设备ID四种命名混用",
+      "severity": "致命",
+      "category": "A-命名",
+      "status": "open",
+      "method": "代码扫描 deviceId 残留",
+      "files": [
+        "server/domains/evolution/deep-ai.router.ts",
+        "server/platform/knowledge/__tests__/kg-condition-case.test.ts",
+        "server/platform/knowledge/seed-data/neo4j-seed-runner.ts",
+        "server/platform/knowledge/seed-data/kg-condition-case-seed.ts",
+        "server/platform/evolution/shadow/shadow-fleet-manager.ts"
+      ],
+      "detail": "deviceId 残留 160 处"
+    },
+    {
+      "id": "FIX-002",
+      "description": "Severity枚举三套定义",
+      "severity": "致命",
+      "category": "A-命名",
+      "status": "fixed",
+      "method": "统一枚举检查",
+      "files": [
+        "shared/contracts/v1/base.ts"
+      ]
+    },
+    {
+      "id": "FIX-003",
+      "description": "时间戳类型混用",
+      "severity": "严重",
+      "category": "A-命名",
+      "status": "partial",
+      "method": "统一类型检查",
+      "files": [
+        "shared/contracts/v1/base.ts"
+      ],
+      "detail": "类型定义存在，全量迁移未完成"
+    },
+    {
+      "id": "FIX-004",
+      "description": "DiagnosisConclusion两套定义",
+      "severity": "严重",
+      "category": "A-命名",
+      "status": "fixed",
+      "method": "统一契约检查",
+      "files": [
+        "shared/contracts/v1/diagnosis.contract.ts"
+      ]
+    },
+    {
+      "id": "FIX-005",
+      "description": "UrgencyLevel三套定义",
+      "severity": "严重",
+      "category": "A-命名",
+      "status": "fixed",
+      "method": "统一枚举检查",
+      "files": [
+        "shared/contracts/v1/base.ts"
+      ]
+    },
+    {
+      "id": "FIX-006",
+      "description": "PipelineStatus两套定义",
+      "severity": "中等",
+      "category": "A-命名",
+      "status": "open",
+      "method": "待合并",
+      "files": [
+        "shared/pipelineTypes.ts"
+      ]
+    },
+    {
+      "id": "FIX-007",
+      "description": "MaintenancePriority与UrgencyLevel语义重叠",
+      "severity": "中等",
+      "category": "A-命名",
+      "status": "open",
+      "method": "待合并",
+      "files": []
+    },
+    {
+      "id": "FIX-008",
+      "description": "Kafka消息体snake_case不一致",
+      "severity": "中等",
+      "category": "A-命名",
+      "status": "open",
+      "method": "待统一",
+      "files": [
+        "scripts/sensor-simulator.ts",
+        "scripts/fix-tracker.ts"
+      ]
+    },
+    {
+      "id": "FIX-009",
+      "description": "eventBus.publish()参数重复",
+      "severity": "中等",
+      "category": "A-命名",
+      "status": "open",
+      "method": "待修复",
+      "files": [
+        "server/platform/ai/diagnostic-enhancer/diagnostic-enhancer.ts",
+        "server/platform/events/event-bus.ts",
+        "server/lib/clients/kafkaEventBus.ts"
+      ]
+    },
+    {
+      "id": "FIX-010",
+      "description": "前端equipmentId无映射层",
+      "severity": "严重",
+      "category": "A-命名",
+      "status": "open",
+      "method": "待创建映射",
+      "files": [
+        "client/src/components/digital-twin/SensorChartDialog.tsx",
+        "client/src/components/digital-twin/Twin3DViewer.tsx",
+        "client/src/pages/perception-enhance/PersistencePage.tsx",
+        "client/src/pages/cognitive/DigitalTwinView.tsx",
+        "client/src/pages/cognitive/CognitiveDashboard.tsx"
+      ]
+    },
+    {
+      "id": "FIX-011",
+      "description": "Neo4j deviceId不一致",
+      "severity": "严重",
+      "category": "A-命名",
+      "status": "open",
+      "method": "待统一",
+      "files": []
+    },
+    {
+      "id": "FIX-012",
+      "description": "sensor-simulator snake_case",
+      "severity": "低",
+      "category": "A-命名",
+      "status": "open",
+      "method": "待统一",
+      "files": [
+        "scripts/sensor-simulator.ts"
+      ]
+    },
+    {
+      "id": "FIX-013",
+      "description": "evolution SNAKE_TO_CAMEL映射",
+      "severity": "中等",
+      "category": "A-命名",
+      "status": "open",
+      "method": "待统一",
+      "files": [
+        "shared/evolution-modules.ts"
+      ]
+    },
+    {
+      "id": "FIX-014",
+      "description": "config属性路径命名不一致",
+      "severity": "中等",
+      "category": "A-命名",
+      "status": "open",
+      "method": "待统一",
+      "files": [
+        "server/core/config.ts"
+      ]
+    },
+    {
+      "id": "FIX-015",
+      "description": "metrics snake_case",
+      "severity": "低",
+      "category": "A-命名",
+      "status": "open",
+      "method": "待统一",
+      "files": [
+        "server/platform/middleware/metricsCollector.ts"
+      ]
+    },
+    {
+      "id": "FIX-016",
+      "description": "data-contracts.ts字段名不匹配",
+      "severity": "致命",
+      "category": "B-契约",
+      "status": "open",
+      "method": "契约扫描",
+      "files": [
+        "server/platform/contracts/data-contracts.ts"
+      ]
+    },
+    {
+      "id": "FIX-017",
+      "description": "data-contracts.ts类型不匹配",
+      "severity": "致命",
+      "category": "B-契约",
+      "status": "open",
+      "method": "契约扫描",
+      "files": [
+        "server/platform/contracts/data-contracts.ts"
+      ]
+    },
+    {
+      "id": "FIX-018",
+      "description": "data-contracts.ts字段缺失",
+      "severity": "严重",
+      "category": "B-契约",
+      "status": "open",
+      "method": "契约扫描",
+      "files": [
+        "server/platform/contracts/data-contracts.ts"
+      ]
+    },
+    {
+      "id": "FIX-019",
+      "description": "data-contracts.ts多余字段",
+      "severity": "严重",
+      "category": "B-契约",
+      "status": "open",
+      "method": "契约扫描",
+      "files": [
+        "server/platform/contracts/data-contracts.ts"
+      ]
+    },
+    {
+      "id": "FIX-020",
+      "description": "EventBus publish()不强制Schema校验",
+      "severity": "致命",
+      "category": "B-契约",
+      "status": "fixed",
+      "method": "Schema校验集成检查",
+      "files": [
+        "server/platform/events/event-bus.ts"
+      ]
+    },
+    {
+      "id": "FIX-021",
+      "description": "Schema注册表未被调用",
+      "severity": "严重",
+      "category": "B-契约",
+      "status": "partial",
+      "method": "集成检查",
+      "files": [
+        "server/platform/events/event-bus.ts"
+      ],
+      "detail": "dev模式已集成，prod待强化"
+    },
+    {
+      "id": "FIX-022",
+      "description": "双总线未统一Facade",
+      "severity": "严重",
+      "category": "B-契约",
+      "status": "open",
+      "method": "待创建",
+      "files": []
+    },
+    {
+      "id": "FIX-023",
+      "description": "DLQ无代码写入",
+      "severity": "严重",
+      "category": "B-契约",
+      "status": "open",
+      "method": "待实现",
+      "files": []
+    },
+    {
+      "id": "FIX-024",
+      "description": "Kafka消费者无健康检查",
+      "severity": "严重",
+      "category": "B-契约",
+      "status": "open",
+      "method": "待实现",
+      "files": []
+    },
+    {
+      "id": "FIX-025",
+      "description": "两套DiagnosisConclusion severity不兼容",
+      "severity": "严重",
+      "category": "B-契约",
+      "status": "fixed",
+      "method": "映射函数检查",
+      "files": [
+        "shared/contracts/v1/mappers.ts"
+      ]
+    },
+    {
+      "id": "FIX-026",
+      "description": "SeverityLevel→Severity映射缺失",
+      "severity": "严重",
+      "category": "B-契约",
+      "status": "fixed",
+      "method": "映射函数检查",
+      "files": [
+        "shared/contracts/v1/mappers.ts"
+      ]
+    },
+    {
+      "id": "FIX-027",
+      "description": "AnomalySeverity映射缺失",
+      "severity": "中等",
+      "category": "B-契约",
+      "status": "fixed",
+      "method": "映射函数检查",
+      "files": [
+        "shared/contracts/v1/mappers.ts"
+      ]
+    },
+    {
+      "id": "FIX-028",
+      "description": "tRPC输出0% Zod校验",
+      "severity": "严重",
+      "category": "B-契约",
+      "status": "open",
+      "method": "待实现",
+      "files": []
+    },
+    {
+      "id": "FIX-029",
+      "description": "apiSpec.ts错误码未接入",
+      "severity": "严重",
+      "category": "B-契约",
+      "status": "open",
+      "method": "待实现",
+      "files": []
+    },
+    {
+      "id": "FIX-030",
+      "description": "tRPC无版本前缀",
+      "severity": "中等",
+      "category": "B-契约",
+      "status": "open",
+      "method": "待实现",
+      "files": []
+    },
+    {
+      "id": "FIX-031",
+      "description": "70%路由使用内联Zod schema",
+      "severity": "中等",
+      "category": "B-契约",
+      "status": "open",
+      "method": "待迁移",
+      "files": []
+    },
+    {
+      "id": "FIX-032",
+      "description": "gRPC客户端全部Record<string,unknown>",
+      "severity": "严重",
+      "category": "B-契约",
+      "status": "open",
+      "method": "待生成",
+      "files": [
+        "server/lib/clients/grpcClients.ts"
+      ]
+    },
+    {
+      "id": "FIX-033",
+      "description": "shared/目录类型分散",
+      "severity": "中等",
+      "category": "B-契约",
+      "status": "open",
+      "method": "待整理",
+      "files": []
+    },
+    {
+      "id": "FIX-034",
+      "description": "无@deprecated标注",
+      "severity": "低",
+      "category": "B-契约",
+      "status": "open",
+      "method": "待标注",
+      "files": []
+    },
+    {
+      "id": "FIX-035",
+      "description": "JSON字段timestamp类型不一致",
+      "severity": "中等",
+      "category": "B-契约",
+      "status": "open",
+      "method": "待统一",
+      "files": []
+    },
+    {
+      "id": "FIX-036",
+      "description": "API响应timestamp与Drizzle列不一致",
+      "severity": "中等",
+      "category": "B-契约",
+      "status": "open",
+      "method": "待统一",
+      "files": []
+    },
+    {
+      "id": "FIX-037",
+      "description": "ClickHouse timestamp格式混乱",
+      "severity": "中等",
+      "category": "B-契约",
+      "status": "open",
+      "method": "待统一",
+      "files": []
+    },
+    {
+      "id": "FIX-038",
+      "description": "streamProcessor Date与number混用",
+      "severity": "中等",
+      "category": "B-契约",
+      "status": "open",
+      "method": "待统一",
+      "files": []
+    },
+    {
+      "id": "FIX-039",
+      "description": "feature-extraction timestamp类型混用",
+      "severity": "中等",
+      "category": "B-契约",
+      "status": "open",
+      "method": "待统一",
+      "files": []
+    },
+    {
+      "id": "FIX-040",
+      "description": "shared/contracts/v1/目录未创建",
+      "severity": "严重",
+      "category": "B-契约",
+      "status": "fixed",
+      "method": "目录检查",
+      "files": [
+        "shared/contracts/v1/index.ts"
+      ]
+    },
+    {
+      "id": "FIX-041",
+      "description": "Proto变更无自动类型重生成",
+      "severity": "中等",
+      "category": "B-契约",
+      "status": "open",
+      "method": "待CI集成",
+      "files": []
+    },
+    {
+      "id": "FIX-042",
+      "description": "Kafka topic schema无版本兼容策略",
+      "severity": "中等",
+      "category": "B-契约",
+      "status": "open",
+      "method": "待实现",
+      "files": []
+    },
+    {
+      "id": "FIX-043",
+      "description": "eventBus publish()类型断言绕过",
+      "severity": "严重",
+      "category": "B-契约",
+      "status": "open",
+      "method": "待修复",
+      "files": [
+        "server/platform/middleware/auditLog.ts",
+        "server/platform/cognition/reasoning/orchestrator/hybrid-orchestrator.ts",
+        "server/platform/cognition/grok/grok-reasoning-chain.ts",
+        "server/platform/cognition/safety/guardrail-engine.ts",
+        "server/platform/cognition/engines/stimulus-preprocessor.ts"
+      ]
+    },
+    {
+      "id": "FIX-044",
+      "description": "Schema Registry未配置",
+      "severity": "低",
+      "category": "B-契约",
+      "status": "open",
+      "method": "待配置",
+      "files": []
+    },
+    {
+      "id": "FIX-045",
+      "description": "跨域契约无CI兼容性检测",
+      "severity": "低",
+      "category": "B-契约",
+      "status": "open",
+      "method": "待创建CI",
+      "files": []
+    },
+    {
+      "id": "FIX-046",
+      "description": "Zod schema内联导致前后端契约不同步",
+      "severity": "低",
+      "category": "B-契约",
+      "status": "open",
+      "method": "待迁移",
+      "files": []
+    },
+    {
+      "id": "FIX-047",
+      "description": "gRPC客户端无类型",
+      "severity": "致命",
+      "category": "C-类型",
+      "status": "fixed",
+      "method": "proto:gen脚本检查",
+      "files": [
+        "package.json"
+      ]
+    },
+    {
+      "id": "FIX-048",
+      "description": "evolution-schema json字段无类型",
+      "severity": "严重",
+      "category": "C-类型",
+      "status": "open",
+      "method": "待添加类型",
+      "files": [
+        "drizzle/evolution-schema.ts"
+      ]
+    },
+    {
+      "id": "FIX-049",
+      "description": "hde-schema json字段无类型",
+      "severity": "严重",
+      "category": "C-类型",
+      "status": "open",
+      "method": "待添加类型",
+      "files": []
+    },
+    {
+      "id": "FIX-050",
+      "description": "toolInput/Output无类型",
+      "severity": "中等",
+      "category": "C-类型",
+      "status": "open",
+      "method": "待添加类型",
+      "files": []
+    },
+    {
+      "id": "FIX-051",
+      "description": "Action/result payloads缺类型",
+      "severity": "中等",
+      "category": "C-类型",
+      "status": "open",
+      "method": "待添加类型",
+      "files": []
+    },
+    {
+      "id": "FIX-052",
+      "description": "diagnostic-enhancer类型断言",
+      "severity": "严重",
+      "category": "C-类型",
+      "status": "open",
+      "method": "待修复",
+      "files": []
+    },
+    {
+      "id": "FIX-053",
+      "description": "Proto未生成TypeScript类型",
+      "severity": "严重",
+      "category": "C-类型",
+      "status": "partial",
+      "method": "脚本检查",
+      "files": [
+        "package.json"
+      ],
+      "detail": "脚本已就位，待运行生成"
+    },
+    {
+      "id": "FIX-054",
+      "description": "createAlertRule参数any",
+      "severity": "中等",
+      "category": "C-类型",
+      "status": "open",
+      "method": "待修复",
+      "files": [
+        "server/services/observability.service.ts"
+      ]
+    },
+    {
+      "id": "FIX-055",
+      "description": "createSilence参数any",
+      "severity": "中等",
+      "category": "C-类型",
+      "status": "open",
+      "method": "待修复",
+      "files": [
+        "server/services/observability.service.ts"
+      ]
+    },
+    {
+      "id": "FIX-056",
+      "description": "orchestrator-hub返回{stub:true}无类型",
+      "severity": "中等",
+      "category": "C-类型",
+      "status": "open",
+      "method": "待修复",
+      "files": []
+    },
+    {
+      "id": "FIX-057",
+      "description": "Kafka消息timestamp类型混用",
+      "severity": "中等",
+      "category": "C-类型",
+      "status": "open",
+      "method": "待统一",
+      "files": []
+    },
+    {
+      "id": "FIX-058",
+      "description": "nl-interface发布payload校验不足",
+      "severity": "中等",
+      "category": "C-类型",
+      "status": "open",
+      "method": "待加强",
+      "files": []
+    },
+    {
+      "id": "FIX-059",
+      "description": "ConditionNormalizer使用fetch()非tRPC",
+      "severity": "低",
+      "category": "C-类型",
+      "status": "open",
+      "method": "待迁移",
+      "files": []
+    },
+    {
+      "id": "FIX-060",
+      "description": "mysqlEnum severity值域不统一",
+      "severity": "严重",
+      "category": "C-类型",
+      "status": "open",
+      "method": "待统一",
+      "files": []
+    },
+    {
+      "id": "FIX-061",
+      "description": "前端store与后端API类型不对齐",
+      "severity": "低",
+      "category": "C-类型",
+      "status": "open",
+      "method": "待对齐",
+      "files": []
+    },
+    {
+      "id": "FIX-062",
+      "description": "WorldModel训练是stub",
+      "severity": "致命",
+      "category": "D-Stub",
+      "status": "open",
+      "method": "stub扫描",
+      "files": [
+        "server/platform/evolution/models/world-model-engine.ts"
+      ]
+    },
+    {
+      "id": "FIX-063",
+      "description": "GrokTool getSensorData 返回stub",
+      "severity": "严重",
+      "category": "D-Stub",
+      "status": "fixed",
+      "method": "stub扫描",
+      "files": [
+        "server/platform/cognition/grok/grok-tools.ts"
+      ]
+    },
+    {
+      "id": "FIX-064",
+      "description": "GrokTool getMaintenanceHistory 返回stub",
+      "severity": "严重",
+      "category": "D-Stub",
+      "status": "fixed",
+      "method": "stub扫描",
+      "files": [
+        "server/platform/cognition/grok/grok-tools.ts"
+      ]
+    },
+    {
+      "id": "FIX-065",
+      "description": "GrokTool getEquipmentSpecs 返回stub",
+      "severity": "中等",
+      "category": "D-Stub",
+      "status": "fixed",
+      "method": "stub扫描",
+      "files": [
+        "server/platform/cognition/grok/grok-tools.ts"
+      ]
+    },
+    {
+      "id": "FIX-066",
+      "description": "GrokTool getSimilarCases 返回stub",
+      "severity": "中等",
+      "category": "D-Stub",
+      "status": "fixed",
+      "method": "stub扫描",
+      "files": [
+        "server/platform/cognition/grok/grok-tools.ts"
+      ]
+    },
+    {
+      "id": "FIX-067",
+      "description": "GrokTool getWeatherData 返回stub",
+      "severity": "低",
+      "category": "D-Stub",
+      "status": "fixed",
+      "method": "stub扫描",
+      "files": [
+        "server/platform/cognition/grok/grok-tools.ts"
+      ]
+    },
+    {
+      "id": "FIX-068",
+      "description": "GrokTool runSimulation 返回stub",
+      "severity": "中等",
+      "category": "D-Stub",
+      "status": "fixed",
+      "method": "stub扫描",
+      "files": [
+        "server/platform/cognition/grok/grok-tools.ts"
+      ]
+    },
+    {
+      "id": "FIX-069",
+      "description": "GrokTool getOperationalContext 返回stub",
+      "severity": "中等",
+      "category": "D-Stub",
+      "status": "fixed",
+      "method": "stub扫描",
+      "files": [
+        "server/platform/cognition/grok/grok-tools.ts"
+      ]
+    },
+    {
+      "id": "FIX-070",
+      "description": "GrokTool getAlarmHistory 返回stub",
+      "severity": "严重",
+      "category": "D-Stub",
+      "status": "fixed",
+      "method": "stub扫描",
+      "files": [
+        "server/platform/cognition/grok/grok-tools.ts"
+      ]
+    },
+    {
+      "id": "FIX-071",
+      "description": "GrokTool getTrendAnalysis 返回stub",
+      "severity": "中等",
+      "category": "D-Stub",
+      "status": "fixed",
+      "method": "stub扫描",
+      "files": [
+        "server/platform/cognition/grok/grok-tools.ts"
+      ]
+    },
+    {
+      "id": "FIX-072",
+      "description": "GrokTool getExpertKnowledge 返回stub",
+      "severity": "中等",
+      "category": "D-Stub",
+      "status": "fixed",
+      "method": "stub扫描",
+      "files": [
+        "server/platform/cognition/grok/grok-tools.ts"
+      ]
+    },
+    {
+      "id": "FIX-073",
+      "description": "ModelFinetune placeholder页面",
+      "severity": "低",
+      "category": "D-Stub",
+      "status": "open",
+      "method": "待实现",
+      "files": [
+        "client/src/pages/PlaceholderPage.tsx"
+      ]
+    },
+    {
+      "id": "FIX-074",
+      "description": "ModelEval placeholder页面",
+      "severity": "低",
+      "category": "D-Stub",
+      "status": "open",
+      "method": "待实现",
+      "files": []
+    },
+    {
+      "id": "FIX-075",
+      "description": "DiagAnalysis placeholder页面",
+      "severity": "低",
+      "category": "D-Stub",
+      "status": "open",
+      "method": "待实现",
+      "files": []
+    },
+    {
+      "id": "FIX-076",
+      "description": "DiagReport placeholder页面",
+      "severity": "中等",
+      "category": "D-Stub",
+      "status": "open",
+      "method": "待实现",
+      "files": []
+    },
+    {
+      "id": "FIX-077",
+      "description": "observability createAlertRule返回mock",
+      "severity": "严重",
+      "category": "D-Stub",
+      "status": "open",
+      "method": "mock扫描",
+      "files": [
+        "server/services/observability.service.ts"
+      ]
+    },
+    {
+      "id": "FIX-078",
+      "description": "observability createSilence返回mock",
+      "severity": "严重",
+      "category": "D-Stub",
+      "status": "open",
+      "method": "mock扫描",
+      "files": [
+        "server/services/observability.service.ts"
+      ]
+    },
+    {
+      "id": "FIX-079",
+      "description": "orchestrator-hub多处返回{stub:true}",
+      "severity": "中等",
+      "category": "D-Stub",
+      "status": "open",
+      "method": "stub扫描",
+      "files": [
+        "server/platform/orchestrator/orchestrator-hub.ts"
+      ],
+      "detail": "3处stub"
+    },
+    {
+      "id": "FIX-080",
+      "description": "工具域domain-router整体Stub",
+      "severity": "严重",
+      "category": "D-Stub",
+      "status": "open",
+      "method": "待实现",
+      "files": [
+        "server/domains/tooling/tooling.domain-router.ts"
+      ]
+    },
+    {
+      "id": "FIX-081",
+      "description": "ToolDefinition多数为mock",
+      "severity": "严重",
+      "category": "D-Stub",
+      "status": "open",
+      "method": "待实现",
+      "files": [
+        "server/platform/tooling/framework/tool-framework.ts"
+      ]
+    },
+    {
+      "id": "FIX-082",
+      "description": "62+处hardcoded confidence",
+      "severity": "严重",
+      "category": "E-算法",
+      "status": "open",
+      "method": "hardcoded扫描",
+      "files": [
+        "server/domains/cognition/reasoning.router.ts",
+        "server/domains/guardrail/guardrail.domain-router.ts",
+        "server/domains/knowledge/knowledge.domain-router.ts",
+        "server/domains/evolution/observability.router.ts",
+        "server/domains/evolution/evolution.domain-router.ts"
+      ],
+      "detail": "207处hardcoded"
+    },
+    {
+      "id": "FIX-083",
+      "description": "agent-plugins confidence硬编码",
+      "severity": "严重",
+      "category": "E-算法",
+      "status": "open",
+      "method": "待参数化",
+      "files": [
+        "server/algorithms/agent-plugins/index.ts"
+      ]
+    },
+    {
+      "id": "FIX-084",
+      "description": "structural算法threshold硬编码",
+      "severity": "中等",
+      "category": "E-算法",
+      "status": "open",
+      "method": "待参数化",
+      "files": [
+        "server/algorithms/structural/index.ts"
+      ]
+    },
+    {
+      "id": "FIX-085",
+      "description": "cusumChangePoints threshold硬编码",
+      "severity": "中等",
+      "category": "E-算法",
+      "status": "open",
+      "method": "待参数化",
+      "files": [
+        "server/algorithms/agent-plugins/index.ts"
+      ]
+    },
+    {
+      "id": "FIX-086",
+      "description": "fusionDiagnosis 7处confidence硬编码",
+      "severity": "严重",
+      "category": "E-算法",
+      "status": "open",
+      "method": "待参数化",
+      "files": [
+        "server/services/fusionDiagnosis.service.ts"
+      ]
+    },
+    {
+      "id": "FIX-087",
+      "description": "grokDiagnosticAgent confidence=0.5",
+      "severity": "中等",
+      "category": "E-算法",
+      "status": "open",
+      "method": "待参数化",
+      "files": [
+        "server/services/grokDiagnosticAgent.service.ts"
+      ]
+    },
+    {
+      "id": "FIX-088",
+      "description": "meta-learner阈值硬编码",
+      "severity": "严重",
+      "category": "E-算法",
+      "status": "open",
+      "method": "待参数化",
+      "files": [
+        "server/platform/evolution/metalearner/meta-learner.ts"
+      ]
+    },
+    {
+      "id": "FIX-089",
+      "description": "genetic-strategy适应度硬编码",
+      "severity": "中等",
+      "category": "E-算法",
+      "status": "open",
+      "method": "待参数化",
+      "files": []
+    },
+    {
+      "id": "FIX-090",
+      "description": "感知管线未端到端集成",
+      "severity": "致命",
+      "category": "F-流程",
+      "status": "fixed",
+      "method": "E2E测试检查",
+      "files": [
+        "server/platform/perception/__tests__/perception-pipeline-e2e.test.ts"
+      ]
+    },
+    {
+      "id": "FIX-091",
+      "description": "DS融合→诊断Severity不匹配",
+      "severity": "致命",
+      "category": "F-流程",
+      "status": "fixed",
+      "method": "统一枚举引用检查",
+      "files": [
+        "server/platform/hde/orchestrator/diagnostic-orchestrator.ts"
+      ]
+    },
+    {
+      "id": "FIX-092",
+      "description": "护栏引擎未接入诊断流程",
+      "severity": "致命",
+      "category": "F-流程",
+      "status": "fixed",
+      "method": "护栏集成检查",
+      "files": [
+        "server/platform/hde/orchestrator/diagnostic-orchestrator.ts"
+      ]
+    },
+    {
+      "id": "FIX-093",
+      "description": "HDE双轨诊断缺端到端测试",
+      "severity": "严重",
+      "category": "F-流程",
+      "status": "partial",
+      "method": "测试文件检查",
+      "files": [
+        "server/platform/hde/orchestrator/__tests__/diagnostic-orchestrator.test.ts"
+      ],
+      "detail": "基础测试存在，完整E2E待补充"
+    },
+    {
+      "id": "FIX-094",
+      "description": "Neo4j种子数据未完整导入",
+      "severity": "严重",
+      "category": "F-流程",
+      "status": "open",
+      "method": "待导入",
+      "files": [
+        "server/platform/knowledge/seed-data/run-encoding-seed.ts",
+        "server/platform/knowledge/seed-data/neo4j-seed-runner.ts",
+        "server/platform/knowledge/seed-data/index.ts",
+        "server/platform/knowledge/seed-data/kg-condition-case-seed.ts"
+      ]
+    },
+    {
+      "id": "FIX-095",
+      "description": "进化飞轮持久化未接入",
+      "severity": "严重",
+      "category": "F-流程",
+      "status": "open",
+      "method": "待接入",
+      "files": []
+    },
+    {
+      "id": "FIX-096",
+      "description": "Kafka事件Schema校验未强制",
+      "severity": "严重",
+      "category": "F-流程",
+      "status": "open",
+      "method": "待强制",
+      "files": []
+    },
+    {
+      "id": "FIX-097",
+      "description": "数据质量评分→分级→告警集成缺失",
+      "severity": "中等",
+      "category": "F-流程",
+      "status": "open",
+      "method": "待集成",
+      "files": []
+    },
+    {
+      "id": "FIX-098",
+      "description": "跨设备对比查询优化缺失",
+      "severity": "中等",
+      "category": "F-流程",
+      "status": "open",
+      "method": "待优化",
+      "files": []
+    },
+    {
+      "id": "FIX-099",
+      "description": "工况归一化特征顺序不确定",
+      "severity": "低",
+      "category": "F-流程",
+      "status": "open",
+      "method": "待修复",
+      "files": []
+    },
+    {
+      "id": "FIX-100",
+      "description": "11个配置参数运行时被忽略",
+      "severity": "中等",
+      "category": "G-配置",
+      "status": "open",
+      "method": "待清理",
+      "files": [
+        "server/core/config.ts"
+      ]
+    },
+    {
+      "id": "FIX-101",
+      "description": "Docker MySQL默认密码root123",
+      "severity": "致命",
+      "category": "G-配置",
+      "status": "fixed",
+      "method": "密码扫描",
+      "files": [
+        "docker-compose.yml"
+      ]
+    },
+    {
+      "id": "FIX-102",
+      "description": "Docker JWT_SECRET弱默认值",
+      "severity": "致命",
+      "category": "G-配置",
+      "status": "fixed",
+      "method": "密码扫描",
+      "files": [
+        "docker-compose.yml"
+      ]
+    },
+    {
+      "id": "FIX-103",
+      "description": "ES_PASSWORD=changeme",
+      "severity": "严重",
+      "category": "G-配置",
+      "status": "open",
+      "method": "密码扫描",
+      "files": [
+        "docker-compose.yml"
+      ]
+    },
+    {
+      "id": "FIX-104",
+      "description": "MinIO默认凭据minioadmin",
+      "severity": "严重",
+      "category": "G-配置",
+      "status": "fixed",
+      "method": "凭据扫描",
+      "files": [
+        "docker-compose.yml"
+      ],
+      "detail": "0处minioadmin"
+    },
+    {
+      "id": "FIX-105",
+      "description": "Grafana admin123",
+      "severity": "中等",
+      "category": "G-配置",
+      "status": "open",
+      "method": "密码扫描",
+      "files": [
+        "docker-compose.yml"
+      ]
+    },
+    {
+      "id": "FIX-106",
+      "description": "Helm密码默认空字符串",
+      "severity": "致命",
+      "category": "G-配置",
+      "status": "fixed",
+      "method": "Helm验证检查",
+      "files": [
+        "helm/xilian-platform/templates/secrets.yaml"
+      ]
+    },
+    {
+      "id": "FIX-107",
+      "description": "Vault dev模式",
+      "severity": "中等",
+      "category": "G-配置",
+      "status": "open",
+      "method": "待修改",
+      "files": [
+        "docker-compose.yml"
+      ]
+    },
+    {
+      "id": "FIX-108",
+      "description": "Prometheus targets被注释",
+      "severity": "中等",
+      "category": "G-配置",
+      "status": "open",
+      "method": "待启用",
+      "files": [
+        "docker/prometheus/prometheus.yml"
+      ]
+    },
+    {
+      "id": "FIX-109",
+      "description": "Helm ingress hostname硬编码",
+      "severity": "低",
+      "category": "G-配置",
+      "status": "open",
+      "method": "待参数化",
+      "files": []
+    },
+    {
+      "id": "FIX-110",
+      "description": "gRPC健康检查用localhost",
+      "severity": "低",
+      "category": "G-配置",
+      "status": "open",
+      "method": "待修复",
+      "files": []
+    },
+    {
+      "id": "FIX-111",
+      "description": "PlaceholderPage 4个组件",
+      "severity": "中等",
+      "category": "H-前端",
+      "status": "open",
+      "method": "待实现",
+      "files": [
+        "client/src/pages/PlaceholderPage.tsx"
+      ]
+    },
+    {
+      "id": "FIX-112",
+      "description": "Agents.tsx交互不完整",
+      "severity": "中等",
+      "category": "H-前端",
+      "status": "open",
+      "method": "待补全",
+      "files": []
+    },
+    {
+      "id": "FIX-113",
+      "description": "VectorAdmin.tsx后端集成不完整",
+      "severity": "中等",
+      "category": "H-前端",
+      "status": "open",
+      "method": "待集成",
+      "files": []
+    },
+    {
+      "id": "FIX-114",
+      "description": "20-30个前端页面仅有骨架",
+      "severity": "严重",
+      "category": "H-前端",
+      "status": "open",
+      "method": "待实现",
+      "files": []
+    },
+    {
+      "id": "FIX-115",
+      "description": "DiagnosticEnhancerPage mock数据",
+      "severity": "低",
+      "category": "H-前端",
+      "status": "open",
+      "method": "待替换",
+      "files": []
+    },
+    {
+      "id": "FIX-116",
+      "description": "reasoning.router返回mock数据",
+      "severity": "低",
+      "category": "H-前端",
+      "status": "open",
+      "method": "待替换",
+      "files": []
+    },
+    {
+      "id": "FIX-117",
+      "description": "ConditionNormalizer使用fetch()非tRPC",
+      "severity": "低",
+      "category": "H-前端",
+      "status": "open",
+      "method": "待迁移",
+      "files": []
+    },
+    {
+      "id": "FIX-118",
+      "description": "60%页面为Partial状态",
+      "severity": "低",
+      "category": "H-前端",
+      "status": "open",
+      "method": "持续改进",
+      "files": []
+    },
+    {
+      "id": "FIX-119",
+      "description": "插件沙箱使用Function构造器",
+      "severity": "致命",
+      "category": "I-架构",
+      "status": "fixed",
+      "method": "isolated-vm检查",
+      "files": [
+        "server/platform/tooling/tools/isolated-sandbox.ts"
+      ]
+    },
+    {
+      "id": "FIX-120",
+      "description": "安全检查正则可绕过",
+      "severity": "致命",
+      "category": "I-架构",
+      "status": "open",
+      "method": "待加固",
+      "files": []
+    },
+    {
+      "id": "FIX-121",
+      "description": "插件无生命周期管理",
+      "severity": "中等",
+      "category": "I-架构",
+      "status": "open",
+      "method": "待实现",
+      "files": []
+    },
+    {
+      "id": "FIX-122",
+      "description": "插件无签名验证",
+      "severity": "致命",
+      "category": "I-架构",
+      "status": "open",
+      "method": "待实现",
+      "files": []
+    },
+    {
+      "id": "FIX-123",
+      "description": "两套工具系统不互通",
+      "severity": "严重",
+      "category": "I-架构",
+      "status": "open",
+      "method": "待统一",
+      "files": []
+    },
+    {
+      "id": "FIX-124",
+      "description": "ReAct链无回放能力",
+      "severity": "严重",
+      "category": "I-架构",
+      "status": "open",
+      "method": "待实现",
+      "files": []
+    },
+    {
+      "id": "FIX-125",
+      "description": "EventBus未接入工具系统",
+      "severity": "中等",
+      "category": "I-架构",
+      "status": "open",
+      "method": "待接入",
+      "files": []
+    },
+    {
+      "id": "FIX-126",
+      "description": "双总线路由策略缺失",
+      "severity": "严重",
+      "category": "I-架构",
+      "status": "open",
+      "method": "待实现",
+      "files": []
+    },
+    {
+      "id": "FIX-127",
+      "description": "ClickHouse schema碎片化",
+      "severity": "中等",
+      "category": "I-架构",
+      "status": "open",
+      "method": "待合并",
+      "files": []
+    },
+    {
+      "id": "FIX-128",
+      "description": "Neo4j无备份策略",
+      "severity": "严重",
+      "category": "I-架构",
+      "status": "open",
+      "method": "待配置",
+      "files": []
+    },
+    {
+      "id": "FIX-129",
+      "description": "Redis无淘汰策略文档",
+      "severity": "中等",
+      "category": "I-架构",
+      "status": "open",
+      "method": "待配置",
+      "files": []
+    },
+    {
+      "id": "FIX-130",
+      "description": "MySQL分片策略未实施",
+      "severity": "中等",
+      "category": "I-架构",
+      "status": "open",
+      "method": "待规划",
+      "files": []
+    },
+    {
+      "id": "FIX-131",
+      "description": "Saga/Outbox补偿逻辑未补全",
+      "severity": "严重",
+      "category": "I-架构",
+      "status": "open",
+      "method": "待实现",
+      "files": []
+    },
+    {
+      "id": "FIX-132",
+      "description": "Grafana dashboard id:null",
+      "severity": "低",
+      "category": "I-架构",
+      "status": "open",
+      "method": "待修复",
+      "files": []
+    },
+    {
+      "id": "FIX-133",
+      "description": "PodSecurityPolicy已废弃",
+      "severity": "低",
+      "category": "I-架构",
+      "status": "open",
+      "method": "待迁移",
+      "files": []
+    },
+    {
+      "id": "FIX-134",
+      "description": "平台模块测试覆盖率仅13.6%",
+      "severity": "致命",
+      "category": "J-测试",
+      "status": "open",
+      "method": "覆盖率检查",
+      "files": [],
+      "detail": "0 个 describe 块"
+    },
+    {
+      "id": "FIX-135",
+      "description": "AI模块0测试",
+      "severity": "致命",
+      "category": "J-测试",
+      "status": "open",
+      "method": "待创建",
+      "files": []
+    },
+    {
+      "id": "FIX-136",
+      "description": "Pipeline DAG引擎测试不足",
+      "severity": "中等",
+      "category": "J-测试",
+      "status": "open",
+      "method": "待补充",
+      "files": []
+    },
+    {
+      "id": "FIX-137",
+      "description": "Observability模块测试不足",
+      "severity": "中等",
+      "category": "J-测试",
+      "status": "open",
+      "method": "待补充",
+      "files": []
+    },
+    {
+      "id": "FIX-138",
+      "description": "14个协议适配器测试不足",
+      "severity": "中等",
+      "category": "J-测试",
+      "status": "open",
+      "method": "待补充",
+      "files": []
+    },
+    {
+      "id": "FIX-139",
+      "description": "49个算法缺单元测试",
+      "severity": "严重",
+      "category": "J-测试",
+      "status": "open",
+      "method": "待创建",
+      "files": []
+    },
+    {
+      "id": "FIX-140",
+      "description": "HDE双轨诊断无E2E测试",
+      "severity": "中等",
+      "category": "J-测试",
+      "status": "open",
+      "method": "待创建",
+      "files": []
+    },
+    {
+      "id": "FIX-141",
+      "description": "感知管线E2E测试缺失",
+      "severity": "低",
+      "category": "J-测试",
+      "status": "fixed",
+      "method": "测试文件检查",
+      "files": [
+        "server/platform/perception/__tests__/perception-pipeline-e2e.test.ts"
+      ]
+    },
+    {
+      "id": "FIX-142",
+      "description": "Proto编译无CI验证",
+      "severity": "低",
+      "category": "J-测试",
+      "status": "open",
+      "method": "待创建CI",
+      "files": []
+    },
+    {
+      "id": "FIX-143",
+      "description": "MySQL初始化脚本缺失",
+      "severity": "低",
+      "category": "J-测试",
+      "status": "open",
+      "method": "待创建",
+      "files": []
+    }
+  ]
+}

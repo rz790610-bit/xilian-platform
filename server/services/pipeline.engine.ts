@@ -33,8 +33,11 @@ import { createModuleLogger } from '../core/logger';
 import appConfig from '../core/config';
 const log = createModuleLogger('pipeline');
 
-// ============ 兼容旧接口（pipeline.router.ts 引用） ============
-export type PipelineStatus = 'created' | 'running' | 'paused' | 'stopped' | 'error';
+// FIX-006: PipelineStatus 统一 — 复用 shared/pipelineTypes 的定义
+// 'created' 映射到 'draft' (功能等价)
+import type { PipelineStatus as SharedPipelineStatus } from '../../shared/pipelineTypes';
+/** @deprecated 请直接使用 shared/pipelineTypes 的 PipelineStatus */
+export type PipelineStatus = SharedPipelineStatus;
 
 export interface PipelineConfig {
   id: string;

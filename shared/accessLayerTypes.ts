@@ -1,6 +1,9 @@
 /**
  * 接入层统一类型定义
  * Connector → Endpoint → Binding 三级模型
+ *
+ * @deprecated FIX-033: 通用类型（SeverityLevel 等）请从 `@shared/contracts/v1` 导入。
+ *   本文件仅保留接入层（协议适配器）域专属类型。
  */
 
 // ============ 协议枚举 ============
@@ -9,7 +12,7 @@ export const PROTOCOL_TYPES = [
   'mqtt', 'opcua', 'modbus', 'ethernet-ip', 'profinet', 'ethercat',
   'mysql', 'postgresql', 'kafka', 'clickhouse',
   'redis', 'neo4j', 'minio', 'influxdb', 'qdrant',
-  'http', 'grpc', 'websocket',
+  'http', 'grpc', 'websocket', 'hikvision',
 ] as const;
 export type ProtocolType = typeof PROTOCOL_TYPES[number];
 
@@ -40,6 +43,7 @@ export const PROTOCOL_META: Record<ProtocolType, { label: string; icon: string; 
   http: { label: 'HTTP REST', icon: '🌐', description: '外部系统 REST API', category: 'api' },
   grpc: { label: 'gRPC', icon: '🚀', description: '高性能服务间通信', category: 'api' },
   websocket: { label: 'WebSocket', icon: '🔌', description: '实时双向通信', category: 'api' },
+  hikvision: { label: '海康威视', icon: '📹', description: 'RTSP 视频流 + ISAPI 事件', category: 'industrial' },
 };
 
 // ============ Connector 类型 ============

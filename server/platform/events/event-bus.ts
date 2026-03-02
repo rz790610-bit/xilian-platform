@@ -10,7 +10,11 @@
  *   4. 死信队列（处理失败的事件）
  *   5. 事件指标（发布/消费/失败计数）
  *   6. 事件回放（从持久化存储回放历史事件）
+ *   7. [FIX-020] Schema 校验 — dev 模式 warn+log，不阻断
  */
+
+// [FIX-020] Schema 校验集成
+import { eventSchemaRegistry } from '../contracts/event-schema-registry';
 
 // ============================================================================
 // 事件总线类型
@@ -83,6 +87,9 @@ export class EventBus {
   private priorityQueue: BusEvent[] = [];
   private processing = false;
   private totalProcessingMs = 0;
+  // [FIX-020] Schema 校验: dev 模式默认启用，warn 不阻断
+  private schemaValidationEnabled = process.env.NODE_ENV !== 'production';
+  private schemaFailureCount = 0;
 
   /**
    * 发布事件
@@ -109,6 +116,30 @@ export class EventBus {
 
     this.metrics.publishedCount++;
     this.metrics.topicCounts[topic] = (this.metrics.topicCounts[topic] || 0) + 1;
+
+    // [FIX-020] Schema 校验 — 仅对已注册的 event type 校验，dev 模式 warn 不阻断
+    if (this.schemaValidationEnabled) {
+      const def = eventSchemaRegistry.getEventDefinition(topic);
+      if (def) {
+        const envelope = {
+          eventId: event.id,
+          eventType: topic,
+          version: def.currentVersion,
+          timestamp: event.metadata.timestamp,
+          source: { serviceId: event.metadata.source, instanceId: process.pid.toString(), machineId: event.metadata.machineId },
+          payload,
+          metadata: { traceId: event.metadata.traceId || event.id },
+        };
+        const result = eventSchemaRegistry.validate(envelope);
+        if (!result.valid) {
+          this.schemaFailureCount++;
+          console.warn(
+            `[EventBus] Schema validation warning for "${topic}":`,
+            result.errors?.map(e => `${e.path}: ${e.message}`).join('; '),
+          );
+        }
+      }
+    }
 
     // 按优先级插入队列
     this.enqueue(event);

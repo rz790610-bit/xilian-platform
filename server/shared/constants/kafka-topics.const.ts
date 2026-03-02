@@ -240,3 +240,52 @@ export const KAFKA_TOPIC_SCHEMAS = {
 } as const;
 
 export type KafkaTopicKey = keyof typeof KAFKA_TOPICS;
+
+// ============ FIX-008: Kafka 消息体 camelCase ↔ snake_case 转换层 ============
+
+/**
+ * snake_case → camelCase 转换
+ *
+ * Kafka topic schemas (KAFKA_TOPIC_SCHEMAS) 的字段名使用 snake_case
+ * （与 ClickHouse 列名一致），而 TypeScript 业务代码使用 camelCase。
+ * 本工具在消费/生产 Kafka 消息时做双向转换。
+ */
+function snakeToCamel(s: string): string {
+  return s.replace(/_([a-z0-9])/g, (_, c) => c.toUpperCase());
+}
+
+function camelToSnake(s: string): string {
+  return s.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
+}
+
+/** 递归将对象所有 key 从 snake_case 转为 camelCase */
+export function kafkaMessageToCamel<T = Record<string, unknown>>(
+  obj: Record<string, unknown>,
+): T {
+  const result: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    const camelKey = snakeToCamel(key);
+    if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+      result[camelKey] = kafkaMessageToCamel(value as Record<string, unknown>);
+    } else {
+      result[camelKey] = value;
+    }
+  }
+  return result as T;
+}
+
+/** 递归将对象所有 key 从 camelCase 转为 snake_case（发送到 Kafka 前） */
+export function kafkaMessageToSnake(
+  obj: Record<string, unknown>,
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    const snakeKey = camelToSnake(key);
+    if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+      result[snakeKey] = kafkaMessageToSnake(value as Record<string, unknown>);
+    } else {
+      result[snakeKey] = value;
+    }
+  }
+  return result;
+}

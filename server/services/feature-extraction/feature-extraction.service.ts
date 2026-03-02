@@ -264,8 +264,8 @@ export class FeatureExtractionService {
         mp_code: raw.mp_code,
         gateway_id: raw.gateway_id || '',
         timestamp: typeof raw.timestamp === 'number'
-          ? new Date(raw.timestamp).toISOString()
-          : (raw.timestamp || new Date().toISOString()),
+          ? raw.timestamp
+          : Date.now(),  // FIX-039: 统一为 epoch ms
         data_type: result.dataType,
         extractor: result.extractor,
         extractor_version: result.extractorVersion,

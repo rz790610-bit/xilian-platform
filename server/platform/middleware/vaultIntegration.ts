@@ -579,6 +579,18 @@ export function stopAutoRenewal(): void {
  */
 export async function initVault(): Promise<boolean> {
   try {
+    // FIX-107: 生产环境必须使用 AppRole，不允许仅 dev token
+    if (appConfig.app.env === 'production') {
+      if (!config.roleId || !config.secretId) {
+        if (config.token) {
+          log.warn('Production environment using static VAULT_TOKEN — consider switching to AppRole (VAULT_ROLE_ID + VAULT_SECRET_ID) for automatic rotation');
+        } else {
+          log.warn('Vault not configured for production (no VAULT_ROLE_ID/VAULT_SECRET_ID). Secrets will use environment variables directly.');
+          return false;
+        }
+      }
+    }
+
     const available = await isAvailable();
     if (!available) {
       log.warn('Vault is not available or sealed. Running without Vault.');

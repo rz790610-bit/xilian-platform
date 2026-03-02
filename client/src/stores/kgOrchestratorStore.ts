@@ -269,6 +269,7 @@ function getRelationLabel(type: KGRelationType): string {
     MANIFESTS: '表现为', DIAGNOSED_BY: '诊断依据', RESOLVED_BY: '解决方案',
     AFFECTS: '影响', SIMILAR_TO: '相似', DEGRADES_TO: '退化为',
     TRIGGERS: '触发', FEEDS: '数据供给', REFERENCES: '引用',
+    UNDER_CONDITION: '工况条件', VALIDATES: '验证', SHARED_COMPONENT: '共享部件',
   };
   return labels[type] ?? type;
 }

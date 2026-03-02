@@ -53,13 +53,15 @@ export function buildStartupTasks(): StartupTask[] {
 
     {
       id: 'config-center',
-      label: '配置中心',
+      label: '配置中心 (ConfigProxy)',
       dependencies: [],
       critical: false,  // 配置中心不可用时使用 env 默认值
-      timeout: 5000,
+      timeout: 8000,
       init: async () => {
-        const { configCenter } = await import('../platform/services/configCenter');
-        await configCenter.initialize();
+        const { getConfigProxy } = await import('../platform/config/config-proxy');
+        const proxy = getConfigProxy();
+        await proxy.initialize();
+        log.info('ConfigProxy initialized successfully');
       },
     },
 
@@ -248,6 +250,84 @@ export function buildStartupTasks(): StartupTask[] {
       init: async () => {
         const { startDataArtery } = await import('../services/data-artery.bootstrap');
         await startDataArtery();
+      },
+    },
+
+    // ── 算法代理初始化 ──────────────────────────────────
+
+    {
+      id: 'algorithm-proxy',
+      label: '算法代理 (AlgorithmProxy)',
+      dependencies: ['config-center', 'algorithm-sync'],
+      critical: false,
+      timeout: 10000,
+      init: async () => {
+        const { getAlgorithmProxy } = await import('../platform/algorithm/algorithm-proxy');
+        const proxy = getAlgorithmProxy();
+        await proxy.initialize();
+        log.info('AlgorithmProxy initialized successfully');
+      },
+    },
+
+    // ── AI 推理代理初始化 ─────────────────────────────────
+
+    {
+      id: 'ai-inference-proxy',
+      label: 'AI 推理代理 (AIInferenceProxy)',
+      dependencies: ['config-center'],
+      critical: false,
+      timeout: 15000,
+      init: async () => {
+        const { getAIInferenceProxy } = await import('../platform/ai-inference/ai-inference-proxy');
+        const proxy = getAIInferenceProxy();
+        await proxy.initialize();
+        log.info('AIInferenceProxy initialized successfully');
+      },
+    },
+
+    // ── 诊断代理初始化 ──────────────────────────────────
+
+    {
+      id: 'diagnosis-proxy',
+      label: '诊断代理 (DiagnosisProxy)',
+      dependencies: ['config-center'],
+      critical: false,
+      timeout: 15000,
+      init: async () => {
+        const { getDiagnosisProxy } = await import('../platform/diagnosis/diagnosis-proxy');
+        const proxy = getDiagnosisProxy();
+        await proxy.initialize();
+        log.info('DiagnosisProxy initialized successfully');
+      },
+    },
+
+    // ── 工具框架初始化 ──────────────────────────────────
+
+    {
+      id: 'tool-framework',
+      label: '工具框架 (ToolFramework)',
+      dependencies: ['config-center'],
+      critical: false,
+      timeout: 10000,
+      init: async () => {
+        const { getToolFramework } = await import('../platform/tooling/framework/tool-framework-singleton');
+        const fw = getToolFramework();
+        const tools = fw.discover();
+        log.info(`ToolFramework initialized: ${tools.length} tools registered`);
+      },
+    },
+
+    // ── Neo4j 知识图谱种子数据 ──────────────────────────────
+
+    {
+      id: 'neo4j-seed',
+      label: 'Neo4j 知识图谱种子数据（幂等）',
+      dependencies: ['config-center'],
+      critical: false,  // 种子失败不阻塞启动
+      timeout: 30000,
+      init: async () => {
+        const { runNeo4jSeed } = await import('../platform/knowledge/seed-data/neo4j-seed-runner');
+        await runNeo4jSeed();
       },
     },
 

@@ -92,6 +92,7 @@ export const config = {
     host: env('HOST', '0.0.0.0'),
     logLevel: env('LOG_LEVEL', 'info') as 'trace' | 'debug' | 'info' | 'warn' | 'error',
     baseUrl: env('BASE_URL', 'http://localhost:3000'),
+    /** 前端应用标识（VITE_APP_ID，用于多应用隔离） */
     appId: env('VITE_APP_ID', ''),
     /** 日志缓冲区大小 */
     logBufferSize: envInt('LOG_BUFFER_SIZE', 1000),
@@ -126,7 +127,9 @@ export const config = {
     get url(): string {
       return env('DATABASE_URL', `mysql://${config.mysql.user}:${config.mysql.password}@${config.mysql.host}:${config.mysql.port}/${config.mysql.database}`);
     },
+    /** 连接池最大连接数 */
     poolSize: envInt('MYSQL_POOL_SIZE', 10),
+    /** 是否启用 TLS/SSL 连接 */
     ssl: envBool('MYSQL_SSL', false),
     /** 总存储容量（GB），用于监控告警 */
     totalStorageGb: envInt('MYSQL_TOTAL_STORAGE_GB', 100),
@@ -142,11 +145,15 @@ export const config = {
     },
   },
 
-  /** MySQL 连接池高级配置 */
+  /** MySQL 连接池高级配置（覆盖 mysql.poolSize 的细粒度控制） */
   dbPool: {
+    /** 最大连接数 */
     max: envInt('DB_POOL_MAX', 10),
+    /** 等待队列上限（0=无限制） */
     queueLimit: envInt('DB_POOL_QUEUE_LIMIT', 0),
+    /** 空闲连接超时（ms） */
     idleTimeout: envInt('DB_POOL_IDLE_TIMEOUT', 60000),
+    /** 最小空闲连接数 */
     minIdle: envInt('DB_POOL_MIN_IDLE', 2),
   },
 
@@ -167,11 +174,15 @@ export const config = {
     replicaPort: envInt('DB_REPLICA_PORT', 3306),
   },
 
-  /** PostgreSQL（可选，用于特定存储场景） */
+  /** PostgreSQL 连接池（可选，用于 TimescaleDB 等特定存储场景） */
   postgres: {
+    /** 最大连接数 */
     poolMax: envInt('PG_POOL_MAX', 10),
+    /** 最小连接数 */
     poolMin: envInt('PG_POOL_MIN', 2),
+    /** 空闲连接超时（ms） */
     idleTimeout: envInt('PG_IDLE_TIMEOUT', 30000),
+    /** 连接获取超时（ms） */
     connTimeout: envInt('PG_CONN_TIMEOUT', 5000),
   },
 
@@ -183,10 +194,11 @@ export const config = {
   clickhouse: {
     host: env('CLICKHOUSE_HOST', 'localhost'),
     port: envInt('CLICKHOUSE_PORT', 8123),
+    /** Native TCP 端口（clickhouse-client 使用，区别于 HTTP 端口） */
     nativePort: envInt('CLICKHOUSE_NATIVE_PORT', 9000),
     user: env('CLICKHOUSE_USER', 'default'),
     password: env('CLICKHOUSE_PASSWORD', ''),
-    database: env('CLICKHOUSE_DATABASE', 'portai_nexus'),
+    database: env('CLICKHOUSE_DATABASE', 'portai_timeseries'),
     get url(): string {
       return env('CLICKHOUSE_URL', `http://${config.clickhouse.host}:${config.clickhouse.port}`);
     },
@@ -211,7 +223,9 @@ export const config = {
       const protocol = env('ELASTICSEARCH_PROTOCOL', 'http');
       return env('ELASTICSEARCH_URL', `${protocol}://${config.elasticsearch.host}:${config.elasticsearch.port}`);
     },
+    /** 认证用户名（旧环境变量兼容） */
     user: env('ELASTICSEARCH_USER', ''),
+    /** 认证用户名（新环境变量，优先使用） */
     username: env('ELASTICSEARCH_USERNAME', ''),
     password: env('ELASTICSEARCH_PASSWORD', ''),
     ssl: envBool('ELASTICSEARCH_SSL', false),
@@ -244,7 +258,9 @@ export const config = {
       const auth = config.redis.password ? `:${config.redis.password}@` : '';
       return env('REDIS_URL', `redis://${auth}${config.redis.host}:${config.redis.port}/${config.redis.db}`);
     },
+    /** Redis key 前缀（多应用共享 Redis 时用于隔离） */
     keyPrefix: env('REDIS_KEY_PREFIX', 'nexus:'),
+    /** 连接失败最大重试次数 */
     maxRetries: envInt('REDIS_MAX_RETRIES', 3),
     enabled: envBool('REDIS_ENABLED', true),
   },
@@ -294,6 +310,15 @@ export const config = {
     protocol: env('KAFKA_CONNECT_PROTOCOL', 'http'),
   },
 
+  /** FIX-044: Schema Registry — Kafka 消息 Schema 版本管理 */
+  schemaRegistry: {
+    host: env('SCHEMA_REGISTRY_HOST', 'localhost'),
+    port: envInt('SCHEMA_REGISTRY_PORT', 8081),
+    get url(): string {
+      return env('SCHEMA_REGISTRY_URL', `http://${config.schemaRegistry.host}:${config.schemaRegistry.port}`);
+    },
+  },
+
   /** ZooKeeper（Kafka 依赖） */
   zookeeper: {
     host: env('ZOOKEEPER_HOST', 'localhost'),
@@ -311,7 +336,9 @@ export const config = {
     accessKey: env('MINIO_ACCESS_KEY', 'minioadmin'),
     secretKey: env('MINIO_SECRET_KEY', 'minioadmin'),
     bucket: env('MINIO_BUCKET', 'portai-nexus'),
+    /** 是否使用 SSL（minio-js SDK 风格） */
     useSSL: envBool('MINIO_USE_SSL', false),
+    /** 是否使用 SSL（统一命名风格，与 useSSL 等价） */
     ssl: envBool('MINIO_SSL', false),
     region: env('MINIO_REGION', 'us-east-1'),
     enabled: envBool('MINIO_ENABLED', true),
@@ -346,7 +373,9 @@ export const config = {
     apiKey: env('QDRANT_API_KEY', ''),
     enabled: envBool('QDRANT_ENABLED', true),
     https: envBool('QDRANT_HTTPS', false),
+    /** Qdrant Docker 镜像版本 */
     version: env('QDRANT_VERSION', 'latest'),
+    /** 总存储容量（GB），用于监控告警 */
     totalStorageGb: envInt('QDRANT_TOTAL_STORAGE_GB', 50),
   },
 
@@ -479,16 +508,33 @@ export const config = {
   // 微服务 & 网关
   // ──────────────────────────────────────────
 
-  /** gRPC 微服务 */
+  /**
+   * gRPC 微服务
+   *
+   * FIX-110: 在 K8s 环境中，host 应使用 service DNS 名:
+   *   ALGORITHM_SERVICE_HOST=xilian-algorithm-service
+   *   DEVICE_SERVICE_HOST=xilian-device-service
+   * localhost 仅适用于本地开发或单体部署模式。
+   */
   grpc: {
     deploymentMode: env('DEPLOYMENT_MODE', 'monolith'),
     algorithmServiceHost: env('ALGORITHM_SERVICE_HOST', 'localhost'),
     algorithmServicePort: envInt('ALGORITHM_SERVICE_PORT', 50052),
     deviceServiceHost: env('DEVICE_SERVICE_HOST', 'localhost'),
     deviceServicePort: envInt('DEVICE_SERVICE_PORT', 50051),
+    aiInferenceServiceUrl: env('AI_INFERENCE_SERVICE_URL', 'http://localhost:3090'),
+    diagnosisServiceUrl: env('DIAGNOSIS_SERVICE_URL', 'http://localhost:3095'),
     tlsCertPath: env('GRPC_TLS_CERT_PATH', ''),
     tlsKeyPath: env('GRPC_TLS_KEY_PATH', ''),
     tlsCaPath: env('GRPC_TLS_CA_PATH', ''),
+  },
+
+  /** 配置中心（微服务模式下的远程配置中心） */
+  configCenter: {
+    url: env('CONFIG_CENTER_URL', 'http://localhost:8900'),
+    enabled: envBool('CONFIG_CENTER_ENABLED', false),
+    cacheTtlMs: envInt('CONFIG_CENTER_CACHE_TTL_MS', 30000),
+    pollIntervalMs: envInt('CONFIG_CENTER_POLL_INTERVAL_MS', 30000),
   },
 
   /** Kong API 网关 */
@@ -556,6 +602,12 @@ export const config = {
     jaegerHost: env('JAEGER_HOST', 'localhost'),
     jaegerPort: envInt('JAEGER_PORT', 16686),
     jaegerProtocol: env('JAEGER_PROTOCOL', 'http'),
+    /** Alertmanager HTTP API 地址 */
+    alertmanagerHost: env('ALERTMANAGER_HOST', 'localhost'),
+    alertmanagerPort: envInt('ALERTMANAGER_PORT', 9093),
+    get alertmanagerUrl(): string {
+      return env('ALERTMANAGER_URL', `http://${config.monitoring.alertmanagerHost}:${config.monitoring.alertmanagerPort}`);
+    },
   },
 
   /** 审计日志 */
@@ -632,9 +684,11 @@ export const config = {
     },
   },
 
-  /** 算法引擎 / DSP */
+  /** 算法引擎 / DSP（Digital Signal Processing 算法 Worker 池） */
   dsp: {
+    /** Worker 线程数（默认 4，建议不超过 CPU 核数） */
     workerPool: envInt('DSP_WORKER_POOL', 4),
+    /** 是否启用 Worker 池（关闭则在主线程同步执行） */
     workerPoolEnabled: envBool('DSP_WORKER_POOL_ENABLED', true),
   },
 

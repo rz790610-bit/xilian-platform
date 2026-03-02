@@ -97,16 +97,19 @@ export interface HDEDiagnosisResult {
 
 /**
  * 诊断结论
+ *
+ * [FIX-091] severity/urgency 使用统一契约类型
+ * @see shared/contracts/v1/base.ts
  */
 export interface DiagnosisConclusion {
   /** 故障类型 */
   faultType: string;
   /** 置信度 (0-1) */
   confidence: number;
-  /** 严重程度 */
-  severity: 'low' | 'medium' | 'high' | 'critical';
-  /** 紧急程度 */
-  urgency: 'monitoring' | 'scheduled' | 'priority' | 'immediate';
+  /** 严重程度 — 统一 5 级 (info | low | medium | high | critical) */
+  severity: import('../../../../shared/contracts/v1').SeverityLevel;
+  /** 紧急程度 — 统一 4 级 (monitoring | scheduled | priority | immediate) */
+  urgency: import('../../../../shared/contracts/v1').UrgencyLevel;
   /** 物理解释 */
   physicsExplanation?: string;
   /** 证据链 */
@@ -212,8 +215,8 @@ export interface ValidationResult {
  * 建议动作
  */
 export interface Recommendation {
-  /** 优先级 */
-  priority: 'info' | 'low' | 'medium' | 'high' | 'critical';
+  /** 优先级 — 统一 SeverityLevel */
+  priority: import('../../../../shared/contracts/v1').SeverityLevel;
   /** 动作描述 */
   action: string;
   /** 理由 */

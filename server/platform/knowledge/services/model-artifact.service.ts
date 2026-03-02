@@ -11,6 +11,21 @@
  *   5. 制品元数据管理
  */
 
+import { config } from '../../../core/config';
+import { createModuleLogger } from '../../../core/logger';
+import { minioStorage } from '../../../lib/storage/minio.storage';
+
+const log = createModuleLogger('model-artifact');
+
+/** Stream → Buffer 工具 */
+async function streamToBuffer(stream: NodeJS.ReadableStream): Promise<Buffer> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of stream) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+  return Buffer.concat(chunks);
+}
+
 // ============================================================================
 // 制品类型
 // ============================================================================
@@ -65,6 +80,8 @@ export class ModelArtifactService {
   private readonly maxCacheSizeBytes = 500 * 1024 * 1024; // 500MB 本地缓存
   private localCache = new Map<string, { data: Buffer; accessedAt: number }>();
   private currentCacheSize = 0;
+  private cacheHits = 0;
+  private cacheMisses = 0;
 
   /**
    * 上传制品
@@ -96,8 +113,22 @@ export class ModelArtifactService {
       tags: request.tags || {},
     };
 
-    // TODO: 实际上传到 MinIO
-    // await minioClient.putObject(this.bucketName, storagePath, data);
+    // 上传到 MinIO（通过统一 minioStorage 单例）
+    if (config.minio.enabled) {
+      try {
+        const result = await minioStorage.uploadModelArtifact(storagePath, data, {
+          checksum,
+          format: request.format,
+        });
+        if (result.success) {
+          log.info({ storagePath, sizeBytes: data.length }, '[model-artifact] Uploaded to MinIO');
+        } else {
+          log.warn({ storagePath, error: result.error }, '[model-artifact] MinIO upload failed, metadata saved in-memory only');
+        }
+      } catch (err) {
+        log.warn({ err, storagePath }, '[model-artifact] MinIO upload failed, metadata saved in-memory only');
+      }
+    }
 
     this.artifacts.set(metadata.id, metadata);
 
@@ -121,12 +152,25 @@ export class ModelArtifactService {
     const cached = this.localCache.get(artifactId);
     if (cached) {
       cached.accessedAt = Date.now();
+      this.cacheHits++;
       return { metadata, data: cached.data, fromCache: true };
     }
+    this.cacheMisses++;
 
-    // TODO: 从 MinIO 下载
-    // const stream = await minioClient.getObject(this.bucketName, metadata.storagePath);
-    // const data = await streamToBuffer(stream);
+    // 从 MinIO 下载（通过统一 minioStorage 单例）
+    if (config.minio.enabled) {
+      try {
+        const result = await minioStorage.downloadFile(this.bucketName, metadata.storagePath);
+        if (result.body) {
+          const data = await streamToBuffer(result.body);
+          this.addToCache(artifactId, data);
+          log.debug({ artifactId, sizeBytes: data.length }, '[model-artifact] Downloaded from MinIO');
+          return { metadata, data, fromCache: false };
+        }
+      } catch (err) {
+        log.warn({ err, artifactId }, '[model-artifact] MinIO download failed');
+      }
+    }
 
     return { metadata, data: null, fromCache: false };
   }
@@ -194,7 +238,9 @@ export class ModelArtifactService {
       for (const artifact of toDelete) {
         if (!params.dryRun) {
           try {
-            // TODO: await minioClient.removeObject(this.bucketName, artifact.storagePath);
+            if (config.minio.enabled) {
+              await minioStorage.deleteFile(this.bucketName, artifact.storagePath);
+            }
             this.artifacts.delete(artifact.id);
             this.localCache.delete(artifact.id);
             result.freedBytes += artifact.sizeBytes;
@@ -238,7 +284,9 @@ export class ModelArtifactService {
       totalArtifacts: this.artifacts.size,
       totalSizeBytes: totalSize,
       cacheSizeBytes: this.currentCacheSize,
-      cacheHitRate: 0, // TODO: 实际追踪
+      cacheHitRate: (this.cacheHits + this.cacheMisses) > 0
+        ? this.cacheHits / (this.cacheHits + this.cacheMisses)
+        : 0,
       byFormat,
     };
   }
@@ -268,4 +316,6 @@ export class ModelArtifactService {
     this.localCache.set(artifactId, { data, accessedAt: Date.now() });
     this.currentCacheSize += data.length;
   }
+
+  // Bucket 管理由 minioStorage 统一负责，此服务不再单独管理
 }

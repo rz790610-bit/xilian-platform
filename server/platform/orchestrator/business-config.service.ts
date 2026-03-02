@@ -5,7 +5,10 @@
  * （Pipeline / KG / DB）的配置，不需要懂技术。
  */
 
+import { eq, and, desc } from 'drizzle-orm';
 import { createModuleLogger } from '../../core/logger';
+import { getDb } from '../../lib/db';
+import { businessConfigs } from '../../../drizzle/schema';
 import type {
   DeviceTypeDefinition,
   ComponentDefinition,
@@ -209,6 +212,110 @@ export class BusinessConfigService {
       database: databaseConfig,
       orchestration: orchestrationConfig,
     };
+  }
+
+  /** 保存生成的配置到数据库（upsert: 同一 deviceType+scenario 只保留最新激活版本） */
+  async saveConfig(
+    config: GeneratedConfig,
+    userId?: number,
+  ): Promise<{ id: number; version: number }> {
+    const db = await getDb();
+    if (!db) {
+      throw new Error('Database not available');
+    }
+
+    // 查找同一 deviceType+scenario 的最新版本号
+    const existing = await db
+      .select({ id: businessConfigs.id, version: businessConfigs.version })
+      .from(businessConfigs)
+      .where(
+        and(
+          eq(businessConfigs.deviceType, config.deviceType),
+          eq(businessConfigs.scenario, config.scenario),
+          eq(businessConfigs.isActive, 1),
+        ),
+      )
+      .orderBy(desc(businessConfigs.version))
+      .limit(1);
+
+    const nextVersion = existing.length > 0 ? existing[0].version + 1 : 1;
+
+    // 将旧版本标记为非激活
+    if (existing.length > 0) {
+      await db
+        .update(businessConfigs)
+        .set({ isActive: 0 })
+        .where(
+          and(
+            eq(businessConfigs.deviceType, config.deviceType),
+            eq(businessConfigs.scenario, config.scenario),
+          ),
+        );
+    }
+
+    // 插入新版本
+    const result = await db.insert(businessConfigs).values({
+      deviceType: config.deviceType,
+      scenario: config.scenario,
+      configPayload: config as unknown as Record<string, unknown>,
+      version: nextVersion,
+      isActive: 1,
+      createdBy: userId ?? null,
+    });
+
+    const insertId = result[0].insertId;
+    log.info({ id: insertId, deviceType: config.deviceType, scenario: config.scenario, version: nextVersion }, 'Config saved to DB');
+
+    return { id: insertId, version: nextVersion };
+  }
+
+  /** 查询已保存的配置列表（仅返回激活版本） */
+  async getSavedConfigs(): Promise<Array<{
+    id: number;
+    deviceType: string;
+    scenario: string;
+    version: number;
+    createdAt: Date;
+  }>> {
+    const db = await getDb();
+    if (!db) return [];
+
+    try {
+      return await db
+        .select({
+          id: businessConfigs.id,
+          deviceType: businessConfigs.deviceType,
+          scenario: businessConfigs.scenario,
+          version: businessConfigs.version,
+          createdAt: businessConfigs.createdAt,
+        })
+        .from(businessConfigs)
+        .where(eq(businessConfigs.isActive, 1))
+        .orderBy(desc(businessConfigs.createdAt));
+    } catch (error) {
+      log.warn({ error }, 'Failed to fetch saved configs');
+      return [];
+    }
+  }
+
+  /** 根据 ID 获取完整配置 */
+  async getSavedConfigById(id: number): Promise<GeneratedConfig | null> {
+    const db = await getDb();
+    if (!db) return null;
+
+    try {
+      const rows = await db
+        .select({ configPayload: businessConfigs.configPayload })
+        .from(businessConfigs)
+        .where(eq(businessConfigs.id, id))
+        .limit(1);
+
+      if (rows.length === 0) return null;
+      return rows[0].configPayload as unknown as GeneratedConfig;
+    } catch (error) {
+      log.warn({ error, id }, 'Failed to fetch saved config by id');
+      return null;
+    }
   }
 
   // ----------------------------------------------------------

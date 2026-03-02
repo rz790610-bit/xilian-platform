@@ -12,8 +12,10 @@
  */
 
 import { createModuleLogger } from '../../../core/logger';
-const log = createModuleLogger('model-registry');
+import { getDb } from '../../../lib/db';
+import { modelRegistry } from '../../../../drizzle/schema';
 
+const log = createModuleLogger('model-registry');
 
 // ============================================================================
 // 模型类型
@@ -134,7 +136,12 @@ export class ModelRegistryService {
     };
 
     this.models.set(model.id, model);
-    // TODO: INSERT INTO model_registry ...
+
+    // 持久化到 MySQL
+    this.persistRegister(model).catch(err =>
+      log.warn({ err, modelName: model.name, version: model.version }, '[model-registry] DB persist failed'),
+    );
+
     return model;
   }
 
@@ -310,5 +317,29 @@ export class ModelRegistryService {
       if ((pa[i] || 0) !== (pb[i] || 0)) return (pa[i] || 0) - (pb[i] || 0);
     }
     return 0;
+  }
+
+  // --------------------------------------------------------------------------
+  // DB 持久化（异步，失败不阻塞）
+  // --------------------------------------------------------------------------
+
+  private async persistRegister(model: ModelRecord): Promise<void> {
+    const db = await getDb();
+    if (!db) return;
+
+    await db.insert(modelRegistry).values({
+      modelCode: model.name,
+      modelName: model.displayName,
+      modelType: model.modelType,
+      framework: model.framework,
+      version: model.version,
+      description: model.description,
+      modelFileUrl: model.artifact.path,
+      metrics: model.metrics as any,
+      tags: model.tags as any,
+      status: model.stage,
+      createdBy: model.createdBy,
+    });
+    log.info({ modelName: model.name, version: model.version }, '[model-registry] Persisted to DB');
   }
 }

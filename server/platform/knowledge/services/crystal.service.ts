@@ -11,6 +11,13 @@
  *   5. 跨工况结晶迁移
  */
 
+import { createModuleLogger } from '../../../core/logger';
+import { getDb } from '../../../lib/db';
+import { knowledgeCrystals } from '../../../../drizzle/schema';
+import { eq } from 'drizzle-orm';
+
+const log = createModuleLogger('crystal-service');
+
 // ============================================================================
 // 结晶类型
 // ============================================================================
@@ -111,7 +118,12 @@ export class CrystalService {
     };
 
     this.crystals.set(crystal.id, crystal);
-    // TODO: INSERT INTO knowledge_crystals ...
+
+    // 持久化到 MySQL
+    this.persistCreate(crystal).catch(err =>
+      log.warn({ err, crystalId: crystal.id }, '[crystal] DB insert failed, in-memory only'),
+    );
+
     return crystal;
   }
 
@@ -157,7 +169,12 @@ export class CrystalService {
 
     crystal.status = approved ? 'approved' : 'draft';
     crystal.updatedAt = Date.now();
-    // TODO: UPDATE knowledge_crystals SET status = ...
+
+    // 持久化状态更新
+    this.persistStatusUpdate(crystal.id, crystal.status, crystal.updatedAt).catch(err =>
+      log.warn({ err, crystalId: id, reviewer }, '[crystal] DB status update failed'),
+    );
+
     return true;
   }
 
@@ -258,6 +275,10 @@ export class CrystalService {
         updatedAt: Date.now(),
       };
       this.crystals.set(migratedCrystal.id, migratedCrystal);
+
+      this.persistCreate(migratedCrystal).catch(err =>
+        log.warn({ err, crystalId: migratedCrystal.id }, '[crystal] DB insert migrated crystal failed'),
+      );
     }
 
     return migration;
@@ -276,11 +297,45 @@ export class CrystalService {
     const positive = apps.filter(a => a.outcome === 'positive').length;
     const negative = apps.filter(a => a.outcome === 'negative').length;
 
+    // 计算实际影响：(positive - negative) / total 归一化到 [-1, 1]
+    const total = apps.length;
+    const avgConfidenceImpact = total > 0 ? (positive - negative) / total : 0;
+
     return {
-      totalApplications: apps.length,
-      positiveRate: apps.length > 0 ? positive / apps.length : 0,
-      negativeRate: apps.length > 0 ? negative / apps.length : 0,
-      avgConfidenceImpact: 0, // TODO: 计算实际影响
+      totalApplications: total,
+      positiveRate: total > 0 ? positive / total : 0,
+      negativeRate: total > 0 ? negative / total : 0,
+      avgConfidenceImpact,
     };
+  }
+
+  // --------------------------------------------------------------------------
+  // DB 持久化方法（异步，失败不阻塞）
+  // --------------------------------------------------------------------------
+
+  private async persistCreate(crystal: CrystalRecord): Promise<void> {
+    const db = await getDb();
+    if (!db) return;
+    await db.insert(knowledgeCrystals).values({
+      type: crystal.type,
+      name: crystal.name,
+      description: crystal.description,
+      content: crystal.content as any,
+      version: crystal.version,
+      status: crystal.status,
+      applicationCount: crystal.applicationCount,
+      lastAppliedAt: crystal.lastAppliedAt ? new Date(crystal.lastAppliedAt) : null,
+      createdBy: crystal.createdBy,
+    });
+    log.info({ crystalId: crystal.id, name: crystal.name }, '[crystal] Persisted to DB');
+  }
+
+  private async persistStatusUpdate(id: number, status: string, updatedAt: number): Promise<void> {
+    const db = await getDb();
+    if (!db) return;
+    await db.update(knowledgeCrystals)
+      .set({ status, updatedAt: new Date(updatedAt) })
+      .where(eq(knowledgeCrystals.id, id));
+    log.info({ crystalId: id, status }, '[crystal] Status updated in DB');
   }
 }

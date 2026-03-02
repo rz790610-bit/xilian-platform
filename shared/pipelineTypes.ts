@@ -2,6 +2,9 @@
  * Pipeline 编排平台 — 前后端统一类型定义
  * 覆盖数据工程、机器学习、大模型应用三大领域
  * 支持 DAG（有向无环图）执行引擎
+ *
+ * @deprecated FIX-033: 通用类型（SeverityLevel, UnixTimestampMs 等）请从
+ *   `@shared/contracts/v1` 导入。本文件仅保留 Pipeline 域专属类型。
  */
 
 // ============ 管道状态 ============

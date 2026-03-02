@@ -50,6 +50,8 @@ import EvolutionWorldModel from "./pages/evolution/EvolutionWorldModel";
 import EvolutionModelComparison from "./pages/evolution/EvolutionModelComparison";
 import EvolutionAdaptiveParams from "./pages/evolution/EvolutionAdaptiveParams";
 import EvolutionControlCenter from "./pages/evolution/EvolutionControlCenter";
+import LabelingManager from "./pages/evolution/LabelingManager";
+import CrossDeviceComparison from "./pages/evolution/CrossDeviceComparison";
 import KnowledgeManager from "./pages/KnowledgeManager";
 import KnowledgeGraph from "./pages/KnowledgeGraph";
 import VectorAdmin from "./pages/VectorAdmin";
@@ -79,6 +81,7 @@ import ClickHouseDashboard from "./pages/monitoring/ClickHouseDashboard";
 // 统一观测中枢
 import OperationsDashboard from "./pages/monitoring/OperationsDashboard";
 import StatusDashboard from "./pages/monitoring/StatusDashboard";
+import ObservabilityHub from "./pages/monitoring/ObservabilityHub";
 
 // 平台管理 - 配置中心（精简：移除 ResourcesOverview、DbManagement）
 import {
@@ -134,6 +137,9 @@ import OrchestratorPage from "./pages/cognition-reasoning/OrchestratorPage";
 import FeedbackLoopPage from "./pages/cognition-reasoning/FeedbackLoopPage";
 import ObservabilityPage from "./pages/cognition-reasoning/ObservabilityPage";
 
+// 应用平台
+import { AppPlatformLayout } from "./pages/app-platform";
+
 // 基础设置模块
 import {
   DictionaryManager,
@@ -143,6 +149,37 @@ import {
   ComponentManager,
   PartsLibrary,
 } from "./pages/settings/basic";
+// 编码管理
+import { EncodingManager } from "./pages/settings/encoding";
+
+// P1 核心功能页面（13个无前端入口路由）
+import ClickHouseExplorer from "./pages/data/ClickHouseExplorer";
+import SensorManager from "./pages/equipment/SensorManager";
+import GrokDiagnostic from "./pages/diagnosis/GrokDiagnostic";
+import ObservabilityDetail from "./pages/monitoring/ObservabilityDetail";
+// P2 高级配置页面
+import DataPipelineManager from "./pages/data/DataPipelineManager";
+import ConditionNormalizerConfig from "./pages/perception/ConditionNormalizerConfig";
+import BusinessConfig from "./pages/settings/BusinessConfig";
+import PluginManager from "./pages/platform/PluginManager";
+// P3 内部工具页面
+import OrchestratorHubPage from "./pages/platform/OrchestratorHub";
+import RegistryCenter from "./pages/platform/RegistryCenter";
+import FederatedKnowledge from "./pages/knowledge/FederatedKnowledge";
+import ToolingDomain from "./pages/platform/ToolingDomain";
+import PlatformDomainPage from "./pages/platform/PlatformDomain";
+import QualityDashboard from "./pages/platform/QualityDashboard";
+
+// P2-9 AI 价值发挥
+import {
+  DiagnosticEnhancerPage,
+  NLInteractionPage,
+  TechIntelligencePage,
+  EvolutionLabPage,
+} from "./pages/ai";
+
+// P2-10 评估与组合优化体系
+import EvaluationDashboardPage from "./pages/evaluation/EvaluationDashboardPage";
 
 function Router() {
   return (
@@ -224,7 +261,16 @@ function Router() {
       <Route path="/diagnosis/knowledge">
         <Redirect to="/knowledge/manager" />
       </Route>
-      
+
+      {/* ━━━ AI 价值发挥 (P2-9) ━━━ */}
+      <Route path="/ai/diagnostic-enhancer" component={DiagnosticEnhancerPage} />
+      <Route path="/ai/nl-interaction" component={NLInteractionPage} />
+      <Route path="/ai/tech-intelligence" component={TechIntelligencePage} />
+      <Route path="/ai/evolution-lab" component={EvolutionLabPage} />
+
+      {/* ━━━ 评估与组合优化 (P2-10) ━━━ */}
+      <Route path="/evaluation/dashboard" component={EvaluationDashboardPage} />
+
       {/* 进化引擎 */}
       <Route path="/evolution/feedback" component={FeedbackCenter} />
       <Route path="/evolution/learning" component={ActiveLearning} />
@@ -246,6 +292,8 @@ function Router() {
       <Route path="/evolution/model-comparison" component={EvolutionModelComparison} />
       <Route path="/evolution/adaptive-params" component={EvolutionAdaptiveParams} />
       <Route path="/evolution/control-center" component={EvolutionControlCenter} />
+      <Route path="/evolution/labeling" component={LabelingManager} />
+      <Route path="/evolution/cross-device" component={CrossDeviceComparison} />
       
 
       {/* ━━━ 基础设置 ━━━ */}
@@ -255,6 +303,7 @@ function Router() {
       <Route path="/basic/mechanism" component={MechanismManager} />
       <Route path="/basic/component" component={ComponentManager} />
       <Route path="/basic/parts" component={PartsLibrary} />
+      <Route path="/settings/encoding" component={EncodingManager} />
 
       {/* ━━━ 平台管理 ━━━ */}
       {/* 设计工具 */}
@@ -290,6 +339,7 @@ function Router() {
       <Route path="/settings/gateway/consumers"><Redirect to="/settings/gateway/dashboard" /></Route>
 
       {/* 监控大屏 */}
+      <Route path="/monitoring/hub" component={ObservabilityHub} />
       <Route path="/monitoring/clickhouse" component={ClickHouseDashboard} />
       <Route path="/monitoring/operations" component={OperationsDashboard} />
       <Route path="/monitoring/status" component={StatusDashboard} />
@@ -394,6 +444,22 @@ function Router() {
         <Redirect to="/settings/config/infrastructure" />
       </Route>
       
+      {/* ━━━ P1-P3: 新增功能页面（13个路由补全） ━━━ */}
+      <Route path="/data/clickhouse" component={ClickHouseExplorer} />
+      <Route path="/equipment/sensors" component={SensorManager} />
+      <Route path="/diagnosis/grok" component={GrokDiagnostic} />
+      <Route path="/monitoring/observability" component={ObservabilityDetail} />
+      <Route path="/data/pipeline" component={DataPipelineManager} />
+      <Route path="/perception/condition" component={ConditionNormalizerConfig} />
+      <Route path="/settings/business" component={BusinessConfig} />
+      <Route path="/platform/plugins" component={PluginManager} />
+      <Route path="/platform/orchestrator" component={OrchestratorHubPage} />
+      <Route path="/platform/registry" component={RegistryCenter} />
+      <Route path="/knowledge/federated" component={FederatedKnowledge} />
+      <Route path="/platform/tooling" component={ToolingDomain} />
+      <Route path="/platform/domain" component={PlatformDomainPage} />
+      <Route path="/platform/quality" component={QualityDashboard} />
+
       {/* ━━━ 数字孪生（独立模块） ━━━ */}
       <Route path="/digital-twin" component={DigitalTwinLayout} />
       <Route path="/digital-twin/simulation" component={DigitalTwinLayout} />
@@ -401,7 +467,12 @@ function Router() {
       <Route path="/digital-twin/worldmodel" component={DigitalTwinLayout} />
       <Route path="/digital-twin/3d" component={DigitalTwinLayout} />
       <Route path="/digital-twin/config" component={DigitalTwinLayout} />
-      {/* 旧路由重定向 */}
+      {/* 旧路由重定向（含子路径） */}
+      <Route path="/v5/digital-twin/3d"><Redirect to="/digital-twin/3d" /></Route>
+      <Route path="/v5/digital-twin/simulation"><Redirect to="/digital-twin/simulation" /></Route>
+      <Route path="/v5/digital-twin/replay"><Redirect to="/digital-twin/replay" /></Route>
+      <Route path="/v5/digital-twin/worldmodel"><Redirect to="/digital-twin/worldmodel" /></Route>
+      <Route path="/v5/digital-twin/config"><Redirect to="/digital-twin/config" /></Route>
       <Route path="/v5/digital-twin"><Redirect to="/digital-twin" /></Route>
 
       {/* ━━━ v5.0 进化平台仪表盘 ━━━ */}
@@ -429,6 +500,20 @@ function Router() {
       <Route path="/v5/cognition/orchestrator" component={OrchestratorPage} />
       <Route path="/v5/cognition/feedback-loop" component={FeedbackLoopPage} />
       <Route path="/v5/cognition/observability" component={ObservabilityPage} />
+
+      {/* ━━━ 应用平台 (客户界面) ━━━ */}
+      <Route path="/app" component={AppPlatformLayout} />
+      <Route path="/app/diagnosis" component={AppPlatformLayout} />
+      <Route path="/app/diagnosis/:deviceCode" component={AppPlatformLayout} />
+      <Route path="/app/alerts" component={AppPlatformLayout} />
+      <Route path="/app/equipment" component={AppPlatformLayout} />
+      <Route path="/app/config" component={AppPlatformLayout} />
+      <Route path="/app/algorithms" component={AppPlatformLayout} />
+      <Route path="/app/import" component={AppPlatformLayout} />
+      {/* v5 重定向 */}
+      <Route path="/v5/app"><Redirect to="/app" /></Route>
+      <Route path="/v5/app/diagnosis"><Redirect to="/app/diagnosis" /></Route>
+      <Route path="/v5/app/alerts"><Redirect to="/app/alerts" /></Route>
 
       {/* 404 */}
       <Route path="/404" component={NotFound} />

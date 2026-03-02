@@ -86,15 +86,12 @@ export interface SensorReadingAggregated {
   sensor_id: string;
   metric_name: string;
   window_start: Date;
-  window_end: Date;
   sample_count: number;
   sum_value: number;
   min_value: number;
   max_value: number;
   avg_value: number;
   std_dev: number;
-  first_value: number;
-  last_value: number;
 }
 
 export interface FaultEvent {
@@ -196,187 +193,19 @@ export class ClickHouseStorage {
 
   /**
    * 初始化表结构
+   *
+   * 表和物化视图的 DDL 已统一到 Docker init SQL:
+   *   docker/clickhouse/init/01_base_tables.sql
+   *   docker/clickhouse/init/02_views_and_indexes.sql
+   *
+   * 此方法仅确保数据库存在（非 Docker 环境的兜底）。
    */
   private async initializeTables(): Promise<void> {
     const client = this.getClient();
-    const isCluster = this.config.nodes.length > 1;
-
-    // 创建数据库
     await client.query({
       query: `CREATE DATABASE IF NOT EXISTS ${this.config.database}`,
     });
-
-    // 1. sensor_readings_raw - 原始传感器数据（7天TTL，Gorilla压缩）
-    const rawTableEngine = isCluster
-      ? `ReplicatedMergeTree('/clickhouse/tables/{shard}/sensor_readings_raw', '{replica}')`
-      : 'MergeTree()';
-
-    await client.query({
-      query: `
-        CREATE TABLE IF NOT EXISTS ${this.config.database}.sensor_readings_raw
-        (
-          device_id String,
-          sensor_id String,
-          metric_name String,
-          value Float64 CODEC(Gorilla, LZ4),
-          unit String,
-          quality Enum8('good' = 1, 'uncertain' = 2, 'bad' = 3),
-          timestamp DateTime64(3) CODEC(DoubleDelta, LZ4),
-          metadata String DEFAULT '{}',
-          _partition_date Date DEFAULT toDate(timestamp)
-        )
-        ENGINE = ${rawTableEngine}
-        PARTITION BY toYYYYMM(_partition_date)
-        ORDER BY (device_id, sensor_id, metric_name, timestamp)
-        TTL timestamp + INTERVAL 7 DAY DELETE
-        SETTINGS index_granularity = 8192
-      `,
-    });
-
-    // 2. sensor_readings_1m - 分钟聚合（2年TTL）
-    const agg1mTableEngine = isCluster
-      ? `ReplicatedMergeTree('/clickhouse/tables/{shard}/sensor_readings_1m', '{replica}')`
-      : 'MergeTree()';
-
-    await client.query({
-      query: `
-        CREATE TABLE IF NOT EXISTS ${this.config.database}.sensor_readings_1m
-        (
-          device_id String,
-          sensor_id String,
-          metric_name String,
-          window_start DateTime CODEC(DoubleDelta, LZ4),
-          window_end DateTime CODEC(DoubleDelta, LZ4),
-          sample_count UInt32,
-          sum_value Float64,
-          min_value Float64,
-          max_value Float64,
-          avg_value Float64,
-          std_dev Float64,
-          first_value Float64,
-          last_value Float64,
-          _partition_date Date DEFAULT toDate(window_start)
-        )
-        ENGINE = ${agg1mTableEngine}
-        PARTITION BY toYYYYMM(_partition_date)
-        ORDER BY (device_id, sensor_id, metric_name, window_start)
-        TTL window_start + INTERVAL 2 YEAR DELETE
-        SETTINGS index_granularity = 8192
-      `,
-    });
-
-    // 3. sensor_readings_1h - 小时聚合（5年TTL）
-    const agg1hTableEngine = isCluster
-      ? `ReplicatedMergeTree('/clickhouse/tables/{shard}/sensor_readings_1h', '{replica}')`
-      : 'MergeTree()';
-
-    await client.query({
-      query: `
-        CREATE TABLE IF NOT EXISTS ${this.config.database}.sensor_readings_1h
-        (
-          device_id String,
-          sensor_id String,
-          metric_name String,
-          window_start DateTime CODEC(DoubleDelta, LZ4),
-          window_end DateTime CODEC(DoubleDelta, LZ4),
-          sample_count UInt32,
-          sum_value Float64,
-          min_value Float64,
-          max_value Float64,
-          avg_value Float64,
-          std_dev Float64,
-          first_value Float64,
-          last_value Float64,
-          _partition_date Date DEFAULT toDate(window_start)
-        )
-        ENGINE = ${agg1hTableEngine}
-        PARTITION BY toYYYYMM(_partition_date)
-        ORDER BY (device_id, sensor_id, metric_name, window_start)
-        TTL window_start + INTERVAL 5 YEAR DELETE
-        SETTINGS index_granularity = 8192
-      `,
-    });
-
-    // 4. fault_events - 故障事件（永久保留）
-    const faultTableEngine = isCluster
-      ? `ReplicatedMergeTree('/clickhouse/tables/{shard}/fault_events', '{replica}')`
-      : 'MergeTree()';
-
-    await client.query({
-      query: `
-        CREATE TABLE IF NOT EXISTS ${this.config.database}.fault_events
-        (
-          event_id String,
-          device_id String,
-          fault_code String,
-          fault_type String,
-          severity Enum8('info' = 1, 'warning' = 2, 'error' = 3, 'critical' = 4),
-          description String,
-          root_cause Nullable(String),
-          resolution Nullable(String),
-          start_time DateTime64(3),
-          end_time Nullable(DateTime64(3)),
-          duration_seconds Nullable(UInt32),
-          affected_sensors Array(String),
-          metadata String DEFAULT '{}',
-          _partition_date Date DEFAULT toDate(start_time)
-        )
-        ENGINE = ${faultTableEngine}
-        PARTITION BY toYYYYMM(_partition_date)
-        ORDER BY (device_id, fault_code, start_time)
-        SETTINGS index_granularity = 8192
-      `,
-    });
-
-    // 5. 创建物化视图 - 自动下采样到1分钟
-    await client.query({
-      query: `
-        CREATE MATERIALIZED VIEW IF NOT EXISTS ${this.config.database}.mv_sensor_readings_1m
-        TO ${this.config.database}.sensor_readings_1m
-        AS SELECT
-          device_id,
-          sensor_id,
-          metric_name,
-          toStartOfMinute(timestamp) AS window_start,
-          toStartOfMinute(timestamp) + INTERVAL 1 MINUTE AS window_end,
-          count() AS sample_count,
-          sum(value) AS sum_value,
-          min(value) AS min_value,
-          max(value) AS max_value,
-          avg(value) AS avg_value,
-          stddevPop(value) AS std_dev,
-          argMin(value, timestamp) AS first_value,
-          argMax(value, timestamp) AS last_value
-        FROM ${this.config.database}.sensor_readings_raw
-        GROUP BY device_id, sensor_id, metric_name, window_start, window_end
-      `,
-    });
-
-    // 6. 创建物化视图 - 自动下采样到1小时
-    await client.query({
-      query: `
-        CREATE MATERIALIZED VIEW IF NOT EXISTS ${this.config.database}.mv_sensor_readings_1h
-        TO ${this.config.database}.sensor_readings_1h
-        AS SELECT
-          device_id,
-          sensor_id,
-          metric_name,
-          toStartOfHour(window_start) AS window_start,
-          toStartOfHour(window_start) + INTERVAL 1 HOUR AS window_end,
-          sum(sample_count) AS sample_count,
-          sum(sum_value) AS sum_value,
-          min(min_value) AS min_value,
-          max(max_value) AS max_value,
-          sum(sum_value) / sum(sample_count) AS avg_value,
-          0 AS std_dev,
-          argMin(first_value, window_start) AS first_value,
-          argMax(last_value, window_start) AS last_value
-        FROM ${this.config.database}.sensor_readings_1m
-        GROUP BY device_id, sensor_id, metric_name, window_start, window_end
-      `,
-    });
-
-    log.debug('[ClickHouse] Tables and materialized views initialized');
+    log.debug('[ClickHouse] Database verified, tables managed by Docker init SQL');
   }
 
   // ============ 数据写入方法 ============
@@ -526,9 +355,8 @@ export class ClickHouseStorage {
   private async queryAggregatedData(table: string, filter: QueryFilter): Promise<SensorReadingAggregated[]> {
     const client = this.getClient();
     const { query, params } = this.buildAggregatedQueryWithFilter(
-      `SELECT device_id, sensor_id, metric_name, window_start, window_end,
-              sample_count, sum_value, min_value, max_value, avg_value, std_dev,
-              first_value, last_value
+      `SELECT device_id, sensor_id, metric_name, window_start,
+              sample_count, sum_value, min_value, max_value, avg_value, std_dev
        FROM ${table}`,
       filter
     );
@@ -542,15 +370,12 @@ export class ClickHouseStorage {
         sensor_id: row.sensor_id,
         metric_name: row.metric_name,
         window_start: new Date(row.window_start),
-        window_end: new Date(row.window_end),
         sample_count: row.sample_count,
         sum_value: row.sum_value,
         min_value: row.min_value,
         max_value: row.max_value,
         avg_value: row.avg_value,
         std_dev: row.std_dev,
-        first_value: row.first_value,
-        last_value: row.last_value,
       }));
     } catch (error) {
       log.warn('[ClickHouse] Query aggregated data error:', error);

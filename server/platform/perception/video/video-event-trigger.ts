@@ -34,7 +34,7 @@
 
 import { createModuleLogger } from '../../../core/logger';
 import type { CameraDeviceMappingRegistry, CameraDefinition, CapturePreset, CameraDeviceMapping } from './camera-device-mapping';
-import type { HikvisionAdapter, SnapshotResult, ClipResult } from '../../services/protocol-adapters/hikvision.adapter';
+import type { HikvisionAdapter, SnapshotResult, ClipResult } from '../../../services/protocol-adapters/hikvision.adapter';
 
 const log = createModuleLogger('video-event-trigger');
 
@@ -383,7 +383,7 @@ export class VideoEventTrigger {
       const authParams = this.getConnectorAuth(camera.connectorId);
 
       let snapshot: SnapshotResult | undefined;
-      let clip: ClipResult | undefined;
+      let clip: ClipResult | null | undefined;
 
       // 1. 抓拍快照
       if (preset.captureSnapshot) {

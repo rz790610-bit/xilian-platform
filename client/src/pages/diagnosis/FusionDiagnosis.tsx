@@ -9,6 +9,7 @@
  * 5. 引擎配置 — 故障类型映射、辨识框架
  */
 import { useState, useMemo, useCallback } from 'react';
+import { useLocation } from 'wouter';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { PageCard } from '@/components/common/PageCard';
 import { StatCard } from '@/components/common/StatCard';
@@ -32,7 +33,8 @@ import {
   Activity, Zap, Thermometer, Gauge, Play, Settings2, Users, History,
   AlertTriangle, CheckCircle2, XCircle, Info, ChevronRight, RefreshCw,
   Plus, Trash2, Weight, Brain, BarChart3, PieChart, Target, Shield,
-  ArrowUpRight, ArrowDownRight, Minus, Eye, Download, Layers,
+  ArrowUpRight, ArrowDownRight, Minus, Eye, Download, Layers, GitBranch,
+  Cpu, ShieldCheck, Timer, Loader2,
 } from 'lucide-react';
 
 // ==================== 类型 ====================
@@ -158,6 +160,485 @@ const COMPONENT_OPTIONS = [
   { value: 'foundation', label: '基础结构' },
   { value: 'coupling', label: '联轴器' },
 ];
+
+// ==================== HDE 双轨诊断结果类型 ====================
+
+interface HDETrackResult {
+  trackType: string;
+  faultHypotheses: Array<{
+    id: string;
+    faultType: string;
+    priorProbability: number;
+    supportingEvidence: string[];
+    physicsMechanism?: string;
+  }>;
+  beliefMass: Record<string, number>;
+  confidence: number;
+  physicsConstraints: Array<{
+    id: string;
+    name: string;
+    type: string;
+    expression: string;
+    satisfied?: boolean;
+    violationDegree?: number;
+    explanation: string;
+  }>;
+  executionTimeMs: number;
+}
+
+interface HDEDiagnosisResult {
+  sessionId: string;
+  machineId: string;
+  timestamp: number;
+  diagnosis: {
+    faultType: string;
+    confidence: number;
+    severity: string;
+    urgency: string;
+    physicsExplanation?: string;
+    evidenceChain?: Array<{
+      source: string;
+      type: string;
+      description: string;
+      strength: number;
+    }>;
+  };
+  trackResults: {
+    physics: HDETrackResult | null;
+    data: HDETrackResult | null;
+  };
+  fusionResult: {
+    fusedMass: Record<string, number>;
+    conflict: number;
+    strategyUsed: string;
+  };
+  physicsValidation: {
+    isValid: boolean;
+    violations: Array<{ id: string; name: string; explanation: string; violationDegree?: number }>;
+    adjustedConfidence: number;
+    physicsExplanation: string;
+  };
+  recommendations: Array<{
+    priority: string;
+    action: string;
+    rationale: string;
+  }>;
+  durationMs: number;
+  metadata: Record<string, unknown>;
+}
+
+// ==================== HDE 双轨诊断 Tab ====================
+
+const HDE_PRESET_SCENARIOS = [
+  { id: 'normal', name: '正常运行', desc: '各项指标正常', icon: '🟢' },
+  { id: 'bearing_damage', name: '轴承外圈损伤', desc: '冲击脉冲，峰值因子>4', icon: '🔴' },
+  { id: 'electrical_fault', name: '电气故障', desc: '电流不稳定 CV>0.3', icon: '⚡' },
+  { id: 'physics_violation', name: '物理异常', desc: '振动负值，传感器故障', icon: '🚫' },
+  { id: 'overload_idle', name: '空载过电流', desc: '机械卡阻嫌疑', icon: '⚠️' },
+];
+
+const URGENCY_LABELS: Record<string, { zh: string; color: string }> = {
+  monitoring: { zh: '持续监测', color: '#22c55e' },
+  scheduled: { zh: '计划维修', color: '#eab308' },
+  priority: { zh: '优先处理', color: '#f97316' },
+  immediate: { zh: '立即停机', color: '#ef4444' },
+};
+
+const STRATEGY_LABELS: Record<string, string> = {
+  dempster: 'Dempster',
+  murphy: 'Murphy (高冲突)',
+  yager: 'Yager (极端冲突)',
+};
+
+function DualTrackDiagnosisTab() {
+  const [, navigate] = useLocation();
+  const [selectedPreset, setSelectedPreset] = useState<string | null>(null);
+  const [hdeResult, setHdeResult] = useState<HDEDiagnosisResult | null>(null);
+  const [isRunning, setIsRunning] = useState(false);
+  const toast = useToast();
+  const diagnoseMutation = trpc.hdeDiagnostic.diagnosePreset.useMutation();
+
+  const runDiagnosis = useCallback(async (presetId: string) => {
+    setSelectedPreset(presetId);
+    setIsRunning(true);
+    setHdeResult(null);
+    try {
+      const resp = await diagnoseMutation.mutateAsync({ presetId });
+      if (resp.success && resp.data) {
+        setHdeResult(resp.data as unknown as HDEDiagnosisResult);
+        toast.success(`双轨诊断完成: ${resp.data.durationMs}ms`);
+      } else {
+        toast.error('诊断失败: ' + ((resp as any).error || 'unknown'));
+      }
+    } catch (err: any) {
+      toast.error(`诊断异常: ${err.message}`);
+    } finally {
+      setIsRunning(false);
+    }
+  }, [diagnoseMutation, toast]);
+
+  return (
+    <div className="grid grid-cols-12 gap-4">
+      {/* 左侧: 场景选择 */}
+      <div className="col-span-4 space-y-3">
+        <PageCard title="诊断场景" icon={<Target className="w-4 h-4" />} compact>
+          <p className="text-[10px] text-muted-foreground mt-1 mb-2">
+            物理约束轨 + 数据驱动轨 → DS 融合 → 物理校验
+          </p>
+          <div className="space-y-1.5">
+            {HDE_PRESET_SCENARIOS.map(p => (
+              <button
+                key={p.id}
+                onClick={() => runDiagnosis(p.id)}
+                disabled={isRunning}
+                className={cn(
+                  'w-full flex items-center gap-2.5 px-3 py-2 rounded-md border transition-all text-left',
+                  selectedPreset === p.id
+                    ? 'border-primary bg-primary/10'
+                    : 'border-border hover:border-primary/50 hover:bg-primary/5',
+                  isRunning && 'opacity-50 cursor-not-allowed',
+                )}
+              >
+                <span className="text-base">{p.icon}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs font-medium">{p.name}</div>
+                  <div className="text-[10px] text-muted-foreground truncate">{p.desc}</div>
+                </div>
+                {isRunning && selectedPreset === p.id ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
+                ) : (
+                  <ChevronRight className="w-3 h-3 text-muted-foreground" />
+                )}
+              </button>
+            ))}
+          </div>
+        </PageCard>
+
+        {/* 流程示意 */}
+        <PageCard title="双轨架构" icon={<GitBranch className="w-4 h-4" />} compact>
+          <div className="mt-2 space-y-1 text-[10px] font-mono">
+            <div className="flex items-center gap-1.5">
+              <div className="w-2 h-2 rounded-full bg-blue-500" />
+              <span className="text-muted-foreground">物理约束轨</span>
+              <span className="ml-auto text-blue-400">力学/材料/能量</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="w-2 h-2 rounded-full bg-emerald-500" />
+              <span className="text-muted-foreground">数据驱动轨</span>
+              <span className="ml-auto text-emerald-400">FFT/峰值/自相关</span>
+            </div>
+            <div className="border-l border-dashed border-muted-foreground/30 ml-1 pl-2.5 py-1">
+              <span className="text-muted-foreground">↓ DS 融合 (Dempster/Murphy)</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="w-2 h-2 rounded-full bg-amber-500" />
+              <span className="text-muted-foreground">物理约束校验</span>
+              <span className="ml-auto text-amber-400">否决/调整</span>
+            </div>
+            <div className="border-l border-dashed border-muted-foreground/30 ml-1 pl-2.5 py-1">
+              <span className="text-muted-foreground">↓ 诊断结论 + 建议</span>
+            </div>
+          </div>
+        </PageCard>
+      </div>
+
+      {/* 右侧: 诊断结果 */}
+      <div className="col-span-8 space-y-3">
+        {!hdeResult && !isRunning && (
+          <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+            <GitBranch className="w-12 h-12 mb-3 opacity-30" />
+            <p className="text-sm font-medium">双轨诊断引擎</p>
+            <p className="text-xs mt-1">选择左侧场景执行物理轨 + 数据轨并行诊断</p>
+          </div>
+        )}
+
+        {isRunning && (
+          <div className="flex flex-col items-center justify-center py-16">
+            <Loader2 className="w-10 h-10 animate-spin text-primary mb-3" />
+            <p className="text-sm text-muted-foreground">双轨并行诊断中...</p>
+            <p className="text-[10px] text-muted-foreground mt-1">物理约束轨 + 数据驱动轨 → DS 融合</p>
+          </div>
+        )}
+
+        {hdeResult && !isRunning && (
+          <>
+            {/* 诊断结论卡片 */}
+            <div className="grid grid-cols-4 gap-2">
+              <div className={cn(
+                'rounded-lg border p-3',
+                hdeResult.diagnosis.severity === 'low' ? 'border-emerald-500/30 bg-emerald-500/5' :
+                hdeResult.diagnosis.severity === 'medium' ? 'border-amber-500/30 bg-amber-500/5' :
+                hdeResult.diagnosis.severity === 'high' ? 'border-orange-500/30 bg-orange-500/5' :
+                'border-red-500/30 bg-red-500/5',
+              )}>
+                <div className="text-[10px] text-muted-foreground">故障类型</div>
+                <div className="text-sm font-bold mt-0.5 flex items-center gap-1.5">
+                  <span>{(FAULT_TYPE_LABELS[hdeResult.diagnosis.faultType] || FAULT_TYPE_LABELS.unknown).icon}</span>
+                  {(FAULT_TYPE_LABELS[hdeResult.diagnosis.faultType] || FAULT_TYPE_LABELS.unknown).zh}
+                </div>
+              </div>
+              <div className="rounded-lg border border-border p-3">
+                <div className="text-[10px] text-muted-foreground">置信度</div>
+                <div className="text-sm font-bold font-mono mt-0.5">
+                  {(hdeResult.diagnosis.confidence * 100).toFixed(1)}%
+                </div>
+                <Progress value={hdeResult.diagnosis.confidence * 100} className="h-1 mt-1" />
+              </div>
+              <div className="rounded-lg border border-border p-3">
+                <div className="text-[10px] text-muted-foreground">紧急程度</div>
+                <div className="text-sm font-bold mt-0.5" style={{
+                  color: URGENCY_LABELS[hdeResult.diagnosis.urgency]?.color || '#6b7280',
+                }}>
+                  {URGENCY_LABELS[hdeResult.diagnosis.urgency]?.zh || hdeResult.diagnosis.urgency}
+                </div>
+              </div>
+              <div className="rounded-lg border border-border p-3">
+                <div className="text-[10px] text-muted-foreground">耗时 / 融合策略</div>
+                <div className="text-sm font-bold font-mono mt-0.5">{hdeResult.durationMs}ms</div>
+                <div className="text-[10px] text-muted-foreground">
+                  {STRATEGY_LABELS[hdeResult.fusionResult.strategyUsed] || hdeResult.fusionResult.strategyUsed}
+                </div>
+              </div>
+            </div>
+
+            {/* 双轨对比 */}
+            <div className="grid grid-cols-2 gap-3">
+              {/* 物理轨 */}
+              <PageCard
+                title="物理约束轨" icon={<ShieldCheck className="w-3.5 h-3.5 text-blue-400" />}
+                compact
+              >
+                {hdeResult.trackResults.physics ? (
+                  <div className="space-y-2 mt-2">
+                    <div className="text-[10px] text-muted-foreground">
+                      执行耗时: {hdeResult.trackResults.physics.executionTimeMs}ms |
+                      假设数: {hdeResult.trackResults.physics.faultHypotheses.length}
+                    </div>
+                    {/* 物理约束检查 */}
+                    {hdeResult.trackResults.physics.physicsConstraints.map(c => (
+                      <div key={c.id} className={cn(
+                        'flex items-start gap-2 px-2 py-1.5 rounded text-[11px]',
+                        c.satisfied ? 'bg-emerald-500/10' : 'bg-red-500/10',
+                      )}>
+                        {c.satisfied ? (
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 mt-0.5 shrink-0" />
+                        ) : (
+                          <XCircle className="w-3.5 h-3.5 text-red-500 mt-0.5 shrink-0" />
+                        )}
+                        <div>
+                          <div className="font-medium">{c.name}</div>
+                          <div className="text-muted-foreground text-[10px]">{c.explanation}</div>
+                        </div>
+                      </div>
+                    ))}
+                    {/* 信念质量 */}
+                    <div className="text-[10px] text-muted-foreground mt-1 font-medium">信念质量分布:</div>
+                    <HDEBeliefBars mass={hdeResult.trackResults.physics.beliefMass} />
+                  </div>
+                ) : (
+                  <div className="text-xs text-muted-foreground py-4 text-center">未启用</div>
+                )}
+              </PageCard>
+
+              {/* 数据轨 */}
+              <PageCard
+                title="数据驱动轨" icon={<Cpu className="w-3.5 h-3.5 text-emerald-400" />}
+                compact
+              >
+                {hdeResult.trackResults.data ? (
+                  <div className="space-y-2 mt-2">
+                    <div className="text-[10px] text-muted-foreground">
+                      执行耗时: {hdeResult.trackResults.data.executionTimeMs}ms |
+                      假设数: {hdeResult.trackResults.data.faultHypotheses.length}
+                    </div>
+                    {/* 故障假设 */}
+                    {hdeResult.trackResults.data.faultHypotheses.map(h => (
+                      <div key={h.id} className="px-2 py-1.5 rounded bg-muted/50 text-[11px]">
+                        <div className="flex items-center gap-1.5">
+                          <span>{(FAULT_TYPE_LABELS[h.faultType] || FAULT_TYPE_LABELS.unknown).icon}</span>
+                          <span className="font-medium">
+                            {(FAULT_TYPE_LABELS[h.faultType] || FAULT_TYPE_LABELS.unknown).zh}
+                          </span>
+                          <span className="text-muted-foreground ml-auto font-mono">
+                            p={h.priorProbability.toFixed(2)}
+                          </span>
+                        </div>
+                        {h.supportingEvidence.map((e, i) => (
+                          <div key={i} className="text-[10px] text-muted-foreground mt-0.5 pl-5">
+                            {e}
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                    {hdeResult.trackResults.data.faultHypotheses.length === 0 && (
+                      <div className="text-xs text-emerald-500 flex items-center gap-1 py-2">
+                        <CheckCircle2 className="w-3.5 h-3.5" /> 未检出异常模式
+                      </div>
+                    )}
+                    {/* 信念质量 */}
+                    <div className="text-[10px] text-muted-foreground mt-1 font-medium">信念质量分布:</div>
+                    <HDEBeliefBars mass={hdeResult.trackResults.data.beliefMass} />
+                  </div>
+                ) : (
+                  <div className="text-xs text-muted-foreground py-4 text-center">未启用</div>
+                )}
+              </PageCard>
+            </div>
+
+            {/* DS 融合结果 */}
+            <PageCard
+              title="DS 融合结果" icon={<Brain className="w-3.5 h-3.5 text-purple-400" />}
+              compact
+            >
+              <div className="grid grid-cols-12 gap-4 mt-2">
+                <div className="col-span-8">
+                  <div className="text-[10px] text-muted-foreground mb-1">融合后信念质量 (9 假设):</div>
+                  <HDEBeliefBars mass={hdeResult.fusionResult.fusedMass} showAll />
+                </div>
+                <div className="col-span-4 space-y-2">
+                  <div className="rounded-md bg-muted/50 p-2">
+                    <div className="text-[10px] text-muted-foreground">冲突度</div>
+                    <div className={cn(
+                      'text-lg font-bold font-mono',
+                      hdeResult.fusionResult.conflict > 0.7 ? 'text-red-400' :
+                      hdeResult.fusionResult.conflict > 0.3 ? 'text-amber-400' : 'text-emerald-400',
+                    )}>
+                      {hdeResult.fusionResult.conflict.toFixed(3)}
+                    </div>
+                  </div>
+                  <div className="rounded-md bg-muted/50 p-2">
+                    <div className="text-[10px] text-muted-foreground">融合策略</div>
+                    <div className="text-sm font-medium">
+                      {STRATEGY_LABELS[hdeResult.fusionResult.strategyUsed] || hdeResult.fusionResult.strategyUsed}
+                    </div>
+                  </div>
+                  <div className={cn(
+                    'rounded-md p-2',
+                    hdeResult.physicsValidation.isValid ? 'bg-emerald-500/10' : 'bg-red-500/10',
+                  )}>
+                    <div className="text-[10px] text-muted-foreground">物理校验</div>
+                    <div className={cn(
+                      'text-sm font-medium flex items-center gap-1',
+                      hdeResult.physicsValidation.isValid ? 'text-emerald-400' : 'text-red-400',
+                    )}>
+                      {hdeResult.physicsValidation.isValid ? (
+                        <><CheckCircle2 className="w-3.5 h-3.5" /> 通过</>
+                      ) : (
+                        <><XCircle className="w-3.5 h-3.5" /> 否决</>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </PageCard>
+
+            {/* 建议 */}
+            {hdeResult.recommendations.length > 0 && (
+              <PageCard
+                title="诊断建议" icon={<AlertTriangle className="w-3.5 h-3.5 text-amber-400" />}
+                compact
+              >
+                <div className="space-y-1.5 mt-2">
+                  {hdeResult.recommendations.map((r, i) => (
+                    <div key={i} className={cn(
+                      'flex items-start gap-2 px-2.5 py-2 rounded text-[11px]',
+                      r.priority === 'critical' ? 'bg-red-500/10 border border-red-500/20' :
+                      r.priority === 'high' ? 'bg-orange-500/10 border border-orange-500/20' :
+                      r.priority === 'medium' ? 'bg-amber-500/10 border border-amber-500/20' :
+                      'bg-muted/50',
+                    )}>
+                      <Badge variant="outline" className={cn(
+                        'text-[9px] shrink-0',
+                        r.priority === 'critical' ? 'border-red-500 text-red-400' :
+                        r.priority === 'high' ? 'border-orange-500 text-orange-400' :
+                        r.priority === 'medium' ? 'border-amber-500 text-amber-400' :
+                        'text-muted-foreground',
+                      )}>
+                        {r.priority}
+                      </Badge>
+                      <div>
+                        <div className="font-medium">{r.action}</div>
+                        <div className="text-muted-foreground text-[10px] mt-0.5">{r.rationale}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </PageCard>
+            )}
+
+            {/* 元数据 + 跳转三维模型 */}
+            <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+              <span>Session: {hdeResult.sessionId}</span>
+              <span>|</span>
+              <span>版本: {String(hdeResult.metadata.version)}</span>
+              <span>|</span>
+              <span>阶段: {String(hdeResult.metadata.phase)}</span>
+              <span className="ml-auto">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-6 text-[11px] gap-1"
+                  onClick={() => navigate('/digital-twin/3d')}
+                >
+                  <Eye className="w-3 h-3" />
+                  查看三维模型
+                </Button>
+              </span>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** HDE 信念质量条形图（简化版） */
+function HDEBeliefBars({ mass, showAll }: { mass: Record<string, number>; showAll?: boolean }) {
+  const entries = Object.entries(mass)
+    .filter(([k]) => k !== 'theta')
+    .sort((a, b) => b[1] - a[1]);
+  const display = showAll ? entries : entries.slice(0, 4);
+  const maxVal = Math.max(...display.map(([, v]) => v), 0.01);
+  const theta = mass.theta || 0;
+
+  return (
+    <div className="space-y-1">
+      {display.map(([key, value]) => {
+        const label = FAULT_TYPE_LABELS[key] || FAULT_TYPE_LABELS.unknown;
+        return (
+          <div key={key} className="flex items-center gap-1.5">
+            <span className="text-[10px] w-16 truncate" title={label.zh}>
+              {label.icon} {label.zh}
+            </span>
+            <div className="flex-1 h-3.5 bg-muted rounded-sm overflow-hidden relative">
+              <div
+                className="h-full rounded-sm transition-all duration-500"
+                style={{ width: `${(value / maxVal) * 100}%`, backgroundColor: label.color, opacity: 0.8 }}
+              />
+              <span className="absolute inset-0 flex items-center justify-end pr-1 text-[9px] font-mono text-foreground/70">
+                {(value * 100).toFixed(1)}%
+              </span>
+            </div>
+          </div>
+        );
+      })}
+      {theta > 0.01 && (
+        <div className="flex items-center gap-1.5">
+          <span className="text-[10px] w-16 text-muted-foreground">&#952; 不确定</span>
+          <div className="flex-1 h-3.5 bg-muted rounded-sm overflow-hidden relative">
+            <div
+              className="h-full rounded-sm bg-gray-500/50 transition-all duration-500"
+              style={{ width: `${(theta / maxVal) * 100}%` }}
+            />
+            <span className="absolute inset-0 flex items-center justify-end pr-1 text-[9px] font-mono text-foreground/50">
+              {(theta * 100).toFixed(1)}%
+            </span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ==================== 子组件 ====================
 
@@ -444,6 +925,9 @@ export default function FusionDiagnosis() {
             </TabsTrigger>
             <TabsTrigger value="config" className="text-xs gap-1">
               <Settings2 className="w-3.5 h-3.5" /> 引擎配置
+            </TabsTrigger>
+            <TabsTrigger value="dual-track" className="text-xs gap-1">
+              <GitBranch className="w-3.5 h-3.5" /> 双轨诊断
             </TabsTrigger>
           </TabsList>
 
@@ -860,6 +1344,11 @@ export default function FusionDiagnosis() {
               updateWeightMutation={updateWeightMutation}
               toast={toast}
             />
+          </TabsContent>
+
+          {/* ============ Tab 5: 双轨诊断 ============ */}
+          <TabsContent value="dual-track" className="space-y-4 mt-3">
+            <DualTrackDiagnosisTab />
           </TabsContent>
         </Tabs>
 

@@ -413,3 +413,54 @@ ${toolDescriptions}
     };
   }
 }
+
+// ============================================================================
+// FIX-124: ReAct 推理链序列化/反序列化
+// ============================================================================
+
+/** 序列化格式版本（用于前向兼容） */
+const REASONING_CHAIN_VERSION = 1;
+
+/** 序列化后的推理链 JSON 结构 */
+export interface SerializedReasoningChain {
+  version: number;
+  sessionId: string;
+  steps: ReasoningStep[];
+  totalSteps: number;
+  finalOutput: unknown;
+  totalDurationMs: number;
+  tokensUsed: number;
+  fallbackUsed: boolean;
+  serializedAt: number;
+}
+
+/** 将 ReasoningResult 序列化为可存储/传输的 JSON 字符串 */
+export function serializeReasoningChain(result: ReasoningResult): string {
+  const chain: SerializedReasoningChain = {
+    version: REASONING_CHAIN_VERSION,
+    sessionId: result.sessionId,
+    steps: result.steps,
+    totalSteps: result.totalSteps,
+    finalOutput: result.finalOutput,
+    totalDurationMs: result.totalDurationMs,
+    tokensUsed: result.tokensUsed,
+    fallbackUsed: result.fallbackUsed,
+    serializedAt: Date.now(),
+  };
+  return JSON.stringify(chain);
+}
+
+/** 从 JSON 字符串反序列化为 ReasoningResult */
+export function deserializeReasoningChain(json: string): ReasoningResult {
+  const chain: SerializedReasoningChain = JSON.parse(json);
+  // 版本兼容：未来版本增加字段时在此处补默认值
+  return {
+    sessionId: chain.sessionId,
+    steps: chain.steps,
+    totalSteps: chain.totalSteps,
+    finalOutput: chain.finalOutput,
+    totalDurationMs: chain.totalDurationMs,
+    tokensUsed: chain.tokensUsed ?? 0,
+    fallbackUsed: chain.fallbackUsed ?? false,
+  };
+}

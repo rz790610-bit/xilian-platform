@@ -16,6 +16,7 @@ import { router, protectedProcedure } from '../../core/trpc';
 import { TRPCError } from '@trpc/server';
 import { getOrchestrator, EVOLUTION_TOPICS } from './evolution-orchestrator';
 import { z } from 'zod';
+import { sessionIdSchema } from '../../../shared/contracts/schemas';
 import { getDb } from '../../lib/db';
 import { eq, desc, count, gte, and, lte, asc, sql, or } from 'drizzle-orm';
 import {
@@ -150,6 +151,36 @@ const shadowEvalRouter = router({
       getOrchestrator().recordMetric('evolution.cycle.started', 1);
 
       return { success: true };
+      } catch (err) {
+        return { success: false, error: String(err) };
+      }
+    }),
+
+  /** 完成评估并提交指标 */
+  complete: protectedProcedure
+    .input(z.object({
+      id: z.number(),
+      metrics: z.array(z.object({
+        metricName: z.string(),
+        baselineValue: z.number(),
+        challengerValue: z.number(),
+        improvement: z.number().optional(),
+        statisticalSignificance: z.number().optional(),
+      })),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection unavailable" });
+      try {
+        await db.update(shadowEvalRecords)
+          .set({ status: 'completed', completedAt: new Date() })
+          .where(eq(shadowEvalRecords.id, input.id));
+        if (input.metrics.length > 0) {
+          await db.insert(shadowEvalMetrics).values(
+            input.metrics.map(m => ({ recordId: input.id, ...m }))
+          );
+        }
+        return { success: true };
       } catch (err) {
         return { success: false, error: String(err) };
       }

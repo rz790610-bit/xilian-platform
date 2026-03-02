@@ -14,6 +14,11 @@
  */
 
 import type { KnowledgeGraphEngine as KnowledgeGraph } from '../graph/knowledge-graph';
+import { createModuleLogger } from '../../../core/logger';
+import { getDb } from '../../../lib/db';
+import { knowledgeTriples } from '../../../../drizzle/schema';
+
+const log = createModuleLogger('kg-query');
 
 // ============================================================================
 // 查询类型
@@ -104,7 +109,11 @@ export class KGQueryService {
       updatedAt: new Date(),
     };
 
-    // TODO: 实际 DB 写入 — INSERT INTO knowledge_triples ...
+    // 持久化到 MySQL
+    this.persistTriple(record).catch(err =>
+      log.warn({ err, subject, predicate, object }, '[kg-query] DB persist triple failed'),
+    );
+
     this.invalidateCache(`triple:${subject}:*`);
     return record;
   }
@@ -323,5 +332,24 @@ export class KGQueryService {
         this.queryCache.delete(key);
       }
     }
+  }
+
+  // --------------------------------------------------------------------------
+  // DB 持久化（异步，失败不阻塞）
+  // --------------------------------------------------------------------------
+
+  private async persistTriple(record: TripleRecord): Promise<void> {
+    const db = await getDb();
+    if (!db) return;
+
+    await db.insert(knowledgeTriples).values({
+      subject: record.subject,
+      predicate: record.predicate,
+      object: record.object,
+      confidence: record.confidence,
+      source: record.source,
+      metadata: record.metadata as any,
+    });
+    log.debug({ subject: record.subject, predicate: record.predicate }, '[kg-query] Triple persisted');
   }
 }

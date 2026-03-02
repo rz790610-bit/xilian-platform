@@ -11,6 +11,12 @@
  *   5. 事件投影（物化视图）
  */
 
+import { createModuleLogger } from '../../core/logger';
+import { getDb } from '../../lib/db';
+import { eventStore as eventStoreTable } from '../../../drizzle/schema';
+
+const log = createModuleLogger('event-sourcing');
+
 // ============================================================================
 // 事件溯源类型
 // ============================================================================
@@ -53,7 +59,7 @@ export interface Projection {
 // ============================================================================
 
 export class EventSourcingEngine {
-  private eventStore: StoredEvent[] = [];
+  private eventStoreMemory: StoredEvent[] = [];
   private snapshots = new Map<string, Snapshot>(); // aggregateId → latest snapshot
   private projections = new Map<string, Projection>();
   private nextEventId = 1;
@@ -89,7 +95,7 @@ export class EventSourcingEngine {
       createdAt: Date.now(),
     };
 
-    this.eventStore.push(event);
+    this.eventStoreMemory.push(event);
 
     // 检查是否需要创建快照
     if (version % this.snapshotInterval === 0) {
@@ -99,8 +105,10 @@ export class EventSourcingEngine {
     // 更新投影
     this.updateProjections(event);
 
-    // TODO: 持久化到数据库
-    // INSERT INTO event_store (aggregate_id, aggregate_type, event_type, payload, metadata, version) ...
+    // 持久化到 MySQL event_store 表
+    this.persistEvent(event).catch(err =>
+      log.warn({ err, eventId: event.id, eventType }, '[event-sourcing] DB persist failed'),
+    );
 
     return event;
   }
@@ -113,7 +121,7 @@ export class EventSourcingEngine {
     fromVersion?: number,
     toVersion?: number,
   ): StoredEvent[] {
-    return this.eventStore
+    return this.eventStoreMemory
       .filter(e => e.aggregateId === aggregateId)
       .filter(e => !fromVersion || e.metadata.version >= fromVersion)
       .filter(e => !toVersion || e.metadata.version <= toVersion)
@@ -202,7 +210,7 @@ export class EventSourcingEngine {
     projection.currentState = {};
     projection.lastProcessedVersion = 0;
 
-    const relevantEvents = this.eventStore
+    const relevantEvents = this.eventStoreMemory
       .filter(e => projection.eventTypes.includes(e.eventType) || projection.eventTypes.includes('*'))
       .sort((a, b) => a.id - b.id);
 
@@ -223,7 +231,7 @@ export class EventSourcingEngine {
     limit?: number;
     offset?: number;
   }): { events: StoredEvent[]; total: number } {
-    let results = [...this.eventStore];
+    let results = [...this.eventStoreMemory];
 
     if (params.aggregateType) results = results.filter(e => e.aggregateType === params.aggregateType);
     if (params.eventType) results = results.filter(e => e.eventType === params.eventType);
@@ -253,13 +261,13 @@ export class EventSourcingEngine {
     const eventsByType: Record<string, number> = {};
     const eventsByAggregate: Record<string, number> = {};
 
-    for (const event of this.eventStore) {
+    for (const event of this.eventStoreMemory) {
       eventsByType[event.eventType] = (eventsByType[event.eventType] || 0) + 1;
       eventsByAggregate[event.aggregateType] = (eventsByAggregate[event.aggregateType] || 0) + 1;
     }
 
     return {
-      totalEvents: this.eventStore.length,
+      totalEvents: this.eventStoreMemory.length,
       totalSnapshots: this.snapshots.size,
       totalProjections: this.projections.size,
       eventsByType,
@@ -268,11 +276,92 @@ export class EventSourcingEngine {
   }
 
   // --------------------------------------------------------------------------
+  // DB 持久化 + 补偿 (FIX-131)
+  // --------------------------------------------------------------------------
+
+  /** 失败事件队列（DLQ），供后续重试或人工检查 */
+  private deadLetterQueue: StoredEvent[] = [];
+  private readonly maxRetries = 3;
+  private readonly retryDelayMs = 1000;
+
+  private async persistEvent(event: StoredEvent): Promise<void> {
+    for (let attempt = 1; attempt <= this.maxRetries; attempt++) {
+      try {
+        const db = await getDb();
+        if (!db) {
+          log.warn({ eventId: event.id }, '[event-sourcing] DB unavailable, event queued to DLQ');
+          this.deadLetterQueue.push(event);
+          return;
+        }
+
+        await db.insert(eventStoreTable).values({
+          eventId: `evt_${event.id}_${event.metadata.timestamp}`,
+          eventType: event.eventType,
+          aggregateType: event.aggregateType,
+          aggregateId: event.aggregateId,
+          aggregateVersion: event.metadata.version,
+          payload: event.payload as any,
+          metadata: event.metadata as any,
+          causationId: event.metadata.causationId ?? null,
+          correlationId: event.metadata.correlationId ?? null,
+          occurredAt: new Date(event.metadata.timestamp),
+          recordedAt: new Date(),
+          actorId: event.metadata.userId ?? null,
+        });
+        log.debug({ eventId: event.id, eventType: event.eventType }, '[event-sourcing] Persisted');
+        return; // 成功
+      } catch (err) {
+        log.warn({ err, eventId: event.id, attempt, maxRetries: this.maxRetries }, '[event-sourcing] Persist failed, retrying');
+        if (attempt < this.maxRetries) {
+          await new Promise(r => setTimeout(r, this.retryDelayMs * attempt));
+        }
+      }
+    }
+
+    // 所有重试失败 → 放入 DLQ
+    log.error({ eventId: event.id, eventType: event.eventType }, '[event-sourcing] Persist failed after retries, moved to DLQ');
+    this.deadLetterQueue.push(event);
+  }
+
+  /** FIX-131: 重试 DLQ 中的失败事件 */
+  async retryDeadLetterQueue(): Promise<{ retried: number; failed: number }> {
+    const toRetry = [...this.deadLetterQueue];
+    this.deadLetterQueue = [];
+    let retried = 0;
+    let failed = 0;
+
+    for (const event of toRetry) {
+      try {
+        await this.persistEvent(event);
+        if (!this.deadLetterQueue.includes(event)) {
+          retried++;
+        } else {
+          failed++;
+        }
+      } catch {
+        this.deadLetterQueue.push(event);
+        failed++;
+      }
+    }
+
+    log.info({ retried, failed, remaining: this.deadLetterQueue.length }, '[event-sourcing] DLQ retry completed');
+    return { retried, failed };
+  }
+
+  /** 获取 DLQ 状态 */
+  getDeadLetterQueueStatus(): { size: number; events: Array<{ id: number; eventType: string; aggregateId: string }> } {
+    return {
+      size: this.deadLetterQueue.length,
+      events: this.deadLetterQueue.map(e => ({ id: e.id, eventType: e.eventType, aggregateId: e.aggregateId })),
+    };
+  }
+
+  // --------------------------------------------------------------------------
   // 内部方法
   // --------------------------------------------------------------------------
 
   private getLatestVersion(aggregateId: string): number {
-    const events = this.eventStore.filter(e => e.aggregateId === aggregateId);
+    const events = this.eventStoreMemory.filter(e => e.aggregateId === aggregateId);
     if (events.length === 0) return 0;
     return Math.max(...events.map(e => e.metadata.version));
   }

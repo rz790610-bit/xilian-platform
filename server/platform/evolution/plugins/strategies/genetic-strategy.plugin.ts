@@ -31,6 +31,17 @@ export const geneticAlgorithmPlugin = createStrategyPlugin(
     const hypotheses: Hypothesis[] = [];
     const perf = context.recentPerformance || [];
 
+    // FIX-089: GA 参数从 context.constraints 读取，提供合理默认值
+    const gaConfig = {
+      mutationRate: Number(context.constraints?.mutationRate) || 0.15,
+      mutationScale: Number(context.constraints?.mutationScale) || 0.1,
+      crossoverRate: Number(context.constraints?.crossoverRate) || 0.7,
+      eliteRatio: Number(context.constraints?.eliteRatio) || 0.2,
+      generations: Number(context.constraints?.generations) || 5,
+      populationSize: Number(context.constraints?.populationSize) || 20,
+      saturationThreshold: Number(context.constraints?.saturationThreshold) || 0.8,
+    };
+
     // ── 种群初始化：基于当前参数生成变异个体 ──
     const currentParams = context.currentParams || {};
     const paramKeys = Object.keys(currentParams);
@@ -46,11 +57,11 @@ export const geneticAlgorithmPlugin = createStrategyPlugin(
         confidence: 0.55,
         parameters: {
           method: 'genetic_mutation',
-          mutationRate: 0.15,
-          mutationScale: 0.1,
+          mutationRate: gaConfig.mutationRate,
+          mutationScale: gaConfig.mutationScale,
           baseParams: currentParams,
-          generations: 5,
-          populationSize: 20,
+          generations: gaConfig.generations,
+          populationSize: gaConfig.populationSize,
         },
         status: 'proposed',
         generatedBy: 'rules',
@@ -68,8 +79,8 @@ export const geneticAlgorithmPlugin = createStrategyPlugin(
           parameters: {
             method: 'genetic_crossover',
             crossoverType: 'uniform',
-            crossoverRate: 0.7,
-            eliteRatio: 0.2,
+            crossoverRate: gaConfig.crossoverRate,
+            eliteRatio: gaConfig.eliteRatio,
           },
           status: 'proposed',
           generatedBy: 'rules',
@@ -82,7 +93,7 @@ export const geneticAlgorithmPlugin = createStrategyPlugin(
       ? perf.reduce((s, p) => s + p.score, 0) / perf.length
       : 0;
 
-    if (avgScore > 0.8 && perf.length >= 5) {
+    if (avgScore > gaConfig.saturationThreshold && perf.length >= 5) {
       hypotheses.push({
         hypothesisId: `hyp_genetic_arch_${Date.now()}`,
         timestamp: Date.now(),

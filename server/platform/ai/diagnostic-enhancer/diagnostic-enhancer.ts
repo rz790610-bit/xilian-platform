@@ -603,8 +603,9 @@ ${JSON.stringify(report.prediction, null, 2)}
 
       // 温度范围校验
       if (data && typeof data === 'object') {
-        const value = (data as Record<string, unknown>).value;
-        const sensorType = (data as Record<string, unknown>).sensorType;
+        // FIX-052: data 已是 Record<string, unknown>，无需类型断言
+        const value = data.value;
+        const sensorType = data.sensorType;
 
         if (typeof value === 'number' && typeof sensorType === 'string') {
           if (sensorType.toLowerCase().includes('temp') || sensorType.toLowerCase().includes('temperature')) {
@@ -870,7 +871,9 @@ ${causalContext.length > 0 ? causalContext.join('\n') : '无可用因果链'}
    */
   private publishEvent(topic: string, payload: object): void {
     try {
-      eventBus.publish(topic, topic, payload as Record<string, unknown>, { source: 'diagnostic-enhancer' });
+      // FIX-009: topic 不再重复传入 eventType 位，提取末段作为 eventType
+      const eventType = topic.split('.').pop() || topic;
+      eventBus.publish(topic, eventType, payload as Record<string, unknown>, { source: 'diagnostic-enhancer' });
     } catch (err: any) {
       log.warn({ topic, err: err.message }, 'EventBus 发布失败（非致命）');
     }

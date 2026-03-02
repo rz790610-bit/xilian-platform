@@ -314,8 +314,10 @@ export class WorldModelEngine implements WorldModelProvider {
 
       log.info('WorldModel 训练任务已提交到 Dojo', { jobId: job.id });
 
-      // 模拟训练过程（生产中：调用 Python 子进程或外部训练服务导出 ONNX）
+      // FIX-062: 训练目前为模拟模式
+      // 生产中：调用 Python 子进程或外部训练服务导出 ONNX
       // 真实场景：await this.runPythonTraining(job); // 然后 reload session
+      log.warn('WorldModel 训练处于模拟模式 (simulation)，需部署 Python 训练后端以启用真实训练', { jobId: job.id });
       await this.simulateTraining(job);
 
       FSDMetrics.trainingJobs.inc('completed', 'full_train');
@@ -366,6 +368,18 @@ export class WorldModelEngine implements WorldModelProvider {
     this.session = null;
     this.initialized = false;
     await this.init();
+  }
+
+  /**
+   * FIX-062: 获取训练能力状态
+   * 前端可调用此方法判断是否显示"功能开发中"提示
+   */
+  getTrainingCapabilities(): { mode: 'simulation' | 'production'; message: string; supported: string[] } {
+    return {
+      mode: 'simulation',
+      message: '训练功能处于模拟模式。需要部署 Python 训练后端（PyTorch/TensorFlow + ONNX 导出）以启用真实训练。',
+      supported: ['architecture_selection', 'carbon_aware_scheduling', 'dojo_queue', 'onnx_inference'],
+    };
   }
 
   // ========================================================================

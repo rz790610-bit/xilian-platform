@@ -9,13 +9,18 @@
  * - Solution: 解决方案节点
  * - Vessel: 船舶节点
  * - Berth: 泊位节点
- * 
+ * - Condition: 工况条件节点 (P0-4)
+ * - Case: 历史案例节点 (P0-4)
+ *
  * 关系类型：
  * - HAS_PART: 设备包含组件
  * - CAUSES: 故障因果关系
  * - SIMILAR_TO: 相似故障
  * - RESOLVED_BY: 故障解决方案
  * - AFFECTS: 故障影响
+ * - UNDER_CONDITION: 故障在特定工况下发生 (P0-4)
+ * - VALIDATES: 案例验证故障 (P0-4)
+ * - SHARED_COMPONENT: 跨设备共享部件 (P0-4)
  * 
  * 特性：
  * - GDS 插件向量索引
@@ -125,6 +130,35 @@ export interface BerthNode {
   equipment?: string[];
 }
 
+/** P0-4: 工况条件节点 */
+export interface ConditionNode {
+  id: string;
+  /** 工况编码 (如 "HOIST.FULL_LOAD.HIGH_WIND") */
+  encoding: string;
+  name: string;
+  type: 'operating' | 'environmental' | 'load';
+  description?: string;
+  /** 参数阈值 (如 {"windSpeed": [15, 25], "loadPercent": [80, 100]}) */
+  parameters?: Record<string, unknown>;
+}
+
+/** P0-4: 历史案例节点 */
+export interface CaseNode {
+  id: string;
+  caseId: string;
+  deviceId: string;
+  type: 'diagnosis' | 'maintenance' | 'failure';
+  description: string;
+  occurredAt?: Date;
+  outcome?: 'confirmed' | 'rejected' | 'pending' | 'restored' | 'partial' | 'ineffective';
+  severity?: 'minor' | 'moderate' | 'severe' | 'critical';
+  confidence?: number;
+  diagnosisMethod?: string;
+  rootCause?: string;
+  resolution?: string;
+  metadata?: Record<string, unknown>;
+}
+
 // ============ 关系类型定义 ============
 
 export interface HasPartRelation {
@@ -155,6 +189,36 @@ export interface AffectsRelation {
   impactLevel: 'low' | 'medium' | 'high' | 'critical';
   description?: string;
   propagationDelay?: number;
+}
+
+/** P0-4: UNDER_CONDITION 关系属性 */
+export interface UnderConditionRelation {
+  /** 故障在该工况下发生的概率 */
+  probability: number;
+  /** 附加条件说明 */
+  notes?: string;
+}
+
+/** P0-4: VALIDATES 关系属性 */
+export interface ValidatesRelation {
+  /** 验证结果 */
+  outcome: 'confirmed' | 'rejected' | 'partial';
+  /** 置信度 */
+  confidence?: number;
+  /** 验证方法 */
+  method?: string;
+  /** 验证时间 */
+  validatedAt?: Date;
+}
+
+/** P0-4: SHARED_COMPONENT 关系属性 */
+export interface SharedComponentRelation {
+  /** 共享部件类型 */
+  componentType: string;
+  /** 相似度 */
+  similarity?: number;
+  /** 跨设备参考说明 */
+  notes?: string;
 }
 
 // ============ 查询结果类型 ============
@@ -241,6 +305,10 @@ export class Neo4jStorage {
         'CREATE CONSTRAINT solution_id IF NOT EXISTS FOR (s:Solution) REQUIRE s.id IS UNIQUE',
         'CREATE CONSTRAINT vessel_id IF NOT EXISTS FOR (v:Vessel) REQUIRE v.id IS UNIQUE',
         'CREATE CONSTRAINT berth_id IF NOT EXISTS FOR (b:Berth) REQUIRE b.id IS UNIQUE',
+        // P0-4: Condition + Case 节点约束
+        'CREATE CONSTRAINT condition_id IF NOT EXISTS FOR (c:Condition) REQUIRE c.id IS UNIQUE',
+        'CREATE CONSTRAINT condition_encoding IF NOT EXISTS FOR (c:Condition) REQUIRE c.encoding IS UNIQUE',
+        'CREATE CONSTRAINT case_id IF NOT EXISTS FOR (cs:Case) REQUIRE cs.id IS UNIQUE',
       ];
 
       for (const constraint of constraints) {
@@ -256,6 +324,17 @@ export class Neo4jStorage {
         'CREATE FULLTEXT INDEX fault_search IF NOT EXISTS FOR (f:Fault) ON EACH [f.name, f.description, f.code]',
         'CREATE FULLTEXT INDEX solution_search IF NOT EXISTS FOR (s:Solution) ON EACH [s.name, s.description]',
         'CREATE FULLTEXT INDEX equipment_search IF NOT EXISTS FOR (e:Equipment) ON EACH [e.name, e.type, e.model]',
+        // P0-4: Condition + Case 全文索引
+        'CREATE FULLTEXT INDEX condition_search IF NOT EXISTS FOR (c:Condition) ON EACH [c.name, c.encoding, c.type]',
+        'CREATE FULLTEXT INDEX case_search IF NOT EXISTS FOR (cs:Case) ON EACH [cs.caseId, cs.description, cs.deviceId]',
+      ];
+
+      // P0-4: 属性索引（加速按字段查询）
+      const propertyIndexes = [
+        'CREATE INDEX condition_type IF NOT EXISTS FOR (c:Condition) ON (c.type)',
+        'CREATE INDEX case_device IF NOT EXISTS FOR (cs:Case) ON (cs.deviceId)',
+        'CREATE INDEX case_type IF NOT EXISTS FOR (cs:Case) ON (cs.type)',
+        'CREATE INDEX case_outcome IF NOT EXISTS FOR (cs:Case) ON (cs.outcome)',
       ];
 
       for (const index of indexes) {
@@ -263,6 +342,14 @@ export class Neo4jStorage {
           await session.run(index);
         } catch (e) {
           // 索引可能已存在，忽略错误
+        }
+      }
+
+      for (const pIdx of propertyIndexes) {
+        try {
+          await session.run(pIdx);
+        } catch (e) {
+          // 属性索引可能已存在
         }
       }
 
@@ -1049,6 +1136,353 @@ export class Neo4jStorage {
     }
   }
 
+  // ============ P0-4: Condition / Case 节点操作 ============
+
+  /**
+   * 创建工况条件节点
+   */
+  async createCondition(condition: ConditionNode): Promise<ConditionNode | null> {
+    const session = this.getSession();
+
+    try {
+      const result = await session.run(
+        `CREATE (c:Condition {
+          id: $id,
+          encoding: $encoding,
+          name: $name,
+          type: $type,
+          description: $description,
+          parameters: $parameters,
+          createdAt: datetime()
+        })
+        RETURN c`,
+        {
+          id: condition.id,
+          encoding: condition.encoding,
+          name: condition.name,
+          type: condition.type,
+          description: condition.description || null,
+          parameters: condition.parameters ? JSON.stringify(condition.parameters) : null,
+        }
+      );
+
+      if (result.records.length > 0) {
+        return this.mapConditionNode(result.records[0].get('c'));
+      }
+      return null;
+    } catch (error) {
+      log.warn('[Neo4j] Create condition error:', error);
+      return null;
+    } finally {
+      await session.close();
+    }
+  }
+
+  /**
+   * 创建历史案例节点
+   */
+  async createCase(caseNode: CaseNode): Promise<CaseNode | null> {
+    const session = this.getSession();
+
+    try {
+      const result = await session.run(
+        `CREATE (cs:Case {
+          id: $id,
+          caseId: $caseId,
+          deviceId: $deviceId,
+          type: $type,
+          description: $description,
+          occurredAt: $occurredAt,
+          outcome: $outcome,
+          severity: $severity,
+          confidence: $confidence,
+          diagnosisMethod: $diagnosisMethod,
+          rootCause: $rootCause,
+          resolution: $resolution,
+          metadata: $metadata,
+          createdAt: datetime()
+        })
+        RETURN cs`,
+        {
+          id: caseNode.id,
+          caseId: caseNode.caseId,
+          deviceId: caseNode.deviceId,
+          type: caseNode.type,
+          description: caseNode.description,
+          occurredAt: caseNode.occurredAt?.toISOString() || null,
+          outcome: caseNode.outcome || null,
+          severity: caseNode.severity || null,
+          confidence: caseNode.confidence ?? null,
+          diagnosisMethod: caseNode.diagnosisMethod || null,
+          rootCause: caseNode.rootCause || null,
+          resolution: caseNode.resolution || null,
+          metadata: caseNode.metadata ? JSON.stringify(caseNode.metadata) : null,
+        }
+      );
+
+      if (result.records.length > 0) {
+        return this.mapCaseNode(result.records[0].get('cs'));
+      }
+      return null;
+    } catch (error) {
+      log.warn('[Neo4j] Create case error:', error);
+      return null;
+    } finally {
+      await session.close();
+    }
+  }
+
+  // ============ P0-4: 新关系操作 ============
+
+  /**
+   * 创建 UNDER_CONDITION 关系
+   * (Fault)-[:UNDER_CONDITION {probability}]->(Condition)
+   */
+  async createUnderConditionRelation(
+    faultId: string,
+    conditionId: string,
+    properties: UnderConditionRelation
+  ): Promise<boolean> {
+    const session = this.getSession();
+
+    try {
+      await session.run(
+        `MATCH (f:Fault {id: $faultId})
+         MATCH (c:Condition {id: $conditionId})
+         MERGE (f)-[r:UNDER_CONDITION]->(c)
+         SET r.probability = $probability,
+             r.notes = $notes,
+             r.createdAt = datetime()
+         RETURN r`,
+        {
+          faultId,
+          conditionId,
+          probability: properties.probability,
+          notes: properties.notes || null,
+        }
+      );
+
+      return true;
+    } catch (error) {
+      log.warn('[Neo4j] Create UNDER_CONDITION relation error:', error);
+      return false;
+    } finally {
+      await session.close();
+    }
+  }
+
+  /**
+   * 创建 VALIDATES 关系
+   * (Case)-[:VALIDATES {outcome}]->(Fault)
+   */
+  async createValidatesRelation(
+    caseId: string,
+    faultId: string,
+    properties: ValidatesRelation
+  ): Promise<boolean> {
+    const session = this.getSession();
+
+    try {
+      await session.run(
+        `MATCH (cs:Case {id: $caseId})
+         MATCH (f:Fault {id: $faultId})
+         MERGE (cs)-[r:VALIDATES]->(f)
+         SET r.outcome = $outcome,
+             r.confidence = $confidence,
+             r.method = $method,
+             r.validatedAt = $validatedAt,
+             r.createdAt = datetime()
+         RETURN r`,
+        {
+          caseId,
+          faultId,
+          outcome: properties.outcome,
+          confidence: properties.confidence ?? null,
+          method: properties.method || null,
+          validatedAt: properties.validatedAt?.toISOString() || null,
+        }
+      );
+
+      return true;
+    } catch (error) {
+      log.warn('[Neo4j] Create VALIDATES relation error:', error);
+      return false;
+    } finally {
+      await session.close();
+    }
+  }
+
+  /**
+   * 创建 SHARED_COMPONENT 关系
+   * (Component)-[:SHARED_COMPONENT]->(Component)
+   */
+  async createSharedComponentRelation(
+    componentId1: string,
+    componentId2: string,
+    properties: SharedComponentRelation
+  ): Promise<boolean> {
+    const session = this.getSession();
+
+    try {
+      await session.run(
+        `MATCH (c1:Component {id: $componentId1})
+         MATCH (c2:Component {id: $componentId2})
+         MERGE (c1)-[r:SHARED_COMPONENT]->(c2)
+         SET r.componentType = $componentType,
+             r.similarity = $similarity,
+             r.notes = $notes,
+             r.createdAt = datetime()
+         RETURN r`,
+        {
+          componentId1,
+          componentId2,
+          componentType: properties.componentType,
+          similarity: properties.similarity ?? null,
+          notes: properties.notes || null,
+        }
+      );
+
+      return true;
+    } catch (error) {
+      log.warn('[Neo4j] Create SHARED_COMPONENT relation error:', error);
+      return false;
+    } finally {
+      await session.close();
+    }
+  }
+
+  // ============ P0-4: 复杂查询 ============
+
+  /**
+   * 复杂查询：给定设备+工况，返回故障列表及历史案例
+   *
+   * 验收标准: §3.6 的 Cypher
+   *   MATCH (e:Equipment {id: $deviceId})-[:HAS_PART]->(comp)
+   *   MATCH (f:Fault)-[:AFFECTS]->(comp)
+   *   MATCH (f)-[:UNDER_CONDITION]->(cond:Condition {encoding: $conditionEncoding})
+   *   OPTIONAL MATCH (cs:Case)-[:VALIDATES]->(f)
+   *   RETURN f, cond, collect(cs) as cases
+   */
+  async queryFaultsWithConditionsAndCases(
+    deviceId: string,
+    conditionEncoding: string
+  ): Promise<{
+    faults: Array<{
+      fault: FaultNode;
+      condition: ConditionNode;
+      probability: number;
+      cases: CaseNode[];
+    }>;
+  }> {
+    const session = this.getSession();
+
+    try {
+      const result = await session.run(
+        `MATCH (e:Equipment {id: $deviceId})-[:HAS_PART*1..3]->(comp)
+         MATCH (f:Fault)-[:AFFECTS]->(comp)
+         MATCH (f)-[uc:UNDER_CONDITION]->(cond:Condition {encoding: $conditionEncoding})
+         OPTIONAL MATCH (cs:Case)-[v:VALIDATES]->(f)
+         RETURN f, cond, uc.probability AS probability,
+                collect(DISTINCT cs) AS cases
+         ORDER BY uc.probability DESC`,
+        { deviceId, conditionEncoding }
+      );
+
+      const faults = result.records.map(record => ({
+        fault: this.mapFaultNode(record.get('f')),
+        condition: this.mapConditionNode(record.get('cond')),
+        probability: record.get('probability') ?? 0,
+        cases: (record.get('cases') || [])
+          .filter((cs: any) => cs !== null)
+          .map((cs: any) => this.mapCaseNode(cs)),
+      }));
+
+      return { faults };
+    } catch (error) {
+      log.warn('[Neo4j] Query faults with conditions error:', error);
+      return { faults: [] };
+    } finally {
+      await session.close();
+    }
+  }
+
+  /**
+   * 查询跨设备共享部件
+   */
+  async querySharedComponents(
+    componentId: string
+  ): Promise<Array<{ component: ComponentNode; similarity: number }>> {
+    const session = this.getSession();
+
+    try {
+      const result = await session.run(
+        `MATCH (c1:Component {id: $componentId})-[r:SHARED_COMPONENT]-(c2:Component)
+         RETURN c2, r.similarity AS similarity
+         ORDER BY r.similarity DESC`,
+        { componentId }
+      );
+
+      return result.records.map(record => ({
+        component: {
+          id: record.get('c2').properties.id,
+          name: record.get('c2').properties.name,
+          type: record.get('c2').properties.type,
+        } as ComponentNode,
+        similarity: record.get('similarity') ?? 1.0,
+      }));
+    } catch (error) {
+      log.warn('[Neo4j] Query shared components error:', error);
+      return [];
+    } finally {
+      await session.close();
+    }
+  }
+
+  /**
+   * 根据编码查询 Condition 节点
+   */
+  async getConditionByEncoding(encoding: string): Promise<ConditionNode | null> {
+    const session = this.getSession();
+
+    try {
+      const result = await session.run(
+        `MATCH (c:Condition {encoding: $encoding}) RETURN c`,
+        { encoding }
+      );
+
+      if (result.records.length > 0) {
+        return this.mapConditionNode(result.records[0].get('c'));
+      }
+      return null;
+    } catch (error) {
+      log.warn('[Neo4j] Get condition by encoding error:', error);
+      return null;
+    } finally {
+      await session.close();
+    }
+  }
+
+  /**
+   * 查询所有 Case 节点
+   */
+  async getCases(limit = 100): Promise<CaseNode[]> {
+    const session = this.getSession();
+
+    try {
+      const result = await session.run(
+        `MATCH (cs:Case) RETURN cs LIMIT $limit`,
+        { limit: neo4j.int(limit) }
+      );
+
+      return result.records.map(r => this.mapCaseNode(r.get('cs')));
+    } catch (error) {
+      log.warn('[Neo4j] Get cases error:', error);
+      return [];
+    } finally {
+      await session.close();
+    }
+  }
+
   // ============ 映射方法 ============
 
   private mapEquipmentNode(node: any): EquipmentNode {
@@ -1080,6 +1514,39 @@ export class Neo4jStorage {
       frequency: props.frequency?.toNumber?.() || props.frequency,
       avgResolutionTime: props.avgResolutionTime?.toNumber?.() || props.avgResolutionTime,
       embedding: props.embedding,
+    };
+  }
+
+  /** P0-4: Condition 节点映射 */
+  private mapConditionNode(node: any): ConditionNode {
+    const props = node.properties;
+    return {
+      id: props.id,
+      encoding: props.encoding,
+      name: props.name,
+      type: props.type,
+      description: props.description,
+      parameters: props.parameters ? JSON.parse(props.parameters) : undefined,
+    };
+  }
+
+  /** P0-4: Case 节点映射 */
+  private mapCaseNode(node: any): CaseNode {
+    const props = node.properties;
+    return {
+      id: props.id,
+      caseId: props.caseId,
+      deviceId: props.deviceId,
+      type: props.type,
+      description: props.description,
+      occurredAt: props.occurredAt ? new Date(props.occurredAt) : undefined,
+      outcome: props.outcome,
+      severity: props.severity,
+      confidence: props.confidence,
+      diagnosisMethod: props.diagnosisMethod,
+      rootCause: props.rootCause,
+      resolution: props.resolution,
+      metadata: props.metadata ? JSON.parse(props.metadata) : undefined,
     };
   }
 

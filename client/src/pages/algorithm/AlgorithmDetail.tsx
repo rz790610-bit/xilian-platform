@@ -243,10 +243,10 @@ function AlgorithmTestPanel({ algo, onClose }: { algo: any; onClose: () => void 
     onSuccess: (result) => {
       setExecutionResult(result);
       setPhase('result');
-      if (result.status === 'success') {
+      if (result.status === 'completed') {
         toast.success("算法执行完成");
       } else {
-        toast.error("算法执行失败", { description: result.output?.error as string });
+        toast.error("算法执行失败", { description: result.results?.error as string });
       }
     },
     onError: (err) => {
@@ -852,6 +852,8 @@ export default function AlgorithmDetail() {
 
   const [bindDialogOpen, setBindDialogOpen] = useState(false);
   const [testDialogOpen, setTestDialogOpen] = useState(false);
+  const [bindDeviceCode, setBindDeviceCode] = useState("");
+  const [bindSchedule, setBindSchedule] = useState("manual");
 
   // 获取算法详情
   const detailQuery = trpc.algorithm.getDefinition.useQuery({ algoCode: algorithmId }, { enabled: !!algorithmId });
@@ -862,6 +864,20 @@ export default function AlgorithmDetail() {
     { algoCode: algorithmId, pageSize: 20 },
     { enabled: !!algorithmId }
   );
+
+  const utils = trpc.useUtils();
+  const createBindingMutation = trpc.algorithm.createBinding.useMutation({
+    onSuccess: () => {
+      toast.success("设备绑定成功");
+      utils.algorithm.listBindingsByAlgorithm.invalidate({ algoCode: algorithmId });
+      setBindDialogOpen(false);
+      setBindDeviceCode("");
+      setBindSchedule("manual");
+    },
+    onError: (err) => {
+      toast.error("绑定失败", { description: err.message });
+    },
+  });
 
   const algo = detailQuery.data;
 
@@ -1179,12 +1195,17 @@ export default function AlgorithmDetail() {
             </DialogHeader>
             <div className="space-y-4">
               <div>
-                <Label>设备 ID</Label>
-                <Input placeholder="输入设备 ID 或从设备列表选择" className="mt-1" />
+                <Label>设备编码</Label>
+                <Input
+                  placeholder="输入设备编码（如 STS-001）"
+                  className="mt-1"
+                  value={bindDeviceCode}
+                  onChange={(e) => setBindDeviceCode(e.target.value)}
+                />
               </div>
               <div>
                 <Label>调度方式</Label>
-                <Select defaultValue="manual">
+                <Select value={bindSchedule} onValueChange={setBindSchedule}>
                   <SelectTrigger className="mt-1">
                     <SelectValue />
                   </SelectTrigger>
@@ -1200,11 +1221,17 @@ export default function AlgorithmDetail() {
               </div>
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={() => setBindDialogOpen(false)}>取消</Button>
-                <Button onClick={() => {
-                  toast.info("功能开发中", { description: "设备绑定功能即将上线" });
-                  setBindDialogOpen(false);
-                }}>
-                  确认绑定
+                <Button
+                  disabled={!bindDeviceCode.trim() || createBindingMutation.isPending}
+                  onClick={() => {
+                    createBindingMutation.mutate({
+                      algoCode: algorithmId,
+                      deviceCode: bindDeviceCode.trim(),
+                      schedule: bindSchedule !== "manual" ? { type: bindSchedule } : undefined,
+                    });
+                  }}
+                >
+                  {createBindingMutation.isPending ? "绑定中..." : "确认绑定"}
                 </Button>
               </div>
             </div>

@@ -312,7 +312,7 @@ class StreamProcessor {
           deviation: zScoreResult.deviation,
           score: zScoreResult.score,
           severity,
-          timestamp: new Date(),
+          timestamp: Date.now(),  // FIX-038: 统一为 epoch ms
         });
 
         // 发布异常事件
@@ -425,7 +425,7 @@ class StreamProcessor {
         score: Math.round(result.score * 100),
         severity: (result.severity || 'low') as 'low' | 'medium' | 'high' | 'critical',
         status: 'open' as 'open' | 'acknowledged' | 'resolved' | 'false_positive',
-        createdAt: result.timestamp instanceof Date ? result.timestamp : new Date(result.timestamp || Date.now()),
+        createdAt: new Date(result.timestamp || Date.now()),  // FIX-038: timestamp 是 epoch ms
       });
     } catch (error) {
       log.warn('[StreamProcessor] Failed to record anomaly:', error);
@@ -531,7 +531,7 @@ class StreamProcessor {
       deviation: result.deviation,
       score: result.score,
       severity,
-      timestamp: new Date(),
+      timestamp: Date.now(),  // FIX-038: 统一为 epoch ms
     };
   }
 

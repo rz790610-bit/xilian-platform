@@ -55,11 +55,12 @@ scrape_configs:
     static_configs:
       - targets: ['kafka-exporter:9308']
 
-  # ClickHouse
+  # ClickHouse — FIX-108: 启用 Prometheus metrics 端点
+  # 需在 clickhouse config.xml 中设置 <prometheus><port>9363</port></prometheus>
   - job_name: 'clickhouse'
     static_configs:
-      - targets: ['clickhouse:8123']
-    metrics_path: '/metrics'
+      - targets: ['clickhouse:9363']
+    scrape_interval: 30s
 
   # Node Exporter（主机级指标）
   - job_name: 'node'
@@ -72,7 +73,7 @@ scrape_configs:
       - targets: ['cadvisor:8080']
     metrics_path: '/metrics'
 
-  # Elasticsearch（按需启用，需 bigdata profile）
+  # Elasticsearch — FIX-108: 启用指标采集
   - job_name: 'elasticsearch'
     static_configs:
       - targets: ['elasticsearch:9200']
@@ -80,11 +81,11 @@ scrape_configs:
     scrape_interval: 30s
 
   # Kafka Connect（按需启用，需 bigdata profile）
-  - job_name: 'kafka-connect'
-    static_configs:
-      - targets: ['kafka-connect:8083']
-    metrics_path: '/'
-    scrape_interval: 30s
+  # - job_name: 'kafka-connect'
+  #   static_configs:
+  #     - targets: ['kafka-connect:8083']
+  #   metrics_path: '/'
+  #   scrape_interval: 30s
 
   # Jaeger（追踪系统自身指标）
   - job_name: 'jaeger'

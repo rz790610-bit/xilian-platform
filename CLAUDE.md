@@ -485,3 +485,84 @@ pnpm format              # 代码格式化
 | `/daily` | 对话结束前 | 生成当天工作日志到 `docs/daily/` |
 | `/insight` | 随时 | 分析上下文，报告未落地/冲突/建议 |
 | `/lesson` | 发现问题时 | 追加经验到 `docs/LESSONS_LEARNED.md` |
+
+---
+
+## 13. 每次启动必读清单
+
+> **2026-03-02 新增** — 确保每次会话启动时自动恢复完整上下文。
+
+### 13.1 必读文件（按优先级）
+
+| 优先级 | 文件 | 用途 |
+|--------|------|------|
+| P0 | `CLAUDE.md` (本文件) | ADR、设计原则、禁止事项 |
+| P0 | `docs/SESSION_STATE.md` | 当前状态、已知问题、下一步 |
+| P1 | `docs/COMPLETE_FIX_PLAN.md` | 143 项修复计划 (FIX-001~FIX-143) |
+| P1 | `docs/SPRINT_PLAN.md` | 当前 Sprint 任务列表和验收标准 |
+| P2 | `docs/PITFALLS.md` | 10 条已知陷阱，避免重踩 |
+| P2 | `docs/LESSONS_LEARNED.md` | 经验库 |
+
+### 13.2 开发规范补充（2026-03-02 起生效）
+
+以下规范是对 §9 设计原则的具体化，修复计划执行期间**强制遵守**：
+
+| 规范 | 说明 |
+|------|------|
+| **类型定义位置** | 所有新增跨域类型必须定义在 `shared/contracts/v1/` (待创建，见 FIX-040) |
+| **设备 ID** | 后端统一用 `machineId` (camelCase)，数据库列用 `machine_id` (snake_case)，禁止新增 deviceId/equipmentId/device_id (见 FIX-001) |
+| **时间戳** | JSON 字段内统一用 `number` (epoch ms)，Drizzle 列保持 `timestamp()` 返回 Date，API 层转换 (见 FIX-003) |
+| **Severity 枚举** | 统一用 `shared/contracts/v1/common.contract.ts` 的 SeverityLevel (待创建，见 FIX-002) |
+| **EventBus** | 禁止 `eventBus.publish()` 不经 Schema 校验 (见 FIX-020) |
+| **confidence 值** | 禁止硬编码 confidence 字面量，必须从数据计算或配置读取 (ADR-001, FIX-082) |
+| **any 类型** | 禁止新增 `any` 类型，使用具体接口或 `unknown` + 类型守卫 |
+| **路由 Zod** | 新路由的 Zod schema 必须从 `shared/contracts/` import，禁止内联定义 |
+| **pnpm check** | 每次代码变更后必须 0 错误 |
+
+### 13.3 当前最高优先级
+
+Sprint 1 任务（本周），读取 `docs/SPRINT_PLAN.md` 查看 15 个任务。
+
+**Sprint 1 核心目标:**
+- FIX-001 DeviceIdNormalizer（设备 ID 统一）
+- FIX-002 SeverityMapper（严重度枚举统一）
+- FIX-003 TimestampNormalizer（时间戳统一）
+- FIX-004~008 P0 适配器 5 个（打通 Flow F/B 主路径）
+- 消除致命问题 18 个中的前 15 个
+
+**验收标准:**
+- `pnpm check` 0 错误
+- `pnpm test:flows` 通过
+- Flow F 和 Flow B 端到端可走通
+
+**Sprint 日期:**
+- Sprint 1: 2026-03-02 ~ 03-06 (致命问题 + 安全加固)
+- Sprint 2: 2026-03-09 ~ 03-13 (严重问题 + 核心功能)
+- Sprint 3: 2026-03-16 ~ 03-20 (中优先级 + 体系化)
+- Sprint 4: 2026-03-23 ~ 03-27 (低优先级 + 收尾)
+
+### 13.4 快速恢复指令
+
+会话中断后输入:
+
+```
+读取 CLAUDE.md 和 docs/SESSION_STATE.md。
+分支: feature/hde-v3-phase0。
+查看 docs/SPRINT_PLAN.md 确定当前 Sprint。
+继续当前 Sprint 任务。
+```
+
+### 13.5 Skill 文件位置
+
+开发新功能前先读取对应 Skill:
+
+| Skill | 位置 | 场景 |
+|-------|------|------|
+| skill-add-algorithm | `skills/skill-add-algorithm/SKILL.md` | 新增算法 |
+| skill-add-trpc-route | `skills/skill-add-trpc-route/SKILL.md` | 新增 tRPC 路由 |
+| skill-add-kafka-consumer | `skills/skill-add-kafka-consumer/SKILL.md` | 新增 Kafka 消费者 |
+| skill-fix-frontend-shell | `skills/skill-fix-frontend-shell/SKILL.md` | 修复前端空壳页面 |
+| skill-add-db-table | `skills/skill-add-db-table/SKILL.md` | 新增数据库表 |
+| skill-add-adapter | `skills/skill-add-adapter/SKILL.md` | 新增协议适配器 |
+| skill-quality-audit | `skills/skill-quality-audit/SKILL.md` | 质量审计 |
+| skill-restore-session | `skills/skill-restore-session/SKILL.md` | 会话恢复 |

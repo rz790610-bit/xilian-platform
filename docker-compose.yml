@@ -71,7 +71,8 @@ services:
       - VAULT_TOKEN=${VAULT_DEV_TOKEN:-xilian-dev-root-token}
       - LOG_LEVEL=${LOG_LEVEL:-info}
       # 安全配置（生产环境必填）
-      - JWT_SECRET=${JWT_SECRET:-xilian-portai-nexus-docker-deploy-secret-2026}
+      # [FIX-102] 已移除弱默认值，必须在 .env 中设置
+      - JWT_SECRET=${JWT_SECRET:?Set JWT_SECRET in .env}
       - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
       - MYSQL_PASSWORD=${MYSQL_PASSWORD:-portai123}
     depends_on:
@@ -98,7 +99,8 @@ services:
       - "${MYSQL_PORT:-3306}:3306"
     environment:
       # P0-DOCKER-1: 密码必须通过环境变量配置，禁止硬编码
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root123}
+      # [FIX-101] 已移除弱默认值，必须在 .env 中设置
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD in .env}
       MYSQL_DATABASE: portai_nexus
       MYSQL_USER: ${MYSQL_USER:-portai}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:-portai123}
@@ -288,6 +290,34 @@ services:
       retries: 5
       start_period: 45s
 
+  # ==================== Schema Registry (Kafka Schema 管理) ====================
+  # FIX-044: Confluent Schema Registry — Kafka 消息 Schema 版本管理与兼容性检测
+  schema-registry:
+    image: confluentinc/cp-schema-registry:7.6.0
+    container_name: portai-schema-registry
+    restart: unless-stopped
+    profiles:
+      - bigdata
+      - full
+    ports:
+      - "${SCHEMA_REGISTRY_PORT:-8081}:8081"
+    environment:
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: kafka:29092
+      SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
+      SCHEMA_REGISTRY_SCHEMA_COMPATIBILITY_LEVEL: BACKWARD
+    depends_on:
+      kafka:
+        condition: service_healthy
+    networks:
+      - portai-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8081/subjects || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
   # ==================== Search & Analytics: Elasticsearch ====================
   # 全文搜索 + 日志分析 — 告警事件检索、审计日志、诊断结果全文搜索
   elasticsearch:
@@ -416,7 +446,7 @@ services:
       - "${NEO4J_BOLT_PORT:-7687}:7687"
     environment:
       NEO4J_AUTH: ${NEO4J_USER:-neo4j}/${NEO4J_PASSWORD:-portai123}
-      NEO4J_PLUGINS: '["apoc"]'
+      NEO4J_PLUGINS: '["apoc", "graph-data-science"]'
       NEO4J_server_memory_heap_initial__size: 256m
       NEO4J_server_memory_heap_max__size: 512m
       NEO4J_server_memory_pagecache_size: 256m
@@ -504,7 +534,8 @@ services:
       - "${GRAFANA_PORT:-3001}:3000"
     environment:
       - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
-      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin123}
+      # FIX-105: 密码必须通过环境变量注入，不使用弱默认值
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:?GRAFANA_PASSWORD env var is required}
       - GF_USERS_ALLOW_SIGN_UP=false
       - GF_INSTALL_PLUGINS=grafana-clickhouse-datasource
     volumes:
@@ -566,6 +597,7 @@ services:
     image: jaegertracing/all-in-one:1.53
     container_name: portai-jaeger
     restart: unless-stopped
+    user: "0"
     ports:
       - "${JAEGER_UI_PORT:-16686}:16686"     # Jaeger UI
       - "${JAEGER_OTLP_PORT:-4318}:4318"     # OTLP HTTP
@@ -594,7 +626,11 @@ services:
     ports:
       - "${MYSQL_EXPORTER_PORT:-9104}:9104"
     environment:
-      - DATA_SOURCE_NAME=${MYSQL_EXPORTER_DSN:-root:xilian2024@(mysql:3306)/}
+      # [FIX-101] 与 MySQL 服务使用同一环境变量
+      - MYSQLD_EXPORTER_PASSWORD=${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD in .env}
+    command:
+      - '--mysqld.address=mysql:3306'
+      - '--mysqld.username=root'
     depends_on:
       - mysql
     networks:
@@ -685,9 +721,11 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:-xilian_secret}
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root_password}
       REDIS_PASSWORD: ${REDIS_PASSWORD:-}
-      ES_PASSWORD: ${ES_PASSWORD:-changeme}
-      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
-      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
+      # [FIX-103] 已移除 changeme 默认值
+      ES_PASSWORD: ${ES_PASSWORD:-}
+      # [FIX-104] 已移除 minioadmin 默认值，与主 MinIO 服务保持一致
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-portai}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-portai123456}
       JWT_SECRET: ${JWT_SECRET:-}
     volumes:
       - ./docker/vault/init-vault.sh:/vault/config/init-vault.sh:ro

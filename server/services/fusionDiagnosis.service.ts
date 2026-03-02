@@ -592,10 +592,26 @@ export class SpatialExpertWrapper extends BaseExpert {
 // 内置模拟专家（用于开发/测试/演示）
 // ============================================================================
 
+/** 振动专家 confidence 默认值 — FIX-086: 可通过构造函数覆盖 */
+export interface VibrationExpertThresholds {
+  normalConfidence: number;
+  bearingDamageConfidence: number;
+  imbalanceConfidence: number;
+}
+
+const DEFAULT_VIB_THRESHOLDS: VibrationExpertThresholds = {
+  normalConfidence: 0.3,
+  bearingDamageConfidence: 0.65,
+  imbalanceConfidence: 0.6,
+};
+
 /** 振动分析专家 — 基于振动信号特征的故障诊断 */
 export class VibrationExpert extends BaseExpert {
-  constructor(weight = 1.0) {
+  private readonly thresholds: VibrationExpertThresholds;
+
+  constructor(weight = 1.0, thresholds?: Partial<VibrationExpertThresholds>) {
     super('VibrationExpert', weight);
+    this.thresholds = { ...DEFAULT_VIB_THRESHOLDS, ...thresholds };
   }
 
   diagnose(data: Record<string, any>): DiagnosisResult {
@@ -603,7 +619,7 @@ export class VibrationExpert extends BaseExpert {
     const freq = data.dominant_frequency ?? data.dominantFrequency ?? Math.random() * 500;
 
     let faultType = 'normal';
-    let confidence = 0.3;
+    let confidence = this.thresholds.normalConfidence;
     let severity = 'normal';
     const recommendations: string[] = [];
 
@@ -620,12 +636,12 @@ export class VibrationExpert extends BaseExpert {
     } else if (vibLevel > 7) {
       if (freq > 200) {
         faultType = 'bearing_damage';
-        confidence = 0.65;
+        confidence = this.thresholds.bearingDamageConfidence;
         severity = 'medium';
         recommendations.push('检查轴承温度', '安排轴承更换计划');
       } else {
         faultType = 'imbalance';
-        confidence = 0.6;
+        confidence = this.thresholds.imbalanceConfidence;
         severity = 'low';
         recommendations.push('检查转子平衡', '清理叶片积垢');
       }
@@ -653,10 +669,24 @@ export class VibrationExpert extends BaseExpert {
   }
 }
 
+/** 温度专家 confidence 默认值 — FIX-086 */
+export interface TemperatureExpertThresholds {
+  normalConfidence: number;
+  electricalFaultConfidence: number;
+}
+
+const DEFAULT_TEMP_THRESHOLDS: TemperatureExpertThresholds = {
+  normalConfidence: 0.3,
+  electricalFaultConfidence: 0.55,
+};
+
 /** 温度分析专家 — 基于温度特征的故障诊断 */
 export class TemperatureExpert extends BaseExpert {
-  constructor(weight = 0.8) {
+  private readonly thresholds: TemperatureExpertThresholds;
+
+  constructor(weight = 0.8, thresholds?: Partial<TemperatureExpertThresholds>) {
     super('TemperatureExpert', weight);
+    this.thresholds = { ...DEFAULT_TEMP_THRESHOLDS, ...thresholds };
   }
 
   diagnose(data: Record<string, any>): DiagnosisResult {
@@ -664,7 +694,7 @@ export class TemperatureExpert extends BaseExpert {
     const tempRise = data.temperature_rise ?? data.tempRise ?? temp - 35;
 
     let faultType = 'normal';
-    let confidence = 0.3;
+    let confidence = this.thresholds.normalConfidence;
     let severity = 'normal';
     const recommendations: string[] = [];
 
@@ -680,7 +710,7 @@ export class TemperatureExpert extends BaseExpert {
       recommendations.push('加强监测频率', '检查润滑系统');
     } else if (tempRise > 30) {
       faultType = 'electrical_fault';
-      confidence = 0.55;
+      confidence = this.thresholds.electricalFaultConfidence;
       severity = 'medium';
       recommendations.push('检查电气连接', '测量绝缘电阻');
     }
@@ -707,10 +737,24 @@ export class TemperatureExpert extends BaseExpert {
   }
 }
 
+/** 电流专家 confidence 默认值 — FIX-086 */
+export interface CurrentExpertThresholds {
+  normalConfidence: number;
+  gearWearConfidence: number;
+}
+
+const DEFAULT_CURRENT_THRESHOLDS: CurrentExpertThresholds = {
+  normalConfidence: 0.3,
+  gearWearConfidence: 0.45,
+};
+
 /** 电流分析专家 — 基于电流信号的故障诊断 */
 export class CurrentExpert extends BaseExpert {
-  constructor(weight = 0.9) {
+  private readonly thresholds: CurrentExpertThresholds;
+
+  constructor(weight = 0.9, thresholds?: Partial<CurrentExpertThresholds>) {
     super('CurrentExpert', weight);
+    this.thresholds = { ...DEFAULT_CURRENT_THRESHOLDS, ...thresholds };
   }
 
   diagnose(data: Record<string, any>): DiagnosisResult {
@@ -718,7 +762,7 @@ export class CurrentExpert extends BaseExpert {
     const thd = data.thd ?? data.harmonicDistortion ?? Math.random() * 20;
 
     let faultType = 'normal';
-    let confidence = 0.3;
+    let confidence = this.thresholds.normalConfidence;
     let severity = 'normal';
     const recommendations: string[] = [];
 
@@ -734,7 +778,7 @@ export class CurrentExpert extends BaseExpert {
       recommendations.push('检查变频器输出', '安装谐波滤波器');
     } else if (currentImbalance > 5) {
       faultType = 'gear_wear';
-      confidence = 0.45;
+      confidence = this.thresholds.gearWearConfidence;
       severity = 'low';
       recommendations.push('检查负载均匀性', '监测齿轮箱振动');
     }

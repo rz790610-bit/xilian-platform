@@ -9,11 +9,14 @@
  *   - 与 metricsCollector.ts 中的平台指标共享同一 Registry
  *   - 标签（labels）支持多维度查询
  *
- * 指标命名规范：
+ * 指标命名规范（FIX-015: 遵循 Prometheus 官方 snake_case 规范）：
+ *   @see https://prometheus.io/docs/practices/naming/
+ *   - 所有指标名使用 snake_case（Prometheus 强制要求，非 JS camelCase）
  *   - 前缀: evo_  (进化引擎命名空间)
  *   - Counter: _total 后缀
  *   - Histogram: _seconds / _ms 后缀
  *   - Gauge: 无特殊后缀
+ *   - 标签 key 同样使用 snake_case（如 model_id, model_version）
  */
 
 import {

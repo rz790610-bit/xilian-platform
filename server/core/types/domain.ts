@@ -70,7 +70,8 @@ export interface AnomalyResult {
   severity?: 'low' | 'medium' | 'high' | 'critical';
   mean?: number;
   stdDev?: number;
-  timestamp?: Date | number;
+  /** FIX-038: 统一为 epoch ms (number) */
+  timestamp?: number;
   windowStart?: number;
   windowEnd?: number;
   periodStart?: Date;

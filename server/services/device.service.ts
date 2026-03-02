@@ -25,7 +25,7 @@ import {
   assetSensors, 
   eventStore,
 } from '../../drizzle/schema';
-import { eq, desc, and, gte, lte, sql, count } from 'drizzle-orm';
+import { eq, desc, and, gte, lte, sql, count, like, or } from 'drizzle-orm';
 import { eventBus, TOPICS } from './eventBus.service';
 import { streamProcessor } from './streamProcessor.service';
 
@@ -277,6 +277,7 @@ class DeviceService {
   async listDevices(options: {
     type?: string;
     status?: string;
+    search?: string;
     limit?: number;
     offset?: number;
   } = {}): Promise<DeviceInfo[]> {
@@ -290,6 +291,14 @@ class DeviceService {
       }
       if (options.status) {
         conditions.push(eq(assetNodes.status, options.status));
+      }
+      if (options.search) {
+        conditions.push(
+          or(
+            like(assetNodes.name, `%${options.search}%`),
+            like(assetNodes.nodeId, `%${options.search}%`),
+          )
+        );
       }
 
       const query = db
@@ -688,6 +697,7 @@ export const deviceRouter = router({
     .input(z.object({
       type: z.string().optional(),
       status: z.string().optional(),
+      search: z.string().optional(),
       limit: z.number().min(1).max(500).default(100),
       offset: z.number().min(0).default(0),
     }).optional())

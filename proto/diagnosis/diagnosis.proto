@@ -1,0 +1,170 @@
+syntax = "proto3";
+
+package xilian.diagnosis;
+
+option java_package = "com.xilian.diagnosis.grpc";
+option go_package = "github.com/xilian/platform/proto/diagnosis";
+
+import "google/protobuf/struct.proto";
+import "common/types.proto";
+
+// ============================================================
+// HDE 双轨诊断服务 — gRPC 接口
+// 映射: server/platform/hde/orchestrator/diagnostic-orchestrator.ts
+// ============================================================
+
+service DiagnosisService {
+  // HDE 双轨诊断（物理轨 + 数据轨 → DS 融合 → 物理校验）
+  rpc HDEDiagnose(HDEDiagnoseRequest) returns (HDEDiagnoseResponse);
+  // 获取诊断引擎配置
+  rpc GetConfig(GetConfigRequest) returns (DiagnosticConfigResponse);
+  // 健康检查
+  rpc HealthCheck(xilian.common.HealthCheckRequest) returns (xilian.common.HealthCheckResponse);
+}
+
+// ── 诊断请求/响应 ──
+
+message HDEDiagnoseRequest {
+  string machine_id = 1;
+  int64 timestamp = 2;
+  // sensorData: key=传感器名, value=数值数组
+  map<string, SensorDataArray> sensor_data = 3;
+  DiagnosisContext context = 4;
+  DiagnosticConfigOverride config = 5;
+  string correlation_id = 6;
+}
+
+message SensorDataArray {
+  repeated double values = 1;
+}
+
+message DiagnosisContext {
+  string cycle_phase = 1;
+  double load_weight = 2;
+  EnvironmentCondition environment = 3;
+  repeated string recent_faults = 4;
+  google.protobuf.Struct custom = 5;
+}
+
+message EnvironmentCondition {
+  double wind_speed = 1;
+  double temperature = 2;
+  double humidity = 3;
+}
+
+message DiagnosticConfigOverride {
+  bool enable_physics_track = 1;
+  bool enable_data_track = 2;
+  double physics_weight = 3;
+  double confidence_threshold = 4;
+  int32 timeout_ms = 5;
+}
+
+message HDEDiagnoseResponse {
+  string session_id = 1;
+  string machine_id = 2;
+  int64 timestamp = 3;
+  DiagnosisConclusion diagnosis = 4;
+  TrackResults track_results = 5;
+  FusionResult fusion_result = 6;
+  ValidationResult physics_validation = 7;
+  repeated Recommendation recommendations = 8;
+  google.protobuf.Struct metadata = 9;
+  int32 duration_ms = 10;
+  string error_message = 11;
+}
+
+// ── 诊断结论 ──
+
+message DiagnosisConclusion {
+  string fault_type = 1;
+  double confidence = 2;
+  string severity = 3;    // low | medium | high | critical
+  string urgency = 4;     // monitoring | scheduled | priority | immediate
+  string physics_explanation = 5;
+  repeated EvidenceItem evidence_chain = 6;
+}
+
+message EvidenceItem {
+  string source = 1;
+  string type = 2;         // sensor | model | rule | history
+  string description = 3;
+  double strength = 4;
+}
+
+// ── 双轨结果 ──
+
+message TrackResults {
+  TrackResult physics = 1;
+  TrackResult data = 2;
+}
+
+message TrackResult {
+  string track_type = 1;    // physics | data
+  repeated FaultHypothesis fault_hypotheses = 2;
+  map<string, double> belief_mass = 3;
+  double confidence = 4;
+  repeated PhysicsConstraint physics_constraints = 5;
+  int32 execution_time_ms = 6;
+}
+
+message FaultHypothesis {
+  string id = 1;
+  string fault_type = 2;
+  double prior_probability = 3;
+  double posterior_probability = 4;
+  repeated string supporting_evidence = 5;
+  repeated string contradicting_evidence = 6;
+  string physics_mechanism = 7;
+}
+
+message PhysicsConstraint {
+  string id = 1;
+  string name = 2;
+  string type = 3;         // energy | force | material | temporal | logical
+  string expression = 4;
+  bool satisfied = 5;
+  double violation_degree = 6;
+  string explanation = 7;
+}
+
+// ── 融合结果 ──
+
+message FusionResult {
+  map<string, double> fused_mass = 1;
+  double conflict = 2;
+  string strategy_used = 3;
+}
+
+// ── 物理验证 ──
+
+message ValidationResult {
+  bool is_valid = 1;
+  repeated PhysicsConstraint violations = 2;
+  double adjusted_confidence = 3;
+  string physics_explanation = 4;
+}
+
+// ── 建议动作 ──
+
+message Recommendation {
+  string priority = 1;    // info | low | medium | high | critical
+  string action = 2;
+  string rationale = 3;
+  string expected_impact = 4;
+  string physics_basis = 5;
+}
+
+// ── 配置查询 ──
+
+message GetConfigRequest {}
+
+message DiagnosticConfigResponse {
+  bool enable_physics_track = 1;
+  bool enable_data_track = 2;
+  string fusion_strategy = 3;
+  double physics_weight = 4;
+  double auto_crystallize_threshold = 5;
+  string default_ds_strategy = 6;
+  double high_conflict_threshold = 7;
+}

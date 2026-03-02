@@ -55,6 +55,10 @@ export const ENGINE_MODULE_LABELS: Record<EngineModule, string> = {
 /**
  * snake_case → camelCase 映射表
  * 用于数据迁移和兼容旧数据
+ *
+ * FIX-013: 已验证 — 全部 16 个 ENGINE_MODULES 均有:
+ *   1. 至少一个 snake_case 别名（含历史命名兼容）
+ *   2. camelCase 自身映射（幂等安全）
  */
 export const SNAKE_TO_CAMEL: Record<string, EngineModule> = {
   shadow_evaluator: 'shadowEvaluator',

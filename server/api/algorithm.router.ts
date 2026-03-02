@@ -22,6 +22,11 @@ import { z } from 'zod';
 import { publicProcedure, protectedProcedure, router } from '../core/trpc';
 import { TRPCError } from '@trpc/server';
 import { algorithmService } from '../services/algorithm.service';
+import { getAlgorithmProxy } from '../platform/algorithm/algorithm-proxy';
+import {
+  paginationSchema as basePagination,
+  algoCodeSchema, algoImplTypeSchema, algoStatusSchema, algoLicenseSchema,
+} from '../../shared/contracts/schemas';
 
 // ============================================================================
 // Zod Schemas
@@ -29,19 +34,19 @@ import { algorithmService } from '../services/algorithm.service';
 
 const listDefinitionsInput = z.object({
   category: z.string().optional(),
-  implType: z.enum(['builtin', 'pipeline_node', 'plugin', 'external', 'kg_operator']).optional(),
+  implType: algoImplTypeSchema.optional(),
   search: z.string().optional(),
   page: z.number().int().min(1).default(1),
   pageSize: z.number().int().min(1).max(200).default(100),
-  status: z.enum(['active', 'deprecated', 'experimental']).optional(),
+  status: algoStatusSchema.optional(),
 }).optional();
 
 const createDefinitionInput = z.object({
-  algoCode: z.string().min(1).max(100).regex(/^[a-z][a-z0-9_]*$/, '算法编码只能包含小写字母、数字和下划线'),
+  algoCode: algoCodeSchema,
   algoName: z.string().min(1).max(200),
   category: z.string().min(1),
   description: z.string().optional().default(''),
-  implType: z.enum(['builtin', 'pipeline_node', 'plugin', 'external', 'kg_operator']),
+  implType: algoImplTypeSchema,
   implRef: z.string().min(1).optional(),
   version: z.string().default('v1.0.0'),
   inputSchema: z.any().optional().default({}),
@@ -51,7 +56,7 @@ const createDefinitionInput = z.object({
   applicableMeasurementTypes: z.any().optional().default([]),
   applicableScenarios: z.any().optional().default([]),
   tags: z.any().optional().default([]),
-  license: z.enum(['builtin', 'community', 'enterprise']).default('community'),
+  license: algoLicenseSchema.default('community'),
   author: z.string().optional(),
   documentationUrl: z.string().optional(),
   kgIntegration: z.any().optional(),
@@ -60,7 +65,7 @@ const createDefinitionInput = z.object({
 });
 
 const updateDefinitionInput = z.object({
-  algoCode: z.string().min(1),
+  algoCode: algoCodeSchema,
   updates: z.object({
     algoName: z.string().optional(),
     description: z.string().optional(),
@@ -72,7 +77,7 @@ const updateDefinitionInput = z.object({
     applicableMeasurementTypes: z.any().optional(),
     applicableScenarios: z.any().optional(),
     tags: z.any().optional(),
-    status: z.enum(['active', 'deprecated', 'experimental']).optional(),
+    status: algoStatusSchema.optional(),
     documentationUrl: z.string().optional(),
     kgIntegration: z.any().optional(),
     fleetLearningConfig: z.any().optional(),
@@ -101,7 +106,7 @@ const updateBindingInput = z.object({
 });
 
 const createCompositionInput = z.object({
-  compCode: z.string().min(1).max(100).regex(/^[a-z][a-z0-9_]*$/, '组合编码只能包含小写字母、数字和下划线'),
+  compCode: algoCodeSchema,
   compName: z.string().min(1).max(200),
   description: z.string().optional().default(''),
   steps: z.any(), // DAG 结构 { nodes: [...], edges: [...] }
@@ -339,18 +344,16 @@ export const algorithmRouter = router({
   // 4. 算法执行
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  /** 执行单个算法 */
+  /** 执行单个算法 — 通过 AlgorithmProxy（monolith 本地 / microservices gRPC） */
   execute: protectedProcedure
     .input(executeAlgorithmInput)
     .mutation(async ({ input }) => {
-      const context = input.deviceCode ? {
+      const proxy = getAlgorithmProxy();
+      const context = {
         trigger: 'manual' as const,
-        deviceContext: {
-          deviceCode: input.deviceCode,
-          deviceType: 'unknown',
-        },
-      } : { trigger: 'manual' as const };
-      return algorithmService.executeAlgorithm(
+        equipmentId: input.deviceCode,
+      };
+      return proxy.execute(
         input.algoCode,
         input.inputData || {},
         input.config,
@@ -358,18 +361,29 @@ export const algorithmRouter = router({
       );
     }),
 
-  /** 执行算法组合 */
+  /** 执行算法组合 — 通过 AlgorithmProxy */
   executeComposition: protectedProcedure
     .input(executeCompositionInput)
     .mutation(async ({ input }) => {
-      const context = input.deviceCode ? {
-        trigger: 'manual' as const,
-        deviceContext: {
-          deviceCode: input.deviceCode,
-          deviceType: 'unknown',
+      // 先从 algorithmService 获取组合步骤定义
+      const composition = await algorithmService.getComposition(input.compCode);
+      if (!composition) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: `算法组合 ${input.compCode} 不存在` });
+      }
+      const proxy = getAlgorithmProxy();
+      const steps = (composition.steps as any)?.nodes?.map((n: any) => ({
+        algorithmId: n.algoCode || n.algo_code || n.id,
+        config: n.config || {},
+        inputMapping: n.inputMapping || {},
+      })) || [];
+      return proxy.executeComposition(
+        steps,
+        input.inputData || {},
+        {
+          trigger: 'manual' as const,
+          equipmentId: input.deviceCode,
         },
-      } : { trigger: 'manual' as const };
-      return algorithmService.executeComposition(input.compCode, input.inputData || {}, context);
+      );
     }),
 
   /** 列出执行记录 */

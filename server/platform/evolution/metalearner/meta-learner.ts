@@ -38,6 +38,22 @@ const log = createModuleLogger('meta-learner');
 // 类型定义
 // ============================================================================
 
+/** FIX-088: 假设生成 confidence — 可通过配置覆盖 */
+export interface HypothesisConfidenceConfig {
+  /** 参数调优假设 confidence (默认 0.7) */
+  parameterTuning: number;
+  /** 特征工程假设 confidence (默认 0.6) */
+  featureEngineering: number;
+  /** 探索性假设 confidence (默认 0.4) */
+  exploration: number;
+}
+
+const DEFAULT_HYPOTHESIS_CONFIDENCE: HypothesisConfidenceConfig = {
+  parameterTuning: 0.7,
+  featureEngineering: 0.6,
+  exploration: 0.4,
+};
+
 export interface MetaLearnerConfig {
   /** 学习率 */
   learningRate: number;
@@ -51,6 +67,8 @@ export interface MetaLearnerConfig {
   minImprovementThreshold: number;
   /** 是否启用 LLM 假设生成（默认 true，可降级关闭） */
   enableLLMHypothesis?: boolean;
+  /** FIX-088: 假设 confidence 配置 */
+  hypothesisConfidence?: Partial<HypothesisConfidenceConfig>;
 }
 
 export interface DataDiscovery {
@@ -183,6 +201,7 @@ const DEFAULT_CONFIG: MetaLearnerConfig = {
 
 export class MetaLearner {
   private config: MetaLearnerConfig;
+  private readonly hypConf: HypothesisConfidenceConfig;
   private state: MetaLearnerState;
   private performanceMemory: { timestamp: number; score: number; context: Record<string, number> }[] = [];
   /** 策略插件缓存（从 pluginEngine 加载） */
@@ -194,6 +213,7 @@ export class MetaLearner {
 
   constructor(config: Partial<MetaLearnerConfig> = {}) {
     this.config = { ...DEFAULT_CONFIG, ...config };
+    this.hypConf = { ...DEFAULT_HYPOTHESIS_CONFIDENCE, ...config.hypothesisConfidence };
     this.state = {
       totalExperiences: 0,
       successRate: 0,
@@ -797,7 +817,7 @@ ${context.currentParams ? `当前参数：${JSON.stringify(context.currentParams
         description: '性能呈下降趋势，建议调优物理模型参数',
         type: 'parameter_tuning',
         expectedImprovement: 0.05,
-        confidence: 0.7,
+        confidence: this.hypConf.parameterTuning,
         parameters: {
           target: 'physics_params',
           method: 'bayesian_optimization',
@@ -829,7 +849,7 @@ ${context.currentParams ? `当前参数：${JSON.stringify(context.currentParams
           description: `维度 ${dim} 持续低分（平均 ${avg.toFixed(2)}），建议增加交叉特征`,
           type: 'feature_engineering',
           expectedImprovement: 0.08,
-          confidence: 0.6,
+          confidence: this.hypConf.featureEngineering,
           parameters: {
             targetDimension: dim,
             suggestedFeatures: [`${dim}_rolling_mean`, `${dim}_rate_of_change`, `${dim}_interaction`],
@@ -848,7 +868,7 @@ ${context.currentParams ? `当前参数：${JSON.stringify(context.currentParams
         description: '探索性假设：尝试增加数据增强（时间序列扰动）',
         type: 'data_augmentation',
         expectedImprovement: 0.03,
-        confidence: 0.4,
+        confidence: this.hypConf.exploration,
         parameters: {
           method: 'time_series_perturbation',
           noiseLevel: 0.05,

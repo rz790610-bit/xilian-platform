@@ -65,7 +65,7 @@ function MetricCard({
   title: string;
   value: string | number;
   unit?: string;
-  icon: React.ElementType;
+  icon: React.ComponentType<{ className?: string }>;
   trend?: "up" | "down" | "stable";
   description?: string;
 }) {

@@ -21,6 +21,84 @@ import {
 import { sql } from 'drizzle-orm';
 
 // ============================================================================
+// FIX-048: JSON 列具体类型定义（替代 Record<string, unknown>）
+// ============================================================================
+
+/**
+ * FIX-049: 状态向量 — 键为维度名、值为数值
+ *
+ * 常见维度：vibration_rms, motor_current, temperature, load_pct, rpm 等
+ * 使用 Record 保持 Drizzle 赋值兼容性
+ */
+export interface StateVectorJson {
+  /** 设备编码 */
+  deviceCode?: string;
+  /** 工况 ID */
+  conditionId?: string;
+  /** 数据质量评分 */
+  qualityScore?: number;
+  /** 状态维度值 — 其余键为维度名:数值 */
+  [key: string]: unknown;
+}
+
+/** FIX-049: 传感器数据 — 键为通道名、值为数值数组 */
+export interface SensorDataJson {
+  /** 采样率 (Hz) */
+  sampleRate?: number;
+  /** 通道数据 — 其余键为通道名:number[] */
+  [key: string]: unknown;
+}
+
+/** FIX-049: 通用元数据 — 工具 I/O、模型参数等 */
+export interface MetadataJson {
+  /** 来源标识 */
+  source?: string;
+  /** 追踪 ID */
+  traceId?: string;
+  /** 其余键值对 */
+  [key: string]: unknown;
+}
+
+/** 标注结果 — 带可选强类型字段 */
+export interface LabelResultJson {
+  label?: string;
+  confidence?: number;
+  reason?: string;
+  [key: string]: unknown;
+}
+
+/** 决策快照 — 带可选强类型字段 */
+export interface DecisionSnapshotJson {
+  action?: string;
+  confidence?: number;
+  reasoning?: string;
+  faultType?: string;
+  severity?: string;
+  [key: string]: unknown;
+}
+
+/** 诊断上下文 — 带可选强类型字段 */
+export interface DiagnosticContextJson {
+  machineId?: string;
+  faultType?: string;
+  severity?: string;
+  cyclePhase?: string;
+  [key: string]: unknown;
+}
+
+/** FIX-049: 模型参数 — 键值对，值为数值/字符串/布尔 */
+export interface ModelParamsJson {
+  /** 学习率 */
+  learningRate?: number;
+  /** 批大小 */
+  batchSize?: number;
+  /** 迭代轮数 */
+  epochs?: number;
+  /** 其余参数 */
+  [key: string]: unknown;
+}
+
+// ============================================================================
 // ① 感知阶段（4 张）
 // ============================================================================
 
@@ -221,8 +299,8 @@ export const grokReasoningChains = mysqlTable('grok_reasoning_chains', {
   sessionId: varchar('session_id', { length: 64 }).notNull(),
   stepIndex: int('step_index').notNull(),
   toolName: varchar('tool_name', { length: 200 }).notNull(),
-  toolInput: json('tool_input').$type<Record<string, unknown>>().notNull(),
-  toolOutput: json('tool_output').$type<Record<string, unknown>>().notNull(),
+  toolInput: json('tool_input').$type<MetadataJson>().notNull(),
+  toolOutput: json('tool_output').$type<MetadataJson>().notNull(),
   reasoning: text('reasoning'),
   durationMs: int('duration_ms').notNull(),
   createdAt: timestamp('created_at', { fsp: 3 }).defaultNow().notNull(),
@@ -242,7 +320,7 @@ export const worldModelSnapshots = mysqlTable('world_model_snapshots', {
   machineId: varchar('machine_id', { length: 100 }).notNull(),
   timestamp: timestamp('timestamp', { fsp: 3 }).notNull(),
   /** 状态向量 JSON */
-  stateVector: json('state_vector').$type<Record<string, unknown>>().notNull(),
+  stateVector: json('state_vector').$type<StateVectorJson>().notNull(),
   /** 物理约束 JSON */
   constraints: json('constraints').$type<Array<{
     type: string; variables: string[]; expression: string; source: string;
@@ -252,7 +330,7 @@ export const worldModelSnapshots = mysqlTable('world_model_snapshots', {
   /** 健康指数 0-1 */
   healthIndex: double('health_index'),
   /** 预测结果 JSON */
-  predictions: json('predictions').$type<Record<string, unknown>>(),
+  predictions: json('predictions').$type<StateVectorJson>(),
   conditionId: varchar('condition_id', { length: 100 }),
   createdAt: timestamp('created_at', { fsp: 3 }).defaultNow().notNull(),
 }, (table) => [
@@ -271,9 +349,9 @@ export const worldModelPredictions = mysqlTable('world_model_predictions', {
   snapshotId: bigint('snapshot_id', { mode: 'number' }).notNull(),
   horizonMinutes: int('horizon_minutes').notNull(),
   /** 预测状态 JSON */
-  predictedState: json('predicted_state').$type<Record<string, unknown>>().notNull(),
+  predictedState: json('predicted_state').$type<StateVectorJson>().notNull(),
   /** 实际状态 JSON（事后填充） */
-  actualState: json('actual_state').$type<Record<string, unknown>>(),
+  actualState: json('actual_state').$type<StateVectorJson>(),
   /** 预测误差 */
   error: double('error'),
   /** 验证时间 */
@@ -759,7 +837,7 @@ export const edgeCases = mysqlTable('edge_cases', {
   /** 处理状态 */
   status: mysqlEnum('status', ['discovered', 'analyzing', 'labeled', 'integrated', 'dismissed']).notNull().default('discovered'),
   /** 标注结果 */
-  labelResult: json('label_result').$type<Record<string, unknown>>(),
+  labelResult: json('label_result').$type<LabelResultJson>(),
   discoveredAt: timestamp('discovered_at', { fsp: 3 }).defaultNow().notNull(),
   createdAt: timestamp('created_at', { fsp: 3 }).defaultNow().notNull(),
 }, (table) => [
@@ -958,7 +1036,7 @@ export const causalNodes = mysqlTable('causal_nodes', {
   /** 关联的测点标签列表 */
   sensorTags: json('sensor_tags').$type<string[]>().notNull().default([]),
   /** 元数据（描述、单位、阈值等） */
-  metadata: json('metadata').$type<Record<string, unknown>>().notNull().default({}),
+  metadata: json('metadata').$type<MetadataJson>().notNull().default({}),
   /** 数据来源 */
   sourceType: mysqlEnum('source_type', ['seed', 'grok_discovered', 'experience_learned']).notNull().default('seed'),
   /** 是否激活 */
@@ -1037,7 +1115,7 @@ export const reasoningExperiences = mysqlTable('reasoning_experiences', {
   /** 特征向量（JSON 数组，用于向量检索） */
   featureVector: json('feature_vector').$type<number[]>(),
   /** 上下文快照 */
-  context: json('context').$type<Record<string, unknown>>().notNull().default({}),
+  context: json('context').$type<DiagnosticContextJson>().notNull().default({}),
   /** 来源情景 ID 列表（语义记忆用） */
   sourceEpisodicIds: json('source_episodic_ids').$type<string[]>(),
   /** 操作步骤（程序记忆用） */
@@ -1099,7 +1177,7 @@ export const reasoningDecisionLogs = mysqlTable('reasoning_decision_logs', {
   /** 总耗时 (ms) */
   totalDurationMs: int('total_duration_ms').notNull(),
   /** 解释图（JSON-LD） */
-  explanationGraph: json('explanation_graph').$type<Record<string, unknown>>(),
+  explanationGraph: json('explanation_graph').$type<MetadataJson>(),
   createdAt: timestamp('created_at', { fsp: 3 }).defaultNow().notNull(),
 }, (table) => [
   index('idx_rdl_session').on(table.sessionId),
@@ -1122,9 +1200,9 @@ export const revisionLogs = mysqlTable('revision_logs', {
   /** 修改的实体 ID */
   entityId: varchar('entity_id', { length: 400 }).notNull(),
   /** 修改前的值 */
-  previousValue: json('previous_value').$type<Record<string, unknown>>().notNull(),
+  previousValue: json('previous_value').$type<MetadataJson>().notNull(),
   /** 修改后的值 */
-  newValue: json('new_value').$type<Record<string, unknown>>().notNull(),
+  newValue: json('new_value').$type<MetadataJson>().notNull(),
   /** 触发的反馈事件类型 */
   feedbackEventType: varchar('feedback_event_type', { length: 100 }).notNull(),
   /** 关联的认知会话 ID */
@@ -1387,7 +1465,7 @@ export const twinSyncLogs = mysqlTable('twin_sync_logs', {
   /** 健康指数 */
   healthIndex: double('health_index'),
   /** 额外元数据 */
-  metadata: json('metadata').$type<Record<string, unknown>>(),
+  metadata: json('metadata').$type<MetadataJson>(),
   /** 错误信息 */
   errorMessage: text('error_message'),
   /** 乐观锁版本号 */
@@ -1419,8 +1497,8 @@ export const twinEvents = mysqlTable('twin_events', {
   machineId: varchar('machine_id', { length: 64 }).notNull(),
   /** 事件类型 */
   eventType: varchar('event_type', { length: 64 }).notNull(),
-  /** 事件载荷（JSON） */
-  payload: json('payload').$type<Record<string, unknown>>().notNull(),
+  /** 事件载荷（JSON） — 多态，取决于 eventType */
+  payload: json('payload').$type<MetadataJson>().notNull(),
   /** 发布节点 ID */
   sourceNode: varchar('source_node', { length: 128 }).notNull(),
   /** 事件版本 */
@@ -1458,8 +1536,8 @@ export const twinOutbox = mysqlTable('twin_outbox', {
   aggregateId: varchar('aggregate_id', { length: 128 }).notNull(),
   /** 事件类型 */
   eventType: varchar('event_type', { length: 64 }).notNull(),
-  /** 事件载荷（JSON） */
-  payload: json('payload').$type<Record<string, unknown>>().notNull(),
+  /** 事件载荷（JSON） — 多态，取决于 eventType */
+  payload: json('payload').$type<MetadataJson>().notNull(),
   /** 发送状态 */
   status: mysqlEnum('status', ['pending', 'sent', 'dead_letter']).notNull().default('pending'),
   /** 重试次数 */
@@ -1662,8 +1740,8 @@ export const evolutionStepLogs = mysqlTable('evolution_step_logs', {
   startedAt: timestamp('started_at', { fsp: 3 }),
   completedAt: timestamp('completed_at', { fsp: 3 }),
   durationMs: int('duration_ms'),
-  inputSummary: json('input_summary').$type<Record<string, unknown>>(),
-  outputSummary: json('output_summary').$type<Record<string, unknown>>(),
+  inputSummary: json('input_summary').$type<MetadataJson>(),
+  outputSummary: json('output_summary').$type<MetadataJson>(),
   metrics: json('metrics').$type<Record<string, number>>(),
   errorMessage: text('error_message'),
   createdAt: timestamp('created_at', { fsp: 3 }).defaultNow().notNull(),
@@ -1733,11 +1811,11 @@ export const evolutionInterventions = mysqlTable('evolution_interventions', {
   divergenceScore: double('divergence_score').notNull(),
   isIntervention: tinyint('is_intervention').notNull().default(0),
   interventionType: mysqlEnum('intervention_type', ['decision_diverge', 'threshold_breach', 'safety_override', 'manual']).notNull().default('decision_diverge'),
-  requestData: json('request_data').$type<Record<string, unknown>>().notNull(),
-  humanDecision: json('human_decision').$type<Record<string, unknown>>().notNull(),
-  shadowDecision: json('shadow_decision').$type<Record<string, unknown>>().notNull(),
-  contextSnapshot: json('context_snapshot').$type<Record<string, unknown>>(),
-  autoLabel: json('auto_label').$type<Record<string, unknown>>(),
+  requestData: json('request_data').$type<SensorDataJson>().notNull(),
+  humanDecision: json('human_decision').$type<DecisionSnapshotJson>().notNull(),
+  shadowDecision: json('shadow_decision').$type<DecisionSnapshotJson>().notNull(),
+  contextSnapshot: json('context_snapshot').$type<DiagnosticContextJson>(),
+  autoLabel: json('auto_label').$type<LabelResultJson>(),
   labelConfidence: double('label_confidence'),
   difficultyScore: double('difficulty_score'),
   videoClipUrl: varchar('video_clip_url', { length: 500 }),
@@ -1763,9 +1841,9 @@ export const evolutionSimulations = mysqlTable('evolution_simulations', {
   name: varchar('name', { length: 200 }),
   sourceInterventionId: bigint('source_intervention_id', { mode: 'number' }),
   scenarioType: mysqlEnum('scenario_type', ['regression', 'stress', 'edge_case', 'adversarial', 'replay']).notNull().default('regression'),
-  inputData: json('input_data').$type<Record<string, unknown>>().notNull(),
-  expectedOutput: json('expected_output').$type<Record<string, unknown>>().notNull(),
-  variations: json('variations').$type<Array<Record<string, unknown>>>(),
+  inputData: json('input_data').$type<SensorDataJson>().notNull(),
+  expectedOutput: json('expected_output').$type<DecisionSnapshotJson>().notNull(),
+  variations: json('variations').$type<Array<DecisionSnapshotJson>>(),
   variationCount: int('variation_count').notNull().default(0),
   fidelityScore: double('fidelity_score'),
   difficulty: mysqlEnum('difficulty', ['easy', 'medium', 'hard', 'extreme']).notNull().default('medium'),
@@ -1801,8 +1879,8 @@ export const evolutionVideoTrajectories = mysqlTable('evolution_video_trajectori
   embeddingVector: json('embedding_vector').$type<number[]>(),
   temporalRelations: json('temporal_relations').$type<Array<{ from: string; to: string; relation: string }>>(),
   keyFrames: json('key_frames').$type<Array<{ timestamp: number; description: string; thumbnailUrl: string }>>(),
-  sensorData: json('sensor_data').$type<Record<string, unknown>>(),
-  annotations: json('annotations').$type<Record<string, unknown>>(),
+  sensorData: json('sensor_data').$type<SensorDataJson>(),
+  annotations: json('annotations').$type<MetadataJson>(),
   kgNodeId: varchar('kg_node_id', { length: 100 }),
   createdAt: timestamp('created_at', { fsp: 3 }).defaultNow().notNull(),
 }, (table) => [
@@ -1823,7 +1901,7 @@ export const evolutionFlywheelSchedules = mysqlTable('evolution_flywheel_schedul
   name: varchar('name', { length: 100 }).notNull(),
   cronExpression: varchar('cron_expression', { length: 100 }).notNull(),
   enabled: tinyint('enabled').notNull().default(1),
-  config: json('config').$type<Record<string, unknown>>().notNull(),
+  config: json('config').$type<ModelParamsJson>().notNull(),
   maxConcurrent: int('max_concurrent').notNull().default(1),
   minIntervalHours: int('min_interval_hours').notNull().default(24),
   lastTriggeredAt: timestamp('last_triggered_at', { fsp: 3 }),
@@ -1852,7 +1930,7 @@ export const evolutionAuditLogs = mysqlTable('evolution_audit_logs', {
   id: bigint('id', { mode: 'number' }).autoincrement().primaryKey(),
   eventType: varchar('event_type', { length: 128 }).notNull(),
   eventSource: varchar('event_source', { length: 128 }).notNull(),
-  eventData: json('event_data').$type<Record<string, unknown>>(),
+  eventData: json('event_data').$type<MetadataJson>(),
   sessionId: varchar('session_id', { length: 128 }),
   modelId: varchar('model_id', { length: 128 }),
   severity: mysqlEnum('severity', ['info', 'warn', 'error', 'critical']).default('info'),
@@ -1883,9 +1961,9 @@ export const dojoTrainingJobs = mysqlTable('dojo_training_jobs', {
   scheduledAt: timestamp('scheduled_at', { fsp: 3 }),
   startedAt: timestamp('started_at', { fsp: 3 }),
   completedAt: timestamp('completed_at', { fsp: 3 }),
-  carbonWindow: json('carbon_window').$type<Record<string, unknown>>(),
-  config: json('config').$type<Record<string, unknown>>(),
-  result: json('result').$type<Record<string, unknown>>(),
+  carbonWindow: json('carbon_window').$type<MetadataJson>(),
+  config: json('config').$type<ModelParamsJson>(),
+  result: json('result').$type<MetadataJson>(),
   errorMessage: text('error_message'),
   retryCount: int('retry_count').default(0),
   idempotencyKey: varchar('idempotency_key', { length: 128 }),
@@ -1924,7 +2002,7 @@ export const evolutionTraces = mysqlTable('evolution_traces', {
   errorCount: int('error_count').default(0),
   criticalPathMs: bigint('critical_path_ms', { mode: 'number' }),
   trigger: varchar('trigger', { length: 64 }).default('manual'),
-  metadata: json('metadata').$type<Record<string, unknown>>(),
+  metadata: json('metadata').$type<MetadataJson>(),
   createdAt: timestamp('created_at', { fsp: 3 }).defaultNow().notNull(),
 }, (table) => [
   uniqueIndex('uq_et_trace').on(table.traceId),
@@ -1950,8 +2028,8 @@ export const evolutionSpans = mysqlTable('evolution_spans', {
   startedAt: timestamp('started_at', { fsp: 3 }).defaultNow().notNull(),
   completedAt: timestamp('completed_at', { fsp: 3 }),
   durationMs: bigint('duration_ms', { mode: 'number' }),
-  inputSummary: json('input_summary').$type<Record<string, unknown>>(),
-  outputSummary: json('output_summary').$type<Record<string, unknown>>(),
+  inputSummary: json('input_summary').$type<MetadataJson>(),
+  outputSummary: json('output_summary').$type<MetadataJson>(),
   errorMessage: text('error_message'),
   resourceUsage: json('resource_usage').$type<{ cpuMs?: number; memoryMb?: number; gpuMs?: number; dbQueries?: number }>(),
   tags: json('tags').$type<Record<string, string>>(),
@@ -2034,7 +2112,7 @@ export const evolutionAlerts = mysqlTable('evolution_alerts', {
   acknowledgedBy: varchar('acknowledged_by', { length: 128 }),
   acknowledgedAt: timestamp('acknowledged_at', { fsp: 3 }),
   resolvedAt: timestamp('resolved_at', { fsp: 3 }),
-  metadata: json('metadata').$type<Record<string, unknown>>(),
+  metadata: json('metadata').$type<MetadataJson>(),
   firedAt: timestamp('fired_at', { fsp: 3 }).defaultNow().notNull(),
   createdAt: timestamp('created_at', { fsp: 3 }).defaultNow().notNull(),
 }, (table) => [
@@ -2065,7 +2143,13 @@ export const evolutionSelfHealingPolicies = mysqlTable('evolution_self_healing_p
     durationSeconds: number;
     engineModule?: string;
   }>().notNull(),
-  action: json('action').$type<{ type: string; params: Record<string, unknown> }>().notNull(),
+  /** FIX-051: action payload 类型 */
+  action: json('action').$type<{
+    type: 'auto_rollback' | 'param_tuning' | 'codegen' | 'circuit_breaker' | string;
+    params: Record<string, unknown>;
+    targetModule?: string;
+    timeoutMs?: number;
+  }>().notNull(),
   engineModule: varchar('engine_module', { length: 128 }),
   enabled: tinyint('enabled').default(1).notNull(),
   priority: int('priority').default(0).notNull(),
@@ -2092,10 +2176,10 @@ export const evolutionSelfHealingLogs = mysqlTable('evolution_self_healing_logs'
   triggerReason: text('trigger_reason').notNull(),
   triggerMetricValue: double('trigger_metric_value'),
   status: mysqlEnum('status', ['pending', 'executing', 'success', 'failed', 'skipped']).default('pending').notNull(),
-  result: json('result').$type<Record<string, unknown>>(),
+  result: json('result').$type<MetadataJson>(),
   affectedModules: json('affected_modules').$type<string[]>(),
-  beforeSnapshot: json('before_snapshot').$type<Record<string, unknown>>(),
-  afterSnapshot: json('after_snapshot').$type<Record<string, unknown>>(),
+  beforeSnapshot: json('before_snapshot').$type<StateVectorJson>(),
+  afterSnapshot: json('after_snapshot').$type<StateVectorJson>(),
   durationMs: int('duration_ms'),
   errorMessage: text('error_message'),
   executedAt: timestamp('executed_at', { fsp: 3 }).defaultNow().notNull(),
@@ -2118,8 +2202,8 @@ export const evolutionRollbackRecords = mysqlTable('evolution_rollback_records',
   deploymentId: int('deployment_id'),
   modelVersion: varchar('model_version', { length: 128 }),
   reason: text('reason').notNull(),
-  fromState: json('from_state').$type<Record<string, unknown>>().notNull(),
-  toState: json('to_state').$type<Record<string, unknown>>().notNull(),
+  fromState: json('from_state').$type<StateVectorJson>().notNull(),
+  toState: json('to_state').$type<StateVectorJson>().notNull(),
   affectedModules: json('affected_modules').$type<string[]>(),
   status: mysqlEnum('status', ['pending', 'executing', 'completed', 'failed', 'cancelled']).default('pending').notNull(),
   durationMs: int('duration_ms'),
@@ -2288,7 +2372,7 @@ export const worldModelTrainingJobs = mysqlTable('world_model_training_jobs', {
   modelVersionId: bigint('model_version_id', { mode: 'number' }).notNull(),
   status: varchar('status', { length: 30 }).default('queued').notNull(),
   trainingType: varchar('training_type', { length: 30 }).notNull(),
-  config: json('config').$type<Record<string, unknown>>(),
+  config: json('config').$type<ModelParamsJson>(),
   gpuCount: int('gpu_count').default(1),
   gpuType: varchar('gpu_type', { length: 50 }),
   progress: int('progress').default(0),
@@ -2383,8 +2467,8 @@ export const adaptiveParamRecommendations = mysqlTable('adaptive_param_recommend
   id: bigint('id', { mode: 'number' }).autoincrement().primaryKey(),
   engineModule: varchar('engine_module', { length: 100 }).notNull(),
   recommendationType: varchar('recommendation_type', { length: 30 }).notNull(),
-  currentParams: json('current_params').$type<Record<string, unknown>>().notNull(),
-  recommendedParams: json('recommended_params').$type<Record<string, unknown>>().notNull(),
+  currentParams: json('current_params').$type<ModelParamsJson>().notNull(),
+  recommendedParams: json('recommended_params').$type<ModelParamsJson>().notNull(),
   reasoning: text('reasoning'),
   expectedImprovement: json('expected_improvement').$type<{
     metric: string; currentValue: number; expectedValue: number; improvementPercent: number;
@@ -2468,7 +2552,7 @@ export const strategyPluginStates = mysqlTable('strategy_plugin_states', {
   performanceHistory: json('performance_history').$type<Array<{
     timestamp: number; score: number;
   }>>(),
-  config: json('config').$type<Record<string, unknown>>(),
+  config: json('config').$type<ModelParamsJson>(),
   createdAt: timestamp('created_at', { fsp: 3 }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { fsp: 3 }).defaultNow().notNull(),
 }, (table) => [

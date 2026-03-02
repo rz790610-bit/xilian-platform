@@ -205,6 +205,21 @@ export default function KnowledgeExplorer() {
     onError: (e) => toast.error(`应用失败: ${e.message}`),
   });
 
+  const createCrystalMutation = trpc.evoKnowledge.crystal.create.useMutation({
+    onSuccess: () => { crystalsQuery.refetch(); setCreateCrystalOpen(false); toast.success('结晶已创建（草稿状态）'); },
+    onError: (e: any) => toast.error(`创建失败: ${e.message}`),
+  });
+
+  const registerFeatureMutation = trpc.evoKnowledge.registerFeature.useMutation({
+    onSuccess: () => { featuresQuery.refetch(); setCreateFeatureOpen(false); toast.success('特征已注册'); },
+    onError: (e: any) => toast.error(`注册失败: ${e.message}`),
+  });
+
+  const deprecateCrystalMutation = trpc.evoKnowledge.crystal.deprecate.useMutation({
+    onSuccess: () => { crystalsQuery.refetch(); setSelectedCrystal(null); toast.success('结晶已标记为废弃'); },
+    onError: (e: any) => toast.error(`废弃失败: ${e.message}`),
+  });
+
   const graphData = graphQuery.data as { nodes: KGNode[]; edges: KGEdge[] } | undefined;
   const nodes: KGNode[] = graphData?.nodes ?? []; const edges: KGEdge[] = graphData?.edges ?? [];
   const crystals: Crystal[] = (crystalsQuery.data as Crystal[]) ?? [];
@@ -223,16 +238,29 @@ export default function KnowledgeExplorer() {
   const driftVariant = (s: string) => s === 'stable' ? 'default' as const : s === 'critical' ? 'destructive' as const : 'secondary' as const;
 
   const handleCreateCrystal = useCallback((data: { name: string; type: Crystal['type']; description: string; confidence: number }) => {
-    toast.success(`结晶 "${data.name}" 已创建（草稿状态）`); setCreateCrystalOpen(false); crystalsQuery.refetch();
-  }, [crystalsQuery]);
+    const typeMap: Record<Crystal['type'], string> = { pattern: 'pattern', rule: 'causal_link', threshold: 'threshold_update', model: 'anomaly_signature' };
+    createCrystalMutation.mutate({
+      name: data.name,
+      type: typeMap[data.type] as any,
+      pattern: { description: data.description, type: data.type },
+      confidence: data.confidence,
+      sourceType: 'manual',
+    });
+  }, [createCrystalMutation]);
 
   const handleCreateFeature = useCallback((data: { name: string; domain: string; inputDimensions: string[]; outputType: string; expression: string }) => {
-    toast.success(`特征 "${data.name}" 已注册`); setCreateFeatureOpen(false); featuresQuery.refetch();
-  }, [featuresQuery]);
+    registerFeatureMutation.mutate({
+      name: data.name,
+      domain: data.domain,
+      inputDimensions: data.inputDimensions,
+      outputType: data.outputType,
+      expression: data.expression || undefined,
+    });
+  }, [registerFeatureMutation]);
 
   const handleDeprecate = useCallback((crystalId: string) => {
-    toast.success('结晶已标记为废弃'); setSelectedCrystal(null); crystalsQuery.refetch();
-  }, [crystalsQuery]);
+    deprecateCrystalMutation.mutate({ crystalId: Number(crystalId) });
+  }, [deprecateCrystalMutation]);
 
   const handleReviewSubmit = useCallback(() => {
     if (!reviewTarget) return;
@@ -471,8 +499,8 @@ export default function KnowledgeExplorer() {
         </TabsContent>
       </Tabs>
 
-      <CreateCrystalDialog open={createCrystalOpen} onOpenChange={setCreateCrystalOpen} onSubmit={handleCreateCrystal} isSubmitting={false} />
-      <CreateFeatureDialog open={createFeatureOpen} onOpenChange={setCreateFeatureOpen} onSubmit={handleCreateFeature} isSubmitting={false} />
+      <CreateCrystalDialog open={createCrystalOpen} onOpenChange={setCreateCrystalOpen} onSubmit={handleCreateCrystal} isSubmitting={createCrystalMutation.isPending} />
+      <CreateFeatureDialog open={createFeatureOpen} onOpenChange={setCreateFeatureOpen} onSubmit={handleCreateFeature} isSubmitting={registerFeatureMutation.isPending} />
       <CrystalDetailDialog open={!!selectedCrystal} onOpenChange={(open) => { if (!open) setSelectedCrystal(null); }} crystal={selectedCrystal} onApply={(id) => applyCrystalMutation.mutate({ crystalId: id })} onDeprecate={handleDeprecate} isApplying={applyCrystalMutation.isPending} />
 
       {/* K6: 审核对话框 */}

@@ -199,7 +199,7 @@ export default function PipelineEditor() {
       domain: 'machine_learning' as NodeDomain,
       tags: ['ML', '预测性维护'],
       build: () => {
-        const n1 = makeNode('t2-ch', 'clickhouse', 'source', 80, 180, { query: 'SELECT * FROM vibration_data ORDER BY ts DESC LIMIT 10000' });
+        const n1 = makeNode('t2-ch', 'clickhouse', 'source', 80, 180, { query: 'SELECT * FROM vibration_features ORDER BY event_time DESC LIMIT 10000' });
         const n2 = makeNode('t2-feat', 'feature_engineering', 'processor', 360, 180, { method: 'fft', normalize: true });
         const n3 = makeNode('t2-anomaly', 'anomaly_detect', 'processor', 640, 180, { algorithm: 'isolation_forest', threshold: 0.85 });
         const n4 = makeNode('t2-notify', 'notify', 'control', 920, 120, { channel: 'webhook', url: '/api/alerts' });

@@ -244,6 +244,14 @@ const worldModelRouter = router({
       return { totalVersions: 0, activeVersions: 0, trainingJobs: 0, runningJobs: 0, architectures: {} as Record<string, number> };
     }
   }),
+  /** FIX-062: 获取训练能力状态（前端据此显示"模拟模式"提示） */
+  getTrainingCapabilities: protectedProcedure.query(() => {
+    return {
+      mode: 'simulation' as const,
+      message: '训练功能处于模拟模式。需要部署 Python 训练后端（PyTorch/TensorFlow + ONNX 导出）以启用真实训练。',
+      supported: ['architecture_selection', 'carbon_aware_scheduling', 'dojo_queue', 'onnx_inference'],
+    };
+  }),
   // ── 世界模型预测验证 ──
   listPredictions: protectedProcedure
     .input(z.object({ snapshotId: z.number().optional(), limit: z.number().default(50) }).optional())

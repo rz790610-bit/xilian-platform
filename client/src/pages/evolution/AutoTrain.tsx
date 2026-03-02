@@ -1,14 +1,16 @@
 /**
  * 自动训练 — 进化引擎
- * 
+ *
  * 功能：
  * 1. 训练任务管理（创建/监控/终止训练任务）
  * 2. 训练流水线可视化（数据准备 → 特征工程 → 模型训练 → 评估 → 部署）
  * 3. 超参数配置（AutoML / 手动配置）
  * 4. 训练日志和指标实时展示
  * 5. 模型版本对比
+ *
+ * 数据源: trpc.evoEvolution.dojo.* 端点
  */
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { PageCard } from '@/components/common/PageCard';
 import { StatCard } from '@/components/common/StatCard';
@@ -23,107 +25,35 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { cn } from '@/lib/utils';
 import {
   Zap, Play, Square, RotateCcw, CheckCircle2, XCircle,
-  Clock, Cpu, HardDrive, TrendingUp, Settings2, GitBranch,
+  Clock, Cpu, Settings2, GitBranch,
   ArrowRight, Loader2, AlertTriangle, Rocket, FileText,
   ChevronRight, BarChart3
 } from 'lucide-react';
 import { useToast } from '@/components/common/Toast';
+import { trpc } from '@/lib/trpc';
 
-// ==================== 类型 ====================
+// ==================== 类型（从DB映射到UI的辅助类型） ====================
 
-interface TrainJob {
-  id: string;
-  name: string;
-  modelType: string;
-  baseModel: string;
-  status: 'queued' | 'preparing' | 'training' | 'evaluating' | 'completed' | 'failed' | 'cancelled';
-  progress: number;
-  currentStage: string;
-  epoch: { current: number; total: number };
-  metrics: {
-    trainLoss?: number;
-    valLoss?: number;
-    accuracy?: number;
-    f1?: number;
-    precision?: number;
-    recall?: number;
-  };
-  config: {
-    learningRate: number;
-    batchSize: number;
-    epochs: number;
-    optimizer: string;
-    scheduler: string;
-    datasetSize: number;
-    augmentation: boolean;
-  };
-  resources: {
-    gpu: string;
-    gpuMemory: string;
-    cpuUsage: string;
-    duration: string;
-    estimatedRemaining: string;
-  };
-  triggeredBy: string;
-  startedAt: string;
-  completedAt?: string;
-  outputModelVersion?: string;
-}
+/** DB status -> UI status 映射 */
+const dbStatusToUi: Record<string, string> = {
+  pending: 'queued',
+  scheduled: 'preparing',
+  running: 'training',
+  completed: 'completed',
+  failed: 'failed',
+  cancelled: 'cancelled',
+};
 
-// ==================== Mock 数据 ====================
-// P2-Tr1: TODO 待后端 autoTrain 路由实现后，替换为 tRPC 调用
-// 当前整页使用 Mock 数据，需要后端提供：
-// - trpc.autoTrain.listJobs / createJob / stopJob / getJobMetrics
-// - trpc.autoTrain.getTrainingLogs (WebSocket 推送)
-
-const mockJobs: TrainJob[] = [
-  {
-    id: 'train-001', name: '轴承故障分类器 v3.3', modelType: 'bearing-fault-classifier',
-    baseModel: 'bearing-fault-v3.2', status: 'training', progress: 67,
-    currentStage: '模型训练', epoch: { current: 67, total: 100 },
-    metrics: { trainLoss: 0.0823, valLoss: 0.1245, accuracy: 91.2, f1: 89.5, precision: 90.1, recall: 88.9 },
-    config: { learningRate: 0.001, batchSize: 64, epochs: 100, optimizer: 'AdamW', scheduler: 'CosineAnnealing', datasetSize: 4500, augmentation: true },
-    resources: { gpu: 'NVIDIA A100 40GB', gpuMemory: '18.2/40 GB', cpuUsage: '45%', duration: '2h 15m', estimatedRemaining: '1h 05m' },
-    triggeredBy: '主动学习 Round 8', startedAt: '2026-02-17T07:00:00Z',
-  },
-  {
-    id: 'train-002', name: '异常检测模型 v4.2', modelType: 'anomaly-detector',
-    baseModel: 'anomaly-v4.1', status: 'evaluating', progress: 92,
-    currentStage: '模型评估', epoch: { current: 80, total: 80 },
-    metrics: { trainLoss: 0.0456, valLoss: 0.0678, accuracy: 93.8, f1: 92.1, precision: 93.5, recall: 90.8 },
-    config: { learningRate: 0.0005, batchSize: 32, epochs: 80, optimizer: 'Adam', scheduler: 'ReduceLROnPlateau', datasetSize: 8200, augmentation: true },
-    resources: { gpu: 'NVIDIA A100 40GB', gpuMemory: '24.5/40 GB', cpuUsage: '38%', duration: '4h 30m', estimatedRemaining: '20m' },
-    triggeredBy: '反馈驱动（漏检修复）', startedAt: '2026-02-17T04:30:00Z',
-  },
-  {
-    id: 'train-003', name: '齿轮箱诊断 v2.6', modelType: 'gearbox-diagnosis',
-    baseModel: 'gearbox-v2.5', status: 'completed', progress: 100,
-    currentStage: '已完成', epoch: { current: 60, total: 60 },
-    metrics: { trainLoss: 0.0312, valLoss: 0.0589, accuracy: 94.5, f1: 93.2, precision: 94.8, recall: 91.7 },
-    config: { learningRate: 0.001, batchSize: 48, epochs: 60, optimizer: 'AdamW', scheduler: 'CosineAnnealing', datasetSize: 3200, augmentation: false },
-    resources: { gpu: 'NVIDIA A100 40GB', gpuMemory: '12.8/40 GB', cpuUsage: '32%', duration: '1h 45m', estimatedRemaining: '—' },
-    triggeredBy: '手动触发（标签修正）', startedAt: '2026-02-16T20:00:00Z', completedAt: '2026-02-16T21:45:00Z',
-    outputModelVersion: 'gearbox-v2.6',
-  },
-  {
-    id: 'train-004', name: '旋转机械通用模型 v2.0', modelType: 'rotating-machinery',
-    baseModel: 'rotating-v1.8', status: 'failed', progress: 34,
-    currentStage: '训练失败', epoch: { current: 34, total: 100 },
-    metrics: { trainLoss: 2.345, valLoss: 3.567 },
-    config: { learningRate: 0.01, batchSize: 128, epochs: 100, optimizer: 'SGD', scheduler: 'StepLR', datasetSize: 6800, augmentation: true },
-    resources: { gpu: 'NVIDIA A100 40GB', gpuMemory: '35.2/40 GB', cpuUsage: '78%', duration: '0h 52m', estimatedRemaining: '—' },
-    triggeredBy: 'AutoML 搜索', startedAt: '2026-02-16T15:00:00Z',
-  },
-  {
-    id: 'train-005', name: '电机故障预测 v1.0', modelType: 'motor-fault-prediction',
-    baseModel: '(从零训练)', status: 'queued', progress: 0,
-    currentStage: '排队中', epoch: { current: 0, total: 120 },
-    metrics: {},
-    config: { learningRate: 0.001, batchSize: 32, epochs: 120, optimizer: 'AdamW', scheduler: 'OneCycleLR', datasetSize: 5600, augmentation: true },
-    resources: { gpu: '待分配', gpuMemory: '—', cpuUsage: '—', duration: '—', estimatedRemaining: '预计 3h' },
-    triggeredBy: '计划任务', startedAt: '2026-02-17T10:00:00Z',
-  },
-];
+/** UI filter status -> DB status 映射 */
+const uiStatusToDb: Record<string, string> = {
+  queued: 'pending',
+  preparing: 'scheduled',
+  training: 'running',
+  evaluating: 'running', // evaluating is a sub-state of running
+  completed: 'completed',
+  failed: 'failed',
+  cancelled: 'cancelled',
+};
 
 // ==================== 工具 ====================
 
@@ -138,42 +68,168 @@ const statusConfig: Record<string, { label: string; color: string; icon: React.R
 };
 
 const pipelineStages = [
-  { id: 'data', label: '数据准备', icon: '📦' },
-  { id: 'feature', label: '特征工程', icon: '⚙️' },
-  { id: 'train', label: '模型训练', icon: '🧠' },
-  { id: 'eval', label: '模型评估', icon: '📊' },
-  { id: 'deploy', label: '模型部署', icon: '🚀' },
+  { id: 'data', label: '数据准备', icon: '\u{1F4E6}' },
+  { id: 'feature', label: '特征工程', icon: '\u{2699}\u{FE0F}' },
+  { id: 'train', label: '模型训练', icon: '\u{1F9E0}' },
+  { id: 'eval', label: '模型评估', icon: '\u{1F4CA}' },
+  { id: 'deploy', label: '模型部署', icon: '\u{1F680}' },
 ];
 
-function getStageIndex(stage: string): number {
-  if (stage.includes('准备') || stage.includes('数据')) return 0;
-  if (stage.includes('特征')) return 1;
-  if (stage.includes('训练')) return 2;
-  if (stage.includes('评估')) return 3;
-  if (stage.includes('完成') || stage.includes('部署')) return 4;
-  return -1;
+/** Map a DB job status to a pipeline stage index */
+function getStageIndexFromStatus(status: string | null): number {
+  switch (status) {
+    case 'pending': return -1;
+    case 'scheduled': return 0;
+    case 'running': return 2;
+    case 'completed': return 4;
+    case 'failed': return 2;
+    case 'cancelled': return -1;
+    default: return -1;
+  }
 }
 
-function formatTime(ts: string): string {
-  return new Date(ts).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+/** Map DB status to UI display status string */
+function mapDbStatusToUi(dbStatus: string | null): string {
+  return dbStatusToUi[dbStatus ?? 'pending'] ?? dbStatus ?? 'queued';
+}
+
+function formatTime(ts: Date | string | null): string {
+  if (!ts) return '--';
+  const d = typeof ts === 'string' ? new Date(ts) : ts;
+  return d.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
+
+function formatDuration(ms: number | null): string {
+  if (!ms) return '--';
+  const hours = Math.floor(ms / 3600000);
+  const minutes = Math.floor((ms % 3600000) / 60000);
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  return `${minutes}m`;
+}
+
+/** Safely extract a numeric value from a config/result JSON object */
+function safeNum(obj: Record<string, unknown> | null, key: string): number | undefined {
+  if (!obj || obj[key] === undefined || obj[key] === null) return undefined;
+  const v = Number(obj[key]);
+  return isNaN(v) ? undefined : v;
+}
+
+/** Safely extract a string value from a config/result JSON object */
+function safeStr(obj: Record<string, unknown> | null, key: string): string {
+  if (!obj || obj[key] === undefined || obj[key] === null) return '--';
+  return String(obj[key]);
 }
 
 // ==================== 主组件 ====================
 
 export default function AutoTrain() {
   const toast = useToast();
+  const utils = trpc.useUtils();
   const [activeTab, setActiveTab] = useState('jobs');
-  const [selectedJob, setSelectedJob] = useState<TrainJob | null>(null);
+  const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
   const [showNewDialog, setShowNewDialog] = useState(false);
   const [filterStatus, setFilterStatus] = useState('all');
 
-  const filteredJobs = useMemo(() => {
-    if (filterStatus === 'all') return mockJobs;
-    return mockJobs.filter(j => j.status === filterStatus);
-  }, [filterStatus]);
+  // ---- New job form state ----
+  const [newJobName, setNewJobName] = useState('');
+  const [newJobModelId, setNewJobModelId] = useState('bearing-fault-v3.2');
+  const [newJobLr, setNewJobLr] = useState('0.001');
+  const [newJobBatchSize, setNewJobBatchSize] = useState('64');
+  const [newJobEpochs, setNewJobEpochs] = useState('100');
+  const [newJobOptimizer, setNewJobOptimizer] = useState('adamw');
+  const [newJobAugmentation, setNewJobAugmentation] = useState(true);
+  const [newJobAutoML, setNewJobAutoML] = useState(false);
+  const [newJobGpuCount, setNewJobGpuCount] = useState(1);
+  const [newJobUseSpot, setNewJobUseSpot] = useState(false);
 
-  const activeJobs = mockJobs.filter(j => j.status === 'training' || j.status === 'evaluating' || j.status === 'preparing');
-  const completedJobs = mockJobs.filter(j => j.status === 'completed');
+  // ---- tRPC queries ----
+  const dbFilterStatus = filterStatus === 'all'
+    ? undefined
+    : (uiStatusToDb[filterStatus] ?? filterStatus) as 'pending' | 'scheduled' | 'running' | 'completed' | 'failed' | 'cancelled';
+
+  const jobsQuery = trpc.evoEvolution.dojo.list.useQuery(
+    { status: dbFilterStatus, limit: 50 },
+    { refetchInterval: 10000 }
+  );
+
+  const statsQuery = trpc.evoEvolution.dojo.getStats.useQuery(undefined, {
+    refetchInterval: 10000,
+  });
+
+  const selectedJobQuery = trpc.evoEvolution.dojo.get.useQuery(
+    { id: selectedJobId! },
+    { enabled: selectedJobId !== null }
+  );
+
+  // ---- tRPC mutations ----
+  const createJob = trpc.evoEvolution.dojo.create.useMutation({
+    onSuccess: (data) => {
+      toast.success(`训练任务已创建 (ID: ${data.jobId})`);
+      setShowNewDialog(false);
+      resetNewJobForm();
+      utils.evoEvolution.dojo.list.invalidate();
+      utils.evoEvolution.dojo.getStats.invalidate();
+    },
+    onError: (err) => toast.error(`创建失败: ${err.message}`),
+  });
+
+  const cancelJob = trpc.evoEvolution.dojo.cancel.useMutation({
+    onSuccess: () => {
+      toast.warning('训练已终止');
+      utils.evoEvolution.dojo.list.invalidate();
+      utils.evoEvolution.dojo.getStats.invalidate();
+    },
+    onError: (err) => toast.error(`终止失败: ${err.message}`),
+  });
+
+  function resetNewJobForm() {
+    setNewJobName('');
+    setNewJobModelId('bearing-fault-v3.2');
+    setNewJobLr('0.001');
+    setNewJobBatchSize('64');
+    setNewJobEpochs('100');
+    setNewJobOptimizer('adamw');
+    setNewJobAugmentation(true);
+    setNewJobAutoML(false);
+    setNewJobGpuCount(1);
+    setNewJobUseSpot(false);
+  }
+
+  function handleCreateJob() {
+    if (!newJobName.trim()) {
+      toast.error('请输入任务名称');
+      return;
+    }
+    createJob.mutate({
+      name: newJobName.trim(),
+      modelId: newJobModelId,
+      priority: 5,
+      gpuCount: newJobGpuCount,
+      useSpot: newJobUseSpot,
+      config: {
+        learningRate: parseFloat(newJobLr) || 0.001,
+        batchSize: parseInt(newJobBatchSize) || 64,
+        epochs: parseInt(newJobEpochs) || 100,
+        optimizer: newJobOptimizer,
+        augmentation: newJobAugmentation,
+        autoML: newJobAutoML,
+      },
+    });
+  }
+
+  function handleCancelJob(jobId: number, e: React.MouseEvent) {
+    e.stopPropagation();
+    cancelJob.mutate({ id: jobId });
+  }
+
+  // ---- Derived data ----
+  const jobs = jobsQuery.data?.jobs ?? [];
+  const stats = statsQuery.data;
+
+  const isLoading = jobsQuery.isLoading;
+
+  // Find the selected job from the list (for the dialog)
+  const selectedJob = selectedJobQuery.data?.job ?? null;
 
   return (
     <MainLayout title="自动训练">
@@ -191,10 +247,10 @@ export default function AutoTrain() {
 
         {/* 统计 */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
-          <StatCard value={activeJobs.length} label="进行中" icon="🔄" />
-          <StatCard value={completedJobs.length} label="已完成" icon="✅" />
-          <StatCard value={mockJobs.filter(j => j.status === 'failed').length} label="失败" icon="❌" />
-          <StatCard value="93.8%" label="最佳准确率" icon="🏆" />
+          <StatCard value={stats ? (stats.running + stats.pending) : '--'} label="进行中" icon="🔄" />
+          <StatCard value={stats?.completed ?? '--'} label="已完成" icon="✅" />
+          <StatCard value={stats?.failed ?? '--'} label="失败" icon="❌" />
+          <StatCard value={stats ? `${stats.totalGpuHours.toFixed(1)}h` : '--'} label="GPU 总时长" icon="🏆" />
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -217,125 +273,183 @@ export default function AutoTrain() {
                     ))}
                   </SelectContent>
                 </Select>
-                <span className="text-[10px] text-muted-foreground ml-auto">共 {filteredJobs.length} 个任务</span>
+                <span className="text-[10px] text-muted-foreground ml-auto">
+                  共 {jobsQuery.data?.total ?? jobs.length} 个任务
+                </span>
               </div>
             </PageCard>
 
-            <div className="space-y-2">
-              {filteredJobs.map(job => {
-                const stageIdx = getStageIndex(job.currentStage);
-                return (
-                  <PageCard
-                    key={job.id}
-                    className="cursor-pointer hover:border-primary/30 transition-all"
-                    onClick={() => setSelectedJob(job)}
-                  >
-                    <div className="space-y-3">
-                      {/* 头部 */}
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="text-xs font-semibold text-foreground">{job.name}</span>
-                            <Badge variant="outline" className={cn("text-[10px] gap-0.5", statusConfig[job.status]?.color)}>
-                              {statusConfig[job.status]?.icon}
-                              {statusConfig[job.status]?.label}
-                            </Badge>
-                          </div>
-                          <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
-                            <span>基线: {job.baseModel}</span>
-                            <span>触发: {job.triggeredBy}</span>
-                            <span><Clock className="w-2.5 h-2.5 inline mr-0.5" />{formatTime(job.startedAt)}</span>
-                          </div>
-                        </div>
-                        <div className="flex gap-1 shrink-0">
-                          {(job.status === 'training' || job.status === 'evaluating') && (
-                            <Button size="sm" variant="outline" className="h-6 text-[10px] gap-1 text-red-400 border-red-500/30" onClick={(e) => { e.stopPropagation(); toast.warning('训练已终止'); }}>
-                              <Square className="w-2.5 h-2.5" /> 终止
-                            </Button>
-                          )}
-                          {job.status === 'completed' && job.outputModelVersion && (
-                            <Button size="sm" variant="outline" className="h-6 text-[10px] gap-1 text-emerald-400 border-emerald-500/30" onClick={(e) => { e.stopPropagation(); toast.success('模型已部署'); }}>
-                              <Rocket className="w-2.5 h-2.5" /> 部署
-                            </Button>
-                          )}
-                          {job.status === 'failed' && (
-                            <Button size="sm" variant="outline" className="h-6 text-[10px] gap-1" onClick={(e) => { e.stopPropagation(); toast.success('重新训练已提交'); }}>
-                              <RotateCcw className="w-2.5 h-2.5" /> 重试
-                            </Button>
-                          )}
-                        </div>
-                      </div>
+            {isLoading ? (
+              <div className="text-center py-8 text-sm text-muted-foreground">加载中...</div>
+            ) : jobs.length === 0 ? (
+              <div className="text-center py-8 text-sm text-muted-foreground">暂无训练任务</div>
+            ) : (
+              <div className="space-y-2">
+                {jobs.map(job => {
+                  const uiStatus = mapDbStatusToUi(job.status);
+                  const stageIdx = getStageIndexFromStatus(job.status);
+                  const config = job.config as Record<string, unknown> | null;
+                  const result = job.result as Record<string, unknown> | null;
+                  const metrics = {
+                    trainLoss: safeNum(result, 'trainLoss'),
+                    valLoss: safeNum(result, 'valLoss'),
+                    accuracy: safeNum(result, 'accuracy'),
+                    f1: safeNum(result, 'f1'),
+                    precision: safeNum(result, 'precision'),
+                    recall: safeNum(result, 'recall'),
+                  };
+                  // Progress: completed=100, failed uses retry logic, otherwise estimate from config
+                  const progress = job.status === 'completed' ? 100
+                    : job.status === 'failed' ? safeNum(result, 'progress') ?? 0
+                    : job.status === 'cancelled' ? 0
+                    : safeNum(result, 'progress') ?? (job.status === 'running' ? 50 : 0);
+                  // Epoch info from result JSON
+                  const epochCurrent = safeNum(result, 'epochCurrent') ?? safeNum(result, 'epoch') ?? 0;
+                  const epochTotal = safeNum(config, 'epochs') ?? 0;
+                  // Duration
+                  const duration = job.startedAt && job.completedAt
+                    ? formatDuration(new Date(job.completedAt).getTime() - new Date(job.startedAt).getTime())
+                    : job.startedAt
+                      ? formatDuration(Date.now() - new Date(job.startedAt).getTime())
+                      : '--';
+                  const estimatedRemaining = job.estimatedDurationMs && job.startedAt
+                    ? formatDuration(Math.max(0, job.estimatedDurationMs - (Date.now() - new Date(job.startedAt).getTime())))
+                    : '--';
 
-                      {/* 流水线进度 */}
-                      <div className="flex items-center gap-1">
-                        {pipelineStages.map((stage, i) => (
-                          <div key={stage.id} className="flex items-center flex-1">
-                            <div className={cn(
-                              "flex items-center gap-1 px-2 py-1 rounded text-[10px] flex-1 justify-center transition-all",
-                              i < stageIdx ? 'bg-emerald-500/15 text-emerald-400' :
-                              i === stageIdx ? (job.status === 'failed' ? 'bg-red-500/15 text-red-400' : 'bg-cyan-500/15 text-cyan-400') :
-                              'bg-secondary/50 text-muted-foreground'
-                            )}>
-                              <span>{stage.icon}</span>
-                              <span className="hidden md:inline">{stage.label}</span>
+                  return (
+                    <PageCard
+                      key={job.id}
+                      className="cursor-pointer hover:border-primary/30 transition-all"
+                      onClick={() => setSelectedJobId(job.id)}
+                    >
+                      <div className="space-y-3">
+                        {/* 头部 */}
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-xs font-semibold text-foreground">{job.name}</span>
+                              <Badge variant="outline" className={cn("text-[10px] gap-0.5", statusConfig[uiStatus]?.color)}>
+                                {statusConfig[uiStatus]?.icon}
+                                {statusConfig[uiStatus]?.label}
+                              </Badge>
                             </div>
-                            {i < pipelineStages.length - 1 && (
-                              <ChevronRight className={cn(
-                                "w-3 h-3 shrink-0 mx-0.5",
-                                i < stageIdx ? 'text-emerald-500' : 'text-muted-foreground/30'
-                              )} />
+                            <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+                              <span>模型: {job.modelId}</span>
+                              <span>优先级: {job.priority ?? '--'}</span>
+                              <span><Clock className="w-2.5 h-2.5 inline mr-0.5" />{formatTime(job.createdAt)}</span>
+                            </div>
+                          </div>
+                          <div className="flex gap-1 shrink-0">
+                            {(job.status === 'running' || job.status === 'scheduled') && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-6 text-[10px] gap-1 text-red-400 border-red-500/30"
+                                disabled={cancelJob.isPending}
+                                onClick={(e) => handleCancelJob(job.id, e)}
+                              >
+                                <Square className="w-2.5 h-2.5" /> 终止
+                              </Button>
                             )}
-                          </div>
-                        ))}
-                      </div>
-
-                      {/* 进度条 + 指标 */}
-                      <div className="flex items-center gap-4">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <Progress value={job.progress} className="h-1.5 flex-1" />
-                            <span className="text-[10px] font-mono text-muted-foreground">{job.progress}%</span>
-                          </div>
-                          <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
-                            <span>Epoch {job.epoch.current}/{job.epoch.total}</span>
-                            <span>⏱ {job.resources.duration}</span>
-                            {job.resources.estimatedRemaining !== '—' && (
-                              <span>剩余 {job.resources.estimatedRemaining}</span>
+                            {job.status === 'completed' && (
+                              <Button size="sm" variant="outline" className="h-6 text-[10px] gap-1 text-emerald-400 border-emerald-500/30" onClick={(e) => { e.stopPropagation(); toast.success('模型已部署'); }}>
+                                <Rocket className="w-2.5 h-2.5" /> 部署
+                              </Button>
+                            )}
+                            {job.status === 'failed' && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-6 text-[10px] gap-1"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  createJob.mutate({
+                                    name: job.name + ' (重试)',
+                                    modelId: job.modelId,
+                                    priority: job.priority ?? undefined,
+                                    gpuCount: job.gpuCount ?? undefined,
+                                    useSpot: job.useSpot ? true : false,
+                                    config: config ?? undefined,
+                                  });
+                                }}
+                              >
+                                <RotateCcw className="w-2.5 h-2.5" /> 重试
+                              </Button>
                             )}
                           </div>
                         </div>
 
-                        {/* 关键指标 */}
-                        {(job.metrics.accuracy || job.metrics.trainLoss) && (
-                          <div className="flex gap-3 shrink-0 text-[10px]">
-                            {job.metrics.accuracy && (
-                              <div className="text-center">
-                                <div className="text-emerald-400 font-mono font-semibold">{job.metrics.accuracy}%</div>
-                                <div className="text-muted-foreground">准确率</div>
+                        {/* 流水线进度 */}
+                        <div className="flex items-center gap-1">
+                          {pipelineStages.map((stage, i) => (
+                            <div key={stage.id} className="flex items-center flex-1">
+                              <div className={cn(
+                                "flex items-center gap-1 px-2 py-1 rounded text-[10px] flex-1 justify-center transition-all",
+                                i < stageIdx ? 'bg-emerald-500/15 text-emerald-400' :
+                                i === stageIdx ? (job.status === 'failed' ? 'bg-red-500/15 text-red-400' : 'bg-cyan-500/15 text-cyan-400') :
+                                'bg-secondary/50 text-muted-foreground'
+                              )}>
+                                <span>{stage.icon}</span>
+                                <span className="hidden md:inline">{stage.label}</span>
                               </div>
-                            )}
-                            {job.metrics.f1 && (
-                              <div className="text-center">
-                                <div className="text-cyan-400 font-mono font-semibold">{job.metrics.f1}%</div>
-                                <div className="text-muted-foreground">F1</div>
-                              </div>
-                            )}
-                            {job.metrics.trainLoss !== undefined && (
-                              <div className="text-center">
-                                <div className={cn("font-mono font-semibold", job.metrics.trainLoss > 1 ? 'text-red-400' : 'text-blue-400')}>
-                                  {job.metrics.trainLoss.toFixed(4)}
-                                </div>
-                                <div className="text-muted-foreground">Loss</div>
-                              </div>
-                            )}
+                              {i < pipelineStages.length - 1 && (
+                                <ChevronRight className={cn(
+                                  "w-3 h-3 shrink-0 mx-0.5",
+                                  i < stageIdx ? 'text-emerald-500' : 'text-muted-foreground/30'
+                                )} />
+                              )}
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* 进度条 + 指标 */}
+                        <div className="flex items-center gap-4">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Progress value={progress} className="h-1.5 flex-1" />
+                              <span className="text-[10px] font-mono text-muted-foreground">{progress}%</span>
+                            </div>
+                            <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+                              {epochTotal > 0 && <span>Epoch {epochCurrent}/{epochTotal}</span>}
+                              <span>⏱ {duration}</span>
+                              {estimatedRemaining !== '--' && (
+                                <span>剩余 {estimatedRemaining}</span>
+                              )}
+                            </div>
                           </div>
-                        )}
+
+                          {/* 关键指标 */}
+                          {(metrics.accuracy !== undefined || metrics.trainLoss !== undefined) && (
+                            <div className="flex gap-3 shrink-0 text-[10px]">
+                              {metrics.accuracy !== undefined && (
+                                <div className="text-center">
+                                  <div className="text-emerald-400 font-mono font-semibold">{metrics.accuracy}%</div>
+                                  <div className="text-muted-foreground">准确率</div>
+                                </div>
+                              )}
+                              {metrics.f1 !== undefined && (
+                                <div className="text-center">
+                                  <div className="text-cyan-400 font-mono font-semibold">{metrics.f1}%</div>
+                                  <div className="text-muted-foreground">F1</div>
+                                </div>
+                              )}
+                              {metrics.trainLoss !== undefined && (
+                                <div className="text-center">
+                                  <div className={cn("font-mono font-semibold", metrics.trainLoss > 1 ? 'text-red-400' : 'text-blue-400')}>
+                                    {metrics.trainLoss.toFixed(4)}
+                                  </div>
+                                  <div className="text-muted-foreground">Loss</div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  </PageCard>
-                );
-              })}
-            </div>
+                    </PageCard>
+                  );
+                })}
+              </div>
+            )}
           </TabsContent>
 
           {/* ==================== 版本对比 ==================== */}
@@ -493,79 +607,132 @@ export default function AutoTrain() {
         </Tabs>
 
         {/* 任务详情弹窗 */}
-        <Dialog open={!!selectedJob} onOpenChange={() => setSelectedJob(null)}>
+        <Dialog open={selectedJobId !== null} onOpenChange={() => setSelectedJobId(null)}>
           <DialogContent className="max-w-lg">
             <DialogHeader>
               <DialogTitle className="text-sm flex items-center gap-2">
                 <FileText className="w-4 h-4" /> 训练详情
               </DialogTitle>
             </DialogHeader>
-            {selectedJob && (
-              <div className="space-y-3 max-h-[60vh] overflow-y-auto">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold">{selectedJob.name}</span>
-                  <Badge variant="outline" className={cn("text-[10px] gap-0.5", statusConfig[selectedJob.status]?.color)}>
-                    {statusConfig[selectedJob.status]?.icon}
-                    {statusConfig[selectedJob.status]?.label}
-                  </Badge>
-                </div>
+            {selectedJobQuery.isLoading ? (
+              <div className="text-center py-8 text-sm text-muted-foreground">加载中...</div>
+            ) : selectedJob ? (() => {
+              const uiStatus = mapDbStatusToUi(selectedJob.status);
+              const config = selectedJob.config as Record<string, unknown> | null;
+              const result = selectedJob.result as Record<string, unknown> | null;
+              const metrics = {
+                trainLoss: safeNum(result, 'trainLoss'),
+                valLoss: safeNum(result, 'valLoss'),
+                accuracy: safeNum(result, 'accuracy'),
+                f1: safeNum(result, 'f1'),
+                precision: safeNum(result, 'precision'),
+                recall: safeNum(result, 'recall'),
+              };
+              const duration = selectedJob.startedAt && selectedJob.completedAt
+                ? formatDuration(new Date(selectedJob.completedAt).getTime() - new Date(selectedJob.startedAt).getTime())
+                : selectedJob.startedAt
+                  ? formatDuration(Date.now() - new Date(selectedJob.startedAt).getTime())
+                  : '--';
+              const estimatedRemaining = selectedJob.estimatedDurationMs && selectedJob.startedAt
+                ? formatDuration(Math.max(0, selectedJob.estimatedDurationMs - (Date.now() - new Date(selectedJob.startedAt).getTime())))
+                : '--';
+              const hasMetrics = Object.values(metrics).some(v => v !== undefined);
 
-                {/* 训练配置 */}
-                <div className="bg-secondary/50 rounded-lg p-3 text-[11px]">
-                  <div className="text-xs font-semibold mb-2">训练配置</div>
-                  <div className="grid grid-cols-2 gap-1.5">
-                    <div className="flex justify-between"><span className="text-muted-foreground">学习率</span><span className="font-mono">{selectedJob.config.learningRate}</span></div>
-                    <div className="flex justify-between"><span className="text-muted-foreground">批大小</span><span className="font-mono">{selectedJob.config.batchSize}</span></div>
-                    <div className="flex justify-between"><span className="text-muted-foreground">Epochs</span><span className="font-mono">{selectedJob.config.epochs}</span></div>
-                    <div className="flex justify-between"><span className="text-muted-foreground">优化器</span><span className="font-mono">{selectedJob.config.optimizer}</span></div>
-                    <div className="flex justify-between"><span className="text-muted-foreground">调度器</span><span className="font-mono">{selectedJob.config.scheduler}</span></div>
-                    <div className="flex justify-between"><span className="text-muted-foreground">数据量</span><span className="font-mono">{selectedJob.config.datasetSize.toLocaleString()}</span></div>
-                    <div className="flex justify-between"><span className="text-muted-foreground">数据增强</span><span>{selectedJob.config.augmentation ? '✅' : '❌'}</span></div>
+              return (
+                <div className="space-y-3 max-h-[60vh] overflow-y-auto">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold">{selectedJob.name}</span>
+                    <Badge variant="outline" className={cn("text-[10px] gap-0.5", statusConfig[uiStatus]?.color)}>
+                      {statusConfig[uiStatus]?.icon}
+                      {statusConfig[uiStatus]?.label}
+                    </Badge>
                   </div>
-                </div>
 
-                {/* 资源使用 */}
-                <div className="bg-secondary/50 rounded-lg p-3 text-[11px]">
-                  <div className="text-xs font-semibold mb-2">资源使用</div>
-                  <div className="space-y-1.5">
-                    <div className="flex justify-between"><span className="text-muted-foreground">GPU</span><span className="font-mono">{selectedJob.resources.gpu}</span></div>
-                    <div className="flex justify-between"><span className="text-muted-foreground">显存</span><span className="font-mono">{selectedJob.resources.gpuMemory}</span></div>
-                    <div className="flex justify-between"><span className="text-muted-foreground">CPU</span><span className="font-mono">{selectedJob.resources.cpuUsage}</span></div>
-                    <div className="flex justify-between"><span className="text-muted-foreground">已用时间</span><span className="font-mono">{selectedJob.resources.duration}</span></div>
-                    <div className="flex justify-between"><span className="text-muted-foreground">预计剩余</span><span className="font-mono">{selectedJob.resources.estimatedRemaining}</span></div>
-                  </div>
-                </div>
-
-                {/* 训练指标 */}
-                {Object.keys(selectedJob.metrics).length > 0 && (
+                  {/* 基本信息 */}
                   <div className="bg-secondary/50 rounded-lg p-3 text-[11px]">
-                    <div className="text-xs font-semibold mb-2">训练指标</div>
+                    <div className="text-xs font-semibold mb-2">基本信息</div>
                     <div className="grid grid-cols-2 gap-1.5">
-                      {selectedJob.metrics.trainLoss !== undefined && (
-                        <div className="flex justify-between"><span className="text-muted-foreground">训练损失</span><span className="font-mono">{selectedJob.metrics.trainLoss.toFixed(4)}</span></div>
-                      )}
-                      {selectedJob.metrics.valLoss !== undefined && (
-                        <div className="flex justify-between"><span className="text-muted-foreground">验证损失</span><span className="font-mono">{selectedJob.metrics.valLoss.toFixed(4)}</span></div>
-                      )}
-                      {selectedJob.metrics.accuracy !== undefined && (
-                        <div className="flex justify-between"><span className="text-muted-foreground">准确率</span><span className="font-mono text-emerald-400">{selectedJob.metrics.accuracy}%</span></div>
-                      )}
-                      {selectedJob.metrics.f1 !== undefined && (
-                        <div className="flex justify-between"><span className="text-muted-foreground">F1</span><span className="font-mono text-cyan-400">{selectedJob.metrics.f1}%</span></div>
-                      )}
-                      {selectedJob.metrics.precision !== undefined && (
-                        <div className="flex justify-between"><span className="text-muted-foreground">精确率</span><span className="font-mono text-blue-400">{selectedJob.metrics.precision}%</span></div>
-                      )}
-                      {selectedJob.metrics.recall !== undefined && (
-                        <div className="flex justify-between"><span className="text-muted-foreground">召回率</span><span className="font-mono text-purple-400">{selectedJob.metrics.recall}%</span></div>
-                      )}
+                      <div className="flex justify-between"><span className="text-muted-foreground">任务ID</span><span className="font-mono">{selectedJob.jobId}</span></div>
+                      <div className="flex justify-between"><span className="text-muted-foreground">模型ID</span><span className="font-mono">{selectedJob.modelId}</span></div>
+                      <div className="flex justify-between"><span className="text-muted-foreground">优先级</span><span className="font-mono">{selectedJob.priority ?? '--'}</span></div>
+                      <div className="flex justify-between"><span className="text-muted-foreground">GPU</span><span className="font-mono">{selectedJob.gpuCount ?? '--'} 卡</span></div>
+                      <div className="flex justify-between"><span className="text-muted-foreground">竞价实例</span><span>{selectedJob.useSpot ? '是' : '否'}</span></div>
+                      <div className="flex justify-between"><span className="text-muted-foreground">重试次数</span><span className="font-mono">{selectedJob.retryCount ?? 0}</span></div>
                     </div>
                   </div>
-                )}
-              </div>
+
+                  {/* 训练配置 */}
+                  {config && Object.keys(config).length > 0 && (
+                    <div className="bg-secondary/50 rounded-lg p-3 text-[11px]">
+                      <div className="text-xs font-semibold mb-2">训练配置</div>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        <div className="flex justify-between"><span className="text-muted-foreground">学习率</span><span className="font-mono">{safeStr(config, 'learningRate')}</span></div>
+                        <div className="flex justify-between"><span className="text-muted-foreground">批大小</span><span className="font-mono">{safeStr(config, 'batchSize')}</span></div>
+                        <div className="flex justify-between"><span className="text-muted-foreground">Epochs</span><span className="font-mono">{safeStr(config, 'epochs')}</span></div>
+                        <div className="flex justify-between"><span className="text-muted-foreground">优化器</span><span className="font-mono">{safeStr(config, 'optimizer')}</span></div>
+                        {safeStr(config, 'scheduler') !== '--' && <div className="flex justify-between"><span className="text-muted-foreground">调度器</span><span className="font-mono">{safeStr(config, 'scheduler')}</span></div>}
+                        {safeNum(config, 'datasetSize') != null && <div className="flex justify-between"><span className="text-muted-foreground">数据量</span><span className="font-mono">{safeNum(config, 'datasetSize')?.toLocaleString()}</span></div>}
+                        {safeStr(config, 'augmentation') !== '--' && <div className="flex justify-between"><span className="text-muted-foreground">数据增强</span><span>{config.augmentation ? '✅' : '❌'}</span></div>}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 资源使用 */}
+                  <div className="bg-secondary/50 rounded-lg p-3 text-[11px]">
+                    <div className="text-xs font-semibold mb-2">资源与时间</div>
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between"><span className="text-muted-foreground">GPU 数量</span><span className="font-mono">{selectedJob.gpuCount ?? '--'} 卡</span></div>
+                      <div className="flex justify-between"><span className="text-muted-foreground">已用时间</span><span className="font-mono">{duration}</span></div>
+                      <div className="flex justify-between"><span className="text-muted-foreground">预计剩余</span><span className="font-mono">{estimatedRemaining}</span></div>
+                      <div className="flex justify-between"><span className="text-muted-foreground">创建时间</span><span className="font-mono">{formatTime(selectedJob.createdAt)}</span></div>
+                      {selectedJob.startedAt && <div className="flex justify-between"><span className="text-muted-foreground">开始时间</span><span className="font-mono">{formatTime(selectedJob.startedAt)}</span></div>}
+                      {selectedJob.completedAt && <div className="flex justify-between"><span className="text-muted-foreground">完成时间</span><span className="font-mono">{formatTime(selectedJob.completedAt)}</span></div>}
+                    </div>
+                  </div>
+
+                  {/* 训练指标 */}
+                  {hasMetrics && (
+                    <div className="bg-secondary/50 rounded-lg p-3 text-[11px]">
+                      <div className="text-xs font-semibold mb-2">训练指标</div>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {metrics.trainLoss !== undefined && (
+                          <div className="flex justify-between"><span className="text-muted-foreground">训练损失</span><span className="font-mono">{metrics.trainLoss.toFixed(4)}</span></div>
+                        )}
+                        {metrics.valLoss !== undefined && (
+                          <div className="flex justify-between"><span className="text-muted-foreground">验证损失</span><span className="font-mono">{metrics.valLoss.toFixed(4)}</span></div>
+                        )}
+                        {metrics.accuracy !== undefined && (
+                          <div className="flex justify-between"><span className="text-muted-foreground">准确率</span><span className="font-mono text-emerald-400">{metrics.accuracy}%</span></div>
+                        )}
+                        {metrics.f1 !== undefined && (
+                          <div className="flex justify-between"><span className="text-muted-foreground">F1</span><span className="font-mono text-cyan-400">{metrics.f1}%</span></div>
+                        )}
+                        {metrics.precision !== undefined && (
+                          <div className="flex justify-between"><span className="text-muted-foreground">精确率</span><span className="font-mono text-blue-400">{metrics.precision}%</span></div>
+                        )}
+                        {metrics.recall !== undefined && (
+                          <div className="flex justify-between"><span className="text-muted-foreground">召回率</span><span className="font-mono text-purple-400">{metrics.recall}%</span></div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 错误信息 */}
+                  {selectedJob.errorMessage && (
+                    <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3 text-[11px]">
+                      <div className="text-xs font-semibold mb-1 text-red-400 flex items-center gap-1">
+                        <AlertTriangle className="w-3 h-3" /> 错误信息
+                      </div>
+                      <div className="text-red-300 font-mono break-all">{selectedJob.errorMessage}</div>
+                    </div>
+                  )}
+                </div>
+              );
+            })() : (
+              <div className="text-center py-8 text-sm text-muted-foreground">任务不存在</div>
             )}
             <DialogFooter>
-              <Button size="sm" variant="secondary" className="text-xs h-7" onClick={() => setSelectedJob(null)}>关闭</Button>
+              <Button size="sm" variant="secondary" className="text-xs h-7" onClick={() => setSelectedJobId(null)}>关闭</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -581,11 +748,16 @@ export default function AutoTrain() {
             <div className="space-y-3">
               <div>
                 <label className="text-[11px] text-muted-foreground mb-1 block">任务名称</label>
-                <Input className="h-7 text-xs" placeholder="例: 轴承故障分类器 v3.4" />
+                <Input
+                  className="h-7 text-xs"
+                  placeholder="例: 轴承故障分类器 v3.4"
+                  value={newJobName}
+                  onChange={(e) => setNewJobName(e.target.value)}
+                />
               </div>
               <div>
                 <label className="text-[11px] text-muted-foreground mb-1 block">基线模型</label>
-                <Select defaultValue="bearing-fault-v3.2">
+                <Select value={newJobModelId} onValueChange={setNewJobModelId}>
                   <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="bearing-fault-v3.2">bearing-fault-v3.2</SelectItem>
@@ -599,11 +771,15 @@ export default function AutoTrain() {
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="text-[11px] text-muted-foreground mb-1 block">学习率</label>
-                  <Input className="h-7 text-xs" defaultValue="0.001" />
+                  <Input
+                    className="h-7 text-xs"
+                    value={newJobLr}
+                    onChange={(e) => setNewJobLr(e.target.value)}
+                  />
                 </div>
                 <div>
                   <label className="text-[11px] text-muted-foreground mb-1 block">批大小</label>
-                  <Select defaultValue="64">
+                  <Select value={newJobBatchSize} onValueChange={setNewJobBatchSize}>
                     <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="16">16</SelectItem>
@@ -617,11 +793,15 @@ export default function AutoTrain() {
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="text-[11px] text-muted-foreground mb-1 block">Epochs</label>
-                  <Input className="h-7 text-xs" defaultValue="100" />
+                  <Input
+                    className="h-7 text-xs"
+                    value={newJobEpochs}
+                    onChange={(e) => setNewJobEpochs(e.target.value)}
+                  />
                 </div>
                 <div>
                   <label className="text-[11px] text-muted-foreground mb-1 block">优化器</label>
-                  <Select defaultValue="adamw">
+                  <Select value={newJobOptimizer} onValueChange={setNewJobOptimizer}>
                     <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="adam">Adam</SelectItem>
@@ -633,17 +813,23 @@ export default function AutoTrain() {
               </div>
               <div className="flex items-center justify-between p-2 bg-secondary/30 rounded">
                 <span className="text-[11px] text-foreground">数据增强</span>
-                <Switch defaultChecked />
+                <Switch checked={newJobAugmentation} onCheckedChange={setNewJobAugmentation} />
               </div>
               <div className="flex items-center justify-between p-2 bg-secondary/30 rounded">
                 <span className="text-[11px] text-foreground">使用 AutoML 搜索</span>
-                <Switch />
+                <Switch checked={newJobAutoML} onCheckedChange={setNewJobAutoML} />
               </div>
             </div>
             <DialogFooter>
               <Button size="sm" variant="secondary" className="text-xs h-7" onClick={() => setShowNewDialog(false)}>取消</Button>
-              <Button size="sm" className="text-xs h-7 gap-1" onClick={() => { toast.success('训练任务已创建'); setShowNewDialog(false); }}>
-                <Play className="w-3 h-3" /> 开始训练
+              <Button
+                size="sm"
+                className="text-xs h-7 gap-1"
+                disabled={createJob.isPending}
+                onClick={handleCreateJob}
+              >
+                {createJob.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
+                开始训练
               </Button>
             </DialogFooter>
           </DialogContent>

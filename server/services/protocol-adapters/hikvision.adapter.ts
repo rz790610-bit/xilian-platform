@@ -27,7 +27,7 @@
  */
 
 import { BaseAdapter, normalizeError, AdapterError, AdapterErrorCode } from './base';
-import type { ConnectionTestResult, DiscoveredEndpoint, ProtocolConfigSchema, HealthCheckResult } from '../../../shared/accessLayerTypes';
+import type { ConnectionTestResult, DiscoveredEndpoint, ProtocolConfigSchema, HealthCheckResult, ProtocolType } from '../../../shared/accessLayerTypes';
 
 // ============================================================================
 // 类型定义
@@ -131,7 +131,7 @@ export type EventCallback = (event: IsapiEvent) => void;
 // ============================================================================
 
 export class HikvisionAdapter extends BaseAdapter {
-  readonly protocolType = 'hikvision' as const;
+  readonly protocolType: ProtocolType = 'hikvision';
   protected defaultTimeoutMs = 15000;
 
   /** 活跃的事件订阅 */
@@ -230,7 +230,7 @@ export class HikvisionAdapter extends BaseAdapter {
         success: true,
         message: `已连接到 ${model} (SN: ${serial}, FW: ${firmware})`,
         latencyMs,
-        serverInfo: { model, serialNumber: serial, firmwareVersion: firmware },
+        details: { model, serialNumber: serial, firmwareVersion: firmware },
       };
     } catch (err) {
       const latencyMs = Date.now() - start;
@@ -272,20 +272,18 @@ export class HikvisionAdapter extends BaseAdapter {
           const chId = Number(channelIds[i]);
           const chName = channelNames[i] ?? `Channel ${chId}`;
           endpoints.push({
-            id: `ch${chId}-main`,
             name: `${chName} (主码流)`,
-            type: 'stream',
-            path: `rtsp://${username}:****@${host}:${rtspPort}/Streaming/Channels/${chId}01`,
-            dataType: 'video',
-            metadata: { channelId: chId, streamType: 'main' },
+            resourceType: 'stream',
+            resourcePath: `rtsp://${username}:****@${host}:${rtspPort}/Streaming/Channels/${chId}01`,
+            dataFormat: 'binary',
+            metadata: { id: `ch${chId}-main`, channelId: chId, streamType: 'main' },
           });
           endpoints.push({
-            id: `ch${chId}-sub`,
             name: `${chName} (子码流)`,
-            type: 'stream',
-            path: `rtsp://${username}:****@${host}:${rtspPort}/Streaming/Channels/${chId}02`,
-            dataType: 'video',
-            metadata: { channelId: chId, streamType: 'sub' },
+            resourceType: 'stream',
+            resourcePath: `rtsp://${username}:****@${host}:${rtspPort}/Streaming/Channels/${chId}02`,
+            dataFormat: 'binary',
+            metadata: { id: `ch${chId}-sub`, channelId: chId, streamType: 'sub' },
           });
         }
       }
@@ -298,42 +296,38 @@ export class HikvisionAdapter extends BaseAdapter {
       for (let i = 0; i < channelCount; i++) {
         const chId = channelStart + i;
         endpoints.push({
-          id: `ch${chId}-main`,
           name: `通道 ${chId} (主码流)`,
-          type: 'stream',
-          path: `rtsp://${username}:****@${host}:${rtspPort}/Streaming/Channels/${chId}01`,
-          dataType: 'video',
-          metadata: { channelId: chId, streamType: 'main' },
+          resourceType: 'stream',
+          resourcePath: `rtsp://${username}:****@${host}:${rtspPort}/Streaming/Channels/${chId}01`,
+          dataFormat: 'binary',
+          metadata: { id: `ch${chId}-main`, channelId: chId, streamType: 'main' },
         });
         endpoints.push({
-          id: `ch${chId}-sub`,
           name: `通道 ${chId} (子码流)`,
-          type: 'stream',
-          path: `rtsp://${username}:****@${host}:${rtspPort}/Streaming/Channels/${chId}02`,
-          dataType: 'video',
-          metadata: { channelId: chId, streamType: 'sub' },
+          resourceType: 'stream',
+          resourcePath: `rtsp://${username}:****@${host}:${rtspPort}/Streaming/Channels/${chId}02`,
+          dataFormat: 'binary',
+          metadata: { id: `ch${chId}-sub`, channelId: chId, streamType: 'sub' },
         });
       }
     }
 
     // 添加事件订阅端点
     endpoints.push({
-      id: 'isapi-events',
       name: 'ISAPI 事件订阅',
-      type: 'subscription',
-      path: `http://${host}:${httpPort}/ISAPI/Event/notification/alertStream`,
-      dataType: 'event',
-      metadata: { eventTypes: ['VMD', 'shelteralarm', 'linedetection', 'fielddetection'] },
+      resourceType: 'stream',
+      resourcePath: `http://${host}:${httpPort}/ISAPI/Event/notification/alertStream`,
+      dataFormat: 'xml',
+      metadata: { id: 'isapi-events', eventTypes: ['VMD', 'shelteralarm', 'linedetection', 'fielddetection'] },
     });
 
     // 添加快照端点
     endpoints.push({
-      id: 'snapshot',
       name: '快照抓拍',
-      type: 'query',
-      path: `http://${host}:${httpPort}/ISAPI/Streaming/channels/101/picture`,
-      dataType: 'image',
-      metadata: {},
+      resourceType: 'api',
+      resourcePath: `http://${host}:${httpPort}/ISAPI/Streaming/channels/101/picture`,
+      dataFormat: 'binary',
+      metadata: { id: 'snapshot' },
     });
 
     return endpoints;
@@ -389,10 +383,10 @@ export class HikvisionAdapter extends BaseAdapter {
 
     if (!resp.ok) {
       throw new AdapterError(
-        `快照抓拍失败: HTTP ${resp.status}`,
-        AdapterErrorCode.INTERNAL,
+        resp.status === 401 ? AdapterErrorCode.AUTH : AdapterErrorCode.INTERNAL,
         'hikvision',
-        resp.status === 401,
+        `快照抓拍失败: HTTP ${resp.status}`,
+        { recoverable: resp.status === 401 },
       );
     }
 
@@ -459,10 +453,10 @@ export class HikvisionAdapter extends BaseAdapter {
 
       if (!resp.ok) {
         throw new AdapterError(
-          `录像搜索失败: HTTP ${resp.status}`,
           resp.status === 401 ? AdapterErrorCode.AUTH : AdapterErrorCode.INTERNAL,
           'hikvision',
-          resp.status === 401,
+          `录像搜索失败: HTTP ${resp.status}`,
+          { recoverable: resp.status === 401 },
         );
       }
 
@@ -521,9 +515,9 @@ export class HikvisionAdapter extends BaseAdapter {
 
     if (!resp.ok) {
       throw new AdapterError(
-        `片段下载失败: HTTP ${resp.status}`,
         AdapterErrorCode.INTERNAL,
         'hikvision',
+        `片段下载失败: HTTP ${resp.status}`,
       );
     }
 

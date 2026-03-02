@@ -17,7 +17,12 @@
 /** 风险等级 */
 export type RiskLevel = 'critical' | 'high' | 'medium' | 'low' | 'negligible';
 
-/** 维护优先级 */
+/**
+ * 维护优先级 (AI 层内部使用)
+ *
+ * FIX-007: 与 UrgencyLevel 语义重叠，跨域通信时使用 mapAIPriority() 转换
+ * @see shared/contracts/v1/mappers.ts — mapAIPriority()
+ */
 export type MaintenancePriority = 'immediate' | 'planned' | 'monitor' | 'defer';
 
 /** 诊断深度 */

@@ -9,6 +9,7 @@ import { router, publicProcedure, protectedProcedure } from '../../core/trpc';
 import { reasoningEngineRouter } from './reasoning.router';
 import { z } from 'zod';
 import { createModuleLogger } from '../../core/logger';
+import { machineIdSchema, sessionIdSchema } from '../../../shared/contracts/schemas';
 const log = createModuleLogger('cognition');
 import { getDb } from '../../lib/db';
 import { eq, desc, sql, and, gte, count } from 'drizzle-orm';
@@ -50,7 +51,7 @@ const sessionRouter = router({
   /** 触发认知会话 */
   trigger: publicProcedure
     .input(z.object({
-      machineId: z.string(),
+      machineId: machineIdSchema,
       triggerType: z.enum(['anomaly', 'scheduled', 'manual', 'chain', 'drift', 'guardrail_feedback']),
       priority: z.enum(['critical', 'high', 'normal']).default('normal'),
       context: z.record(z.string(), z.unknown()).optional(),
@@ -74,7 +75,7 @@ const sessionRouter = router({
 
   /** 获取会话详情 */
   get: publicProcedure
-    .input(z.object({ sessionId: z.string() }))
+    .input(z.object({ sessionId: sessionIdSchema }))
     .query(async ({ input }) => {
       const db = await getDb();
       if (!db) return { session: null };
@@ -88,7 +89,7 @@ const sessionRouter = router({
   /** 列出会话 */
   list: publicProcedure
     .input(z.object({
-      machineId: z.string().optional(),
+      machineId: machineIdSchema.optional(),
       status: z.enum(['running', 'completed', 'failed', 'timeout']).optional(),
       triggerType: z.string().optional(),
       limit: z.number().default(50),
@@ -116,7 +117,7 @@ const sessionRouter = router({
 
   /** 获取会话的四维结果 */
   getDimensionResults: publicProcedure
-    .input(z.object({ sessionId: z.string() }))
+    .input(z.object({ sessionId: sessionIdSchema }))
     .query(async ({ input }) => {
       const db = await getDb();
       if (!db) return { dimensions: [] };
@@ -131,7 +132,7 @@ const sessionRouter = router({
 
   /** 获取会话的 Grok 推理链 */
   getReasoningChain: publicProcedure
-    .input(z.object({ sessionId: z.string() }))
+    .input(z.object({ sessionId: sessionIdSchema }))
     .query(async ({ input }) => {
       const db = await getDb();
       if (!db) return { steps: [], totalSteps: 0 };
@@ -151,7 +152,7 @@ const sessionRouter = router({
 const worldModelRouter = router({
   /** 获取设备最新世界模型快照 */
   getSnapshot: publicProcedure
-    .input(z.object({ machineId: z.string() }))
+    .input(z.object({ machineId: machineIdSchema }))
     .query(async ({ input }) => {
       return { snapshot: null };
     }),
@@ -159,7 +160,7 @@ const worldModelRouter = router({
   /** 预测设备未来状态 */
   predict: publicProcedure
     .input(z.object({
-      machineId: z.string(),
+      machineId: machineIdSchema,
       horizonMinutes: z.number().min(5).max(1440),
       scenario: z.record(z.string(), z.number()).optional(),
     }))
@@ -170,7 +171,7 @@ const worldModelRouter = router({
   /** 反事实推理 */
   counterfactual: publicProcedure
     .input(z.object({
-      machineId: z.string(),
+      machineId: machineIdSchema,
       hypothesis: z.string(),
       variables: z.record(z.string(), z.number()),
     }))
@@ -181,7 +182,7 @@ const worldModelRouter = router({
   /** 获取预测历史（含事后验证） */
   getPredictionHistory: publicProcedure
     .input(z.object({
-      machineId: z.string(),
+      machineId: machineIdSchema,
       limit: z.number().default(50),
     }))
     .query(async ({ input }) => {
@@ -234,14 +235,14 @@ const physicsRouter = router({
 const diagnosisRouter = router({
   /** 获取诊断报告 */
   getReport: publicProcedure
-    .input(z.object({ sessionId: z.string() }))
+    .input(z.object({ sessionId: sessionIdSchema }))
     .query(async ({ input }) => {
       return { report: null };
     }),
 
   /** 获取设备最新诊断 */
   getLatestByMachine: publicProcedure
-    .input(z.object({ machineId: z.string() }))
+    .input(z.object({ machineId: machineIdSchema }))
     .query(async ({ input }) => {
       return { report: null };
     }),
@@ -249,7 +250,7 @@ const diagnosisRouter = router({
   /** 诊断趋势（ClickHouse 物化视图） */
   getTrend: publicProcedure
     .input(z.object({
-      machineId: z.string(),
+      machineId: machineIdSchema,
       days: z.number().default(30),
     }))
     .query(async ({ input }) => {

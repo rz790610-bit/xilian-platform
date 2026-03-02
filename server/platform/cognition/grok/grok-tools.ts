@@ -1,15 +1,18 @@
 /**
  * ============================================================================
- * Grok 内置工具定义 — 12 个 Tool Calling 工具
+ * Grok 内置工具定义 — 17 个 Tool Calling 工具
  * ============================================================================
  *
  * 按闭环阶段分组：
- *   ②诊断（8 个）：query_sensor_realtime, query_clickhouse_analytics,
- *                   query_knowledge_graph, compute_physics_formula,
- *                   search_similar_cases, predict_device_state,
- *                   counterfactual_analysis, generate_diagnosis_report
+ *   ①感知（1 个）：get_weather_data
+ *   ②诊断（10 个）：query_sensor_realtime, query_clickhouse_analytics,
+ *                    query_knowledge_graph, compute_physics_formula,
+ *                    search_similar_cases, predict_device_state,
+ *                    counterfactual_analysis, generate_diagnosis_report,
+ *                    get_operational_context, get_expert_knowledge
  *   ③护栏（1 个）：evaluate_guardrail_action
  *   ④进化（3 个）：generate_feature_code, generate_rule_patch, validate_hypothesis
+ *   ⑤工具（2 个）：（预留）
  *
  * 每个工具包含：
  *   - name: 工具名（Grok API function name）
@@ -205,8 +208,55 @@ export const searchSimilarCases: GrokTool = {
     totalMatched: z.number(),
   }),
   execute: async (input, context) => {
-    // TODO: Phase 9 实现 — 向量搜索 + 文本匹配
-    return { cases: [], totalMatched: 0 };
+    // FIX-066: 基于 diagnosisTasks 表的文本相似度搜索
+    try {
+      const { getDb } = await import('../../../lib/db');
+      const { diagnosisTasks } = await import('../../../../drizzle/schema');
+      const { desc, sql } = await import('drizzle-orm');
+      const db = await getDb();
+      if (!db) return { cases: [], totalMatched: 0 };
+
+      // 查询最近完成的诊断任务
+      const tasks = await db.select()
+        .from(diagnosisTasks)
+        .where(sql`${diagnosisTasks.status} = 'completed'`)
+        .orderBy(desc(diagnosisTasks.createdAt))
+        .limit(200);
+
+      // 基于关键词匹配计算简单相似度
+      const symptoms: string[] = input.symptoms;
+      const symptomSet = new Set(symptoms.map(s => s.toLowerCase()));
+      const scored = tasks.map(t => {
+        const resultJson = JSON.stringify(t.result || {}).toLowerCase();
+        const inputJson = JSON.stringify(t.inputData || {}).toLowerCase();
+        const combined = resultJson + ' ' + inputJson;
+        let matchCount = 0;
+        for (const symptom of symptomSet) {
+          if (combined.includes(symptom)) matchCount++;
+        }
+        const similarity = symptomSet.size > 0 ? matchCount / symptomSet.size : 0;
+        return { task: t, similarity };
+      })
+      .filter(s => s.similarity >= (input.minSimilarity ?? 0.6))
+      .sort((a, b) => b.similarity - a.similarity)
+      .slice(0, input.topK ?? 5);
+
+      return {
+        cases: scored.map(s => ({
+          sessionId: s.task.taskId,
+          machineId: s.task.nodeId || '',
+          similarity: Math.round(s.similarity * 100) / 100,
+          safetyScore: (s.task.result as any)?.safetyScore ?? 0,
+          healthScore: (s.task.result as any)?.healthScore ?? 0,
+          diagnostics: (s.task.result as any)?.recommendations || [],
+          grokExplanation: (s.task.result as any)?.diagnosis || '',
+          timestamp: s.task.createdAt?.toISOString() || '',
+        })),
+        totalMatched: scored.length,
+      };
+    } catch (err: any) {
+      return { cases: [], totalMatched: 0, error: err.message };
+    }
   },
 };
 
@@ -339,6 +389,238 @@ export const generateDiagnosisReport: GrokTool = {
         predictions: { remainingLifeDays: 0, fatigueAccumPercent: 0, riskTrend: 'unknown' },
       },
     };
+  },
+};
+
+/**
+ * 工具 8b: 获取设备规格参数 (FIX-065)
+ */
+export const getEquipmentSpecs: GrokTool = {
+  name: 'get_equipment_specs',
+  description: '获取指定设备的规格参数（型号、制造商、额定参数、安装信息）。输入设备 nodeId，返回完整设备台账。',
+  loopStage: 'diagnosis',
+  inputSchema: z.object({
+    machineId: z.string().describe('设备 nodeId'),
+    includeMaintenanceHistory: z.boolean().default(false).describe('是否包含维护记录'),
+  }),
+  outputSchema: z.object({
+    found: z.boolean(),
+    specs: z.object({
+      nodeId: z.string(),
+      deviceCode: z.string(),
+      name: z.string(),
+      type: z.string(),
+      model: z.string(),
+      manufacturer: z.string(),
+      location: z.string(),
+      status: z.string(),
+      sensorCount: z.number(),
+    }).optional(),
+    sensors: z.array(z.object({
+      sensorId: z.string(),
+      name: z.string(),
+      type: z.string(),
+      unit: z.string(),
+    })).optional(),
+    maintenanceRecords: z.array(z.object({
+      recordId: z.string(),
+      type: z.string(),
+      title: z.string(),
+      completedAt: z.string().nullable(),
+    })).optional(),
+  }),
+  execute: async (input, context) => {
+    try {
+      const { deviceService, sensorService } = await import('../../../services/device.service');
+      const device = await deviceService.getDevice(input.machineId);
+      if (!device) {
+        return { found: false };
+      }
+      const sensors = await sensorService.listSensors(input.machineId);
+      const result: Record<string, unknown> = {
+        found: true,
+        specs: {
+          nodeId: device.nodeId,
+          deviceCode: device.deviceCode,
+          name: device.name,
+          type: device.type,
+          model: device.model || '',
+          manufacturer: device.manufacturer || '',
+          location: device.location || '',
+          status: device.status,
+          sensorCount: device.sensorCount || sensors.length,
+        },
+        sensors: sensors.map((s: any) => ({
+          sensorId: s.sensorId,
+          name: s.name,
+          type: s.type,
+          unit: s.unit || '',
+        })),
+      };
+      if (input.includeMaintenanceHistory) {
+        const { getDb } = await import('../../../lib/db');
+        const { deviceMaintenanceRecords } = await import('../../../../drizzle/schema');
+        const { eq, desc } = await import('drizzle-orm');
+        const db = await getDb();
+        if (db) {
+          const records = await db.select()
+            .from(deviceMaintenanceRecords)
+            .where(eq(deviceMaintenanceRecords.nodeId, input.machineId))
+            .orderBy(desc(deviceMaintenanceRecords.completedAt))
+            .limit(20);
+          result.maintenanceRecords = records.map(r => ({
+            recordId: r.recordId,
+            type: r.maintenanceType,
+            title: r.title,
+            completedAt: r.completedAt?.toISOString() ?? null,
+          }));
+        }
+      }
+      return result;
+    } catch (err: any) {
+      return { found: false, error: err.message };
+    }
+  },
+};
+
+/**
+ * 工具 8c: 趋势分析 (FIX-071)
+ */
+export const getTrendAnalysis: GrokTool = {
+  name: 'get_trend_analysis',
+  description: '对指定设备传感器数据执行趋势分析（移动平均、线性回归、变点检测）。输入设备ID和传感器ID，返回趋势统计和异常时间段。',
+  loopStage: 'diagnosis',
+  inputSchema: z.object({
+    machineId: z.string().describe('设备 nodeId'),
+    sensorId: z.string().describe('传感器ID'),
+    timeRange: z.object({
+      start: z.string().describe('开始时间 ISO8601'),
+      end: z.string().describe('结束时间 ISO8601'),
+    }),
+    method: z.enum(['moving_average', 'linear_regression', 'all']).default('all').describe('分析方法'),
+    windowSize: z.number().default(10).describe('移动平均窗口大小'),
+  }),
+  outputSchema: z.object({
+    dataPoints: z.number(),
+    statistics: z.object({
+      mean: z.number(),
+      std: z.number(),
+      min: z.number(),
+      max: z.number(),
+      trend: z.enum(['rising', 'falling', 'stable', 'unknown']),
+    }),
+    linearRegression: z.object({
+      slope: z.number(),
+      intercept: z.number(),
+      rSquared: z.number(),
+    }).optional(),
+    anomalousSegments: z.array(z.object({
+      startTime: z.string(),
+      endTime: z.string(),
+      deviation: z.number(),
+    })),
+  }),
+  execute: async (input, context) => {
+    try {
+      const { clickhouseStorage } = await import('../../../lib/storage/clickhouse.storage');
+      // 从 ClickHouse 查询原始数据
+      let rawData: Array<{ value: number; timestamp: Date }> = [];
+      try {
+        const readings = await clickhouseStorage.querySensorReadingsRaw({
+          nodeIds: [input.machineId],
+          sensorIds: [input.sensorId],
+          timeRange: {
+            start: new Date(input.timeRange.start),
+            end: new Date(input.timeRange.end),
+          },
+          limit: 10000,
+          orderBy: 'asc',
+        });
+        rawData = readings.map(r => ({ value: r.value, timestamp: r.timestamp }));
+      } catch {
+        // ClickHouse 不可用时降级
+        rawData = [];
+      }
+      const rows = rawData.map(r => ({
+        ts: r.timestamp instanceof Date ? r.timestamp.toISOString() : String(r.timestamp),
+        value: r.value,
+      }));
+
+      if (rows.length === 0) {
+        return {
+          dataPoints: 0,
+          statistics: { mean: 0, std: 0, min: 0, max: 0, trend: 'unknown' as const },
+          anomalousSegments: [],
+        };
+      }
+
+      const values = rows.map(r => Number(r.value));
+      const n = values.length;
+      const mean = values.reduce((s, v) => s + v, 0) / n;
+      const variance = values.reduce((s, v) => s + (v - mean) ** 2, 0) / n;
+      const std = Math.sqrt(variance);
+      const min = Math.min(...values);
+      const max = Math.max(...values);
+
+      // 线性回归
+      let slope = 0, intercept = 0, rSquared = 0;
+      if (n > 1 && (input.method === 'linear_regression' || input.method === 'all')) {
+        const xMean = (n - 1) / 2;
+        let ssXY = 0, ssXX = 0, ssYY = 0;
+        for (let i = 0; i < n; i++) {
+          ssXY += (i - xMean) * (values[i] - mean);
+          ssXX += (i - xMean) ** 2;
+          ssYY += (values[i] - mean) ** 2;
+        }
+        slope = ssXX > 0 ? ssXY / ssXX : 0;
+        intercept = mean - slope * xMean;
+        rSquared = ssXX > 0 && ssYY > 0 ? (ssXY ** 2) / (ssXX * ssYY) : 0;
+      }
+
+      const trend = Math.abs(slope) < std * 0.01 ? 'stable' as const
+        : slope > 0 ? 'rising' as const : 'falling' as const;
+
+      // 异常段检测: >2σ
+      const anomalousSegments: Array<{ startTime: string; endTime: string; deviation: number }> = [];
+      let segStart: number | null = null;
+      for (let i = 0; i < n; i++) {
+        const dev = Math.abs(values[i] - mean) / (std || 1);
+        if (dev > 2) {
+          if (segStart === null) segStart = i;
+        } else if (segStart !== null) {
+          anomalousSegments.push({
+            startTime: rows[segStart].ts,
+            endTime: rows[i - 1].ts,
+            deviation: Math.abs(values[segStart] - mean) / (std || 1),
+          });
+          segStart = null;
+        }
+      }
+      if (segStart !== null) {
+        anomalousSegments.push({
+          startTime: rows[segStart].ts,
+          endTime: rows[n - 1].ts,
+          deviation: Math.abs(values[segStart] - mean) / (std || 1),
+        });
+      }
+
+      const result: Record<string, unknown> = {
+        dataPoints: n,
+        statistics: { mean, std, min, max, trend },
+        anomalousSegments,
+      };
+      if (input.method === 'linear_regression' || input.method === 'all') {
+        result.linearRegression = { slope, intercept, rSquared };
+      }
+      return result;
+    } catch (err: any) {
+      return {
+        dataPoints: 0,
+        statistics: { mean: 0, std: 0, min: 0, max: 0, trend: 'unknown' as const },
+        anomalousSegments: [],
+        error: err.message,
+      };
+    }
   },
 };
 
@@ -500,16 +782,324 @@ export const validateHypothesis: GrokTool = {
 };
 
 // ============================================================================
+// FIX-067/069/072: 新增感知/诊断工具
+// ============================================================================
+
+/**
+ * FIX-067: 获取天气/环境数据
+ *
+ * 港口环境因素（风速、温度、湿度、盐雾）对设备诊断至关重要。
+ * 当前实现返回平台已采集的环境传感器数据；
+ * 外部气象 API 集成留待后续配置。
+ */
+export const getWeatherData: GrokTool = {
+  name: 'get_weather_data',
+  description: '获取设备所在区域的环境/天气数据（风速、温度、湿度等）。用于分析环境因素对设备运行的影响。',
+  loopStage: 'perception',
+  inputSchema: z.object({
+    machineId: z.string().describe('设备ID，用于定位所属区域'),
+    timeRange: z.object({
+      start: z.number().describe('开始时间 (epoch ms)'),
+      end: z.number().describe('结束时间 (epoch ms)'),
+    }).optional().describe('时间范围，默认最近1小时'),
+    metrics: z.array(z.string()).optional().describe('指标列表，如 ["wind_speed", "temperature", "humidity"]'),
+  }),
+  outputSchema: z.object({
+    available: z.boolean(),
+    source: z.enum(['sensor', 'external_api', 'unavailable']),
+    data: z.array(z.object({
+      timestamp: z.number(),
+      metric: z.string(),
+      value: z.number(),
+      unit: z.string(),
+    })),
+    summary: z.object({
+      avgTemperature: z.number().optional(),
+      avgWindSpeed: z.number().optional(),
+      avgHumidity: z.number().optional(),
+    }).optional(),
+    message: z.string().optional(),
+  }),
+  execute: async (input, context) => {
+    // 尝试从 ClickHouse 获取环境传感器数据
+    try {
+      const { clickhouseStorage } = await import('../../../lib/storage/clickhouse.storage');
+      const now = Date.now();
+      const start = new Date(input.timeRange?.start || (now - 3600_000));
+      const end = new Date(input.timeRange?.end || now);
+      const metrics = input.metrics || ['wind_speed', 'temperature', 'humidity'];
+
+      const rows = await clickhouseStorage.querySensorReadingsRaw({
+        nodeIds: [input.machineId || context.machineId || ''],
+        sensorIds: metrics,
+        timeRange: { start, end },
+      });
+
+      if (rows.length > 0) {
+        const data = rows.map(r => ({
+          timestamp: r.timestamp instanceof Date ? r.timestamp.getTime() : Number(r.timestamp),
+          metric: r.metric_name || r.sensor_id || '',
+          value: Number(r.value),
+          unit: r.unit || '',
+        }));
+        return { available: true, source: 'sensor' as const, data };
+      }
+    } catch {
+      // ClickHouse 不可用，降级
+    }
+
+    return {
+      available: false,
+      source: 'unavailable' as const,
+      data: [],
+      message: '当前无可用环境数据。建议检查环境传感器是否接入平台。',
+    };
+  },
+};
+
+/**
+ * FIX-069: 获取作业上下文（工况信息）
+ *
+ * 返回设备当前或历史作业上下文，包括工况ID、作业类型、负载等级等。
+ * 工况信息是诊断准确性的关键输入。
+ */
+export const getOperationalContext: GrokTool = {
+  name: 'get_operational_context',
+  description: '获取设备的作业上下文信息（工况、负载、运行模式等）。用于结合工况进行精确诊断。',
+  loopStage: 'diagnosis',
+  inputSchema: z.object({
+    machineId: z.string().describe('设备ID'),
+    timestamp: z.number().optional().describe('查询时刻 (epoch ms)，默认当前时刻'),
+  }),
+  outputSchema: z.object({
+    available: z.boolean(),
+    context: z.object({
+      conditionId: z.string().optional(),
+      operationMode: z.string().optional(),
+      loadLevel: z.enum(['idle', 'light', 'medium', 'heavy', 'overload']).optional(),
+      rpm: z.number().optional(),
+      loadPercent: z.number().optional(),
+      cycleCount: z.number().optional(),
+      operatorId: z.string().optional(),
+      taskType: z.string().optional(),
+    }).optional(),
+    message: z.string().optional(),
+  }),
+  execute: async (input, context) => {
+    try {
+      // 从 ClickHouse 获取最近的工况数据
+      const { clickhouseStorage } = await import('../../../lib/storage/clickhouse.storage');
+      const queryTime = new Date(input.timestamp || Date.now());
+      const start = new Date(queryTime.getTime() - 300_000); // 最近5分钟
+
+      const rows = await clickhouseStorage.querySensorReadingsRaw({
+        nodeIds: [input.machineId || context.machineId || ''],
+        sensorIds: ['rpm', 'load_pct'],
+        timeRange: { start, end: queryTime },
+      });
+
+      if (rows.length > 0) {
+        const rpm = rows.find(r => r.sensor_id === 'rpm' || r.metric_name === 'rpm');
+        const load = rows.find(r => r.sensor_id === 'load_pct' || r.metric_name === 'load_pct');
+        const loadPct = load ? Number(load.value) : undefined;
+        const loadLevel = loadPct == null ? undefined
+          : loadPct < 5 ? 'idle' as const
+          : loadPct < 30 ? 'light' as const
+          : loadPct < 70 ? 'medium' as const
+          : loadPct < 95 ? 'heavy' as const
+          : 'overload' as const;
+
+        return {
+          available: true,
+          context: {
+            conditionId: context.conditionId,
+            rpm: rpm ? Number(rpm.value) : undefined,
+            loadPercent: loadPct,
+            loadLevel,
+          },
+        };
+      }
+    } catch {
+      // ClickHouse 不可用，降级
+    }
+
+    return {
+      available: false,
+      message: '无法获取设备作业上下文。请确认设备ID正确并且设备在线。',
+    };
+  },
+};
+
+/**
+ * FIX-072: 获取专家知识（知识图谱查询）
+ *
+ * 从 Neo4j 知识图谱中检索设备相关的专家知识、
+ * 历史案例关联、部件关系、故障模式等。
+ */
+export const getExpertKnowledge: GrokTool = {
+  name: 'get_expert_knowledge',
+  description: '从知识图谱中检索与设备/故障相关的专家知识、历史案例、部件关系和故障模式。用于辅助推理和决策。',
+  loopStage: 'diagnosis',
+  inputSchema: z.object({
+    query: z.string().describe('知识查询内容，如设备型号、部件名称、故障现象'),
+    machineId: z.string().optional().describe('设备ID（可选，用于限定查询范围）'),
+    knowledgeType: z.enum(['fault_pattern', 'component_relation', 'maintenance_case', 'expert_rule', 'all'])
+      .optional().default('all').describe('知识类型'),
+    limit: z.number().optional().default(10).describe('返回结果数量上限'),
+  }),
+  outputSchema: z.object({
+    available: z.boolean(),
+    results: z.array(z.object({
+      type: z.string(),
+      title: z.string(),
+      content: z.string(),
+      confidence: z.number(),
+      source: z.string(),
+    })),
+    totalFound: z.number(),
+    message: z.string().optional(),
+  }),
+  execute: async (input, context) => {
+    try {
+      const { neo4jStorage } = await import('../../../lib/storage/neo4j.storage');
+
+      // 使用已有的 searchFaults 方法查询故障知识
+      const faults = await neo4jStorage.searchFaults(input.query, input.limit || 10);
+
+      const results = faults.map((f) => ({
+        type: 'fault_pattern',
+        title: f.name || f.code || '',
+        content: f.description || '',
+        confidence: 0.7,
+        source: 'knowledge_graph',
+      }));
+
+      return {
+        available: results.length > 0,
+        results,
+        totalFound: results.length,
+      };
+    } catch {
+      // Neo4j 不可用，降级
+    }
+
+    return {
+      available: false,
+      results: [],
+      totalFound: 0,
+      message: '知识图谱暂不可用。诊断将仅基于数据驱动方式进行。',
+    };
+  },
+};
+
+// ============================================================================
+// FIX-068: runSimulation — 调用数字孪生引擎进行仿真
+// ============================================================================
+
+/** 数字孪生仿真工具（diagnosis 阶段使用） */
+export const runSimulation: GrokTool = {
+  name: 'run_simulation',
+  description: '调用数字孪生引擎对设备进行虚拟仿真，支持故障注入和环境条件模拟。可预测设备在特定工况下的行为轨迹。',
+  loopStage: 'diagnosis',
+  inputSchema: z.object({
+    machineId: z.string().describe('目标设备 ID'),
+    scenarioName: z.string().optional().describe('仿真场景名称'),
+    durationSeconds: z.number().min(1).max(3600).default(60).describe('仿真时长（秒）'),
+    timeStepSeconds: z.number().min(0.1).max(10).default(1).describe('时间步长（秒）'),
+    environment: z.object({
+      temperature: z.number().optional(),
+      humidity: z.number().optional(),
+      windSpeed: z.number().optional(),
+    }).optional().describe('环境条件'),
+    faultInjections: z.array(z.object({
+      component: z.string(),
+      faultType: z.string(),
+      severity: z.number().min(0).max(1),
+      timestamp: z.number().optional(),
+    })).optional().describe('故障注入配置'),
+  }),
+  outputSchema: z.object({
+    available: z.boolean(),
+    executionId: z.string().optional(),
+    summary: z.object({
+      maxStress: z.number(),
+      maxTemperature: z.number(),
+      totalFatigueIncrement: z.number(),
+      alerts: z.number(),
+    }).optional(),
+    events: z.array(z.object({
+      timestamp: z.number(),
+      type: z.string(),
+      description: z.string(),
+      severity: z.string(),
+    })).optional(),
+    trajectoryLength: z.number().optional(),
+    message: z.string().optional(),
+  }),
+  execute: async (input, context) => {
+    try {
+      const { DigitalTwinEngine } = await import('../../digital-twin/digital-twin');
+      const engine = new DigitalTwinEngine();
+
+      const scenario = {
+        scenarioId: `grok-sim-${Date.now()}`,
+        name: input.scenarioName || `Grok 诊断仿真 (${input.machineId})`,
+        description: `由 Grok 诊断引擎发起的仿真，目标设备: ${input.machineId}`,
+        initialOverrides: {},
+        environment: {
+          windSpeed: input.environment?.windSpeed ?? 5,
+          windDirection: 0,
+          temperature: input.environment?.temperature ?? 25,
+          humidity: input.environment?.humidity ?? 60,
+          seaState: 2,
+        },
+        operations: [],
+        faultInjections: (input.faultInjections || []).map((fi: { timestamp?: number; component: string; faultType: string; severity: number }, idx: number) => ({
+          timestamp: fi.timestamp ?? idx * 10,
+          component: fi.component,
+          faultType: fi.faultType,
+          severity: fi.severity,
+        })),
+        durationSeconds: input.durationSeconds,
+        timeStepSeconds: input.timeStepSeconds,
+      };
+
+      const result = await engine.simulate(scenario);
+
+      return {
+        available: true,
+        executionId: result.executionId,
+        summary: {
+          maxStress: result.summary?.maxStress ?? 0,
+          maxTemperature: result.summary?.maxTemperature ?? 0,
+          totalFatigueIncrement: result.summary?.totalFatigueIncrement ?? 0,
+          alerts: result.events?.filter(e => e.type === 'alert').length ?? 0,
+        },
+        events: (result.events || []).slice(0, 20),
+        trajectoryLength: result.trajectory?.length ?? 0,
+      };
+    } catch {
+      return {
+        available: false,
+        message: '数字孪生引擎暂不可用。可基于历史数据和物理模型进行诊断推理。',
+      };
+    }
+  },
+};
+
+// ============================================================================
 // 工具注册表
 // ============================================================================
 
-/** 所有内置工具 */
+/** 所有内置工具 (18 个) */
 export const BUILTIN_GROK_TOOLS: GrokTool[] = [
   querySensorRealtime,
   queryClickhouseAnalytics,
   queryKnowledgeGraph,
   computePhysicsFormula,
   searchSimilarCases,
+  getEquipmentSpecs,     // FIX-065
+  getTrendAnalysis,      // FIX-071
   predictDeviceState,
   counterfactualAnalysis,
   generateDiagnosisReport,
@@ -517,6 +1107,10 @@ export const BUILTIN_GROK_TOOLS: GrokTool[] = [
   generateFeatureCode,
   generateRulePatch,
   validateHypothesis,
+  getWeatherData,            // FIX-067
+  getOperationalContext,     // FIX-069
+  getExpertKnowledge,        // FIX-072
+  runSimulation,             // FIX-068
 ];
 
 /** 按名称索引 */

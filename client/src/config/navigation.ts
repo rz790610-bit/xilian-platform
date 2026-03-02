@@ -10,6 +10,19 @@ export const navigationConfig: NavItem[] = [
     section: '核心业务'
   },
 
+  // ━━━ 应用平台 ━━━
+  {
+    id: 'app-platform',
+    label: '应用平台',
+    icon: '📱',
+    section: '应用平台',
+    children: [
+      { id: 'app-health', label: '设备健康', icon: '💚', path: '/app' },
+      { id: 'app-diagnosis', label: '智能诊断', icon: '🩺', path: '/app/diagnosis' },
+      { id: 'app-alerts', label: '预警处置', icon: '🔔', path: '/app/alerts' },
+    ]
+  },
+
   // ━━━ 资产与数据 ━━━
 
   {
@@ -20,7 +33,8 @@ export const navigationConfig: NavItem[] = [
     children: [
       { id: 'knowledge-manager', label: '知识管理', icon: '📁', path: '/knowledge/manager' },
       { id: 'knowledge-graph', label: '知识图谱', icon: '🕸️', path: '/knowledge/graph' },
-      { id: 'knowledge-vectors', label: '向量管理', icon: '📊', path: '/knowledge/vectors' }
+      { id: 'knowledge-vectors', label: '向量管理', icon: '📊', path: '/knowledge/vectors' },
+      { id: 'knowledge-federated', label: '联邦知识蒸馏', icon: '🌐', path: '/knowledge/federated' },
     ]
   },
 
@@ -32,7 +46,9 @@ export const navigationConfig: NavItem[] = [
       { id: 'data-standard', label: '数据标准化', icon: '📏', path: '/data/standard' },
       { id: 'data-manage', label: '数据管理', icon: '📁', path: '/data/manage' },
       { id: 'data-label', label: '数据标注', icon: '🏷️', path: '/data/label' },
-      { id: 'data-insight', label: '数据洞察', icon: '📈', path: '/data/insight' }
+      { id: 'data-insight', label: '数据洞察', icon: '📈', path: '/data/insight' },
+      { id: 'data-clickhouse', label: '时序数据查询', icon: '📊', path: '/data/clickhouse' },
+      { id: 'data-pipeline', label: '数据管道', icon: '🔗', path: '/data/pipeline' },
     ]
   },
   {
@@ -49,6 +65,15 @@ export const navigationConfig: NavItem[] = [
     ]
   },
 
+  {
+    id: 'equipment',
+    label: '设备资产',
+    icon: '📡',
+    children: [
+      { id: 'equipment-sensors', label: '传感器管理', icon: '📡', path: '/equipment/sensors' },
+    ]
+  },
+
   // ━━━ 基础设置 ━━━
   {
     id: 'basic-settings',
@@ -62,6 +87,7 @@ export const navigationConfig: NavItem[] = [
       { id: 'basic-mechanism', label: '机构管理', icon: '🔧', path: '/basic/mechanism' },
       { id: 'basic-component', label: '部件管理', icon: '📦', path: '/basic/component' },
       { id: 'basic-parts', label: '零件库', icon: '🔩', path: '/basic/parts' },
+      { id: 'basic-encoding', label: '编码管理', icon: '#️⃣', path: '/settings/encoding' },
     ]
   },
 
@@ -111,6 +137,26 @@ export const navigationConfig: NavItem[] = [
       { id: 'fusion-diagnosis', label: '融合诊断', icon: '🧠', path: '/diagnosis/fusion' },
       { id: 'diag-analysis', label: '诊断分析', icon: '🔍', path: '/diagnosis/analysis' },
       { id: 'diag-report', label: '诊断报告', icon: '📝', path: '/diagnosis/report' },
+      { id: 'diag-grok', label: 'Grok AI诊断', icon: '🤖', path: '/diagnosis/grok' },
+    ]
+  },
+  {
+    id: 'ai-value',
+    label: 'AI 价值发挥',
+    icon: '🤖',
+    children: [
+      { id: 'ai-diag-enhancer', label: '诊断增强', icon: '🔬', path: '/ai/diagnostic-enhancer' },
+      { id: 'ai-nl-interaction', label: '自然语言交互', icon: '💬', path: '/ai/nl-interaction' },
+      { id: 'ai-tech-intel', label: '技术情报', icon: '📡', path: '/ai/tech-intelligence' },
+      { id: 'ai-evolution-lab', label: '进化实验室', icon: '🧪', path: '/ai/evolution-lab' },
+    ]
+  },
+  {
+    id: 'evaluation',
+    label: '评估优化',
+    icon: '📊',
+    children: [
+      { id: 'eval-dashboard', label: '评估仪表盘', icon: '📈', path: '/evaluation/dashboard' },
     ]
   },
   {
@@ -214,6 +260,8 @@ export const navigationConfig: NavItem[] = [
     label: '状态监控',
     icon: '📡',
     children: [
+      { id: 'observability-hub', label: '统一观测中枢', icon: '🔭', path: '/monitoring/hub' },
+      { id: 'observability-detail', label: '可观测性详情', icon: '📡', path: '/monitoring/observability' },
       { id: 'status-infrastructure', label: '基础设施', icon: '🏛️', path: '/settings/config/infrastructure' },
       { id: 'status-access-layer', label: '接入层管理', icon: '🔌', path: '/settings/config/access-layer' },
       { id: 'status-topology', label: '系统拓扑', icon: '📊', path: '/settings/status/topology' },
@@ -225,6 +273,28 @@ export const navigationConfig: NavItem[] = [
       { id: 'status-clickhouse', label: 'ClickHouse 监控', icon: '📊', path: '/monitoring/clickhouse' },
       { id: 'status-datastream', label: '数据流监控', icon: '⚡', path: '/settings/design/datastream' },
       { id: 'status-diagnostic', label: '平台诊断', icon: '🧠', path: '/settings/status/diagnostic' }
+    ]
+  },
+  {
+    id: 'perception-config',
+    label: '感知配置',
+    icon: '🎯',
+    children: [
+      { id: 'perception-condition', label: '工况归一化', icon: '🎯', path: '/perception/condition' },
+    ]
+  },
+  {
+    id: 'platform-tools',
+    label: '平台工具',
+    icon: '🔧',
+    children: [
+      { id: 'platform-plugins', label: '插件管理', icon: '🧩', path: '/platform/plugins' },
+      { id: 'platform-orchestrator', label: '编排调度', icon: '🎼', path: '/platform/orchestrator' },
+      { id: 'platform-registry', label: '注册中心', icon: '📋', path: '/platform/registry' },
+      { id: 'platform-tooling', label: '工具域', icon: '🔧', path: '/platform/tooling' },
+      { id: 'platform-domain', label: '平台域', icon: '🏢', path: '/platform/domain' },
+      { id: 'platform-quality', label: '质量看板', icon: '📊', path: '/platform/quality' },
+      { id: 'settings-business', label: '业务配置', icon: '⚙️', path: '/settings/business' },
     ]
   },
   {

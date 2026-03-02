@@ -15,6 +15,7 @@
 
 import { router, publicProcedure, protectedProcedure } from '../../core/trpc';
 import { z } from 'zod';
+import { machineIdSchema } from '../../../shared/contracts/schemas';
 import { createModuleLogger } from '../../core/logger';
 const log = createModuleLogger('guardrail');
 import { getDb } from '../../lib/db';

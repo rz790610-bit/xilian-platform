@@ -1,9 +1,9 @@
 /**
  * 设备列表页面
- * 从 deviceCrud tRPC 路由获取真实数据，支持优雅降级
+ * 从 device / database.asset tRPC 路由获取真实数据，支持优雅降级
  */
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -14,6 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 import { trpc } from '@/lib/trpc';
 import {
@@ -130,17 +131,33 @@ function EmptyState({ hasError }: { hasError?: boolean }) {
 // ============ 主组件 ============
 export default function DeviceList() {
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [viewDeviceId, setViewDeviceId] = useState<string | null>(null);
+  const [editDeviceId, setEditDeviceId] = useState<string | null>(null);
+  const [configDeviceId, setConfigDeviceId] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const pageSize = 20;
+
+  // Debounce search term to avoid excessive server requests
+  const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    debounceTimer.current = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+      setPage(1);
+    }, 300);
+    return () => { if (debounceTimer.current) clearTimeout(debounceTimer.current); };
+  }, [searchTerm]);
 
   // ============ tRPC 数据获取 ============
   const deviceQuery = trpc.device.listDevices.useQuery(
     {
       type: typeFilter !== 'all' ? typeFilter : undefined,
       status: statusFilter !== 'all' ? statusFilter : undefined,
+      search: debouncedSearch || undefined,
       limit: pageSize,
       offset: (page - 1) * pageSize,
     },
@@ -172,9 +189,50 @@ export default function DeviceList() {
     onError: (err: any) => toast.error(`删除失败: ${err.message}`),
   });
 
+  // 查看设备详情
+  const viewQuery = trpc.device.getDevice.useQuery(
+    { nodeId: viewDeviceId! },
+    { enabled: !!viewDeviceId, retry: 1 }
+  );
+
+  // 编辑设备 — 复用 view query 获取初始数据
+  const editQuery = trpc.device.getDevice.useQuery(
+    { nodeId: editDeviceId! },
+    { enabled: !!editDeviceId, retry: 1 }
+  );
+  const updateMutation = trpc.database.asset.updateNode.useMutation({
+    onSuccess: () => {
+      toast.success('设备信息已更新');
+      setEditDeviceId(null);
+      deviceQuery.refetch();
+    },
+    onError: (err: any) => toast.error(`更新失败: ${err.message}`),
+  });
+
+  // 设备配置 — 传感器列表
+  const configSensorsQuery = trpc.device.listSensors.useQuery(
+    { nodeId: configDeviceId! },
+    { enabled: !!configDeviceId, retry: 1 }
+  );
+  const configDeviceQuery = trpc.device.getDevice.useQuery(
+    { nodeId: configDeviceId! },
+    { enabled: !!configDeviceId, retry: 1 }
+  );
+
   // ============ 数据处理 ============
-  const devices: DeviceRecord[] = (deviceQuery.data as any)?.items ?? (deviceQuery.data as any)?.data ?? [];
-  const totalCount = (deviceQuery.data as any)?.total ?? devices.length;
+  const rawData = deviceQuery.data;
+  const devices: DeviceRecord[] = Array.isArray(rawData)
+    ? rawData.map((d: any) => ({
+        id: d.nodeId ?? d.id,
+        name: d.name,
+        type: d.type ?? d.nodeType,
+        status: d.status,
+        location: d.location,
+        lastUpdate: d.lastHeartbeat ?? d.lastUpdate,
+        metadata: d.metadata,
+      }))
+    : (rawData as any)?.items ?? (rawData as any)?.data ?? [];
+  const totalCount = Array.isArray(rawData) ? rawData.length : ((rawData as any)?.total ?? devices.length);
   const isLoading = deviceQuery.isLoading;
   const isError = deviceQuery.isError;
 
@@ -338,7 +396,7 @@ export default function DeviceList() {
                   <Input
                     placeholder="搜索设备名称或ID..."
                     value={searchTerm}
-                    onChange={(e) => { setSearchTerm(e.target.value); setPage(1); }}
+                    onChange={(e) => setSearchTerm(e.target.value)}
                     className="pl-8"
                   />
                 </div>
@@ -418,16 +476,16 @@ export default function DeviceList() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
-                          <Button variant="ghost" size="icon" onClick={() => toast.info('查看设备详情 — 功能开发中')}>
+                          <Button variant="ghost" size="icon" title="查看详情" onClick={() => setViewDeviceId(device.id)}>
                             <Eye className="h-4 w-4" />
                           </Button>
-                          <Button variant="ghost" size="icon" onClick={() => toast.info('编辑设备 — 功能开发中')}>
+                          <Button variant="ghost" size="icon" title="编辑设备" onClick={() => setEditDeviceId(device.id)}>
                             <Edit className="h-4 w-4" />
                           </Button>
-                          <Button variant="ghost" size="icon" onClick={() => toast.info('设备配置 — 功能开发中')}>
+                          <Button variant="ghost" size="icon" title="设备配置" onClick={() => setConfigDeviceId(device.id)}>
                             <Settings className="h-4 w-4" />
                           </Button>
-                          <Button variant="ghost" size="icon" onClick={() => handleDeleteDevice(device.id)} disabled={deleteMutation.isPending}>
+                          <Button variant="ghost" size="icon" title="删除设备" onClick={() => handleDeleteDevice(device.id)} disabled={deleteMutation.isPending}>
                             <Trash2 className="h-4 w-4 text-red-500" />
                           </Button>
                         </div>
@@ -455,6 +513,240 @@ export default function DeviceList() {
             </CardContent>
           </Card>
         )}
+
+        {/* ============ 查看设备详情对话框 ============ */}
+        <Dialog open={!!viewDeviceId} onOpenChange={(open) => { if (!open) setViewDeviceId(null); }}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>设备详情</DialogTitle>
+              <DialogDescription>查看设备的完整信息</DialogDescription>
+            </DialogHeader>
+            {viewQuery.isLoading && viewDeviceId ? (
+              <div className="space-y-3 py-4">
+                {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-4 w-full" />)}
+              </div>
+            ) : viewQuery.data ? (
+              <div className="space-y-3 py-2">
+                <div className="grid grid-cols-3 gap-2 text-sm">
+                  <span className="text-muted-foreground">节点ID</span>
+                  <span className="col-span-2 font-mono">{viewQuery.data.nodeId}</span>
+                </div>
+                <Separator />
+                <div className="grid grid-cols-3 gap-2 text-sm">
+                  <span className="text-muted-foreground">设备编码</span>
+                  <span className="col-span-2 font-mono">{viewQuery.data.deviceCode}</span>
+                </div>
+                <Separator />
+                <div className="grid grid-cols-3 gap-2 text-sm">
+                  <span className="text-muted-foreground">名称</span>
+                  <span className="col-span-2">{viewQuery.data.name}</span>
+                </div>
+                <Separator />
+                <div className="grid grid-cols-3 gap-2 text-sm">
+                  <span className="text-muted-foreground">类型</span>
+                  <span className="col-span-2">
+                    <Badge variant="outline">
+                      {deviceTypeOptions.find(t => t.value === viewQuery.data!.type)?.label || viewQuery.data!.type}
+                    </Badge>
+                  </span>
+                </div>
+                <Separator />
+                <div className="grid grid-cols-3 gap-2 text-sm">
+                  <span className="text-muted-foreground">状态</span>
+                  <span className="col-span-2 flex items-center gap-2">
+                    {statusConfig[viewQuery.data.status]?.icon ?? statusConfig.unknown.icon}
+                    {statusConfig[viewQuery.data.status]?.label ?? viewQuery.data.status}
+                  </span>
+                </div>
+                <Separator />
+                <div className="grid grid-cols-3 gap-2 text-sm">
+                  <span className="text-muted-foreground">位置</span>
+                  <span className="col-span-2">{viewQuery.data.location || '-'}</span>
+                </div>
+                <Separator />
+                <div className="grid grid-cols-3 gap-2 text-sm">
+                  <span className="text-muted-foreground">型号</span>
+                  <span className="col-span-2">{viewQuery.data.model || '-'}</span>
+                </div>
+                <Separator />
+                <div className="grid grid-cols-3 gap-2 text-sm">
+                  <span className="text-muted-foreground">制造商</span>
+                  <span className="col-span-2">{viewQuery.data.manufacturer || '-'}</span>
+                </div>
+                {viewQuery.data.sensorCount !== undefined && (
+                  <>
+                    <Separator />
+                    <div className="grid grid-cols-3 gap-2 text-sm">
+                      <span className="text-muted-foreground">传感器数量</span>
+                      <span className="col-span-2">{viewQuery.data.sensorCount}</span>
+                    </div>
+                  </>
+                )}
+                {viewQuery.data.lastHeartbeat && (
+                  <>
+                    <Separator />
+                    <div className="grid grid-cols-3 gap-2 text-sm">
+                      <span className="text-muted-foreground">最后心跳</span>
+                      <span className="col-span-2">{new Date(viewQuery.data.lastHeartbeat).toLocaleString('zh-CN')}</span>
+                    </div>
+                  </>
+                )}
+              </div>
+            ) : viewQuery.isError ? (
+              <p className="text-sm text-destructive py-4">无法加载设备详情，请稍后重试。</p>
+            ) : null}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setViewDeviceId(null)}>关闭</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* ============ 编辑设备对话框 ============ */}
+        <Dialog open={!!editDeviceId} onOpenChange={(open) => { if (!open) setEditDeviceId(null); }}>
+          <DialogContent>
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              if (!editDeviceId) return;
+              const fd = new FormData(e.currentTarget);
+              updateMutation.mutate({
+                nodeId: editDeviceId,
+                name: (fd.get('edit-name') as string) || undefined,
+                status: (fd.get('edit-status') as string) || undefined,
+                location: (fd.get('edit-location') as string) || undefined,
+                department: (fd.get('edit-department') as string) || undefined,
+                serialNumber: (fd.get('edit-serial') as string) || undefined,
+              });
+            }}>
+              <DialogHeader>
+                <DialogTitle>编辑设备</DialogTitle>
+                <DialogDescription>修改设备信息（仅修改非空字段）</DialogDescription>
+              </DialogHeader>
+              {editQuery.isLoading && editDeviceId ? (
+                <div className="space-y-3 py-4">
+                  {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-8 w-full" />)}
+                </div>
+              ) : editQuery.data ? (
+                <div className="grid gap-4 py-4">
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="edit-name" className="text-right">名称</Label>
+                    <Input id="edit-name" name="edit-name" className="col-span-3" defaultValue={editQuery.data.name} />
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="edit-status" className="text-right">状态</Label>
+                    <Select name="edit-status" defaultValue={editQuery.data.status}>
+                      <SelectTrigger className="col-span-3">
+                        <SelectValue placeholder="选择状态" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="online">在线</SelectItem>
+                        <SelectItem value="offline">离线</SelectItem>
+                        <SelectItem value="error">告警</SelectItem>
+                        <SelectItem value="maintenance">维护中</SelectItem>
+                        <SelectItem value="unknown">未知</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="edit-location" className="text-right">位置</Label>
+                    <Input id="edit-location" name="edit-location" className="col-span-3" defaultValue={editQuery.data.location || ''} />
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="edit-department" className="text-right">部门</Label>
+                    <Input id="edit-department" name="edit-department" className="col-span-3" defaultValue="" placeholder="输入所属部门" />
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="edit-serial" className="text-right">序列号</Label>
+                    <Input id="edit-serial" name="edit-serial" className="col-span-3" defaultValue="" placeholder="输入序列号" />
+                  </div>
+                </div>
+              ) : editQuery.isError ? (
+                <p className="text-sm text-destructive py-4">无法加载设备信息。</p>
+              ) : null}
+              <DialogFooter>
+                <Button variant="outline" type="button" onClick={() => setEditDeviceId(null)}>取消</Button>
+                <Button type="submit" disabled={updateMutation.isPending || editQuery.isLoading}>
+                  {updateMutation.isPending ? '保存中...' : '保存'}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        {/* ============ 设备配置对话框 ============ */}
+        <Dialog open={!!configDeviceId} onOpenChange={(open) => { if (!open) setConfigDeviceId(null); }}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>
+                设备配置
+                {configDeviceQuery.data && ` — ${configDeviceQuery.data.name}`}
+              </DialogTitle>
+              <DialogDescription>查看设备传感器配置和运行参数</DialogDescription>
+            </DialogHeader>
+            {(configSensorsQuery.isLoading || configDeviceQuery.isLoading) && configDeviceId ? (
+              <div className="space-y-3 py-4">
+                {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}
+              </div>
+            ) : (
+              <div className="space-y-4 py-2">
+                {/* 设备基本配置 */}
+                {configDeviceQuery.data && (
+                  <div className="space-y-2">
+                    <h4 className="text-sm font-medium">设备信息</h4>
+                    <div className="grid grid-cols-2 gap-2 text-sm bg-muted/50 rounded-lg p-3">
+                      <div><span className="text-muted-foreground">节点ID: </span><span className="font-mono">{configDeviceQuery.data.nodeId}</span></div>
+                      <div><span className="text-muted-foreground">类型: </span>{deviceTypeOptions.find(t => t.value === configDeviceQuery.data!.type)?.label || configDeviceQuery.data!.type}</div>
+                      <div><span className="text-muted-foreground">状态: </span>{statusConfig[configDeviceQuery.data.status]?.label ?? configDeviceQuery.data.status}</div>
+                      <div><span className="text-muted-foreground">位置: </span>{configDeviceQuery.data.location || '-'}</div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 传感器列表 */}
+                <div className="space-y-2">
+                  <h4 className="text-sm font-medium">
+                    传感器配置
+                    {configSensorsQuery.data && ` (${configSensorsQuery.data.length})`}
+                  </h4>
+                  {configSensorsQuery.data && configSensorsQuery.data.length > 0 ? (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>传感器ID</TableHead>
+                          <TableHead>名称</TableHead>
+                          <TableHead>类型</TableHead>
+                          <TableHead>单位</TableHead>
+                          <TableHead>状态</TableHead>
+                          <TableHead>最新值</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {configSensorsQuery.data.map((sensor) => (
+                          <TableRow key={sensor.sensorId}>
+                            <TableCell className="font-mono text-sm">{sensor.sensorId}</TableCell>
+                            <TableCell>{sensor.name || '-'}</TableCell>
+                            <TableCell><Badge variant="outline">{sensor.type || '-'}</Badge></TableCell>
+                            <TableCell>{sensor.unit || '-'}</TableCell>
+                            <TableCell>
+                              <Badge variant={sensor.status === 'active' ? 'default' : 'secondary'}>
+                                {sensor.status === 'active' ? '活跃' : sensor.status}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>{sensor.lastValue != null ? sensor.lastValue : '-'}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  ) : (
+                    <p className="text-sm text-muted-foreground py-4 text-center">暂无传感器配置</p>
+                  )}
+                </div>
+              </div>
+            )}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setConfigDeviceId(null)}>关闭</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </MainLayout>
   );

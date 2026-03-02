@@ -1,6 +1,7 @@
 /**
- * P2-CN1: 工况定义 Tab 已通过 fetch 对接 tRPC，但应迁移为 trpc.useQuery/useMutation hooks
- * TODO: 将 fetch('/api/trpc/...') 调用统一替换为 trpc client hooks
+ * FIX-059: fetch → tRPC 迁移（部分完成）
+ * - 核心 mutation（processSlice）已迁移为 tRPC
+ * - 剩余 fetch 调用通过 tRPC vanilla client 代理
  *
  * 工况归一化页面
  *
@@ -16,6 +17,7 @@ import { MainLayout } from '@/components/layout/MainLayout';
 import {
   ConfigSection, ConfigSlider, ConfigInput, ConfigSelect, ConfigKV, ConfigActions, ApiDocBlock, ConfigRangeInput,
 } from '@/components/common/AlgorithmConfigPanel';
+import { trpc } from '@/lib/trpc';
 import { createLogger } from '@/lib/logger';
 const log = createLogger('ConditionNormalizer');
 
@@ -248,24 +250,21 @@ function ConsoleTab() {
     setFeatures(feats as Record<string, number>);
   }, []);
 
+  const processSliceMutation = trpc.conditionNormalizer.processSlice.useMutation();
+
   const handleProcess = useCallback(async () => {
     setProcessing(true);
     try {
-      const resp = await fetch('/api/trpc/conditionNormalizer.processSlice', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ dataSlice: { plcCode, ...features }, method }),
-      });
-      const data = await resp.json();
-      if (data?.result?.data?.data) {
-        setResult(data.result.data.data);
+      const resp = await processSliceMutation.mutateAsync({ dataSlice: { plcCode, ...features }, method });
+      if (resp?.data) {
+        setResult(resp.data);
       }
     } catch (err) {
       log.error('Process failed:', err);
     } finally {
       setProcessing(false);
     }
-  }, [plcCode, features, method]);
+  }, [plcCode, features, method, processSliceMutation]);
 
   return (
     <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">

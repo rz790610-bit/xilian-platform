@@ -24,7 +24,7 @@ groups:
           team: platform
         annotations:
           summary: "{{ $labels.service }} SLO 快速燃烧"
-          description: "{{ $labels.service }} 1h Burn Rate = {{ $value | printf \"%.1f\" }}x，预计 {{ printf \"%.0f\" (100 / $value * 30 * 24) }}h 耗尽月度错误预算"
+          description: "{{ $labels.service }} 1h Burn Rate = {{ $value | printf \"%.1f\" }}x，错误预算消耗过快"
           runbook: "https://wiki.xilian.io/runbooks/slo-burn-rate"
 
       # 慢速燃烧 — 6h 窗口 Burn Rate > 6（5% 错误预算 / 6h）

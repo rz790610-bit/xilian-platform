@@ -409,6 +409,12 @@ export class CrossDeviceComparator {
   /**
    * 从 ClickHouse 获取数据
    */
+  /**
+   * FIX-098: 批量查询上限 — 超过此数量的设备分批并行查询
+   * ClickHouse IN 子句建议不超过 200 个值以保证查询规划器效率
+   */
+  private readonly DEVICE_BATCH_SIZE = 200;
+
   private async fetchFromClickHouse(request: CrossDeviceCompareRequest): Promise<DeviceMetricData[]> {
     const connected = await checkClickHouseConnection();
     if (!connected) {
@@ -416,6 +422,33 @@ export class CrossDeviceComparator {
       return this.generateMockData(request);
     }
 
+    // FIX-098: 超过 DEVICE_BATCH_SIZE 的设备分批并行查询
+    if (request.deviceCodes.length > this.DEVICE_BATCH_SIZE) {
+      return this.fetchFromClickHouseBatched(request);
+    }
+
+    return this.fetchFromClickHouseSingle(request);
+  }
+
+  /** FIX-098: 分批并行获取 100+ 设备数据 */
+  private async fetchFromClickHouseBatched(request: CrossDeviceCompareRequest): Promise<DeviceMetricData[]> {
+    const batches: string[][] = [];
+    for (let i = 0; i < request.deviceCodes.length; i += this.DEVICE_BATCH_SIZE) {
+      batches.push(request.deviceCodes.slice(i, i + this.DEVICE_BATCH_SIZE));
+    }
+
+    log.info({ totalDevices: request.deviceCodes.length, batchCount: batches.length }, 'FIX-098: Batched cross-device query');
+
+    const results = await Promise.all(
+      batches.map(batch =>
+        this.fetchFromClickHouseSingle({ ...request, deviceCodes: batch }),
+      ),
+    );
+
+    return results.flat();
+  }
+
+  private async fetchFromClickHouseSingle(request: CrossDeviceCompareRequest): Promise<DeviceMetricData[]> {
     const client = getClickHouseClient();
     const interval = request.aggregationInterval || '1m';
 

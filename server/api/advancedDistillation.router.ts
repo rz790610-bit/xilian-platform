@@ -6,8 +6,9 @@
  * 2. train — 执行高级蒸馏训练
  * 3. getHistory — 获取训练历史
  * 4. getHistoryItem — 获取单条训练详情
- * 5. getConfig — 获取默认配置
+ * 5. getConfig — 获取当前配置
  * 6. getLossComponents — 获取损失分量说明
+ * 7. saveConfig — 持久化配置（覆盖当前运行配置）
  */
 
 import { z } from 'zod';
@@ -26,7 +27,7 @@ import { createModuleLogger } from '../core/logger';
 const log = createModuleLogger('advancedDistillationRouter');
 
 // ============================================================================
-// 默认配置
+// 默认配置 + 当前运行配置
 // ============================================================================
 
 const DEFAULT_CONFIG: DistillConfig = {
@@ -45,6 +46,9 @@ const DEFAULT_CONFIG: DistillConfig = {
   patience: 5,
   validationSplit: 0.2,
 };
+
+/** 当前运行配置 — saveConfig 写入，getConfig/train 读取 */
+let currentConfig: DistillConfig = { ...DEFAULT_CONFIG, weights: { ...DEFAULT_CONFIG.weights } };
 
 // ============================================================================
 // 路由
@@ -104,10 +108,10 @@ export const advancedDistillationRouter = router({
     }))
     .mutation(async ({ input }) => {
       const mergedConfig: DistillConfig = {
-        ...DEFAULT_CONFIG,
+        ...currentConfig,
         ...(input.config || {}),
-        weights: { ...DEFAULT_CONFIG.weights, ...(input.config?.weights || {}) },
-        tempRange: input.config?.tempRange || DEFAULT_CONFIG.tempRange,
+        weights: { ...currentConfig.weights, ...(input.config?.weights || {}) },
+        tempRange: input.config?.tempRange || currentConfig.tempRange,
       };
 
       log.info(`Starting advanced distillation: ${input.trainingData.features.length} samples, ${mergedConfig.epochs} epochs`);
@@ -147,11 +151,11 @@ export const advancedDistillationRouter = router({
     }),
 
   /**
-   * 获取默认配置
+   * 获取当前配置（含用户保存的覆盖）
    */
   getConfig: publicProcedure.query(() => {
     return {
-      defaultConfig: DEFAULT_CONFIG,
+      defaultConfig: currentConfig,
       lossComponents: [
         { key: 'alpha', name: '硬标签损失', description: 'Cross-Entropy Loss — 学生对真实标签的分类损失', default: 0.3, color: '#3b82f6' },
         { key: 'beta', name: '响应蒸馏损失', description: 'KL Divergence × T² — 教师软标签知识迁移', default: 0.4, color: '#ef4444' },
@@ -184,4 +188,36 @@ export const advancedDistillationRouter = router({
       { key: 'fusion', name: '融合蒸馏', formula: 'Σ KL(T_sub ∥ S_sub) / M', color: '#8b5cf6', icon: '🧩' },
     ];
   }),
+
+  /**
+   * 保存蒸馏配置 — 持久化到运行时（覆盖 currentConfig）
+   */
+  saveConfig: protectedProcedure
+    .input(z.object({
+      weights: z.record(z.string(), z.number()).optional(),
+      tempRange: z.tuple([z.number(), z.number()]).optional(),
+      datasetSize: z.number().optional(),
+      teacherInputDims: z.array(z.number()).optional(),
+      teacherHiddenDim: z.number().optional(),
+      teacherFeatDim: z.number().optional(),
+      studentInputDims: z.array(z.number()).optional(),
+      studentHiddenDim: z.number().optional(),
+      studentFeatDim: z.number().optional(),
+      nClasses: z.number().optional(),
+      epochs: z.number().optional(),
+      learningRate: z.number().optional(),
+      patience: z.number().optional(),
+      validationSplit: z.number().optional(),
+    }))
+    .mutation(({ input }) => {
+      const prev = { ...currentConfig };
+      currentConfig = {
+        ...currentConfig,
+        ...input,
+        weights: { ...currentConfig.weights, ...(input.weights || {}) },
+        tempRange: input.tempRange || currentConfig.tempRange,
+      };
+      log.info(`Config saved: ${JSON.stringify(currentConfig)}`);
+      return { success: true, config: currentConfig, previous: prev };
+    }),
 });

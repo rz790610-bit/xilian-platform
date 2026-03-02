@@ -261,7 +261,7 @@ export class AnomalyDetector {
       sensorId: reading.sensorId,
       metricName: reading.metricName,
       value: reading.value,
-      timestamp: reading.timestamp,
+      timestamp: reading.timestamp instanceof Date ? reading.timestamp.getTime() : Number(reading.timestamp),
       isAnomaly: false,
       algorithm: 'zscore',
       score: 0,

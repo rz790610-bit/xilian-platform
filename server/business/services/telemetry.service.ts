@@ -20,7 +20,7 @@ export class TelemetryService {
     }
     // 使用 ClickHouse 参数化查询——参数通过 query_params 传递，不拼接到 SQL 中
     return clickhouseConnector.queryWithParams(
-      `SELECT * FROM ch_telemetry_1s WHERE device_code = {deviceCode:String} AND ts BETWEEN {fromTs:String} AND {toTs:String} ORDER BY ts`,
+      `SELECT * FROM realtime_telemetry WHERE device_code = {deviceCode:String} AND event_time BETWEEN {fromTs:String} AND {toTs:String} ORDER BY event_time`,
       { deviceCode: safeDeviceCode, fromTs: safeFrom, toTs: safeTo }
     );
   }

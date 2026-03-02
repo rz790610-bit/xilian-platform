@@ -1,0 +1,1 @@
+npx tsx scripts/quality-gate.ts

@@ -449,7 +449,7 @@ export const observabilityRouter = router({
       config: z.record(z.string(), z.unknown()),
     }))
     .mutation(({ input }) => {
-      return AlertmanagerService.getInstance().createReceiver(input as any);
+      return AlertmanagerService.getInstance().createReceiver(input);
     }),
 
   getRoutes: publicProcedure.query(() => {

@@ -996,8 +996,11 @@ function parseDiagnosticOutput(
     '信息': 'info', 'info': 'info',
   };
 
+  /** FIX-083: 默认 confidence — LLM 解析失败时的回退值 */
+  const DEFAULT_LLM_CONFIDENCE = 0.5;
+
   let severity: DiagnosticResult['severity'] = 'medium';
-  let confidence = 0.5;
+  let confidence = DEFAULT_LLM_CONFIDENCE;
   let faultType = '未知故障';
   let rootCause = '';
   let impact = '';
@@ -1010,11 +1013,19 @@ function parseDiagnosticOutput(
     severity = severityMap[key] || 'medium';
   }
 
-  // 提取置信度
+  // FIX-087: 提取置信度 — 优先 LLM 输出，否则从推理结果启发式计算
   const confMatch = text.match(/置信度[：:]\s*([\d.]+)/i) || text.match(/confidence[：:]\s*([\d.]+)/i);
   if (confMatch) {
     const val = parseFloat(confMatch[1]);
     confidence = val > 1 ? val / 100 : val; // 支持百分比和小数
+  } else {
+    // 启发式计算: 根据推理文本的信息密度估算
+    const hasRootCause = /根[本因]原因|root\s*cause/i.test(text);
+    const hasRecommendations = /建议|推荐|recommendations/i.test(text);
+    const hasFaultType = /故障类型|fault/i.test(text);
+    const hasImpact = /影响|impact/i.test(text);
+    const sectionCount = [hasRootCause, hasRecommendations, hasFaultType, hasImpact].filter(Boolean).length;
+    confidence = 0.3 + sectionCount * 0.15; // 0.3 ~ 0.9 基于信息完整度
   }
 
   // 提取故障类型

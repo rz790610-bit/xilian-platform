@@ -6,20 +6,9 @@
 import { z } from 'zod';
 import { publicProcedure, protectedProcedure, router } from '../core/trpc';
 import { deviceCrudService, DeviceType, DeviceStatus } from '../services/deviceCrud.service';
-
-// ============================================
-// 输入验证 Schema
-// ============================================
-
-const deviceTypeSchema = z.enum([
-  'agv', 'rtg', 'qc', 'asc', 'conveyor', 'pump', 'motor',
-  'sensor_hub', 'gateway', 'plc', 'robot', 'camera',
-  'rfid_reader', 'weighbridge', 'other'
-]);
-
-const deviceStatusSchema = z.enum([
-  'online', 'offline', 'maintenance', 'error', 'unknown'
-]);
+import {
+  deviceTypeSchema, deviceStatusSchema, machineIdSchema, sortOrderSchema,
+} from '../../shared/contracts/schemas';
 
 const deviceMetadataSchema = z.object({
   firmware: z.string().optional(),
@@ -31,7 +20,7 @@ const deviceMetadataSchema = z.object({
 }).optional();
 
 const createDeviceSchema = z.object({
-  nodeId: z.string().min(1).max(64),
+  nodeId: machineIdSchema,
   name: z.string().min(1).max(100),
   type: deviceTypeSchema,
   model: z.string().max(100).optional(),
@@ -75,7 +64,7 @@ const paginationSchema = z.object({
   page: z.number().int().min(1).default(1),
   pageSize: z.number().int().min(1).max(100).default(20),
   sortBy: z.enum(['name', 'type', 'status', 'createdAt', 'updatedAt', 'lastHeartbeat']).optional(),
-  sortOrder: z.enum(['asc', 'desc']).optional(),
+  sortOrder: sortOrderSchema.optional(),
 }).optional();
 
 // ============================================

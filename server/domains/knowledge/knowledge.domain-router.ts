@@ -18,7 +18,9 @@
 
 import { router, publicProcedure, protectedProcedure } from '../../core/trpc';
 import { z } from 'zod';
+import { machineIdSchema } from '../../../shared/contracts/schemas';
 import crypto from 'crypto';
+import { getCadKnowledgePipeline } from '../../platform/knowledge/cad-knowledge-pipeline';
 import { getDb } from '../../lib/db';
 import { eq, desc, count, and, sql } from 'drizzle-orm';
 import { TRPCError } from '@trpc/server';
@@ -39,6 +41,7 @@ import {
 import { knowledgeRouter } from '../../services/knowledge.service';
 import { kgOrchestratorRouter } from '../../api/kgOrchestrator.router';
 import { graphQueryRouter } from '../../api/graphQuery.router';
+import { encodingRouter } from '../../api/encoding.router';
 
 // ============================================================================
 // 工具函数
@@ -275,6 +278,24 @@ const crystalRouter = router({
       } catch { return { totalApplications: 0, positiveRate: 0, negativeRate: 0, recentApplications: [] }; }
     }),
 
+  /** K8：手动废弃单个结晶 */
+  deprecate: publicProcedure
+    .input(z.object({
+      crystalId: z.number(),
+      reason: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return { success: false };
+      try {
+        await db.update(knowledgeCrystals).set({
+          status: 'deprecated',
+          reviewComment: input.reason ?? '手动废弃',
+        } as any).where(eq(knowledgeCrystals.id, input.crystalId));
+        return { success: true };
+      } catch { return { success: false }; }
+    }),
+
   /** K7：自动失效检查入口 */
   autoDeprecationCheck: publicProcedure
     .mutation(async () => {
@@ -317,6 +338,8 @@ export const knowledgeDomainRouter = router({
   graphQuery: graphQueryRouter,
   /** K5：结晶管理增强路由 */
   crystal: crystalRouter,
+  /** P0-1：统一编码注册表（校验/查询/Seed） */
+  encoding: encodingRouter,
 
   // ========== 前端仪表盘 Facade 方法（KnowledgeExplorer 页面使用） ==========
 
@@ -532,6 +555,43 @@ export const knowledgeDomainRouter = router({
       } catch { return []; }
     }),
 
+  /** 注册特征（前端 CreateFeatureDialog 使用） */
+  registerFeature: publicProcedure
+    .input(z.object({
+      name: z.string().min(1),
+      domain: z.string(),
+      inputDimensions: z.array(z.string()).min(1),
+      outputType: z.string(),
+      expression: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return { id: 0, success: false };
+      try {
+        const categoryMap: Record<string, string> = {
+          vibration: 'time_domain', temperature: 'statistical',
+          stress: 'physics', composite: 'derived',
+        };
+        const category = categoryMap[input.domain] ?? 'derived';
+
+        const [result] = await db.insert(featureDefinitions).values({
+          name: input.name,
+          category: category as any,
+          description: `${input.domain} 领域特征`,
+          inputSignals: input.inputDimensions.map(d => ({
+            logicalName: d, unit: '', required: true,
+          })),
+          computeLogic: input.expression || 'identity(input)',
+          applicableEquipment: [],
+          outputUnit: input.outputType,
+          version: '1.0.0',
+        });
+        return { id: Number((result as any).insertId), success: true };
+      } catch (e) {
+        return { id: 0, success: false };
+      }
+    }),
+
   /** 应用知识结晶（K5 增强：写入 crystal_applications） */
   applyCrystal: publicProcedure
     .input(z.object({
@@ -564,5 +624,17 @@ export const knowledgeDomainRouter = router({
 
         return { success: true, crystalId: input.crystalId };
       } catch { return { success: false, crystalId: input.crystalId }; }
+    }),
+
+  // ========== P1-7: CAD 图纸知识图谱化 ==========
+
+  /** P1-7: 执行 CAD 知识化管线（DWG目录 → 编码+装配树+传感器映射 → Neo4j） */
+  cadPipeline: publicProcedure
+    .input(z.object({
+      sourceDir: z.string().min(1),
+    }))
+    .mutation(async ({ input }) => {
+      const pipeline = getCadKnowledgePipeline();
+      return pipeline.process(input.sourceDir);
     }),
 });

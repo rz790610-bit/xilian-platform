@@ -128,11 +128,13 @@ export default function AdvancedDistillation() {
   const [detailDialog, setDetailDialog] = useState<any>(null);
 
   // tRPC
+  const utils = trpc.useUtils();
   const configQuery = trpc.advancedDistillation.getConfig.useQuery();
   const lossQuery = trpc.advancedDistillation.getLossComponents.useQuery();
   const historyQuery = trpc.advancedDistillation.getHistory.useQuery({ limit: 50 });
   const trainMutation = trpc.advancedDistillation.train.useMutation();
   const strategyMutation = trpc.advancedDistillation.recommendStrategy.useMutation();
+  const saveConfigMutation = trpc.advancedDistillation.saveConfig.useMutation();
 
   // 解析模态维度
   const parsedDims = useMemo(() => {
@@ -218,6 +220,32 @@ export default function AdvancedDistillation() {
       toast.error(`推荐失败: ${err.message}`);
     }
   }, [selectedPreset, strategyMutation]);
+
+  // 保存配置
+  const handleSaveConfig = useCallback(async () => {
+    try {
+      await saveConfigMutation.mutateAsync({
+        weights: { alpha, beta, gamma, relation, fusion },
+        tempRange: [tempMin, tempMax],
+        datasetSize: nSamples,
+        teacherInputDims: parsedDims,
+        teacherHiddenDim: teacherHidden,
+        teacherFeatDim: teacherFeat,
+        studentInputDims: parsedDims,
+        studentHiddenDim: studentHidden,
+        studentFeatDim: studentFeat,
+        nClasses,
+        epochs,
+        learningRate,
+        patience,
+        validationSplit: 0.2,
+      });
+      utils.advancedDistillation.getConfig.invalidate();
+      toast.success('配置已保存');
+    } catch (err: any) {
+      toast.error(`保存失败: ${err.message}`);
+    }
+  }, [alpha, beta, gamma, relation, fusion, tempMin, tempMax, nSamples, parsedDims, teacherHidden, teacherFeat, studentHidden, studentFeat, nClasses, epochs, learningRate, patience, saveConfigMutation, utils]);
 
   // 训练曲线数据
   const epochChartData = useMemo(() => {
@@ -830,6 +858,8 @@ export default function AdvancedDistillation() {
               patience={patience} setPatience={setPatience}
               nClasses={nClasses} setNClasses={setNClasses}
               modalityDims={modalityDims} setModalityDims={setModalityDims}
+              onSaveConfig={handleSaveConfig}
+              isSaving={saveConfigMutation.isPending}
             />
           </TabsContent>
         </Tabs>
@@ -912,6 +942,8 @@ function DistillConfigTab(props: {
   patience: number; setPatience: (v: number) => void;
   nClasses: number; setNClasses: (v: number) => void;
   modalityDims: string; setModalityDims: (v: string) => void;
+  onSaveConfig: () => Promise<void>;
+  isSaving: boolean;
 }) {
   const {
     alpha, setAlpha, beta, setBeta, gamma, setGamma, relation, setRelation, fusion, setFusion,
@@ -920,6 +952,7 @@ function DistillConfigTab(props: {
     teacherFeat, setTeacherFeat, studentFeat, setStudentFeat,
     epochs, setEpochs, learningRate, setLearningRate, patience, setPatience,
     nClasses, setNClasses, modalityDims, setModalityDims,
+    onSaveConfig, isSaving,
   } = props;
 
   const [dirty, setDirty] = useState(false);
@@ -1048,11 +1081,11 @@ function DistillConfigTab(props: {
 
       {/* 操作按钮 */}
       <ConfigActions
-        onSave={() => { setDirty(false); toast.success('配置已应用（内存生效）'); }}
+        onSave={async () => { await onSaveConfig(); setDirty(false); }}
         onReset={handleReset}
         onExport={handleExport}
         dirty={dirty}
-        saveLabel="应用配置"
+        saveLabel={isSaving ? "保存中..." : "保存配置"}
       />
     </div>
   );

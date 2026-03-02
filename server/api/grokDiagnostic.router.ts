@@ -7,13 +7,14 @@
 import { z } from 'zod';
 import { publicProcedure, protectedProcedure, router } from '../core/trpc';
 import {
-  diagnose,
   getAgentStatus,
   clearSession,
   getSessionHistory,
   type DiagnosticRequest,
 } from '../services/grokDiagnosticAgent.service';
+import { getAIInferenceProxy } from '../platform/ai-inference/ai-inference-proxy';
 import { createModuleLogger } from '../core/logger';
+import { diagnosisInputSchema, sessionIdSchema } from '../../shared/contracts/schemas';
 
 const log = createModuleLogger('grokDiagnosticRouter');
 
@@ -23,16 +24,7 @@ export const grokDiagnosticRouter = router({
    */
   // S0-2: 诊断执行消耗 AI 推理资源，必须认证
   diagnose: protectedProcedure
-    .input(
-      z.object({
-        deviceCode: z.string().min(1, '设备编码不能为空'),
-        description: z.string().min(5, '故障描述至少5个字符'),
-        sensorReadings: z.record(z.string(), z.number()).optional(),
-        timeRangeHours: z.number().min(1).max(720).optional(),
-        sessionId: z.string().optional(),
-        mode: z.enum(['quick', 'deep', 'predictive']).optional(),
-      })
-    )
+    .input(diagnosisInputSchema)
     .mutation(async ({ input }) => {
       log.info(`Diagnostic request for device: ${input.deviceCode}`, {
         mode: input.mode || 'quick',
@@ -48,7 +40,8 @@ export const grokDiagnosticRouter = router({
         mode: input.mode || 'quick',
       };
 
-      const result = await diagnose(request);
+      const proxy = getAIInferenceProxy();
+      const result = await proxy.diagnose(request);
 
       return {
         success: true,
@@ -68,7 +61,7 @@ export const grokDiagnosticRouter = router({
    * P0-6: 会话历史包含诊断敏感数据，改为 protectedProcedure
    */
   sessionHistory: protectedProcedure
-    .input(z.object({ sessionId: z.string() }))
+    .input(z.object({ sessionId: sessionIdSchema }))
     .query(({ input }) => {
       const history = getSessionHistory(input.sessionId);
       if (!history) {
@@ -88,7 +81,7 @@ export const grokDiagnosticRouter = router({
    * 清除诊断会话
    */
   clearSession: protectedProcedure
-    .input(z.object({ sessionId: z.string() }))
+    .input(z.object({ sessionId: sessionIdSchema }))
     .mutation(({ input }) => {
       const cleared = clearSession(input.sessionId);
       return { success: cleared };
@@ -108,33 +101,23 @@ export const grokDiagnosticRouter = router({
             sensorReadings: z.record(z.string(), z.number()).optional(),
           })
         ).min(1).max(10),
-        mode: z.enum(['quick', 'deep', 'predictive']).optional(),
+        mode: diagnosisInputSchema.shape.mode,
       })
     )
     .mutation(async ({ input }) => {
       log.info(`Batch diagnostic request for ${input.devices.length} devices`);
 
-      const results = await Promise.allSettled(
-        input.devices.map(device =>
-          diagnose({
-            deviceCode: device.deviceCode,
-            description: device.description,
-            sensorReadings: device.sensorReadings,
-            mode: input.mode || 'quick',
-          })
-        )
+      const proxy = getAIInferenceProxy();
+      const batchResult = await proxy.batchDiagnose(
+        input.devices.map(device => ({
+          deviceCode: device.deviceCode,
+          description: device.description,
+          sensorReadings: device.sensorReadings,
+          mode: input.mode || 'quick',
+        })),
+        input.mode,
       );
 
-      return {
-        total: results.length,
-        succeeded: results.filter(r => r.status === 'fulfilled').length,
-        failed: results.filter(r => r.status === 'rejected').length,
-        results: results.map((r, i) => ({
-          deviceCode: input.devices[i].deviceCode,
-          status: r.status,
-          data: r.status === 'fulfilled' ? r.value : undefined,
-          error: r.status === 'rejected' ? String(r.reason) : undefined,
-        })),
-      };
+      return batchResult;
     }),
 });

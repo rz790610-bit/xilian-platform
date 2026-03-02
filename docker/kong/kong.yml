@@ -1,0 +1,167 @@
+# ============================================================
+# Kong API Gateway — Declarative Configuration (DB-less)
+#
+# 路由规则:
+#   /api/config/*     → config-center :8900
+#   /api/algorithm/*  → algorithm-service :3080
+#   /api/ai/*         → ai-inference :3090
+#   /api/diagnosis/*  → diagnosis :3095
+#   /health           → Kong 内置健康检查
+#
+# 全局插件:
+#   rate-limiting: 100 请求/分钟 (per consumer)
+#   key-auth: API Key 认证
+#   cors: 跨域支持
+#
+# 使用方式:
+#   KONG_DATABASE=off
+#   KONG_DECLARATIVE_CONFIG=/etc/kong/kong.yml
+# ============================================================
+
+_format_version: "3.0"
+_transform: true
+
+# ============================================================
+# Services — 后端微服务
+# ============================================================
+
+services:
+  # ── 配置中心 ──
+  - name: config-center
+    url: http://config-center:8900
+    connect_timeout: 5000
+    read_timeout: 10000
+    write_timeout: 10000
+    retries: 2
+    routes:
+      - name: config-center-route
+        paths:
+          - /api/config
+        strip_path: false
+        preserve_host: true
+
+  # ── 算法服务 (HTTP health port) ──
+  - name: algorithm-service
+    url: http://algorithm-service:3080
+    connect_timeout: 5000
+    read_timeout: 120000
+    write_timeout: 120000
+    retries: 1
+    routes:
+      - name: algorithm-service-route
+        paths:
+          - /api/algorithm
+        strip_path: false
+        preserve_host: true
+
+  # ── AI 推理服务 (HTTP health port) ──
+  - name: ai-inference
+    url: http://ai-inference:3090
+    connect_timeout: 5000
+    read_timeout: 60000
+    write_timeout: 60000
+    retries: 1
+    routes:
+      - name: ai-inference-route
+        paths:
+          - /api/ai
+        strip_path: false
+        preserve_host: true
+
+  # ── HDE 诊断服务 (HTTP health port) ──
+  - name: diagnosis
+    url: http://diagnosis:3095
+    connect_timeout: 5000
+    read_timeout: 120000
+    write_timeout: 120000
+    retries: 1
+    routes:
+      - name: diagnosis-route
+        paths:
+          - /api/diagnosis
+        strip_path: false
+        preserve_host: true
+
+  # ── 健康检查端点 (转发到 Kong 状态) ──
+  - name: health-check
+    url: http://localhost:8100/status
+    routes:
+      - name: health-route
+        paths:
+          - /health
+        strip_path: true
+
+# ============================================================
+# Consumers — API 调用方
+# ============================================================
+
+consumers:
+  # 平台内部服务间调用
+  - username: platform-internal
+    keyauth_credentials:
+      - key: portai-internal-key-2026
+  # 应用平台 (客户运维端)
+  - username: app-platform
+    keyauth_credentials:
+      - key: portai-app-key-2026
+  # 开发/测试
+  - username: dev-test
+    keyauth_credentials:
+      - key: portai-dev-key-2026
+
+# ============================================================
+# Plugins — 全局插件
+# ============================================================
+
+plugins:
+  # ── API Key 认证 ──
+  - name: key-auth
+    config:
+      key_names:
+        - apikey
+        - X-API-Key
+      key_in_header: true
+      key_in_query: true
+      hide_credentials: true
+
+  # ── 速率限制: 100 请求/分钟 (per consumer) ──
+  - name: rate-limiting
+    config:
+      minute: 100
+      policy: local
+      fault_tolerant: true
+      hide_client_headers: false
+      error_code: 429
+      error_message: "Rate limit exceeded. Maximum 100 requests per minute."
+
+  # ── CORS 跨域 ──
+  - name: cors
+    config:
+      origins:
+        - "*"
+      methods:
+        - GET
+        - POST
+        - PUT
+        - DELETE
+        - OPTIONS
+        - PATCH
+      headers:
+        - Content-Type
+        - Authorization
+        - X-API-Key
+        - apikey
+      exposed_headers:
+        - X-RateLimit-Limit-Minute
+        - X-RateLimit-Remaining-Minute
+        - RateLimit-Limit
+        - RateLimit-Remaining
+        - RateLimit-Reset
+      credentials: true
+      max_age: 3600
+
+  # ── 请求日志 ──
+  - name: file-log
+    config:
+      path: /dev/stdout
+      reopen: false

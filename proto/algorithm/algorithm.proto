@@ -17,9 +17,11 @@ import "common/types.proto";
 service AlgorithmService {
   rpc Execute(ExecuteRequest) returns (ExecuteResponse);
   rpc BatchExecute(BatchExecuteRequest) returns (stream ExecuteResponse);
+  rpc ExecuteComposition(ExecuteCompositionRequest) returns (ExecuteCompositionResponse);
   rpc ListAlgorithms(ListAlgorithmsRequest) returns (ListAlgorithmsResponse);
   rpc GetAlgorithm(GetAlgorithmRequest) returns (AlgorithmInfo);
   rpc GetExecutionStatus(GetExecutionStatusRequest) returns (ExecutionStatus);
+  rpc GetWorkerPoolStatus(WorkerPoolStatusRequest) returns (WorkerPoolStatusResponse);
   rpc HealthCheck(xilian.common.HealthCheckRequest) returns (xilian.common.HealthCheckResponse);
 }
 
@@ -113,6 +115,44 @@ message ExecutionStatus {
   string current_stage = 4;
   google.protobuf.Timestamp started_at = 5;
   google.protobuf.Timestamp completed_at = 6;
+}
+
+// ── 算法编排（Composition）消息 ──
+
+message CompositionStep {
+  string algorithm_id = 1;
+  google.protobuf.Struct config = 2;
+  map<string, string> input_mapping = 3;
+}
+
+message ExecuteCompositionRequest {
+  repeated CompositionStep steps = 1;
+  bytes initial_input_data = 2;
+  string input_format = 3;
+  google.protobuf.Struct initial_parameters = 4;
+  string correlation_id = 5;
+  string device_id = 6;
+  int32 timeout_ms = 7;
+}
+
+message ExecuteCompositionResponse {
+  repeated ExecuteResponse step_results = 1;
+  ExecuteResponse final_output = 2;
+  int64 total_execution_time_ms = 3;
+  string status = 4;
+}
+
+// ── Worker Pool 状态 ──
+
+message WorkerPoolStatusRequest {}
+
+message WorkerPoolStatusResponse {
+  int32 total_workers = 1;
+  int32 active_workers = 2;
+  int32 idle_workers = 3;
+  int32 pending_tasks = 4;
+  int64 total_executed = 5;
+  double avg_execution_ms = 6;
 }
 
 // ── 模型管理消息 ──

@@ -8,6 +8,8 @@
 # ── 全局配置 ──
 global:
   namespace: xilian
+  # FIX-109: hostname 集中定义，ingress/tls 引用此变量
+  hostname: platform.xilian.io
   imageRegistry: ""
   imagePullSecrets: []
   storageClass: ""
@@ -103,14 +105,13 @@ app:
       nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
       nginx.ingress.kubernetes.io/websocket-services: xilian-app
     hosts:
-      - host: platform.xilian.io
+      - host: ""  # FIX-109: 由模板自动填充 global.hostname
         paths:
           - path: /
             pathType: Prefix
     tls:
       - secretName: xilian-tls
-        hosts:
-          - platform.xilian.io
+        hosts: []  # FIX-109: 由模板自动填充 global.hostname
   nodeSelector: {}
   affinity:
     podAntiAffinity:
@@ -136,10 +137,32 @@ edge:
     enabled: false
 
 # ============================================================
-# 微服务拆分（默认关闭，启用后独立部署 device/algorithm 域）
+# 微服务拆分（默认关闭，Strangler Fig 渐进式拆分）
+# 启用后独立部署各域服务，单体自动降级
+# healthPort: 若设置，使用 HTTP 健康检查（适用于带 HTTP health 端点的服务）
 # ============================================================
 microservices:
-  enabled: false  # true = 启用 gRPC 微服务模式
+  enabled: false  # true = 启用微服务模式
+  # ── 配置中心（HTTP 服务，独立管理全局配置） ──
+  configCenter:
+    enabled: false
+    image:
+      repository: xilian/config-center
+      tag: latest
+    replicas: 2
+    port: 8900        # HTTP 主端口
+    healthPort: 8900   # HTTP 健康检查端口
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+    env:
+      DEPLOYMENT_MODE: microservices
+      CONFIG_CENTER_PORT: "8900"
+  # ── 设备服务（gRPC） ──
   device:
     enabled: false
     image:
@@ -157,13 +180,15 @@ microservices:
     env:
       DEPLOYMENT_MODE: microservices
       DEVICE_SERVICE_PORT: "50051"
+  # ── 算法服务（gRPC + HTTP health） ──
   algorithm:
     enabled: false
     image:
       repository: xilian/algorithm-service
       tag: latest
     replicas: 2
-    port: 50052
+    port: 50052        # gRPC 主端口
+    healthPort: 3080   # HTTP 健康检查端口
     resources:
       requests:
         cpu: 500m
@@ -174,7 +199,48 @@ microservices:
     env:
       DEPLOYMENT_MODE: microservices
       ALGORITHM_SERVICE_PORT: "50052"
+      ALGORITHM_HEALTH_PORT: "3080"
       WORKER_POOL_SIZE: "4"
+  # ── AI 推理服务（gRPC + HTTP health） ──
+  aiInference:
+    enabled: false
+    image:
+      repository: xilian/ai-inference
+      tag: latest
+    replicas: 2
+    port: 50057        # gRPC 主端口
+    healthPort: 3090   # HTTP 健康检查端口
+    resources:
+      requests:
+        cpu: 1000m
+        memory: 2Gi
+      limits:
+        cpu: 4000m
+        memory: 8Gi
+    env:
+      DEPLOYMENT_MODE: microservices
+      AI_INFERENCE_PORT: "50057"
+      AI_HEALTH_PORT: "3090"
+  # ── 诊断服务（gRPC + HTTP health） ──
+  diagnosis:
+    enabled: false
+    image:
+      repository: xilian/diagnosis-service
+      tag: latest
+    replicas: 2
+    port: 50058        # gRPC 主端口
+    healthPort: 3095   # HTTP 健康检查端口
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+      limits:
+        cpu: 2000m
+        memory: 4Gi
+    env:
+      DEPLOYMENT_MODE: microservices
+      DIAGNOSIS_SERVICE_PORT: "50058"
+      DIAGNOSIS_HEALTH_PORT: "3095"
 
 # ============================================================
 # 可观测性
@@ -353,3 +419,53 @@ serviceAccount:
 
 rbac:
   create: true
+
+# ============================================================
+# Secrets — 部署时通过 --set 或 values 文件覆盖
+# ============================================================
+secrets:
+  mysqlUrl: ""
+  redisUrl: ""
+  jwtSecret: ""
+  kafkaBrokers: ""
+  clickhouseUrl: ""
+  minioAccessKey: ""
+  minioSecretKey: ""
+  neo4jPassword: ""
+  elasticsearchPassword: ""
+  xaiApiKey: ""
+
+# ============================================================
+# ConfigMap — 应用配置（非敏感项，支持热更新）
+# ============================================================
+configMap:
+  enabled: true
+  data:
+    # 平台运行参数
+    CIRCUIT_BREAKER_ENABLED: "true"
+    CIRCUIT_BREAKER_TIMEOUT: "120000"
+    CIRCUIT_BREAKER_ERROR_THRESHOLD: "50"
+    CIRCUIT_BREAKER_RESET_TIMEOUT: "60000"
+    RATE_LIMIT_ENABLED: "true"
+    RATE_LIMIT_GLOBAL: "300"
+    RATE_LIMIT_API: "100"
+    # FIX-110: gRPC 服务使用 K8s service DNS
+    DEPLOYMENT_MODE: "monolith"
+    ALGORITHM_SERVICE_HOST: "xilian-algorithm-service"
+    DEVICE_SERVICE_HOST: "xilian-device-service"
+    # 可观测性
+    OTEL_ENABLED: "true"
+    OTEL_SERVICE_NAME: "xilian-platform"
+    PROMETHEUS_ENABLED: "true"
+    # 感知层
+    PERCEPTION_RING_BUFFER_SIZE: "4096"
+    PERCEPTION_BPA_WINDOW_SEC: "60"
+    # 认知层
+    COGNITION_DS_CONFLICT_THRESHOLD: "0.3"
+    COGNITION_PHYSICS_VALIDATION: "true"
+    # 进化层
+    EVOLUTION_SHADOW_ENABLED: "false"
+    EVOLUTION_CHAMPION_CHALLENGER: "false"
+    # 联邦蒸馏
+    FEDERATED_MIN_CONTRIBUTORS: "2"
+    FEDERATED_MAX_PACKAGE_SIZE_MB: "50"

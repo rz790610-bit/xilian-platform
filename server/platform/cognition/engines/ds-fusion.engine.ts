@@ -31,6 +31,8 @@ import type {
   DSEvidenceInput,
   DSFusionOutput,
   DSFusionLogEntry,
+  DSPhysicsVetoRule,
+  DSPhysicsVetoResult,
 } from '../types';
 
 const log = createModuleLogger('dsFusionEngine');
@@ -463,6 +465,86 @@ export class DSFusionEngine {
   }
 
   // ==========================================================================
+  // 物理否决 — physics_veto (P1-1)
+  // ==========================================================================
+
+  /**
+   * 物理约束否决 — physics_veto 策略
+   *
+   * 后融合步骤：检查融合结果中的假设是否违反物理约束，
+   * 违反的假设信念归零并转移到 theta（不确定性）。
+   *
+   * 设计原则：物理约束优先于数据驱动结论（ADR-001）
+   *
+   * @param output 融合输出（会被原地修改）
+   * @param vetoRules 物理否决规则列表
+   * @returns 调整后的输出和否决结果
+   */
+  applyPhysicsVeto(
+    output: DSFusionOutput,
+    vetoRules: DSPhysicsVetoRule[],
+  ): { output: DSFusionOutput; vetoResult: DSPhysicsVetoResult } {
+    const adjustedMass = { ...output.fusedMass };
+    const originalMass = { ...output.fusedMass };
+    const vetoedHypotheses: string[] = [];
+    const vetoLog: DSPhysicsVetoResult['vetoLog'] = [];
+
+    for (const rule of vetoRules) {
+      if (!rule.violated) continue;
+
+      const belief = adjustedMass[rule.hypothesis] || 0;
+      if (belief <= 0) continue;
+
+      // 否决：将该假设的信念转移到 theta
+      adjustedMass.theta = (adjustedMass.theta || 0) + belief;
+      adjustedMass[rule.hypothesis] = 0;
+      vetoedHypotheses.push(rule.hypothesis);
+
+      vetoLog.push({
+        hypothesis: rule.hypothesis,
+        originalBelief: belief,
+        constraintId: rule.constraintId,
+        reason: rule.description,
+      });
+
+      // 记录到融合日志
+      output.fusionLog.push({
+        step: output.fusionLog.length,
+        sourceId: `physics_veto:${rule.constraintId}`,
+        inputMass: { [rule.hypothesis]: belief },
+        outputMass: { ...adjustedMass },
+        stepConflict: 0,
+        cumulativeConflict: output.totalConflict,
+        strategyUsed: output.strategyUsed,
+      });
+
+      log.info({
+        hypothesis: rule.hypothesis,
+        originalBelief: belief,
+        constraintId: rule.constraintId,
+        violationDegree: rule.violationDegree,
+      }, 'Physics veto applied: hypothesis belief transferred to theta');
+    }
+
+    if (vetoedHypotheses.length > 0) {
+      output.fusedMass = adjustedMass;
+      output.decision = this.getDecision(adjustedMass);
+      output.confidence = adjustedMass[output.decision] || 0;
+    }
+
+    return {
+      output,
+      vetoResult: {
+        vetoed: vetoedHypotheses.length > 0,
+        vetoedHypotheses,
+        originalMass,
+        adjustedMass: { ...adjustedMass },
+        vetoLog,
+      },
+    };
+  }
+
+  // ==========================================================================
   // 内部方法
   // ==========================================================================
 
@@ -630,4 +712,49 @@ export function createDSFusionEngine(config?: Partial<DSFusionEngineConfig>): DS
 /** 创建兼容旧版的 DS 融合适配器 */
 export function createLegacyDSEvidence(faultTypes: string[]): DSEvidenceLegacyAdapter {
   return new DSEvidenceLegacyAdapter(faultTypes);
+}
+
+// ============================================================================
+// 融合日志持久化工具 (P1-1)
+// ============================================================================
+
+/**
+ * 将融合日志映射到 hde_fusion_logs 表行格式
+ *
+ * 用于将 DSFusionOutput.fusionLog 持久化到数据库。
+ * 返回的数组可直接作为 Drizzle ORM 的 insert values。
+ */
+export function mapFusionLogToDBRows(
+  sessionId: string,
+  output: DSFusionOutput,
+): Array<{
+  sessionId: string;
+  step: number;
+  sourceId: string;
+  sourceType: string;
+  sourceReliability: number;
+  inputMass: Record<string, number>;
+  outputMass: Record<string, number>;
+  stepConflict: number;
+  cumulativeConflict: number;
+  strategyUsed: string;
+  strategySwitched: boolean;
+  switchReason: string | null;
+}> {
+  return output.fusionLog.map((entry, index) => ({
+    sessionId,
+    step: entry.step,
+    sourceId: entry.sourceId,
+    sourceType: entry.sourceId.startsWith('physics_veto:') ? 'veto' : 'evidence',
+    sourceReliability: output.sourceContributions[entry.sourceId] ?? 1.0,
+    inputMass: entry.inputMass,
+    outputMass: entry.outputMass,
+    stepConflict: entry.stepConflict,
+    cumulativeConflict: entry.cumulativeConflict,
+    strategyUsed: entry.strategyUsed,
+    strategySwitched: index > 0 && entry.strategyUsed !== output.fusionLog[index - 1]?.strategyUsed,
+    switchReason: index > 0 && entry.strategyUsed !== output.fusionLog[index - 1]?.strategyUsed
+      ? `Conflict ${entry.cumulativeConflict.toFixed(3)} exceeded threshold`
+      : null,
+  }));
 }

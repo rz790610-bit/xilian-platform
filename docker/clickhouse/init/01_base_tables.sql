@@ -12,7 +12,43 @@ CREATE DATABASE IF NOT EXISTS portai_timeseries;
 -- Section A: V1 基础表（device_id 体系，向后兼容）
 -- =============================================
 
--- 传感器原始读数表（高频写入）
+-- 传感器原始读数表（ClickHouseStorage 集群模式写入，7天TTL，Gorilla压缩）
+CREATE TABLE IF NOT EXISTS portai_timeseries.sensor_readings_raw (
+    device_id    String,
+    sensor_id    String,
+    metric_name  String,
+    value        Float64 CODEC(Gorilla, LZ4),
+    unit         String DEFAULT '',
+    quality      Enum8('good' = 1, 'uncertain' = 2, 'bad' = 3) DEFAULT 'good',
+    timestamp    DateTime64(3) CODEC(DoubleDelta, LZ4),
+    metadata     String DEFAULT '{}'
+) ENGINE = MergeTree()
+PARTITION BY toYYYYMM(timestamp)
+ORDER BY (device_id, sensor_id, metric_name, timestamp)
+TTL toDateTime(timestamp) + INTERVAL 7 DAY
+SETTINGS index_granularity = 8192;
+
+-- 故障事件表（永久保留）
+CREATE TABLE IF NOT EXISTS portai_timeseries.fault_events (
+    event_id          String,
+    device_id         String,
+    fault_code        String,
+    fault_type        String,
+    severity          Enum8('info' = 1, 'warning' = 2, 'error' = 3, 'critical' = 4),
+    description       String,
+    root_cause        Nullable(String),
+    resolution        Nullable(String),
+    start_time        DateTime64(3),
+    end_time          Nullable(DateTime64(3)),
+    duration_seconds  Nullable(UInt32),
+    affected_sensors  Array(String),
+    metadata          String DEFAULT '{}'
+) ENGINE = MergeTree()
+PARTITION BY toYYYYMM(start_time)
+ORDER BY (device_id, fault_code, start_time)
+SETTINGS index_granularity = 8192;
+
+-- 传感器原始读数表（V1 向后兼容，90天TTL）
 CREATE TABLE IF NOT EXISTS portai_timeseries.sensor_readings (
     device_id String,
     sensor_id String,

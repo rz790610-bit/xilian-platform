@@ -1,10 +1,13 @@
 /**
  * OTelMetricsPanel OpenTelemetry 运行时指标面板
- * 
+ *
  * 展示各模块的 OTel 指标：延迟、吞吐、错误率、资源使用
+ * 通过 Prometheus queryPrometheus API 获取真实指标值
  */
+import { useMemo } from 'react';
 import { PageCard } from '@/components/common/PageCard';
 import { Badge } from '@/components/ui/badge';
+import { trpc } from '@/lib/trpc';
 
 interface MetricDef {
   name: string;
@@ -30,11 +33,56 @@ const OTEL_METRICS: MetricDef[] = [
   { name: 'twin.rul.predictions_total', label: 'RUL 预测次数', type: 'counter', unit: '次', module: 'RULPredictor' },
 ];
 
+/** Convert metric dot-name to Prometheus underscore-name */
+function toPromName(name: string): string {
+  return name.replace(/\./g, '_');
+}
+
 interface Props {
   selectedModule?: string;
 }
 
 export default function OTelMetricsPanel({ selectedModule }: Props) {
+  // Fetch all twin_* metrics from Prometheus in a single query
+  const metricsQuery = trpc.observability.queryPrometheus.useQuery(
+    { expr: '{__name__=~"twin_.*"}', time: Math.floor(Date.now() / 1000) },
+    { refetchInterval: 15000, retry: false },
+  );
+
+  // Build a lookup map: prometheus metric name -> latest value string
+  const valueMap = useMemo(() => {
+    const map = new Map<string, string>();
+    if (metricsQuery.data?.status === 'success' && metricsQuery.data.data?.result) {
+      for (const series of metricsQuery.data.data.result) {
+        const metricName = series.metric.__name__;
+        if (metricName && series.value) {
+          map.set(metricName, series.value[1]);
+        }
+      }
+    }
+    return map;
+  }, [metricsQuery.data]);
+
+  /** Format a raw Prometheus value according to the metric type */
+  function getMetricDisplay(m: MetricDef): string {
+    const raw = valueMap.get(toPromName(m.name));
+    if (raw == null) return '\u2014'; // em-dash when unavailable
+
+    const num = parseFloat(raw);
+    if (isNaN(num)) return '\u2014';
+
+    switch (m.type) {
+      case 'counter':
+        return num.toLocaleString(undefined, { maximumFractionDigits: 0 });
+      case 'gauge':
+        return Number.isInteger(num) ? String(num) : num.toFixed(2);
+      case 'histogram':
+        return `${num.toFixed(1)}${m.unit ? ` ${m.unit}` : ''}`;
+      default:
+        return num.toFixed(2);
+    }
+  }
+
   const filteredMetrics = selectedModule
     ? OTEL_METRICS.filter(m => m.module === selectedModule)
     : OTEL_METRICS;
@@ -67,6 +115,11 @@ export default function OTelMetricsPanel({ selectedModule }: Props) {
   return (
     <div className="space-y-3">
       <PageCard title={`OTel 指标 (${filteredMetrics.length} 项)`} icon={<span className="text-xs">📈</span>} compact>
+        {metricsQuery.isError && (
+          <div className="text-[9px] text-amber-600 bg-amber-50 dark:bg-amber-950/20 rounded px-2 py-1 mb-2">
+            Prometheus 不可用，指标值显示为 —
+          </div>
+        )}
         <div className="space-y-3">
           {Object.entries(grouped).map(([module, metrics]) => (
             <div key={module}>
@@ -84,12 +137,10 @@ export default function OTelMetricsPanel({ selectedModule }: Props) {
                     {m.unit && (
                       <span className="text-[8px] text-muted-foreground">{m.unit}</span>
                     )}
-                    {/* 模拟实时值 */}
+                    {/* Real metric value from Prometheus */}
                     <div className="text-right">
                       <div className="text-[10px] font-mono font-semibold">
-                        {m.type === 'counter' ? Math.floor(Math.random() * 10000).toLocaleString()
-                          : m.type === 'gauge' ? Math.floor(Math.random() * 100)
-                          : `p50: ${Math.floor(Math.random() * 100)}ms`}
+                        {metricsQuery.isLoading ? '...' : getMetricDisplay(m)}
                       </div>
                     </div>
                   </div>

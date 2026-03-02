@@ -369,6 +369,34 @@ export const qualityReportService = {
       latestDate: stats.latestDate,
     };
   },
+
+  async create(report: {
+    reportType: string;
+    reportDate: string;
+    deviceCode?: string;
+    sensorId?: string;
+    totalRecords: number;
+    validRecords: number;
+    completeness?: number;
+    accuracy?: number;
+    qualityScore?: number;
+    metrics: Record<string, unknown>;
+    prevQualityScore?: number;
+    scoreChange?: number;
+  }) {
+    const db = await getDb();
+    if (!db) return { id: 0, success: false };
+    try {
+      const result = await db.insert(dataQualityReports).values({
+        ...report,
+        reportDate: new Date(report.reportDate),
+        createdAt: new Date(),
+      });
+      return { id: Number(result[0].insertId), success: true };
+    } catch {
+      return { id: 0, success: false };
+    }
+  },
 };
 
 // ============================================

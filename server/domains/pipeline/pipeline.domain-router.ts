@@ -34,6 +34,7 @@
  */
 import { router, publicProcedure, protectedProcedure } from '../../core/trpc';
 import { z } from 'zod';
+import { machineIdSchema, sessionIdSchema, severitySchema } from '../../../shared/contracts/schemas';
 import { getDb } from '../../lib/db';
 import { eq, desc, and, gte, lte, inArray, sql, asc } from 'drizzle-orm';
 import { observable } from '@trpc/server/observable';
@@ -76,6 +77,7 @@ import { DBSCANEngine } from '../../platform/cognition/worldmodel/dbscan-engine'
 import { worldModelToolManager } from '../../platform/cognition/worldmodel/grok-tools';
 import { twinConfigRouter } from './twinConfig.domain-router';
 import type { StateVector } from '../../platform/cognition/worldmodel/world-model';
+import { getWaveformService } from '../../platform/digital-twin/waveform.service';
 // 复用现有路由
 import { pipelineRouter } from '../../api/pipeline.router';
 import { dataPipelineRouter } from '../../api/dataPipeline.router';
@@ -1098,6 +1100,64 @@ export const pipelineDomainRouter = router({
   // Phase 3: 数字孪生路由
   // ========================================================================
 
+  /** 0. 设备档案 upsert */
+  upsertProfile: protectedProcedure
+    .input(z.object({
+      id: z.number().optional(),
+      type: z.string(),
+      manufacturer: z.string().optional(),
+      model: z.string().optional(),
+      physicalConstraints: z.array(z.object({
+        type: z.enum(['correlation', 'causation', 'bound']),
+        variables: z.array(z.string()),
+        expression: z.string(),
+        source: z.enum(['physics', 'learned', 'expert']),
+      })).optional(),
+      failureModes: z.array(z.object({
+        name: z.string(),
+        symptoms: z.array(z.string()),
+        physicsFormula: z.string(),
+        severity: z.enum(['critical', 'major', 'minor']),
+      })).optional(),
+      maintenanceSchedule: z.array(z.object({
+        component: z.string(),
+        intervalHours: z.number(),
+        condition: z.string(),
+      })).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return { id: 0, created: false, error: 'DB unavailable' };
+      try {
+        if (input.id) {
+          await db.update(equipmentProfiles)
+            .set({
+              type: input.type,
+              manufacturer: input.manufacturer,
+              model: input.model,
+              physicalConstraints: input.physicalConstraints,
+              failureModes: input.failureModes,
+              maintenanceSchedule: input.maintenanceSchedule,
+              updatedAt: new Date(),
+            })
+            .where(eq(equipmentProfiles.id, input.id));
+          return { id: input.id, created: false };
+        }
+        const result = await db.insert(equipmentProfiles).values({
+          type: input.type,
+          manufacturer: input.manufacturer,
+          model: input.model,
+          physicalConstraints: input.physicalConstraints,
+          failureModes: input.failureModes,
+          maintenanceSchedule: input.maintenanceSchedule,
+        });
+        return { id: Number(result[0].insertId), created: true };
+      } catch (err) {
+        log.warn({ err }, '[upsertProfile] failed');
+        return { id: 0, created: false, error: String(err) };
+      }
+    }),
+
   /** 1. 列出数字孪生体 */
   listEquipmentTwins: publicProcedure
     .query(async () => {
@@ -1367,6 +1427,27 @@ export const pipelineDomainRouter = router({
       });
 
       return result;
+    }),
+
+  /** P1-5: 传感器波形数据查询（含 ClickHouse 降级） */
+  getEquipmentWaveform: publicProcedure
+    .input(z.object({
+      equipmentId: z.string(),
+      sensorId: z.string(),
+      sampleCount: z.number().int().min(256).max(8192).default(2048),
+      timeRange: z.object({
+        start: z.string(),
+        end: z.string(),
+      }).optional(),
+    }))
+    .query(async ({ input }) => {
+      const waveformService = getWaveformService();
+      return waveformService.getWaveform({
+        equipmentId: input.equipmentId,
+        sensorId: input.sensorId,
+        sampleCount: input.sampleCount,
+        timeRange: input.timeRange,
+      });
     }),
 
   /** 审计日志查询 */

@@ -175,6 +175,45 @@ export interface DSFusionLogEntry {
 }
 
 // ============================================================================
+// DS 物理否决类型（P1-1: physics_veto）
+// ============================================================================
+
+/** 物理否决规则 — 描述某假设是否违反物理约束 */
+export interface DSPhysicsVetoRule {
+  /** 被检查的假设（故障类型） */
+  hypothesis: string;
+  /** 约束 ID */
+  constraintId: string;
+  /** 约束描述 */
+  description: string;
+  /** 约束类型 */
+  constraintType: 'energy_conservation' | 'force_balance' | 'thermal_limit' | 'frequency_limit';
+  /** 是否违反 */
+  violated: boolean;
+  /** 违反程度 [0, 1] */
+  violationDegree: number;
+}
+
+/** 物理否决结果 */
+export interface DSPhysicsVetoResult {
+  /** 是否触发了否决 */
+  vetoed: boolean;
+  /** 被否决的假设列表 */
+  vetoedHypotheses: string[];
+  /** 否决前的信念质量 */
+  originalMass: Record<string, number>;
+  /** 否决后的信念质量 */
+  adjustedMass: Record<string, number>;
+  /** 否决日志 */
+  vetoLog: Array<{
+    hypothesis: string;
+    originalBelief: number;
+    constraintId: string;
+    reason: string;
+  }>;
+}
+
+// ============================================================================
 // 认知刺激与结果
 // ============================================================================
 
