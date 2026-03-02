@@ -397,8 +397,13 @@ export class DecisionProcessor implements DimensionProcessor<DecisionOutput> {
   }
 
   // ==========================================================================
-  // 动作模板
+  // 动作模板 — FIX-086: 决策阈值提取为命名常量
   // ==========================================================================
+
+  /** 告警动作的高置信度阈值 */
+  private readonly ALERT_HIGH_CONF = 0.7;
+  /** 回滚触发的置信度阈值 */
+  private readonly ROLLBACK_CONF_THRESHOLD = 0.8;
 
   /**
    * 构建预定义的动作模板
@@ -470,7 +475,7 @@ export class DecisionProcessor implements DimensionProcessor<DecisionOutput> {
         },
         priorityFn: (ctx) => {
           const confidence = ctx.fusion?.data.dsFusionResult.confidence ?? 0;
-          return confidence > 0.7 ? 0.9 : 0.5;
+          return confidence > this.ALERT_HIGH_CONF ? 0.9 : 0.5;
         },
         costFn: () => 1,
         benefitFn: () => 30,
@@ -484,11 +489,11 @@ export class DecisionProcessor implements DimensionProcessor<DecisionOutput> {
         trigger: (ctx) => {
           if (!ctx.fusion?.success) return false;
           const { decision, confidence } = ctx.fusion.data.dsFusionResult;
-          return decision === 'faulty' && confidence > 0.8;
+          return decision === 'faulty' && confidence > this.ROLLBACK_CONF_THRESHOLD;
         },
         priorityFn: (ctx) => {
           const confidence = ctx.fusion?.data.dsFusionResult.confidence ?? 0;
-          return confidence > 0.8 ? 0.95 : 0.6;
+          return confidence > this.ROLLBACK_CONF_THRESHOLD ? 0.95 : 0.6;
         },
         costFn: () => 5,
         benefitFn: () => 80,

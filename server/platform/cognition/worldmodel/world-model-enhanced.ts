@@ -1110,9 +1110,12 @@ export class RULPredictor {
       minRulDays = 365;
     }
 
-    // 置信区间（基于历史数据量）
+    // 置信区间（基于历史数据量） — FIX-086: 公式参数可配置
     const dataPoints = stateHistory.length;
-    const confidence = Math.min(0.95, 0.5 + dataPoints * 0.01);
+    const RUL_CONF_CAP = 0.95;
+    const RUL_CONF_BASE = 0.5;
+    const RUL_CONF_PER_POINT = 0.01;
+    const confidence = Math.min(RUL_CONF_CAP, RUL_CONF_BASE + dataPoints * RUL_CONF_PER_POINT);
     const uncertaintyFactor = 1 + (1 - confidence);
 
     return {

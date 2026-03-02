@@ -592,17 +592,31 @@ export class SpatialExpertWrapper extends BaseExpert {
 // 内置模拟专家（用于开发/测试/演示）
 // ============================================================================
 
-/** 振动专家 confidence 默认值 — FIX-086: 可通过构造函数覆盖 */
+/** 振动专家 confidence 默认值 — FIX-083/086: 可通过构造函数覆盖 */
 export interface VibrationExpertThresholds {
   normalConfidence: number;
   bearingDamageConfidence: number;
   imbalanceConfidence: number;
+  /** 松动故障: confidence = min(looseCap, looseBase + (vib-15)*looseSlope) */
+  looseCap: number;
+  looseBase: number;
+  looseSlope: number;
+  /** 不对中: confidence = min(misalignCap, misalignBase + (vib-10)*misalignSlope) */
+  misalignCap: number;
+  misalignBase: number;
+  misalignSlope: number;
 }
 
 const DEFAULT_VIB_THRESHOLDS: VibrationExpertThresholds = {
   normalConfidence: 0.3,
   bearingDamageConfidence: 0.65,
   imbalanceConfidence: 0.6,
+  looseCap: 0.95,
+  looseBase: 0.5,
+  looseSlope: 0.05,
+  misalignCap: 0.9,
+  misalignBase: 0.4,
+  misalignSlope: 0.06,
 };
 
 /** 振动分析专家 — 基于振动信号特征的故障诊断 */
@@ -625,12 +639,12 @@ export class VibrationExpert extends BaseExpert {
 
     if (vibLevel > 15) {
       faultType = 'looseness';
-      confidence = Math.min(0.95, 0.5 + (vibLevel - 15) * 0.05);
+      confidence = Math.min(this.thresholds.looseCap, this.thresholds.looseBase + (vibLevel - 15) * this.thresholds.looseSlope);
       severity = 'high';
       recommendations.push('检查设备紧固件', '测量基础螺栓扭矩');
     } else if (vibLevel > 10) {
       faultType = 'misalignment';
-      confidence = Math.min(0.9, 0.4 + (vibLevel - 10) * 0.06);
+      confidence = Math.min(this.thresholds.misalignCap, this.thresholds.misalignBase + (vibLevel - 10) * this.thresholds.misalignSlope);
       severity = 'medium';
       recommendations.push('检查联轴器对中', '测量轴向振动');
     } else if (vibLevel > 7) {
@@ -673,11 +687,25 @@ export class VibrationExpert extends BaseExpert {
 export interface TemperatureExpertThresholds {
   normalConfidence: number;
   electricalFaultConfidence: number;
+  /** 高温轴承: confidence = min(highTempCap, highTempBase + (temp-90)*highTempSlope) */
+  highTempCap: number;
+  highTempBase: number;
+  highTempSlope: number;
+  /** 中温轴承: confidence = min(midTempCap, midTempBase + (temp-75)*midTempSlope) */
+  midTempCap: number;
+  midTempBase: number;
+  midTempSlope: number;
 }
 
 const DEFAULT_TEMP_THRESHOLDS: TemperatureExpertThresholds = {
   normalConfidence: 0.3,
   electricalFaultConfidence: 0.55,
+  highTempCap: 0.92,
+  highTempBase: 0.6,
+  highTempSlope: 0.02,
+  midTempCap: 0.8,
+  midTempBase: 0.4,
+  midTempSlope: 0.03,
 };
 
 /** 温度分析专家 — 基于温度特征的故障诊断 */
@@ -700,12 +728,12 @@ export class TemperatureExpert extends BaseExpert {
 
     if (temp > 90) {
       faultType = 'bearing_damage';
-      confidence = Math.min(0.92, 0.6 + (temp - 90) * 0.02);
+      confidence = Math.min(this.thresholds.highTempCap, this.thresholds.highTempBase + (temp - 90) * this.thresholds.highTempSlope);
       severity = 'critical';
       recommendations.push('立即停机检查', '检查润滑油状态', '更换轴承');
     } else if (temp > 75) {
       faultType = 'bearing_damage';
-      confidence = Math.min(0.8, 0.4 + (temp - 75) * 0.03);
+      confidence = Math.min(this.thresholds.midTempCap, this.thresholds.midTempBase + (temp - 75) * this.thresholds.midTempSlope);
       severity = 'high';
       recommendations.push('加强监测频率', '检查润滑系统');
     } else if (tempRise > 30) {
@@ -737,15 +765,29 @@ export class TemperatureExpert extends BaseExpert {
   }
 }
 
-/** 电流专家 confidence 默认值 — FIX-086 */
+/** 电流专家 confidence 默认值 — FIX-083/086 */
 export interface CurrentExpertThresholds {
   normalConfidence: number;
   gearWearConfidence: number;
+  /** 电流不平衡: confidence = min(imbalanceCap, imbalanceBase + currentImbalance*imbalanceSlope) */
+  imbalanceCap: number;
+  imbalanceBase: number;
+  imbalanceSlope: number;
+  /** 谐波畸变: confidence = min(thdCap, thdBase + thd*thdSlope) */
+  thdCap: number;
+  thdBase: number;
+  thdSlope: number;
 }
 
 const DEFAULT_CURRENT_THRESHOLDS: CurrentExpertThresholds = {
   normalConfidence: 0.3,
   gearWearConfidence: 0.45,
+  imbalanceCap: 0.9,
+  imbalanceBase: 0.5,
+  imbalanceSlope: 0.04,
+  thdCap: 0.85,
+  thdBase: 0.4,
+  thdSlope: 0.03,
 };
 
 /** 电流分析专家 — 基于电流信号的故障诊断 */
@@ -768,12 +810,12 @@ export class CurrentExpert extends BaseExpert {
 
     if (currentImbalance > 10) {
       faultType = 'electrical_fault';
-      confidence = Math.min(0.9, 0.5 + currentImbalance * 0.04);
+      confidence = Math.min(this.thresholds.imbalanceCap, this.thresholds.imbalanceBase + currentImbalance * this.thresholds.imbalanceSlope);
       severity = 'high';
       recommendations.push('检查电源质量', '测量三相电流', '检查接线端子');
     } else if (thd > 12) {
       faultType = 'electrical_fault';
-      confidence = Math.min(0.85, 0.4 + thd * 0.03);
+      confidence = Math.min(this.thresholds.thdCap, this.thresholds.thdBase + thd * this.thresholds.thdSlope);
       severity = 'medium';
       recommendations.push('检查变频器输出', '安装谐波滤波器');
     } else if (currentImbalance > 5) {
